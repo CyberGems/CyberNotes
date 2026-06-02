@@ -33,3 +33,9 @@ scratch
 *.db-journal
 *.backup-*
 
+# Private AI instruction files
+AGENTS.md
+CLAUDE.md
+.cursorrules
+.cursor/
+.github/copilot-instructions.md
