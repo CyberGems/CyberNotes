@@ -25,10 +25,12 @@
     "win": {
       "icon": "public/icon.ico",
       "target": [
-        "nsis"
+        "nsis",
+        "portable"
       ]
     },
     "nsis": {
+      "artifactName": "${productName}_Setup_${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
@@ -40,6 +42,9 @@
       ],
       "multiLanguageInstaller": true,
       "shortcutName": "CyberNotes"
+    },
+    "portable": {
+      "artifactName": "${productName}_Portable_${version}.${ext}"
     },
     "extraResources": [
       {
