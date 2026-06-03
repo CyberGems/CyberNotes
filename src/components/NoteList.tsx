@@ -4,6 +4,7 @@ import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { Plus, Trash2, Pin, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
 interface Props {
   language: Language;
@@ -95,6 +96,23 @@ export default function NoteList({
   const [renameInput, setRenameInput] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputMenu = useInputContextMenu(language);
+
+  // Cargar la densidad de la lista guardada (default: vista completa / 'normal')
+  useEffect(() => {
+    let active = true;
+    window.cyberNotesAPI?.getSetting('note_list_view_mode').then(v => {
+      if (active && (v === 'compact' || v === 'normal')) setViewMode(v);
+    });
+    return () => { active = false; };
+  }, []);
+
+  // Alterna y persiste la densidad elegida
+  const handleToggleViewMode = () => {
+    const next: ViewMode = viewMode === 'normal' ? 'compact' : 'normal';
+    setViewMode(next);
+    window.cyberNotesAPI?.setSetting('note_list_view_mode', next);
+  };
 
   useEffect(() => {
     const closeContextMenu = () => setContextMenu(null);
@@ -141,7 +159,7 @@ export default function NoteList({
       : t.sidebar.allNotes;
 
   return (
-    <div className="glass-effect notelist-glass" style={{
+    <div className="glass-effect notelist-glass" data-leave-guard="nav" style={{
       width: 'var(--notelist-width)',
       background: 'var(--bg-notelist)',
       borderRight: '1px solid var(--border)',
@@ -238,7 +256,7 @@ export default function NoteList({
             <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
 
             <button
-              onClick={() => setViewMode(viewMode === 'normal' ? 'compact' : 'normal')}
+              onClick={handleToggleViewMode}
               className="btn-icon"
               title={viewMode === 'normal' 
                 ? (language === 'es' ? 'Cambiar a vista compacta' : 'Switch to compact view') 
@@ -332,15 +350,15 @@ export default function NoteList({
               gap: 6,
               padding: '6px 16px',
               borderRadius: 8,
-              border: isHovering ? '1px solid var(--accent)' : '1px solid var(--border)',
+              border: isHovering ? '1px solid var(--accent)' : '1px solid rgba(255, 255, 255, 0.16)',
               background: 'var(--bg-surface)',
               color: isHovering ? 'var(--accent-light)' : 'var(--text-secondary)',
               cursor: 'pointer',
               fontWeight: 600,
               fontSize: 12,
               whiteSpace: 'nowrap',
-              animation: isHovering ? 'cyber-border-pulse 3s ease-in-out infinite' : 'none',
-              boxShadow: isHovering ? '0 0 2px var(--accent-glow)' : 'none',
+              animation: isHovering ? 'cyber-pill-pulse 3s ease-in-out infinite' : 'none',
+              boxShadow: isHovering ? '0 0 1px var(--accent-glow)' : 'none',
               transition: 'border-color 0.2s, color 0.2s, box-shadow 0.2s',
             }}
             onMouseDown={(e) => e.preventDefault()}
@@ -351,21 +369,21 @@ export default function NoteList({
       </div>
 
       <style>{`
-        @keyframes cyber-border-pulse {
+        @keyframes cyber-pill-pulse {
           0%, 100% {
             border-color: var(--accent);
-            box-shadow: 0 0 5px var(--accent-glow), inset 0 0 2px var(--accent-glow);
+            box-shadow: 0 0 2px rgba(0, 240, 255, 0.06), inset 0 0 1px rgba(0, 240, 255, 0.03);
             filter: brightness(1);
           }
           33% {
             border-color: #ff007f;
-            box-shadow: 0 0 9px rgba(255, 0, 127, 0.42), inset 0 0 3px rgba(255, 0, 127, 0.22);
-            filter: brightness(1.1);
+            box-shadow: 0 0 2px rgba(255, 0, 127, 0.05), inset 0 0 1px rgba(255, 0, 127, 0.03);
+            filter: brightness(1.02);
           }
           66% {
             border-color: #00f0ff;
-            box-shadow: 0 0 9px rgba(0, 240, 255, 0.42), inset 0 0 3px rgba(0, 240, 255, 0.22);
-            filter: brightness(1.1);
+            box-shadow: 0 0 2px rgba(0, 240, 255, 0.05), inset 0 0 1px rgba(0, 240, 255, 0.03);
+            filter: brightness(1.02);
           }
         }
       `}</style>
@@ -478,6 +496,7 @@ export default function NoteList({
               onChange={e => setRenameInput(e.target.value)}
               className="input"
               placeholder={language === 'es' ? 'Nombre de la nota' : 'Note name'}
+              onContextMenu={inputMenu.onContextMenu}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
                   onRenameNote(renameTarget.id, renameInput);
@@ -578,6 +597,8 @@ export default function NoteList({
         </div>,
         document.body
       )}
+
+      {inputMenu.menu}
     </div>
   );
 }
@@ -604,7 +625,10 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
       onClick={onClick}
       onContextMenu={onContextMenu}
       draggable={true}
-      onDragStart={e => (e as any).dataTransfer.setData('text/plain', note.id)}
+      onDragStart={e => {
+        (e as any).dataTransfer.setData('text/plain', note.id);
+        (e as any).dataTransfer.effectAllowed = 'move';
+      }}
       whileHover="hover"
       whileTap="tap"
       initial={{ opacity: 0, y: 6 }}
@@ -612,8 +636,8 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.2 }}
       style={{
-        padding: viewMode === 'compact' ? '10px 14px' : '12px 14px',
-        margin: '6px 12px',
+        padding: viewMode === 'compact' ? '5px 14px' : '10px 14px',
+        margin: viewMode === 'compact' ? '3px 12px' : '4px 12px',
         borderRadius: 'var(--radius-md)',
         background: isSelected ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
         cursor: 'pointer',
@@ -700,7 +724,7 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginTop: viewMode === 'compact' ? 6 : 10,
+        marginTop: viewMode === 'compact' ? 3 : 8,
         gap: 8,
       }}>
         <span>{formatDate(note.updated_at, language)}</span>

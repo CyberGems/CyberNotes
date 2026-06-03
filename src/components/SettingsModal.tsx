@@ -4,6 +4,8 @@ import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { Language, TRANSLATIONS } from '../languages';
 import { X, Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2 } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
+import { DialogHost, DialogOptions } from './ConfirmDialog';
+import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
 interface Props {
   language: Language;
@@ -68,6 +70,23 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+
+  // Diálogo personalizado (reemplaza alert/confirm nativos)
+  const [dialog, setDialog] = useState<DialogOptions | null>(null);
+  const dialogResolver = useRef<((accepted: boolean) => void) | null>(null);
+
+  const showDialog = (options: DialogOptions) => new Promise<boolean>(resolve => {
+    dialogResolver.current = resolve;
+    setDialog(options);
+  });
+
+  const resolveDialog = (accepted: boolean) => {
+    setDialog(null);
+    dialogResolver.current?.(accepted);
+    dialogResolver.current = null;
+  };
+
+  const inputMenu = useInputContextMenu(language);
 
   const t = TRANSLATIONS[language];
 
@@ -146,7 +165,14 @@ export default function SettingsModal({
   };
 
   const handleRemovePassword = async () => {
-    if (!confirm(language === 'es' ? '¿Eliminar la contraseña de acceso? La app quedará sin protección.' : 'Remove lock password? The app will no longer be protected.')) return;
+    const proceed = await showDialog({
+      variant: 'warning',
+      confirm: true,
+      title: language === 'es' ? 'Eliminar contraseña' : 'Remove password',
+      message: language === 'es' ? '¿Eliminar la contraseña de acceso? La app quedará sin protección.' : 'Remove lock password? The app will no longer be protected.',
+      confirmLabel: language === 'es' ? 'Eliminar' : 'Remove',
+    });
+    if (!proceed) return;
     const ok = await window.cyberNotesAPI.verifyPassword(currentPwd);
     if (!ok) {
       setPwdMessage(language === 'es' ? 'Contraseña actual incorrecta' : 'Incorrect current password');
@@ -710,7 +736,11 @@ export default function SettingsModal({
                     className="btn btn-ghost"
                     onClick={async () => {
                       const ok = await window.cyberNotesAPI.exportData();
-                      if (ok) alert(language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.');
+                      if (ok) await showDialog({
+                        variant: 'success',
+                        title: language === 'es' ? 'Exportación completada' : 'Export complete',
+                        message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
+                      });
                     }}
                     style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))' }}
                   >
@@ -721,10 +751,20 @@ export default function SettingsModal({
                     className="btn btn-ghost"
                     style={{ gap: 8, fontSize: 13, color: 'var(--warning)' }}
                     onClick={async () => {
-                      if (!confirm(language === 'es' ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?' : 'Importing a backup will merge data with current notes. Do you want to continue?')) return;
+                      const proceed = await showDialog({
+                        variant: 'warning',
+                        confirm: true,
+                        title: language === 'es' ? 'Importar backup' : 'Import backup',
+                        message: language === 'es' ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?' : 'Importing a backup will merge data with current notes. Do you want to continue?',
+                      });
+                      if (!proceed) return;
                       const ok = await window.cyberNotesAPI.importData();
                       if (ok) {
-                        alert(language === 'es' ? 'Datos importados correctamente. La aplicación se recargará.' : 'Data successfully imported. The application will reload.');
+                        await showDialog({
+                          variant: 'success',
+                          title: language === 'es' ? 'Importación completada' : 'Import complete',
+                          message: language === 'es' ? 'Datos importados correctamente. La aplicación se recargará.' : 'Data successfully imported. The application will reload.',
+                        });
                         window.location.reload();
                       }
                     }}
@@ -755,6 +795,7 @@ export default function SettingsModal({
                     placeholder={language === 'es' ? 'Contraseña actual (si tienes una)' : 'Current password (if you have one)'}
                     className="input"
                     style={{ paddingRight: 36 }}
+                    onContextMenu={inputMenu.onContextMenu}
                   />
                   <button
                     type="button"
@@ -773,6 +814,7 @@ export default function SettingsModal({
                   onChange={e => setNewPwd(e.target.value)}
                   placeholder={language === 'es' ? 'Nueva contraseña' : 'New password'}
                   className="input"
+                  onContextMenu={inputMenu.onContextMenu}
                 />
 
                 <input
@@ -782,6 +824,7 @@ export default function SettingsModal({
                   placeholder={language === 'es' ? 'Confirmar nueva contraseña' : 'Confirm new password'}
                   className="input"
                   onKeyDown={e => { if (e.key === 'Enter') handleSetPassword(); }}
+                  onContextMenu={inputMenu.onContextMenu}
                 />
 
                 {pwdMessage && (
@@ -892,7 +935,7 @@ export default function SettingsModal({
                 />
               <div style={{ textAlign: 'center' }}>
                 <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>CyberNotes</h2>
-                <p style={{ color: 'var(--text-muted)', marginTop: 6, fontSize: 13 }}>{language === 'es' ? 'Versión 1.0.0' : 'Version 1.0.0'}</p>
+                <p style={{ color: 'var(--text-muted)', marginTop: 6, fontSize: 13 }}>{language === 'es' ? 'Versión 1.5.0' : 'Version 1.5.0'}</p>
               </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 1.7 }}>
                 {language === 'es' 
@@ -903,6 +946,9 @@ export default function SettingsModal({
           )}
         </div>
       </div>
+
+      <DialogHost language={language} options={dialog} onResolve={resolveDialog} />
+      {inputMenu.menu}
     </div>
   );
 }

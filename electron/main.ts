@@ -200,6 +200,8 @@ function getTrayMenuTemplate(): any[] {
   const isEs = lang === 'es';
 
   return [
+    { label: `CyberNotes  ·  v${app.getVersion()}`, enabled: false },
+    { type: 'separator' },
     { label: isEs ? 'Abrir CyberNotes' : 'Open CyberNotes', click: restoreWindow },
     { 
       label: isEs ? 'Configuración' : 'Settings', 

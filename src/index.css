@@ -598,29 +598,6 @@ body:has(.has-bg),
   white-space: nowrap;
 }
 
-.dirty-indicator-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #f97316; /* Amber/Orange */
-  box-shadow: 0 0 8px #ea580c, 0 0 16px #ea580c;
-  animation: pulse-orange 1.5s infinite ease-in-out;
-  flex-shrink: 0;
-}
-
-@keyframes pulse-orange {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-    box-shadow: 0 0 8px #ea580c;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 0.7;
-    box-shadow: 0 0 14px #ea580c, 0 0 20px #ea580c;
-  }
-}
-
 .tab-close-btn {
   display: flex;
   align-items: center;

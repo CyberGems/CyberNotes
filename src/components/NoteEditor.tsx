@@ -1,5 +1,6 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -42,6 +43,7 @@ interface Props {
   onCloseTab?: (id: string) => void;
   draftCache?: Record<string, { title: string; content: string }>;
   onEditDraft?: (id: string, title: string, content: string) => void;
+  onDiscardDraft?: (id: string) => void;
   tabsWidthMode?: 'normal' | 'wide';
 }
 
@@ -126,11 +128,13 @@ export default function NoteEditor({
   onCloseTab,
   draftCache = {},
   onEditDraft,
+  onDiscardDraft,
   tabsWidthMode = 'normal'
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentNoteRef = useRef<Note | null>(note);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const editorRootRef = useRef<HTMLDivElement | null>(null);
   const isSelectionChangingRef = useRef(false);
   const lastContextMenuTargetRef = useRef<'title' | 'editor'>('editor');
   const lastContextMenuTimeRef = useRef(0);
@@ -187,9 +191,10 @@ export default function NoteEditor({
   const [pinned, setPinned] = useState(note?.pinned === 1);
   const [isRaw, setIsRaw] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, linkHref?: string, suggestions?: string[], misspelledWord?: string, target?: 'title' | 'editor' } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const linkInputMenu = useInputContextMenu(language);
   const [editLinkData, setEditLinkData] = useState<{ href: string } | null>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
-  const [inputContextMenu, setInputContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [lineInfo, setLineInfo] = useState({ line: 1, col: 1, total: 1 });
   const [textMetrics, setTextMetrics] = useState({ words: 0, chars: 0, readingTime: 0 });
   const [localTitle, setLocalTitle] = useState(note?.title || '');
@@ -211,6 +216,7 @@ export default function NoteEditor({
     }
   };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showLeaveEditorWarning, setShowLeaveEditorWarning] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
@@ -219,6 +225,13 @@ export default function NoteEditor({
   const prevCapsActiveRef = useRef<boolean | null>(null);
   const prevCapsActiveForSoundRef = useRef<boolean | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+
+  // Refs sincronizados en cada render: garantizan valores frescos dentro de los
+  // callbacks de TipTap (onBlur) evitando cualquier cierre obsoleto (stale closure).
+  const autosaveEnabledRef = useRef(autosaveEnabled);
+  autosaveEnabledRef.current = autosaveEnabled;
+  const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
+  hasUnsavedChangesRef.current = hasUnsavedChanges;
 
   // 1. Initial check on startup / mount
   useEffect(() => {
@@ -355,7 +368,6 @@ export default function NoteEditor({
   useEffect(() => {
     const closeMenu = () => {
       setContextMenu(null);
-      setInputContextMenu(null);
       setShowExportMenu(false);
     };
     document.addEventListener('click', closeMenu);
@@ -372,12 +384,10 @@ export default function NoteEditor({
           return;
         }
 
-        let safeY = mousePos.y;
-        if (safeY + 300 > window.innerHeight) safeY = window.innerHeight - 300;
-        
+        // El reposicionamiento dentro de la ventana lo afina useLayoutEffect tras medir el menú.
         setContextMenu({
           x: mousePos.x,
-          y: safeY,
+          y: mousePos.y,
           linkHref: data.linkURL,
           suggestions: data.suggestions || [],
           misspelledWord: data.misspelledWord || '',
@@ -391,6 +401,27 @@ export default function NoteEditor({
       if (unregisterContext) unregisterContext();
     };
   }, []);
+
+  // Reposiciona el menú contextual para que no se desborde de la ventana.
+  // Mide el tamaño real (su ancho varía: sugerencias, "agregar al diccionario", etc.).
+  useLayoutEffect(() => {
+    if (!contextMenu) return;
+    const el = contextMenuRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let nextX = contextMenu.x;
+    let nextY = contextMenu.y;
+    if (nextX + rect.width + margin > window.innerWidth) {
+      nextX = Math.max(margin, window.innerWidth - rect.width - margin);
+    }
+    if (nextY + rect.height + margin > window.innerHeight) {
+      nextY = Math.max(margin, window.innerHeight - rect.height - margin);
+    }
+    if (nextX !== contextMenu.x || nextY !== contextMenu.y) {
+      setContextMenu(cm => (cm ? { ...cm, x: nextX, y: nextY } : cm));
+    }
+  }, [contextMenu]);
 
   // Keep language synchronized on window for tiptap extensions
   (window as any).__currentLanguage = language;
@@ -410,7 +441,10 @@ export default function NoteEditor({
       Link.configure({
         openOnClick: true,
         autolink: true,
-        linkOnPaste: true,
+        // false: al pegar una URL sobre una selección, reemplaza el texto en vez
+        // de aplicar el enlace al texto seleccionado ("adoptarlo"). autolink sigue
+        // haciendo clicable la URL pegada.
+        linkOnPaste: false,
         HTMLAttributes: {
           target: '_blank',
           rel: 'noopener noreferrer',
@@ -443,20 +477,38 @@ export default function NoteEditor({
     onFocus: () => {
       setIsFocused(true);
     },
-    onBlur: ({ editor }) => {
+    onBlur: ({ editor, event }) => {
       setIsFocused(false);
       if (isDirtyRef.current) {
         const html = editor.getHTML();
         const current = currentNoteRef.current;
         if (current) {
-          const preview = extractPreview(html);
-          onSave({ ...current, content: html, preview });
-          isDirtyRef.current = false;
+          if (autosaveEnabledRef.current) {
+            const preview = extractPreview(html);
+            onSave({ ...current, content: html, preview });
+            isDirtyRef.current = false;
+          } else {
+            // Modo manual: NO persistir al perder el foco; solo mantener el borrador al día.
+            onEditDraft?.(current.id, localTitleRef.current, html);
+          }
         }
       }
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
+      }
+
+      // Caso B — Modo manual con cambios sin guardar: avisar si el foco abandona el
+      // editor hacia una zona neutra (no el título, ni controles internos, ni navegación).
+      // document.hasFocus() evita falsos positivos al cambiar de ventana (alt-tab).
+      if (!autosaveEnabledRef.current && hasUnsavedChangesRef.current && document.hasFocus()) {
+        const target = (event?.relatedTarget as HTMLElement | null) || ((window as any).lastMouseDownEl as HTMLElement | null);
+        const goesToTitle = !!target && target === titleInputRef.current;
+        const goesInsideEditor = !!target && !!editorRootRef.current?.contains(target);
+        const goesToNav = !!target && !!target.closest?.('[data-leave-guard="nav"]');
+        if (target && !goesToTitle && !goesInsideEditor && !goesToNav) {
+          setShowLeaveEditorWarning(true);
+        }
       }
     },
   });
@@ -492,6 +544,29 @@ export default function NoteEditor({
     setHasUnsavedChanges(false);
     isDirtyRef.current = false;
   }, [editor, note, localTitle, onSave]);
+
+  // Descarta el borrador y restaura el editor al último estado guardado en disco.
+  const handleRevertToSaved = useCallback(() => {
+    if (!editor || !note) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    isSelectionChangingRef.current = true;
+    const content = note.content || '';
+    if (content.trim().startsWith('{')) {
+      try {
+        editor.commands.setContent(JSON.parse(content), false);
+      } catch {
+        editor.commands.setContent(content, false);
+      }
+    } else {
+      editor.commands.setContent(content, false);
+    }
+    setLocalTitle(note.title || '');
+    localTitleRef.current = note.title || '';
+    isDirtyRef.current = false;
+    setHasUnsavedChanges(false);
+    onDiscardDraft?.(note.id);
+    setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
+  }, [editor, note, onDiscardDraft]);
 
   // Sincronizar estado de cambios no guardados con el proceso principal
   useEffect(() => {
@@ -550,12 +625,13 @@ export default function NoteEditor({
 
     return () => {
       clearTimeout(timeoutId);
-      // Closure-based safeguard: flush save immediately when note changes or unmounts
+      // Closure-based safeguard: flush save immediately when note changes or unmounts.
+      // En modo manual NO persistimos: el borrador ya está al día en draftCache.
       if (saveTimer.current && isDirtyRef.current) {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
         const current = currentNoteRef.current;
-        if (current && editor) {
+        if (current && editor && autosaveEnabledRef.current) {
           const html = editor.getHTML();
           const preview = extractPreview(html);
           onSave({ ...current, content: html, preview });
@@ -764,7 +840,8 @@ export default function NoteEditor({
   }
 
   return (
-    <div 
+    <div
+      ref={editorRootRef}
       className={`glass-effect editor-glass ${isFocused ? 'focused-immersive' : ''}`}
       style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-editor)', overflow: 'hidden' }}
     >
@@ -847,37 +924,15 @@ export default function NoteEditor({
                   </span>
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, position: 'relative' }}>
-                    {isDirty ? (
-                      <div 
-                        className="dirty-indicator-dot"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCloseTab?.(tabId);
-                        }}
-                        onMouseEnter={(e) => {
-                          const target = e.currentTarget as HTMLElement;
-                          target.style.background = 'transparent';
-                          target.style.boxShadow = 'none';
-                          target.innerHTML = `<span style="color: #ef4444; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; line-height: 1;">✕</span>`;
-                        }}
-                        onMouseLeave={(e) => {
-                          const target = e.currentTarget as HTMLElement;
-                          target.style.background = '#f97316';
-                          target.style.boxShadow = '0 0 8px #ea580c';
-                          target.innerHTML = '';
-                        }}
-                      />
-                    ) : (
-                      <button
-                        className="tab-close-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCloseTab?.(tabId);
-                        }}
-                      >
-                        <X size={10} />
-                      </button>
-                    )}
+                    <button
+                      className="tab-close-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseTab?.(tabId);
+                      }}
+                    >
+                      <X size={10} />
+                    </button>
                   </div>
                 </div>
               );
@@ -1123,7 +1178,6 @@ export default function NoteEditor({
                     cursor: 'pointer',
                     fontWeight: 600,
                     fontSize: 11,
-                    boxShadow: '0 0 6px var(--accent-glow)',
                     animation: 'cyber-border-pulse 3s ease-in-out infinite',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
@@ -1548,7 +1602,8 @@ export default function NoteEditor({
       </div>
 
       {contextMenu && editor && createPortal(
-        <div 
+        <div
+          ref={contextMenuRef}
           className="glass-effect"
           style={{
             position: 'fixed',
@@ -1618,7 +1673,7 @@ export default function NoteEditor({
               </button>
               
               <button
-                onClick={() => { 
+                onClick={() => {
                   setEditLinkData({ href: contextMenu.linkHref! });
                   setContextMenu(null);
                 }}
@@ -1627,6 +1682,17 @@ export default function NoteEditor({
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 {language === 'es' ? 'Editar enlace' : 'Edit link'}
+              </button>
+              <button
+                onClick={() => {
+                  editor.chain().focus().extendMarkRange('link').unsetLink().run();
+                  setContextMenu(null);
+                }}
+                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--danger)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {language === 'es' ? 'Eliminar enlace' : 'Remove link'}
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
             </>
@@ -1760,43 +1826,48 @@ export default function NoteEditor({
             {t.general.delete}
           </button>
 
-          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-          
-          <button
-            onClick={() => { editor.chain().focus().toggleBold().run(); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, fontWeight: 'bold', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Negrita' : 'Bold'}
-          </button>
-          <button
-            onClick={() => { editor.chain().focus().toggleItalic().run(); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, fontStyle: 'italic', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Cursiva' : 'Italic'}
-          </button>
-          <button
-            onClick={() => { editor.chain().focus().toggleUnderline().run(); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, textDecoration: 'underline', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Subrayado' : 'Underline'}
-          </button>
+          {/* Formato de texto enriquecido: no aplica al título (input de texto plano). */}
+          {contextMenu.target !== 'title' && (
+            <>
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-          
-          <button
-            onClick={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, color: 'var(--text-muted)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
-          </button>
+              <button
+                onClick={() => { editor.chain().focus().toggleBold().run(); setContextMenu(null); }}
+                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, fontWeight: 'bold', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {language === 'es' ? 'Negrita' : 'Bold'}
+              </button>
+              <button
+                onClick={() => { editor.chain().focus().toggleItalic().run(); setContextMenu(null); }}
+                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, fontStyle: 'italic', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {language === 'es' ? 'Cursiva' : 'Italic'}
+              </button>
+              <button
+                onClick={() => { editor.chain().focus().toggleUnderline().run(); setContextMenu(null); }}
+                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, textDecoration: 'underline', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {language === 'es' ? 'Subrayado' : 'Underline'}
+              </button>
+
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+
+              <button
+                onClick={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); setContextMenu(null); }}
+                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, color: 'var(--text-muted)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
+              </button>
+            </>
+          )}
         </div>,
         document.body
       )}
@@ -1820,10 +1891,7 @@ export default function NoteEditor({
               onChange={e => setEditLinkData({ href: e.target.value })}
               className="input"
               placeholder="https://"
-              onContextMenu={e => {
-                e.preventDefault();
-                setInputContextMenu({ x: e.clientX, y: e.clientY });
-              }}
+              onContextMenu={linkInputMenu.onContextMenu}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
                    if (editLinkData.href === '') {
@@ -1855,54 +1923,8 @@ export default function NoteEditor({
                  setEditLinkData(null);
               }}>{t.general.save}</button>
             </div>
-            
-            {inputContextMenu && (
-              <div style={{
-                position: 'fixed',
-                left: inputContextMenu.x,
-                top: inputContextMenu.y,
-                background: 'var(--bg-modal)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: 6,
-                zIndex: 10001,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                minWidth: 140,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-              }}>
-                <button
-                  onClick={() => { document.execCommand('cut'); setInputContextMenu(null); }}
-                  style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >{language === 'es' ? 'Cortar' : 'Cut'}</button>
-                <button
-                  onClick={() => { document.execCommand('copy'); setInputContextMenu(null); }}
-                  style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >{language === 'es' ? 'Copiar' : 'Copy'}</button>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.readText().then(text => {
-                      setEditLinkData({ href: text });
-                    });
-                    setInputContextMenu(null);
-                  }}
-                  style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >{language === 'es' ? 'Pegar y Reemplazar' : 'Paste & Replace'}</button>
-                <button
-                  onClick={() => { setEditLinkData({ href: '' }); setInputContextMenu(null); }}
-                  style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-muted)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >{language === 'es' ? 'Limpiar campo' : 'Clear field'}</button>
-              </div>
-            )}
+
+            {linkInputMenu.menu}
           </div>
         </div>
       )}
@@ -1996,6 +2018,98 @@ export default function NoteEditor({
         document.body
       )}
 
+      {/* Caso B — Aviso al salir del editor con cambios sin guardar (modo manual) */}
+      <AnimatePresence>
+        {showLeaveEditorWarning && createPortal(
+          <div
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(5, 5, 8, 0.8)',
+              backdropFilter: 'blur(16px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 20000,
+            }}
+            onClick={() => setShowLeaveEditorWarning(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 15 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 330 }}
+              className="glass-effect"
+              style={{
+                width: 'calc(420px * var(--ui-scale))',
+                background: 'rgba(15, 15, 22, 0.95)',
+                border: '1px solid rgba(234, 88, 12, 0.3)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '24px 28px',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05)',
+                display: 'flex', flexDirection: 'column', gap: 20,
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: 'rgba(234, 88, 12, 0.1)',
+                  border: '1px solid rgba(234, 88, 12, 0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.6))' }}>
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 style={{ fontSize: 'calc(16px * var(--ui-scale))', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
+                    {language === 'es' ? '¿Salir sin guardar?' : 'Leave without saving?'}
+                  </h3>
+                  <p style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-muted)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                    {language === 'es'
+                      ? 'Si sales del editor perderás los cambios sin guardar de esta nota.'
+                      : 'If you leave the editor you will lose this note’s unsaved changes.'}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => { handleManualSave(); setShowLeaveEditorWarning(false); }}
+                  style={{ justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
+                >
+                  {language === 'es' ? 'Guardar' : 'Save'}
+                </button>
+
+                <button
+                  className="btn btn-danger"
+                  onClick={() => { handleRevertToSaved(); setShowLeaveEditorWarning(false); }}
+                  style={{
+                    justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))',
+                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#ef4444', transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => { const b = e.currentTarget; b.style.background = '#ef4444'; b.style.color = '#fff'; }}
+                  onMouseLeave={(e) => { const b = e.currentTarget; b.style.background = 'rgba(239, 68, 68, 0.1)'; b.style.color = '#ef4444'; }}
+                >
+                  {language === 'es' ? 'Salir sin guardar' : 'Leave without saving'}
+                </button>
+
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => { setShowLeaveEditorWarning(false); editor?.commands.focus(); }}
+                  style={{ justifyContent: 'center', padding: '8px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
+                >
+                  {language === 'es' ? 'Seguir editando' : 'Keep editing'}
+                </button>
+              </div>
+            </motion.div>
+          </div>,
+          document.body
+        )}
+      </AnimatePresence>
+
       <style>{`
         .ProseMirror {
           caret-color: var(--text-primary) !important;
@@ -2003,18 +2117,15 @@ export default function NoteEditor({
         @keyframes cyber-border-pulse {
           0%, 100% {
             border-color: var(--accent);
-            box-shadow: 0 0 10px var(--accent-glow), inset 0 0 4px var(--accent-glow);
             filter: brightness(1);
           }
           33% {
             border-color: #ff007f;
-            box-shadow: 0 0 18px rgba(255, 0, 127, 0.85), inset 0 0 6px rgba(255, 0, 127, 0.45);
-            filter: brightness(1.2);
+            filter: brightness(1.02);
           }
           66% {
             border-color: #00f0ff;
-            box-shadow: 0 0 18px rgba(0, 240, 255, 0.85), inset 0 0 6px rgba(0, 240, 255, 0.45);
-            filter: brightness(1.2);
+            filter: brightness(1.02);
           }
         }
       `}</style>

@@ -27,6 +27,9 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
   const [draftCache, setDraftCache] = useState<Record<string, { title: string; content: string }>>({});
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
+  const [pendingNavNoteId, setPendingNavNoteId] = useState<string | null>(null);
+  const [confirmLeaveDismissed, setConfirmLeaveDismissed] = useState(false);
+  const [dontAskChecked, setDontAskChecked] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
@@ -60,6 +63,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   useEffect(() => {
     const trackMouse = (e: MouseEvent) => {
       (window as any).lastMousePos = { x: e.clientX, y: e.clientY };
+      (window as any).lastMouseDownEl = e.target;
     };
     window.addEventListener('mousedown', trackMouse, true);
     window.addEventListener('contextmenu', trackMouse, true);
@@ -203,6 +207,9 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
 
     const autosave = await window.cyberNotesAPI.getSetting('autosave_enabled');
     if (autosave !== null) setAutosaveEnabled(autosave === 'true');
+
+    const dismissed = await window.cyberNotesAPI.getSetting('confirm_leave_note_dismissed');
+    setConfirmLeaveDismissed(dismissed === 'true');
 
     const capsLock = await window.cyberNotesAPI.getSetting('auto_unlock_caps_lock');
     setAutoUnlockCapsLock(capsLock === 'true');
@@ -350,6 +357,26 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       [id]: { title, content }
     }));
   }, []);
+
+  const handleDiscardDraft = useCallback((id: string) => {
+    setDraftCache(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  // Guard de navegación (Caso A): si dejamos una nota con borrador en modo manual,
+  // pedimos confirmación antes de cambiar de nota/pestaña.
+  const handleAttemptSelectNote = useCallback((targetId: string) => {
+    if (targetId === selectedNoteId) return;
+    if (!autosaveEnabled && selectedNoteId && draftCache[selectedNoteId] && !confirmLeaveDismissed) {
+      setDontAskChecked(false);
+      setPendingNavNoteId(targetId);
+      return;
+    }
+    setSelectedNoteId(targetId);
+  }, [selectedNoteId, autosaveEnabled, draftCache, confirmLeaveDismissed]);
 
   const executeCloseTab = useCallback((id: string) => {
     setOpenNoteIds(prev => {
@@ -641,7 +668,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
               notes={notes}
               folders={folders}
               selectedNoteId={selectedNoteId}
-              onSelectNote={setSelectedNoteId}
+              onSelectNote={handleAttemptSelectNote}
               onCreateNote={handleCreateNote}
               onDeleteNote={handleDeleteNote}
               onTogglePin={handleTogglePin}
@@ -681,10 +708,11 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           openNoteIds={openNoteIds}
           notes={allNotes}
           folders={folders}
-          onSelectNote={setSelectedNoteId}
+          onSelectNote={handleAttemptSelectNote}
           onCloseTab={handleCloseTab}
           draftCache={draftCache}
           onEditDraft={handleEditDraft}
+          onDiscardDraft={handleDiscardDraft}
           tabsWidthMode={tabsWidthMode}
         />
       </div>
@@ -860,6 +888,132 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
                   style={{ justifyContent: 'center', padding: '8px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
                 >
                   {language === 'es' ? 'Cancelar' : 'Cancel'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Confirmación al Navegar fuera de una nota con borrador (Caso A) */}
+      <AnimatePresence>
+        {pendingNavNoteId && (
+          <div
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(5, 5, 8, 0.8)',
+              backdropFilter: 'blur(16px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 20000,
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 15 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 330 }}
+              className="glass-effect"
+              style={{
+                width: 'calc(420px * var(--ui-scale))',
+                background: 'rgba(15, 15, 22, 0.95)',
+                border: '1px solid rgba(234, 88, 12, 0.3)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '24px 28px',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05)',
+                display: 'flex', flexDirection: 'column', gap: 20,
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: 'rgba(234, 88, 12, 0.1)',
+                  border: '1px solid rgba(234, 88, 12, 0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.6))' }}>
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 style={{ fontSize: 'calc(16px * var(--ui-scale))', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
+                    {language === 'es' ? '¿Salir sin guardar?' : 'Leave without saving?'}
+                  </h3>
+                  <p style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-muted)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                    {language === 'es'
+                      ? `La nota "${(selectedNoteId && draftCache[selectedNoteId]?.title) || selectedNote?.title || ''}" tiene cambios sin guardar.`
+                      : `The note "${(selectedNoteId && draftCache[selectedNoteId]?.title) || selectedNote?.title || ''}" has unsaved changes.`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Checkbox "No volver a mostrar" */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-muted)' }}>
+                <input
+                  type="checkbox"
+                  checked={dontAskChecked}
+                  onChange={e => setDontAskChecked(e.target.checked)}
+                  style={{ accentColor: 'var(--accent)', width: 15, height: 15, cursor: 'pointer' }}
+                />
+                {language === 'es' ? 'No volver a mostrar este aviso' : 'Do not show this warning again'}
+              </label>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                {/* Guardar y continuar */}
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    const draft = selectedNoteId ? draftCache[selectedNoteId] : null;
+                    if (selectedNote && draft) {
+                      await handleSaveNote({ ...selectedNote, title: draft.title, content: draft.content });
+                    }
+                    if (dontAskChecked) {
+                      await window.cyberNotesAPI.setSetting('confirm_leave_note_dismissed', 'true');
+                      setConfirmLeaveDismissed(true);
+                    }
+                    const target = pendingNavNoteId;
+                    setPendingNavNoteId(null);
+                    if (target) setSelectedNoteId(target);
+                  }}
+                  style={{ justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
+                >
+                  {language === 'es' ? 'Guardar y continuar' : 'Save & continue'}
+                </button>
+
+                {/* Salir sin guardar (descartar) */}
+                <button
+                  className="btn btn-danger"
+                  onClick={async () => {
+                    if (selectedNoteId) handleDiscardDraft(selectedNoteId);
+                    if (dontAskChecked) {
+                      await window.cyberNotesAPI.setSetting('confirm_leave_note_dismissed', 'true');
+                      setConfirmLeaveDismissed(true);
+                    }
+                    const target = pendingNavNoteId;
+                    setPendingNavNoteId(null);
+                    if (target) setSelectedNoteId(target);
+                  }}
+                  style={{
+                    justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))',
+                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#ef4444', transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => { const b = e.currentTarget; b.style.background = '#ef4444'; b.style.color = '#fff'; }}
+                  onMouseLeave={(e) => { const b = e.currentTarget; b.style.background = 'rgba(239, 68, 68, 0.1)'; b.style.color = '#ef4444'; }}
+                >
+                  {language === 'es' ? 'Salir sin guardar' : 'Leave without saving'}
+                </button>
+
+                {/* Seguir aquí */}
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setPendingNavNoteId(null)}
+                  style={{ justifyContent: 'center', padding: '8px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
+                >
+                  {language === 'es' ? 'Seguir aquí' : 'Stay here'}
                 </button>
               </div>
             </motion.div>

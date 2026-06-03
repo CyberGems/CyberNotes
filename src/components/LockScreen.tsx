@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { Lock, Eye, EyeOff, Shield, Minus, Square, X } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
+import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
 interface Props {
   language: Language;
@@ -17,16 +17,10 @@ export default function LockScreen({ language, onUnlock }: Props) {
   const [shaking, setShaking] = useState(false);
   const [hasPassword, setHasPassword] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
+  const inputMenu = useInputContextMenu(language);
 
   useEffect(() => {
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
-  }, []);
-
-  useEffect(() => {
-    const closeMenu = () => setContextMenu(null);
-    document.addEventListener('click', closeMenu);
-    return () => document.removeEventListener('click', closeMenu);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -178,10 +172,7 @@ export default function LockScreen({ language, onUnlock }: Props) {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY });
-                }}
+                onContextMenu={inputMenu.onContextMenu}
                 placeholder={t.lockScreen.placeholderPassword}
                 autoFocus
                 className="input"
@@ -238,78 +229,7 @@ export default function LockScreen({ language, onUnlock }: Props) {
         </form>
       </div>
 
-      {contextMenu && createPortal(
-        <div 
-          className="glass-effect"
-          style={{
-            position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
-            background: 'var(--bg-modal)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            padding: 6,
-            zIndex: 100000,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-            minWidth: 140,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-          }}
-          onClick={e => e.stopPropagation()}
-        >
-          <button
-            onClick={() => {
-              navigator.clipboard.readText().then(text => {
-                const input = inputRef.current;
-                if (input) {
-                  const start = input.selectionStart || 0;
-                  const end = input.selectionEnd || 0;
-                  const val = input.value;
-                  const newVal = val.slice(0, start) + text + val.slice(end);
-                  setPassword(newVal);
-                  setTimeout(() => {
-                    input.setSelectionRange(start + text.length, start + text.length);
-                  }, 0);
-                }
-              }).catch(() => {
-                document.execCommand('paste');
-              });
-              setContextMenu(null);
-            }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Pegar' : 'Paste'}
-          </button>
-          
-          <button
-            onClick={() => {
-              inputRef.current?.select();
-              setContextMenu(null);
-            }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Seleccionar todo' : 'Select all'}
-          </button>
-          
-          <button
-            onClick={() => {
-              setPassword('');
-              setContextMenu(null);
-            }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--danger)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--danger-dim)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Borrar' : 'Delete'}
-          </button>
-        </div>,
-        document.body
-      )}
+      {inputMenu.menu}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   Plus, FolderOpen, Settings, Lock, Search, X,
   ChevronRight, Pencil, Trash2, FileText, Clock, Cloud,
 } from 'lucide-react';
+import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
 interface Props {
   language: Language;
@@ -64,6 +65,7 @@ export default function Sidebar({
   const [showRecent, setShowRecent] = useState(false);
   const recentBtnRef = useRef<HTMLButtonElement>(null);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
+  const inputMenu = useInputContextMenu(language);
 
   const [isNoteDragging, setIsNoteDragging] = useState(false);
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null | 'all'>(null);
@@ -138,7 +140,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="glass-effect sidebar-glass" style={{
+    <div className="glass-effect sidebar-glass" data-leave-guard="nav" style={{
       width: 'var(--sidebar-width)',
       background: 'var(--bg-sidebar)',
       borderRight: '1px solid var(--border)',
@@ -161,6 +163,7 @@ export default function Sidebar({
             onChange={e => onSearch(e.target.value)}
             placeholder={t.general.search}
             className="input"
+            onContextMenu={inputMenu.onContextMenu}
             style={{ paddingLeft: 32, paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 10px 7px 32px' }}
           />
           {searchQuery && (
@@ -184,6 +187,7 @@ export default function Sidebar({
           onClick={() => onSelectFolder(null)}
           onDragOver={e => {
             e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
             if (activeDropTargetId !== 'all') {
               setActiveDropTargetId('all');
             }
@@ -274,6 +278,7 @@ export default function Sidebar({
           onClick={() => onSelectFolder('floating')}
           onDragOver={e => {
             e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
             if (activeDropTargetId !== 'floating') {
               setActiveDropTargetId('floating');
             }
@@ -382,6 +387,7 @@ export default function Sidebar({
               onContextMenu={e => handleContextMenu(e, folder)}
               onDragOver={e => {
                 e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
                 if (activeDropTargetId !== folder.id) {
                   setActiveDropTargetId(folder.id);
                 }
@@ -518,6 +524,7 @@ export default function Sidebar({
               onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
               placeholder={t.sidebar.folderName}
               className="input"
+              onContextMenu={inputMenu.onContextMenu}
               style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
             />
 
@@ -717,7 +724,7 @@ export default function Sidebar({
             }}
           >
             <Pencil size={13} />
-            {language === 'es' ? 'Renombrar' : 'Rename'}
+            {language === 'es' ? 'Editar' : 'Edit'}
           </button>
           <button
             className="btn btn-danger"
@@ -761,6 +768,7 @@ export default function Sidebar({
               onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditingFolder(null); }}
               className="input"
               autoFocus
+              onContextMenu={inputMenu.onContextMenu}
             />
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -902,6 +910,8 @@ export default function Sidebar({
         </div>,
         document.body
       )}
+
+      {inputMenu.menu}
     </div>
   );
 }
