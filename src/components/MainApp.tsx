@@ -6,7 +6,29 @@ import Sidebar from './Sidebar';
 import NoteList from './NoteList';
 import NoteEditor from './NoteEditor';
 import SettingsModal from './SettingsModal';
+import ConfirmDialog from './ConfirmDialog';
 import { motion, AnimatePresence } from 'motion/react';
+
+// Mapeo de emojis antiguos a nombres de iconos nuevos
+const EMOJI_TO_ICON_MAP: Record<string, string> = {
+  '📁': 'folder',
+  '📝': 'file-text',
+  '💼': 'briefcase',
+  '🏠': 'home',
+  '🚀': 'zap',
+  '💡': 'lightbulb',
+  '🎨': 'palette',
+  '📚': 'book',
+  '🔬': 'microscope',
+  '🎯': 'target',
+  '❤️': 'heart',
+  '⭐': 'star',
+};
+
+// Función para migrar iconos emoji a nombres
+const migrateIcon = (icon: string): string => {
+  return EMOJI_TO_ICON_MAP[icon] || icon;
+};
 
 interface Props {
   language: Language;
@@ -32,6 +54,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [dontAskChecked, setDontAskChecked] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [noteListWidth, setNoteListWidth] = useState(300);
@@ -51,12 +74,17 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [rememberLastNote, setRememberLastNote] = useState(false);
   const [showLineCounter, setShowLineCounter] = useState(false);
+  const [showLineGutter, setShowLineGutter] = useState(true);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [autoUnlockCapsLock, setAutoUnlockCapsLock] = useState(true);
-  const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(0);
+  const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(5);
   const [capsLockSound, setCapsLockSound] = useState('cyber-beep');
   const [capsLockSoundScope, setCapsLockSoundScope] = useState('app');
   const [tabsWidthMode, setTabsWidthMode] = useState<'normal' | 'wide'>('normal');
+  const [showMinimap, setShowMinimap] = useState(false);
+  const [showWordCounter, setShowWordCounter] = useState(false);
+  const [recentClearedAt, setRecentClearedAt] = useState(0);
+  const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadedRef = useRef(false);
 
@@ -98,6 +126,10 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       setShowSettings(true);
     });
 
+    const unregisterUnsavedExit = window.cyberNotesAPI.onConfirmUnsavedExit(() => {
+      setShowUnsavedExitDialog(true);
+    });
+
     const closeMenu = () => setContextMenu(null);
     window.addEventListener('click', closeMenu);
 
@@ -108,6 +140,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       if (unregisterContext) unregisterContext();
       if (unregisterSettingChanged) unregisterSettingChanged();
       if (unregisterOpenSettings) unregisterOpenSettings();
+      if (unregisterUnsavedExit) unregisterUnsavedExit();
     };
   }, []);
 
@@ -182,6 +215,16 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     }
   }, [selectedNoteId]);
 
+  // Registrar el momento en que se abre cada nota (para el panel de recientes → "Abiertas")
+  useEffect(() => {
+    if (!isLoadedRef.current || !selectedNoteId) return;
+    setOpenedHistory(prev => {
+      const next = { ...prev, [selectedNoteId]: Date.now() };
+      window.cyberNotesAPI.setSetting('opened_history', JSON.stringify(next));
+      return next;
+    });
+  }, [selectedNoteId]);
+
   const loadSettings = async () => {
     const scale = await window.cyberNotesAPI.getSetting('ui_scale');
     if (scale) setUiScale(parseFloat(scale));
@@ -203,6 +246,9 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     setRememberLastNote(isRemember);
 
     const lineCounter = await window.cyberNotesAPI.getSetting('show_line_counter');
+    const lineGutter = await window.cyberNotesAPI.getSetting('show_line_gutter');
+    if (lineGutter === null) setShowLineGutter(true);
+    else setShowLineGutter(lineGutter === 'true');
     setShowLineCounter(lineCounter === 'true');
 
     const autosave = await window.cyberNotesAPI.getSetting('autosave_enabled');
@@ -225,6 +271,20 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
 
     const tabsWidth = await window.cyberNotesAPI.getSetting('tabs_width_mode');
     if (tabsWidth) setTabsWidthMode(tabsWidth as 'normal' | 'wide');
+
+    const minimap = await window.cyberNotesAPI.getSetting('show_minimap');
+    if (minimap) setShowMinimap(minimap === 'true');
+
+    const wordCounter = await window.cyberNotesAPI.getSetting('show_word_counter');
+    setShowWordCounter(wordCounter === 'true');
+
+    const recentCleared = await window.cyberNotesAPI.getSetting('recent_cleared_at');
+    if (recentCleared) setRecentClearedAt(parseInt(recentCleared));
+
+    const openedHist = await window.cyberNotesAPI.getSetting('opened_history');
+    if (openedHist) {
+      try { setOpenedHistory(JSON.parse(openedHist)); } catch { /* ignorar JSON corrupto */ }
+    }
 
     if (isRemember) {
       const savedIdsStr = await window.cyberNotesAPI.getSetting('open_note_ids');
@@ -253,7 +313,20 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
 
   const loadFolders = async () => {
     const f = await window.cyberNotesAPI.getFolders();
-    setFolders(f);
+    // Migrar iconos antiguos (emoji) a nuevos nombres
+    const migratedFolders = f.map(folder => ({
+      ...folder,
+      icon: migrateIcon(folder.icon),
+    }));
+    setFolders(migratedFolders);
+    
+    // Guardar cambios migridos si es necesario
+    const needsMigration = f.some(folder => EMOJI_TO_ICON_MAP[folder.icon]);
+    if (needsMigration) {
+      for (const folder of migratedFolders) {
+        await window.cyberNotesAPI.updateFolder(folder);
+      }
+    }
   };
 
   const loadAllNotes = async () => {
@@ -466,6 +539,37 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     }
   };
 
+  // Get available icons: all icons minus those in use (unless it's the currentFolderId)
+  const getAvailableIcons = useCallback((currentFolderId?: string) => {
+    const usedIcons = new Set(
+      folders
+        .filter(f => !currentFolderId || f.id !== currentFolderId)
+        .map(f => f.icon)
+    );
+    const allIcons = ['folder', 'file-text', 'briefcase', 'home', 'zap', 'lightbulb', 'palette', 'book', 'microscope', 'target', 'heart', 'star', 'archive', 'inbox', 'code', 'users', 'rocket', 'bookmark', 'wrench', 'layers'];
+    return {
+      all: allIcons,
+      available: allIcons.filter(icon => !usedIcons.has(icon)),
+      usedIcons,
+    };
+  }, [folders]);
+
+  // Get available colors: all colors minus those in use (unless it's the currentFolderId)
+  const getAvailableColors = useCallback((currentFolderId?: string) => {
+    const currentFolder = folders.find(f => f.id === currentFolderId);
+    const usedColors = new Set(
+      folders
+        .filter(f => !currentFolderId || f.id !== currentFolderId)
+        .map(f => f.color)
+    );
+    const allColors = ['#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#14b8a6', '#3b82f6', '#d946ef', '#f97316', '#06b6d4', '#84cc16', '#0891b2', '#7c2d12', '#831843', '#4c0519', '#3730a3', '#1e40af', '#0d9488'];
+    return {
+      all: allColors,
+      available: allColors.filter(color => !usedColors.has(color) || color === currentFolder?.color),
+      usedColors,
+    };
+  }, [folders]);
+
   const handleCreateFolder = async (name: string, icon: string, color: string) => {
     const now = new Date().toISOString();
     const folder: Folder = {
@@ -529,6 +633,11 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const handleTabsWidthModeChange = async (mode: 'normal' | 'wide') => {
     setTabsWidthMode(mode);
     await window.cyberNotesAPI.setSetting('tabs_width_mode', mode);
+  };
+
+  const handleShowMinimapChange = async (v: boolean) => {
+    setShowMinimap(v);
+    await window.cyberNotesAPI.setSetting('show_minimap', v.toString());
   };
 
   const handleShowLineCounterChange = async (v: boolean) => {
@@ -624,7 +733,38 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       )}
       {bgImage && <div className="app-overlay-layer" />}
 
-      <TitleBar onLock={onLock} />
+      <TitleBar
+        language={language}
+        onLock={onLock}
+        onOpenSettings={() => setShowSettings(true)}
+        onSelectNote={(id) => {
+          setSelectedNoteId(id);
+          const note = allNotes.find(n => n.id === id);
+          if (note) setSelectedFolderId(note.folder_id);
+        }}
+        recentNotes={[...allNotes]
+          .filter(n => !recentClearedAt || new Date(n.updated_at).getTime() > recentClearedAt)
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 10)}
+        onClearRecent={async () => {
+          const now = Date.now().toString();
+          await window.cyberNotesAPI.setSetting('recent_cleared_at', now);
+          setRecentClearedAt(parseInt(now));
+        }}
+        autosaveEnabled={autosaveEnabled}
+        onAutosaveChange={handleAutosaveEnabledChange}
+        autoUnlockCapsLock={autoUnlockCapsLock}
+        onAutoUnlockCapsLockChange={handleAutoUnlockCapsLockChange}
+        showMinimap={showMinimap}
+        onShowMinimapChange={(v) => { setShowMinimap(v); window.cyberNotesAPI.setSetting('show_minimap', v.toString()); }}
+        showLineCounter={showLineCounter}
+        onShowLineCounterChange={handleShowLineCounterChange}
+        showLineGutter={showLineGutter}
+        onShowLineGutterChange={(v: boolean) => { setShowLineGutter(v); window.cyberNotesAPI.setSetting('show_line_gutter', v.toString()); }}
+        showWordCounter={showWordCounter}
+        onShowWordCounterChange={(v) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
+        rememberLastNote={rememberLastNote}
+        onRememberLastNoteChange={handleRememberLastNoteChange}
+      />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Sidebar */}
@@ -635,8 +775,17 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
               folders={folders}
               selectedFolderId={selectedFolderId}
               noteCount={allNotes.length}
-              recentNotes={[...allNotes].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 5)}
+              recentNotes={[...allNotes].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 6)}
               allNotes={allNotes}
+              openedHistory={openedHistory}
+              recentClearedAt={recentClearedAt}
+              onClearRecent={async () => {
+                const now = Date.now().toString();
+                await window.cyberNotesAPI.setSetting('recent_cleared_at', now);
+                await window.cyberNotesAPI.setSetting('opened_history', '{}');
+                setRecentClearedAt(parseInt(now));
+                setOpenedHistory({});
+              }}
               onSelectNote={(id) => {
                 let note = allNotes.find(n => n.id === id);
                 if (note) { setSelectedNoteId(id); setSelectedFolderId(note.folder_id); }
@@ -649,6 +798,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
               onLock={onLock}
               searchQuery={searchQuery}
               onSearch={handleSearch}
+              getAvailableIcons={getAvailableIcons}
+              getAvailableColors={getAvailableColors}
               onMoveNote={handleMoveNote}
             />
             <div 
@@ -714,6 +865,10 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           onEditDraft={handleEditDraft}
           onDiscardDraft={handleDiscardDraft}
           tabsWidthMode={tabsWidthMode}
+          showMinimap={showMinimap}
+          onShowMinimapChange={handleShowMinimapChange}
+          showLineGutter={showLineGutter}
+          showWordCounter={showWordCounter}
         />
       </div>
 
@@ -737,6 +892,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           onRememberLastNoteChange={handleRememberLastNoteChange}
           showLineCounter={showLineCounter}
           onShowLineCounterChange={handleShowLineCounterChange}
+          showLineGutter={showLineGutter}
+          onShowLineGutterChange={(v: boolean) => { setShowLineGutter(v); window.cyberNotesAPI.setSetting('show_line_gutter', v.toString()); }}
           autosaveEnabled={autosaveEnabled}
           onAutosaveEnabledChange={handleAutosaveEnabledChange}
           autoUnlockCapsLock={autoUnlockCapsLock}
@@ -751,6 +908,28 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           onLock={onLock}
           tabsWidthMode={tabsWidthMode}
           onTabsWidthModeChange={handleTabsWidthModeChange}
+          showMinimap={showMinimap}
+          onShowMinimapChange={handleShowMinimapChange}
+          showWordCounter={showWordCounter}
+          onShowWordCounterChange={(v: boolean) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
+        />
+      )}
+
+      {showUnsavedExitDialog && (
+        <ConfirmDialog
+          language={language}
+          title={language === 'es' ? 'Cambios sin guardar' : 'Unsaved changes'}
+          message={language === 'es'
+            ? 'Tienes cambios sin guardar en la nota actual. ¿Salir sin guardar?'
+            : 'You have unsaved changes in the current note. Exit without saving?'}
+          variant="warning"
+          confirm
+          confirmLabel={language === 'es' ? 'Salir sin guardar' : 'Exit without saving'}
+          cancelLabel={language === 'es' ? 'Cancelar' : 'Cancel'}
+          onResolve={(accepted: boolean) => {
+            setShowUnsavedExitDialog(false);
+            window.cyberNotesAPI.respondUnsavedExit(accepted);
+          }}
         />
       )}
 

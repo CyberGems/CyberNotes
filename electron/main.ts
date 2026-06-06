@@ -339,19 +339,10 @@ function createWindow() {
     
     if (hasUnsavedChanges) {
       event.preventDefault();
-      dialog.showMessageBox(mainWindow!, {
-        type: 'question',
-        buttons: ['Salir sin guardar', 'Cancelar'],
-        defaultId: 1,
-        title: 'Cambios sin guardar',
-        message: 'Tienes cambios sin guardar en la nota actual. ¿Salir sin guardar?',
-      }).then(result => {
-        if (result.response === 0) {
-          hasUnsavedChanges = false;
-          isQuitting = true;
-          mainWindow?.close();
-        }
-      });
+      // Restore window so the user can see the custom dialog
+      restoreWindow();
+      // Send confirmation request to renderer — CyberNotes styled dialog
+      mainWindow?.webContents.send('confirm-unsaved-exit');
       return false;
     }
     
@@ -454,6 +445,19 @@ ipcMain.handle('check-caps-lock', async () => {
       }
     });
   });
+});
+
+// -- Updates --
+ipcMain.handle('check-for-updates', async () => {
+  // Requires: npm install electron-updater
+  try {
+    const { autoUpdater } = require('electron-updater');
+    const result = await autoUpdater.checkForUpdates();
+    return !!result?.updateInfo?.version;
+  } catch {
+    console.log('[CyberNotes] Update check: electron-updater not installed.');
+    return false;
+  }
 });
 
 // -- Auth --
@@ -672,6 +676,15 @@ if (!gotTheLock) {
       startCapsLockWorker();
     }
 
+    // Auto-check for updates on startup
+    const autoCheck = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_check_updates']);
+    if (autoCheck?.value === 'true') {
+      try {
+        const { autoUpdater } = require('electron-updater');
+        autoUpdater.checkForUpdates().catch(() => {});
+      } catch { /* electron-updater not installed */ }
+    }
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
       else restoreWindow();
@@ -684,3 +697,17 @@ if (!gotTheLock) {
     }
   });
 }
+
+// ─── Force Close / Unsaved Exit ────────────────────────────────────────
+ipcMain.handle('window-force-close', () => {
+  isQuitting = true;
+  mainWindow?.close();
+});
+
+ipcMain.handle('confirm-unsaved-exit-response', (_e: any, discard: boolean) => {
+  if (discard) {
+    hasUnsavedChanges = false;
+    isQuitting = true;
+    mainWindow?.close();
+  }
+});

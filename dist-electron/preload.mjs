@@ -1,1 +1,76 @@
-"use strict";const e=require("electron");e.contextBridge.exposeInMainWorld("cyberNotesAPI",{windowMinimize:()=>e.ipcRenderer.invoke("window-minimize"),windowMaximizeToggle:()=>e.ipcRenderer.invoke("window-maximize-toggle"),windowClose:()=>e.ipcRenderer.invoke("window-close"),openDevTools:()=>e.ipcRenderer.invoke("open-dev-tools"),openDataFolder:()=>e.ipcRenderer.invoke("open-data-folder"),replaceMisspelling:n=>e.ipcRenderer.invoke("replace-misspelling",n),addToDictionary:n=>e.ipcRenderer.invoke("add-to-dictionary",n),unlockCapsLock:()=>e.ipcRenderer.invoke("unlock-caps-lock"),checkCapsLock:()=>e.ipcRenderer.invoke("check-caps-lock"),onContextMenuData:n=>{const r=(t,o)=>n(o);return e.ipcRenderer.on("context-menu-data",r),()=>e.ipcRenderer.removeListener("context-menu-data",r)},onStatusBarUrl:n=>{const r=(t,o)=>n(o);return e.ipcRenderer.on("status-bar-url",r),()=>e.ipcRenderer.removeListener("status-bar-url",r)},onSettingChanged:n=>{const r=(t,o)=>n(o);return e.ipcRenderer.on("setting-changed",r),()=>e.ipcRenderer.removeListener("setting-changed",r)},onGlobalCapsLockChanged:n=>{const r=(t,o)=>n(o);return e.ipcRenderer.on("global-caps-lock-changed",r),()=>e.ipcRenderer.removeListener("global-caps-lock-changed",r)},onOpenSettings:n=>{const r=()=>n();return e.ipcRenderer.on("open-settings",r),()=>e.ipcRenderer.removeListener("open-settings",r)},hasPassword:()=>e.ipcRenderer.invoke("auth:hasPassword"),setPassword:n=>e.ipcRenderer.invoke("auth:setPassword",n),verifyPassword:n=>e.ipcRenderer.invoke("auth:verifyPassword",n),removePassword:()=>e.ipcRenderer.invoke("auth:removePassword"),setUnsavedChanges:n=>e.ipcRenderer.invoke("window:unsavedChanges:set",n),getSetting:n=>e.ipcRenderer.invoke("settings:get",n),setSetting:(n,r)=>e.ipcRenderer.invoke("settings:set",n,r),setAutoStart:n=>e.ipcRenderer.invoke("settings:setAutoStart",n),getAutoStart:()=>e.ipcRenderer.invoke("settings:getAutoStart"),getFolders:()=>e.ipcRenderer.invoke("folders:getAll"),createFolder:n=>e.ipcRenderer.invoke("folders:create",n),updateFolder:n=>e.ipcRenderer.invoke("folders:update",n),deleteFolder:n=>e.ipcRenderer.invoke("folders:delete",n),getAllNotes:()=>e.ipcRenderer.invoke("notes:getAll"),getNotesByFolder:n=>e.ipcRenderer.invoke("notes:getByFolder",n),saveNote:n=>e.ipcRenderer.invoke("notes:save",n),deleteNote:n=>e.ipcRenderer.invoke("notes:delete",n),searchNotes:n=>e.ipcRenderer.invoke("notes:search",n),selectAndSaveImage:()=>e.ipcRenderer.invoke("images:selectAndSave"),exportData:()=>e.ipcRenderer.invoke("data:export"),importData:()=>e.ipcRenderer.invoke("data:import")});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("cyberNotesAPI", {
+  // -- Ventana --
+  windowMinimize: () => electron.ipcRenderer.invoke("window-minimize"),
+  windowMaximizeToggle: () => electron.ipcRenderer.invoke("window-maximize-toggle"),
+  windowClose: () => electron.ipcRenderer.invoke("window-close"),
+  windowForceClose: () => electron.ipcRenderer.invoke("window-force-close"),
+  openDevTools: () => electron.ipcRenderer.invoke("open-dev-tools"),
+  openDataFolder: () => electron.ipcRenderer.invoke("open-data-folder"),
+  replaceMisspelling: (word) => electron.ipcRenderer.invoke("replace-misspelling", word),
+  addToDictionary: (word) => electron.ipcRenderer.invoke("add-to-dictionary", word),
+  unlockCapsLock: () => electron.ipcRenderer.invoke("unlock-caps-lock"),
+  checkCapsLock: () => electron.ipcRenderer.invoke("check-caps-lock"),
+  onContextMenuData: (callback) => {
+    const listener = (_e, data) => callback(data);
+    electron.ipcRenderer.on("context-menu-data", listener);
+    return () => electron.ipcRenderer.removeListener("context-menu-data", listener);
+  },
+  onStatusBarUrl: (callback) => {
+    const listener = (_e, url) => callback(url);
+    electron.ipcRenderer.on("status-bar-url", listener);
+    return () => electron.ipcRenderer.removeListener("status-bar-url", listener);
+  },
+  onSettingChanged: (callback) => {
+    const listener = (_e, data) => callback(data);
+    electron.ipcRenderer.on("setting-changed", listener);
+    return () => electron.ipcRenderer.removeListener("setting-changed", listener);
+  },
+  onGlobalCapsLockChanged: (callback) => {
+    const listener = (_e, active) => callback(active);
+    electron.ipcRenderer.on("global-caps-lock-changed", listener);
+    return () => electron.ipcRenderer.removeListener("global-caps-lock-changed", listener);
+  },
+  onOpenSettings: (callback) => {
+    const listener = () => callback();
+    electron.ipcRenderer.on("open-settings", listener);
+    return () => electron.ipcRenderer.removeListener("open-settings", listener);
+  },
+  onConfirmUnsavedExit: (callback) => {
+    const listener = () => callback();
+    electron.ipcRenderer.on("confirm-unsaved-exit", listener);
+    return () => electron.ipcRenderer.removeListener("confirm-unsaved-exit", listener);
+  },
+  respondUnsavedExit: (discard) => electron.ipcRenderer.invoke("confirm-unsaved-exit-response", discard),
+  // -- Auth --
+  hasPassword: () => electron.ipcRenderer.invoke("auth:hasPassword"),
+  setPassword: (password) => electron.ipcRenderer.invoke("auth:setPassword", password),
+  verifyPassword: (password) => electron.ipcRenderer.invoke("auth:verifyPassword", password),
+  removePassword: () => electron.ipcRenderer.invoke("auth:removePassword"),
+  // -- Unsaved Changes --
+  setUnsavedChanges: (val) => electron.ipcRenderer.invoke("window:unsavedChanges:set", val),
+  // -- Settings --
+  getSetting: (key) => electron.ipcRenderer.invoke("settings:get", key),
+  setSetting: (key, value) => electron.ipcRenderer.invoke("settings:set", key, value),
+  setAutoStart: (enable) => electron.ipcRenderer.invoke("settings:setAutoStart", enable),
+  getAutoStart: () => electron.ipcRenderer.invoke("settings:getAutoStart"),
+  // -- Folders --
+  getFolders: () => electron.ipcRenderer.invoke("folders:getAll"),
+  createFolder: (folder) => electron.ipcRenderer.invoke("folders:create", folder),
+  updateFolder: (folder) => electron.ipcRenderer.invoke("folders:update", folder),
+  deleteFolder: (id) => electron.ipcRenderer.invoke("folders:delete", id),
+  // -- Notes --
+  getAllNotes: () => electron.ipcRenderer.invoke("notes:getAll"),
+  getNotesByFolder: (folderId) => electron.ipcRenderer.invoke("notes:getByFolder", folderId),
+  saveNote: (note) => electron.ipcRenderer.invoke("notes:save", note),
+  deleteNote: (id) => electron.ipcRenderer.invoke("notes:delete", id),
+  searchNotes: (query) => electron.ipcRenderer.invoke("notes:search", query),
+  // -- Images --
+  selectAndSaveImage: () => electron.ipcRenderer.invoke("images:selectAndSave"),
+  // -- Import / Export --
+  exportData: () => electron.ipcRenderer.invoke("data:export"),
+  importData: () => electron.ipcRenderer.invoke("data:import"),
+  // -- Updates --
+  checkForUpdates: () => electron.ipcRenderer.invoke("check-for-updates")
+});

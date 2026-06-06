@@ -8,6 +8,8 @@ import {
   ChevronRight, Pencil, Trash2, FileText, Clock, Cloud,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import FolderIcon from './FolderIcon';
+import Tooltip from './Tooltip';
 
 interface Props {
   language: Language;
@@ -16,6 +18,9 @@ interface Props {
   noteCount: number;
   recentNotes: Note[];
   allNotes: Note[];
+  openedHistory?: Record<string, number>;
+  recentClearedAt?: number;
+  onClearRecent?: () => void;
   onSelectNote: (id: string) => void;
   onSelectFolder: (id: string | null) => void;
   onCreateFolder: (name: string, icon: string, color: string) => void;
@@ -26,12 +31,23 @@ interface Props {
   searchQuery: string;
   onSearch: (q: string) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
+  getAvailableIcons: (currentFolderId?: string) => { all: string[]; available: string[]; usedIcons: Set<string> };
+  getAvailableColors: (currentFolderId?: string) => { all: string[]; available: string[]; usedColors: Set<string> };
 }
 
-const FOLDER_ICONS = ['📁', '📝', '💼', '🏠', '🚀', '💡', '🎨', '📚', '🔬', '🎯', '❤️', '⭐'];
+const FOLDER_ICONS = [
+  'folder', 'file-text', 'briefcase', 'home',
+  'zap', 'lightbulb', 'palette', 'book',
+  'microscope', 'target', 'heart', 'star',
+  'archive', 'inbox', 'code', 'users',
+  'rocket', 'bookmark', 'wrench', 'layers',
+];
 const FOLDER_COLORS = [
   '#7c3aed', '#06b6d4', '#10b981', '#f59e0b',
   '#ef4444', '#ec4899', '#8b5cf6', '#14b8a6',
+  '#3b82f6', '#d946ef', '#f97316', '#06b6d4',
+  '#84cc16', '#0891b2', '#7c2d12', '#831843',
+  '#4c0519', '#3730a3', '#1e40af', '#0d9488',
 ];
 
 function timeAgo(iso: string, language: Language): string {
@@ -52,17 +68,20 @@ function timeAgo(iso: string, language: Language): string {
 export default function Sidebar({
   language, folders, selectedFolderId, noteCount, recentNotes, allNotes, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
-  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote,
+  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, getAvailableIcons, getAvailableColors,
+  openedHistory = {}, recentClearedAt = 0, onClearRecent,
 }: Props) {
   const t = TRANSLATIONS[language];
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [newFolderIcon, setNewFolderIcon] = useState('📁');
+  const [newFolderIcon, setNewFolderIcon] = useState('folder');
   const [newFolderColor, setNewFolderColor] = useState('#7c3aed');
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const [contextMenu, setContextMenu] = useState<{ folder: Folder; x: number; y: number } | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [showRecent, setShowRecent] = useState(false);
+  const [recentTab, setRecentTab] = useState<'edited' | 'opened' | 'created'>('edited');
+  const [clearConfirm, setClearConfirm] = useState(false);
   const recentBtnRef = useRef<HTMLButtonElement>(null);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
   const inputMenu = useInputContextMenu(language);
@@ -112,6 +131,7 @@ export default function Sidebar({
         recentMenuRef.current && !recentMenuRef.current.contains(e.target as Node)
       ) {
         setShowRecent(false);
+        setClearConfirm(false);
       }
     };
     setTimeout(() => document.addEventListener('click', handler), 0);
@@ -122,7 +142,7 @@ export default function Sidebar({
     if (!newFolderName.trim()) return;
     onCreateFolder(newFolderName.trim(), newFolderIcon, newFolderColor);
     setNewFolderName('');
-    setNewFolderIcon('📁');
+    setNewFolderIcon('folder');
     setNewFolderColor('#7c3aed');
     setShowNewFolder(false);
   };
@@ -138,6 +158,30 @@ export default function Sidebar({
     onUpdateFolder(editingFolder);
     setEditingFolder(null);
   };
+
+  // Lista de notas recientes según la pestaña activa (Editadas / Abiertas / Creadas)
+  const RECENT_LIMIT = 6;
+  const recentForTab = (() => {
+    if (recentTab === 'opened') {
+      return [...allNotes]
+        .filter(n => openedHistory[n.id] && openedHistory[n.id] > recentClearedAt)
+        .sort((a, b) => openedHistory[b.id] - openedHistory[a.id])
+        .slice(0, RECENT_LIMIT)
+        .map(n => ({ note: n, ts: new Date(openedHistory[n.id]).toISOString() }));
+    }
+    const field = recentTab === 'created' ? 'created_at' : 'updated_at';
+    return [...allNotes]
+      .filter(n => !recentClearedAt || new Date(n[field]).getTime() > recentClearedAt)
+      .sort((a, b) => new Date(b[field]).getTime() - new Date(a[field]).getTime())
+      .slice(0, RECENT_LIMIT)
+      .map(n => ({ note: n, ts: n[field] }));
+  })();
+
+  const recentTabs: { id: 'edited' | 'opened' | 'created'; label: string }[] = [
+    { id: 'edited', label: t.sidebar.recentEdited },
+    { id: 'opened', label: t.sidebar.recentOpened },
+    { id: 'created', label: t.sidebar.recentCreated },
+  ];
 
   return (
     <div className="glass-effect sidebar-glass" data-leave-guard="nav" style={{
@@ -474,13 +518,14 @@ export default function Sidebar({
                   hover: { scale: 1.2, rotate: [0, -5, 5, 0], transition: { type: 'spring', stiffness: 300, damping: 10 } }
                 }}
                 style={{ 
-                  fontSize: 'calc(15px * var(--ui-scale))',
-                  display: 'inline-block',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   marginRight: 2,
                   pointerEvents: 'none',
                 }}
               >
-                {folder.icon}
+                <FolderIcon name={folder.icon} color={folder.color} size={15} />
               </motion.span>
               <span className="truncate" style={{ 
                 flex: 1,
@@ -490,14 +535,14 @@ export default function Sidebar({
               }}>{folder.name}</span>
               <span style={{
                 fontSize: 'calc(11px * var(--ui-scale))',
-                background: isSelected ? 'var(--bg-app)' : 'var(--bg-surface)',
-                color: isSelected ? 'var(--accent-light)' : 'var(--text-muted)',
+                background: isSelected ? `${folder.color}33` : `${folder.color}22`,
+                color: '#fff',
                 padding: '1px 6px',
                 borderRadius: 10,
                 marginRight: 6,
                 fontWeight: isSelected ? 600 : 400,
                 pointerEvents: 'none',
-                boxShadow: isSelected ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
+                boxShadow: `0 0 6px ${folder.color}44, inset 0 1px 0 rgba(255,255,255,0.1)`,
               }}>{allNotes.filter(n => n.folder_id === folder.id).length}</span>
               <ChevronRight size={12} style={{ opacity: isTarget ? 0.8 : 0.4, color: isTarget ? folder.color : undefined, pointerEvents: 'none' }} />
             </motion.button>
@@ -528,9 +573,12 @@ export default function Sidebar({
               style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
             />
 
-            {/* Iconos */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {FOLDER_ICONS.map(icon => (
+            {/* Iconos - 2 filas de 10 */}
+            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {language === 'es' ? 'Selecciona tu icono único' : 'Select your unique icon'}
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
+              {getAvailableIcons().available.map(icon => (
                 <button
                   key={icon}
                   type="button"
@@ -539,32 +587,69 @@ export default function Sidebar({
                     border: newFolderIcon === icon ? '2px solid var(--accent)' : '1px solid var(--border)',
                     background: 'var(--bg-input)',
                     borderRadius: 6,
-                    padding: '3px 6px',
+                    padding: '6px',
                     cursor: 'pointer',
-                    fontSize: 'calc(14px * var(--ui-scale))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: 1,
+                    aspectRatio: '1',
                   }}
-                >{icon}</button>
+                >
+                  <FolderIcon name={icon} color={newFolderIcon === icon ? 'var(--accent)' : '#ffffff'} size={16} />
+                </button>
               ))}
             </div>
 
-            {/* Colores */}
-            <div style={{ display: 'flex', gap: 6 }}>
-              {FOLDER_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setNewFolderColor(c)}
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    background: c,
-                    border: newFolderColor === c ? '2px solid white' : '2px solid transparent',
-                    cursor: 'pointer',
-                    boxShadow: newFolderColor === c ? `0 0 6px ${c}` : 'none',
-                  }}
-                />
-              ))}
+            {/* Colores - 2 filas de 10 */}
+            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {language === 'es' ? 'Selecciona tu color único' : 'Select your unique color'}
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
+              {FOLDER_COLORS.map(c => {
+                const { usedColors } = getAvailableColors();
+                const isUsed = usedColors.has(c);
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => !isUsed ? setNewFolderColor(c) : null}
+                    disabled={isUsed}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      padding: 0,
+                      borderRadius: '50%',
+                      background: c,
+                      border: newFolderColor === c ? '3px solid white' : '2px solid transparent',
+                      cursor: isUsed ? 'not-allowed' : 'pointer',
+                      boxShadow: newFolderColor === c ? `0 0 8px ${c}` : 'none',
+                      boxSizing: 'border-box',
+                      flexShrink: 0,
+                      opacity: isUsed ? 0.4 : 1,
+                      position: 'relative',
+                    }}
+                    title={isUsed ? language === 'es' ? 'Color en uso' : 'Color in use' : ''}
+                  >
+                    {isUsed && (
+                      <span style={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -5,
+                        width: 12,
+                        height: 12,
+                        background: '#ef4444',
+                        borderRadius: '50%',
+                        fontSize: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                      }}>✓</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <div style={{ display: 'flex', gap: 6 }}>
@@ -593,15 +678,16 @@ export default function Sidebar({
       {/* Bottom actions */}
       <div className="divider" />
       <div style={{ padding: '8px', display: 'flex', gap: 4, justifyContent: 'space-between' }}>
+        <Tooltip placement="top" label={language === 'es' ? 'Notas recientes' : 'Recent notes'}>
         <button
           ref={recentBtnRef}
           className="btn btn-ghost"
-          onClick={(e) => { e.stopPropagation(); setShowRecent(prev => !prev); }}
-          title={language === 'es' ? 'Notas recientes' : 'Recent notes'}
+          onClick={(e) => { e.stopPropagation(); setShowRecent(prev => !prev); setClearConfirm(false); }}
           style={{ padding: '7px 10px' }}
         >
           <Clock size={14} />
         </button>
+        </Tooltip>
         <button
           className="btn btn-ghost"
           onClick={onOpenSettings}
@@ -610,14 +696,15 @@ export default function Sidebar({
           <Settings size={14} />
           {t.settings.title.replace('⚙️ ', '')}
         </button>
+        <Tooltip placement="top" label={language === 'es' ? 'Bloquear app' : 'Lock app'}>
         <button
           className="btn btn-ghost"
           onClick={onLock}
-          title={language === 'es' ? 'Bloquear app' : 'Lock app'}
           style={{ padding: '7px 10px' }}
         >
           <Lock size={14} />
         </button>
+        </Tooltip>
       </div>
 
       {/* Drop-up recientes */}
@@ -629,7 +716,7 @@ export default function Sidebar({
             position: 'fixed',
             left: recentBtnRef.current.getBoundingClientRect().left,
             bottom: window.innerHeight - recentBtnRef.current.getBoundingClientRect().top + 4,
-            width: 312,
+            width: 360,
             background: 'var(--bg-modal)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
@@ -642,57 +729,174 @@ export default function Sidebar({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', padding: '8px 10px 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {language === 'es' ? 'Últimas notas' : 'Last notes'}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 6px 6px 10px' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {t.sidebar.recentTitle}
+            </span>
+            <Tooltip placement="left" label={language === 'es' ? 'Cerrar' : 'Close'}>
+            <button
+              onClick={() => { setShowRecent(false); setClearConfirm(false); }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 26,
+                height: 26,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                transition: 'background 0.12s, color 0.12s',
+              }}
+            >
+              <X size={15} />
+            </button>
+            </Tooltip>
           </div>
-          {recentNotes.length === 0 ? (
-            <div style={{ fontSize: 15.5, color: 'var(--text-muted)', padding: '16px 10px', textAlign: 'center' }}>
-              {t.noteList.noNotes}
-            </div>
-          ) : (
-            recentNotes.map((note, i) => (
-              <div key={note.id}>
-                {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />}
+
+          {/* Lista de notas (altura fija para 6 elementos) */}
+          <div style={{ minHeight: 312, maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {recentForTab.length === 0 ? (
+              <div style={{ fontSize: 15.5, color: 'var(--text-muted)', padding: '40px 10px', textAlign: 'center' }}>
+                {t.noteList.noNotes}
+              </div>
+            ) : (
+              recentForTab.map(({ note, ts }, i) => (
+                <div key={note.id}>
+                  {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />}
+                  <button
+                    onClick={() => { onSelectNote(note.id); setShowRecent(false); }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 3,
+                      padding: '10px 14px',
+                      fontSize: 15,
+                      background: 'transparent',
+                      color: 'var(--text-primary)',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span style={{
+                      fontWeight: 500,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      width: '100%',
+                    }}>
+                      {note.title || t.noteList.unnamedNote}
+                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                        {timeAgo(ts, language)}
+                      </span>
+                      <span style={{ fontSize: 13, color: 'var(--text-muted)', opacity: 0.75 }}>
+                        {new Date(ts).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Pestañas inferiores: Editadas / Abiertas / Creadas */}
+          <div style={{ display: 'flex', gap: 4, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+            {recentTabs.map(tab => {
+              const active = recentTab === tab.id;
+              return (
                 <button
-                  onClick={() => { onSelectNote(note.id); setShowRecent(false); }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  key={tab.id}
+                  onClick={() => setRecentTab(tab.id)}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    gap: 3,
-                    padding: '10px 14px',
-                    fontSize: 15,
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    border: 'none',
+                    flex: 1,
+                    padding: '7px 4px',
+                    fontSize: 13.5,
+                    fontWeight: active ? 600 : 500,
+                    background: active ? 'var(--accent-dim)' : 'transparent',
+                    color: active ? 'var(--text-accent)' : 'var(--text-secondary)',
+                    border: '1px solid ' + (active ? 'var(--accent)' : 'var(--border)'),
                     borderRadius: 6,
                     cursor: 'pointer',
-                    textAlign: 'left',
-                    width: '100%',
+                    transition: 'background 0.12s, color 0.12s, border-color 0.12s',
                   }}
                 >
-                  <span style={{
-                    fontWeight: 500,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    width: '100%',
-                  }}>
-                    {note.title || t.noteList.unnamedNote}
-                  </span>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                      {timeAgo(note.updated_at, language)}
-                    </span>
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)', opacity: 0.75 }}>
-                      {new Date(note.updated_at).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                  </div>
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Limpiar historial (con confirmación inline) */}
+          {clearConfirm ? (
+            <div style={{ marginTop: 4, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-hover)', borderRadius: 6 }}>
+              <span style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, textAlign: 'center' }}>
+                {language === 'es' ? '¿Borrar el historial de notas recientes?' : 'Clear the recent notes history?'}
+              </span>
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                <button
+                  onClick={() => setClearConfirm(false)}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  style={{
+                    flex: 1, padding: '6px 10px', fontSize: 13,
+                    background: 'transparent', color: 'var(--text-secondary)',
+                    border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+                  }}
+                >
+                  {language === 'es' ? 'Cancelar' : 'Cancel'}
+                </button>
+                <button
+                  onClick={() => { onClearRecent?.(); setClearConfirm(false); setShowRecent(false); }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#ef4444'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
+                  style={{
+                    flex: 1, padding: '6px 10px', fontSize: 13, fontWeight: 600,
+                    background: 'transparent', color: '#ef4444',
+                    border: '1px solid #ef4444', borderRadius: 6, cursor: 'pointer',
+                  }}
+                >
+                  {language === 'es' ? 'Borrar' : 'Clear'}
                 </button>
               </div>
-            ))
+            </div>
+          ) : (
+            <button
+              onClick={() => setClearConfirm(true)}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                marginTop: 4,
+                padding: '8px',
+                fontSize: 13.5,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                width: '100%',
+                transition: 'background 0.12s, color 0.12s',
+              }}
+            >
+              <Trash2 size={14} />
+              {t.sidebar.clearHistory}
+            </button>
           )}
         </div>,
         document.body
@@ -753,7 +957,7 @@ export default function Sidebar({
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-lg)',
             padding: 28,
-            width: 340,
+            width: 540,
             display: 'flex',
             flexDirection: 'column',
             gap: 16,
@@ -771,41 +975,106 @@ export default function Sidebar({
               onContextMenu={inputMenu.onContextMenu}
             />
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {FOLDER_ICONS.map(icon => (
-                <button
-                  key={icon}
-                  type="button"
-                  onClick={() => setEditingFolder({ ...editingFolder, icon })}
-                  style={{
-                    border: editingFolder.icon === icon ? '2px solid var(--accent)' : '1px solid var(--border)',
-                    background: 'var(--bg-input)',
-                    borderRadius: 6,
-                    padding: '3px 6px',
-                    cursor: 'pointer',
-                    fontSize: 'calc(14px * var(--ui-scale))',
-                  }}
-                >{icon}</button>
-              ))}
+            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {language === 'es' ? 'Selecciona tu icono único' : 'Select your unique icon'}
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
+              {FOLDER_ICONS.map(icon => {
+                const { usedIcons } = getAvailableIcons(editingFolder.id);
+                const isUsed = usedIcons.has(icon);
+                const isSelected = editingFolder.icon === icon;
+                return (
+                  <button
+                    key={icon}
+                    type="button"
+                    onClick={() => !isUsed || isSelected ? setEditingFolder({ ...editingFolder, icon }) : null}
+                    disabled={isUsed && !isSelected}
+                    style={{
+                      border: isSelected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: isUsed && !isSelected ? 'var(--bg-surface)' : 'var(--bg-input)',
+                      borderRadius: 6,
+                      padding: '6px',
+                      cursor: isUsed && !isSelected ? 'not-allowed' : 'pointer',
+                      opacity: isUsed && !isSelected ? 0.4 : 1,
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      aspectRatio: '1',
+                    }}
+                    title={isUsed && !isSelected ? language === 'es' ? 'Icono en uso' : 'Icon in use' : ''}
+                  >
+                    <FolderIcon name={icon} color={isSelected ? 'var(--accent)' : '#ffffff'} size={16} />
+                    {isUsed && !isSelected && (
+                      <span style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        width: 10,
+                        height: 10,
+                        background: '#ef4444',
+                        borderRadius: '50%',
+                        fontSize: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                      }}>✓</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            <div style={{ display: 'flex', gap: 6 }}>
-              {FOLDER_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setEditingFolder({ ...editingFolder, color: c })}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: '50%',
-                    background: c,
-                    border: editingFolder.color === c ? '2px solid white' : '2px solid transparent',
-                    cursor: 'pointer',
-                    boxShadow: editingFolder.color === c ? `0 0 8px ${c}` : 'none',
-                  }}
-                />
-              ))}
+            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {language === 'es' ? 'Selecciona tu color único' : 'Select your unique color'}
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
+              {FOLDER_COLORS.map(c => {
+                const { usedColors } = getAvailableColors(editingFolder.id);
+                const isUsed = usedColors.has(c);
+                const isSelected = editingFolder.color === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => !isUsed || isSelected ? setEditingFolder({ ...editingFolder, color: c }) : null}
+                    disabled={isUsed && !isSelected}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      padding: 0,
+                      borderRadius: '50%',
+                      background: c,
+                      border: isSelected ? '3px solid white' : '2px solid transparent',
+                      cursor: isUsed && !isSelected ? 'not-allowed' : 'pointer',
+                      boxShadow: isSelected ? `0 0 8px ${c}` : 'none',
+                      boxSizing: 'border-box',
+                      flexShrink: 0,
+                      opacity: isUsed && !isSelected ? 0.4 : 1,
+                      position: 'relative',
+                    }}
+                    title={isUsed && !isSelected ? language === 'es' ? 'Color en uso' : 'Color in use' : ''}
+                  >
+                    {isUsed && !isSelected && (
+                      <span style={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -5,
+                        width: 12,
+                        height: 12,
+                        background: '#ef4444',
+                        borderRadius: '50%',
+                        fontSize: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                      }}>✓</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>

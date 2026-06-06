@@ -5,6 +5,8 @@ import { Language, TRANSLATIONS } from '../languages';
 import { Plus, Trash2, Pin, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import FolderIcon from './FolderIcon';
+import Tooltip from './Tooltip';
 
 interface Props {
   language: Language;
@@ -152,11 +154,15 @@ export default function NoteList({
     };
   }, [sortedNotes.length]);
 
-  const headerTitle = searchQuery
-    ? (language === 'es' ? `Resultados (${initialNotes.length})` : `Results (${initialNotes.length})`)
-    : selectedFolder
-      ? `${selectedFolder.icon} ${selectedFolder.name}`
-      : t.sidebar.allNotes;
+  const getHeaderTitle = () => {
+    if (searchQuery) {
+      return language === 'es' ? `Resultados (${initialNotes.length})` : `Results (${initialNotes.length})`;
+    }
+    if (selectedFolder) {
+      return selectedFolder.name;
+    }
+    return t.sidebar.allNotes;
+  };
 
   return (
     <div className="glass-effect notelist-glass" data-leave-guard="nav" style={{
@@ -189,18 +195,25 @@ export default function NoteList({
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             maxWidth: 160,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
           }}>
-            {headerTitle}
+            {selectedFolder && !searchQuery && (
+              <FolderIcon name={selectedFolder.icon} color={selectedFolder.color} size={16} />
+            )}
+            {getHeaderTitle()}
           </h2>
+          <Tooltip placement="bottom" label={language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)'}>
           <button
             className="new-note-btn"
             onClick={onCreateNote}
-            title={language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)'}
             style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
           >
             <Plus size={14} />
             {language === 'es' ? 'Nueva nota' : 'New note'}
           </button>
+          </Tooltip>
         </div>
 
         {/* Sort & View Controls */}
@@ -255,16 +268,17 @@ export default function NoteList({
 
             <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
 
+            <Tooltip placement="bottom" label={viewMode === 'normal'
+              ? (language === 'es' ? 'Cambiar a vista compacta' : 'Switch to compact view')
+              : (language === 'es' ? 'Cambiar a vista normal' : 'Switch to standard view')}>
             <button
               onClick={handleToggleViewMode}
               className="btn-icon"
-              title={viewMode === 'normal' 
-                ? (language === 'es' ? 'Cambiar a vista compacta' : 'Switch to compact view') 
-                : (language === 'es' ? 'Cambiar a vista normal' : 'Switch to standard view')}
               style={{ padding: 2, color: 'var(--text-muted)' }}
             >
               {viewMode === 'normal' ? <LayoutList size={14} /> : <StretchHorizontal size={14} />}
             </button>
+            </Tooltip>
           </div>
           
           <span style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-secondary)', fontWeight: 500 }}>
@@ -729,6 +743,7 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
       }}>
         <span>{formatDate(note.updated_at, language)}</span>
         {folder && (
+          <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
           <span style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -751,13 +766,13 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
             textOverflow: 'ellipsis',
             transition: 'all 0.2s ease',
           }}
-            title={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}
           >
-            <span style={{ fontSize: 10 }}>{folder.icon}</span>
+            <FolderIcon name={folder.icon} color={folder.color} size={12} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {folder.name}
             </span>
           </span>
+          </Tooltip>
         )}
       </div>
 

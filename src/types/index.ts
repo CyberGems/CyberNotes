@@ -39,6 +39,7 @@ declare global {
       windowMinimize: () => Promise<void>;
       windowMaximizeToggle: () => Promise<void>;
       windowClose: () => Promise<void>;
+      windowForceClose: () => Promise<void>;
       openDevTools: () => Promise<void>;
       openDataFolder: () => Promise<void>;
       // Auth
@@ -67,6 +68,8 @@ declare global {
       // Import / Export
       exportData: () => Promise<boolean>;
       importData: () => Promise<boolean>;
+      // Updates
+      checkForUpdates: () => Promise<boolean>;
       // Assets
       selectAndSaveImage: () => Promise<string | null>;
       // Events
@@ -75,6 +78,8 @@ declare global {
       onSettingChanged: (callback: (data: { key: string, value: string }) => void) => () => void;
       onGlobalCapsLockChanged: (callback: (active: boolean) => void) => () => void;
       onOpenSettings: (callback: () => void) => () => void;
+      onConfirmUnsavedExit: (callback: () => void) => () => void;
+      respondUnsavedExit: (discard: boolean) => Promise<void>;
       // Spellcheck
       replaceMisspelling: (word: string) => Promise<void>;
       addToDictionary: (word: string) => Promise<void>;

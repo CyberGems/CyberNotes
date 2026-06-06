@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximizeToggle: () => ipcRenderer.invoke('window-maximize-toggle'),
   windowClose: () => ipcRenderer.invoke('window-close'),
+  windowForceClose: () => ipcRenderer.invoke('window-force-close'),
   openDevTools: () => ipcRenderer.invoke('open-dev-tools'),
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
   replaceMisspelling: (word: string) => ipcRenderer.invoke('replace-misspelling', word),
@@ -39,6 +40,12 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     ipcRenderer.on('open-settings', listener);
     return () => ipcRenderer.removeListener('open-settings', listener);
   },
+  onConfirmUnsavedExit: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('confirm-unsaved-exit', listener);
+    return () => ipcRenderer.removeListener('confirm-unsaved-exit', listener);
+  },
+  respondUnsavedExit: (discard: boolean) => ipcRenderer.invoke('confirm-unsaved-exit-response', discard),
 
   // -- Auth --
   hasPassword: () => ipcRenderer.invoke('auth:hasPassword'),
@@ -74,4 +81,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Import / Export --
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),
+
+  // -- Updates --
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 });

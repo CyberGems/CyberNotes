@@ -12,6 +12,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
+import Tooltip from './Tooltip';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
@@ -28,6 +29,8 @@ interface Props {
   layoutMode: number;
   onToggleLayout: () => void;
   showLineCounter?: boolean;
+  showLineGutter?: boolean;
+  showWordCounter?: boolean;
   autosaveEnabled?: boolean;
   autoUnlockCapsLock?: boolean;
   autoUnlockCapsLockTimeout?: number;
@@ -45,6 +48,8 @@ interface Props {
   onEditDraft?: (id: string, title: string, content: string) => void;
   onDiscardDraft?: (id: string) => void;
   tabsWidthMode?: 'normal' | 'wide';
+  showMinimap?: boolean;
+  onShowMinimapChange?: (v: boolean) => void;
 }
 
 // Extensión personalizada para imagen con soporte de tamaño y alineación
@@ -80,29 +85,30 @@ function extractPreview(html: string): string {
 const ToolbarBtn = ({
   onClick, active = false, title, children, disabled = false,
 }: { onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean }) => (
-  <motion.button
-    whileHover={{ scale: 1.05, background: 'var(--bg-hover)' }}
-    whileTap={{ scale: 0.95 }}
-    onMouseDown={(e) => e.preventDefault()} // CRÍTICO: Previene pérdida de foco
-    onClick={onClick}
-    title={title}
-    disabled={disabled}
-    className="btn-icon"
-    style={{
-      background: active ? 'var(--accent-dim)' : 'transparent',
-      color: active ? 'var(--accent-light)' : 'var(--text-muted)',
-      border: active ? '1px solid var(--accent)' : '1px solid transparent',
-      borderRadius: 6,
-      padding: '6px 8px',
-      transition: 'color 0.2s, border 0.2s',
-      opacity: disabled ? 0.4 : 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    {children}
-  </motion.button>
+  <Tooltip label={title} placement="bottom">
+    <motion.button
+      whileHover={{ scale: 1.05, background: 'var(--bg-hover)' }}
+      whileTap={{ scale: 0.95 }}
+      onMouseDown={(e) => e.preventDefault()} // CRÍTICO: Previene pérdida de foco
+      onClick={onClick}
+      disabled={disabled}
+      className="btn-icon"
+      style={{
+        background: active ? 'var(--accent-dim)' : 'transparent',
+        color: active ? 'var(--accent-light)' : 'var(--text-muted)',
+        border: active ? '1px solid var(--accent)' : '1px solid transparent',
+        borderRadius: 6,
+        padding: '6px 8px',
+        transition: 'color 0.2s, border 0.2s',
+        opacity: disabled ? 0.4 : 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {children}
+    </motion.button>
+  </Tooltip>
 );
 
 export default function NoteEditor({ 
@@ -113,6 +119,8 @@ export default function NoteEditor({
   layoutMode, 
   onToggleLayout, 
   showLineCounter, 
+  showLineGutter = true,
+  showWordCounter = false,
   autosaveEnabled = true,
   autoUnlockCapsLock = false,
   autoUnlockCapsLockTimeout = 8,
@@ -129,7 +137,9 @@ export default function NoteEditor({
   draftCache = {},
   onEditDraft,
   onDiscardDraft,
-  tabsWidthMode = 'normal'
+  tabsWidthMode = 'normal',
+  showMinimap = false,
+  onShowMinimapChange,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentNoteRef = useRef<Note | null>(note);
@@ -140,19 +150,134 @@ export default function NoteEditor({
   const lastContextMenuTimeRef = useRef(0);
   const isDirtyRef = useRef(false);
   const tabStripRef = useRef<HTMLDivElement>(null);
-  const [hoveredTab, setHoveredTab] = useState<{
-    id: string;
-    rect: DOMRect;
-    title: string;
-    folderName?: string;
-    folderIcon?: string;
-    folderColor?: string;
-  } | null>(null);
-
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const minimapRef = useRef<HTMLDivElement>(null);
   const [overscrollOffset, setOverscrollOffset] = useState(0);
 
+  // ─── Minimap state ──────────────────────────────────────────────
+  const minimapIndicatorRef = useRef<HTMLDivElement>(null);
+  const minimapContentRef = useRef<HTMLDivElement>(null);
+  const showMinimapRef = useRef(showMinimap);
+  showMinimapRef.current = showMinimap; // mantener actualizado para callbacks estables
+  const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
+  const [minimapScale, setMinimapScale] = useState(0.075);
+  const [minimapMenu, setMinimapMenu] = useState<{ x: number; y: number } | null>(null);
+  const MINIMAP_WIDTH = 96;
+
+  // Cerrar el menú contextual del minimapa al hacer click en cualquier sitio
   useEffect(() => {
-    setHoveredTab(null);
+    if (!minimapMenu) return;
+    const close = () => setMinimapMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+    };
+  }, [minimapMenu]);
+
+  // Actualizar indicador vía DOM directo (sin React → sin re-renders en scroll)
+  const updateMinimapIndicator = useCallback(() => {
+    const el = scrollContainerRef.current;
+    const indicator = minimapIndicatorRef.current;
+    if (!el || !indicator) return;
+    const total = el.scrollHeight;
+    const view = el.clientHeight;
+    const top = el.scrollTop;
+    if (total > 0) {
+      indicator.style.top = `${(top / total) * 100}%`;
+      indicator.style.height = `${(view / total) * 100}%`;
+      indicator.style.display = 'block';
+    } else {
+      indicator.style.display = 'none';
+    }
+  }, []);
+
+  // Sincronizar HTML del minimap desde el editor (con rAF para esperar a setContent)
+  const syncMinimapHtml = useCallback(() => {
+    if (!showMinimapRef.current) return;
+    requestAnimationFrame(() => {
+      if (!minimapContentRef.current || !editorRef.current) return;
+      const html = editorRef.current.getHTML();
+      minimapContentRef.current.innerHTML = html;
+      updateMinimapIndicator();
+    });
+  }, [updateMinimapIndicator]);
+
+  // Calcular la escala del minimapa basada en el ancho real del editor
+  useEffect(() => {
+    if (!showMinimap) return;
+    const updateScale = () => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      const editorWidth = el.clientWidth;
+      if (editorWidth > 0) {
+        setMinimapScale(MINIMAP_WIDTH / editorWidth);
+      }
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    if (scrollContainerRef.current) observer.observe(scrollContainerRef.current);
+    return () => observer.disconnect();
+  }, [showMinimap, note?.id]);
+
+  // Poblar minimap solo al activarlo (el cambio de nota lo maneja syncMinimapHtml)
+  useEffect(() => {
+    if (!showMinimap) return;
+    syncMinimapHtml();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMinimap]);
+
+  // Scroll del editor → actualizar indicador vía DOM (sin React)
+  useEffect(() => {
+    if (!showMinimap) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    updateMinimapIndicator();
+    el.addEventListener('scroll', updateMinimapIndicator, { passive: true });
+    return () => el.removeEventListener('scroll', updateMinimapIndicator);
+  }, [showMinimap, note?.id, updateMinimapIndicator]);
+
+  // ─── Minimap: arrastre del indicador de viewport ──────────────
+  const isDraggingMinimap = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const scrollEditorToMinimapY = (clientY: number) => {
+    const el = scrollContainerRef.current;
+    const mm = minimapRef.current;
+    if (!el || !mm) return;
+    const rect = mm.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    el.scrollTop = ratio * maxScroll;
+  };
+
+  const handleMinimapClick = (e: React.MouseEvent) => {
+    scrollEditorToMinimapY(e.clientY);
+  };
+
+  const handleMinimapIndicatorMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingMinimap.current = true;
+    setIsDragging(true);
+    scrollEditorToMinimapY(e.clientY);
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDraggingMinimap.current) return;
+      scrollEditorToMinimapY(ev.clientY);
+    };
+    const onUp = () => {
+      isDraggingMinimap.current = false;
+      setIsDragging(false);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  useEffect(() => {
     const el = tabStripRef.current;
     if (!el) return;
 
@@ -186,6 +311,18 @@ export default function NoteEditor({
       if (bounceTimeout) clearTimeout(bounceTimeout);
     };
   }, [openNoteIds]);
+
+  // Scroll a la pestaña activa cuando se selecciona una nota desde la lista
+  // (incluso si la pestaña ya estaba abierta pero fuera de vista)
+  useEffect(() => {
+    if (!note?.id) return;
+    const strip = tabStripRef.current;
+    if (!strip) return;
+    const tab = strip.querySelector(`[data-note-id="${note.id}"]`) as HTMLElement | null;
+    if (tab) {
+      tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [note?.id]);
 
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
@@ -286,8 +423,9 @@ export default function NoteEditor({
       if (isCapsLockActive) {
         setCapsToast(language === 'es' ? "Bloq Mayús: ACTIVADO ⚠️" : "Caps Lock: ON ⚠️");
       } else {
-        // If it was auto-unlocked (timeLeft === 0), show a special Auto-desactivado toast
-        if (autoUnlockCapsLock && autoUnlockCapsLockTimeout > 0 && timeLeft === 0) {
+        // If it was auto-unlocked (timeLeft === 0), show a special Auto-desactivado toast.
+        // Works for both countdown-to-zero (timeout > 0) and instant mode (timeout === 0).
+        if (autoUnlockCapsLock && timeLeft === 0) {
           setCapsToast(language === 'es' ? "Bloq Mayús: AUTO-DESACTIVADO 💡" : "Caps Lock: AUTO-UNLOCKED 💡");
         } else {
           setCapsToast(language === 'es' ? "Bloq Mayús: DESACTIVADO ✅" : "Caps Lock: OFF ✅");
@@ -351,8 +489,10 @@ export default function NoteEditor({
   }, [autoUnlockCapsLock, isCapsLockActive, timeLeft]);
 
   // 6. Unlock Caps Lock trigger effect when countdown hits 0 (Unconditional visual reset!)
+  //    Also handles "Instantly" mode (autoUnlockCapsLockTimeout === 0) where the
+  //    unlock must fire immediately as soon as Caps Lock is detected as active.
   useEffect(() => {
-    if (autoUnlockCapsLock && autoUnlockCapsLockTimeout > 0 && isCapsLockActive && timeLeft === 0) {
+    if (autoUnlockCapsLock && isCapsLockActive && timeLeft === 0) {
       const triggerUnlock = async () => {
         // Unconditionally clear visual indicators immediately!
         setIsCapsLockActive(false);
@@ -470,6 +610,8 @@ export default function NoteEditor({
       }
       updateLineInfo(editor);
       updateTextMetrics(editor);
+      // Actualizar minimap al editar (rAF coalesce llamadas múltiples)
+      syncMinimapHtml();
     },
     onSelectionUpdate: ({ editor }) => {
       updateLineInfo(editor);
@@ -512,6 +654,9 @@ export default function NoteEditor({
       }
     },
   });
+
+  // Sincronizar editorRef después de que useEditor lo haya inicializado
+  editorRef.current = editor;
 
   const updateLineInfo = (editor: any) => {
     if (!showLineCounter) return;
@@ -565,6 +710,7 @@ export default function NoteEditor({
     isDirtyRef.current = false;
     setHasUnsavedChanges(false);
     onDiscardDraft?.(note.id);
+    syncMinimapHtml();
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
   }, [editor, note, onDiscardDraft]);
 
@@ -604,6 +750,9 @@ export default function NoteEditor({
 
     updateTextMetrics(editor);
     updateLineInfo(editor);
+
+    // Sincronizar minimap con el nuevo contenido de la nota
+    syncMinimapHtml();
     
     if ((draft ? draft.title : note.title) === 'Nueva nota') {
       setTimeout(() => {
@@ -870,24 +1019,24 @@ export default function NoteEditor({
               const folderColor = folder ? folder.color : 'transparent';
 
               return (
-                <div
+                <Tooltip
                   key={tabId}
+                  placement="bottom"
+                  label={
+                    <>
+                      <span style={{ fontWeight: 600 }}>{displayTitle || (language === 'es' ? 'Sin título' : 'Untitled')}</span>
+                      {folder?.name && (
+                        <span style={{ fontSize: 9, color: folder.color || 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {folder.name}
+                        </span>
+                      )}
+                    </>
+                  }
+                >
+                <div
+                  data-note-id={tabId}
                   className={`editor-tab ${isActive ? 'active' : ''}`}
                   onClick={() => onSelectNote?.(tabId)}
-                  onMouseEnter={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setHoveredTab({
-                      id: tabId,
-                      rect,
-                      title: displayTitle || (language === 'es' ? 'Sin título' : 'Untitled'),
-                      folderName: folder?.name,
-                      folderIcon: folder?.icon,
-                      folderColor: folder?.color,
-                    });
-                  }}
-                  onMouseLeave={() => {
-                    setHoveredTab(null);
-                  }}
                 >
                   {isActive && (
                     <motion.div
@@ -935,28 +1084,30 @@ export default function NoteEditor({
                     </button>
                   </div>
                 </div>
+                </Tooltip>
               );
             })}
 
-            <button 
-              className="tab-new-btn"
-              onClick={onCreateNote}
-              title={language === 'es' ? 'Nueva pestaña' : 'New tab'}
-            >
-              <Plus size={14} />
-            </button>
+            <Tooltip label={language === 'es' ? 'Nueva pestaña' : 'New tab'} placement="bottom">
+              <button
+                className="tab-new-btn"
+                onClick={onCreateNote}
+              >
+                <Plus size={14} />
+              </button>
+            </Tooltip>
           </div>
         </div>
       )}
 
       {/* Title Container (Moved from below) */}
-      <div style={{ 
-        padding: '20px 48px 16px', 
-        flexShrink: 0, 
-        borderBottom: '1px solid var(--border)', 
-        background: 'linear-gradient(to bottom, rgba(15, 15, 20, 0.95) 0%, rgba(10, 10, 15, 0.95) 100%)',
+      <div style={{
+        padding: '20px 48px 16px',
+        flexShrink: 0,
+        borderBottom: '1px solid var(--border)',
+        background: 'linear-gradient(to bottom, var(--bg-sidebar) 0%, var(--bg-editor) 100%)',
         position: 'relative',
-        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.4)',
+        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.18)',
       }}>
         {/* Top glowing cyber border line */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%)', opacity: 0.6 }} />
@@ -1026,18 +1177,17 @@ export default function NoteEditor({
                     display: 'flex',
                     alignItems: 'center',
                     background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid var(--border)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
                     color: 'var(--text-muted)',
                     padding: '2px 6px',
                     borderRadius: 'var(--radius-sm)',
                     fontSize: 10,
                     fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    boxShadow: '0 0 6px rgba(239, 68, 68, 0.2)',
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
                     gap: 4,
-                    animation: 'cyber-warning-pulse 1.5s infinite ease-in-out',
+                    animation: 'cyber-warning-pulse-border 1.5s infinite ease-in-out',
                   }}
                 >
                   <span>⏱️</span>
@@ -1059,7 +1209,14 @@ export default function NoteEditor({
             </AnimatePresence>
 
             {/* Auto-Unlock CapsLock */}
-            <button 
+            <Tooltip placement="bottom" label={isCapsLockActive
+              ? (language === 'es'
+                  ? `Bloq Mayús ACTIVO (Auto-desactivar: ${autoUnlockCapsLock ? 'ENCENDIDO' : 'APAGADO'})`
+                  : `Caps Lock ACTIVE (Auto-unlock: ${autoUnlockCapsLock ? 'ON' : 'OFF'})`)
+              : (language === 'es'
+                  ? `Desactivar Bloq Mayús por inactividad (Estado: ${autoUnlockCapsLock ? 'ACTIVO' : 'INACTIVO'})`
+                  : `Disable Caps Lock on inactivity (Status: ${autoUnlockCapsLock ? 'ACTIVE' : 'INACTIVE'})`)}>
+            <button
               onClick={() => {
                 const nextVal = !autoUnlockCapsLock;
                 onAutoUnlockCapsLockChange?.(nextVal);
@@ -1074,15 +1231,7 @@ export default function NoteEditor({
                   setCapsToast(null);
                 }, 2000);
               }}
-              title={isCapsLockActive 
-                ? (language === 'es' 
-                    ? `Bloq Mayús ACTIVO (Auto-desactivar: ${autoUnlockCapsLock ? 'ENCENDIDO' : 'APAGADO'})` 
-                    : `Caps Lock ACTIVE (Auto-unlock: ${autoUnlockCapsLock ? 'ON' : 'OFF'})`)
-                : (language === 'es' 
-                    ? `Desactivar Bloq Mayús por inactividad (Estado: ${autoUnlockCapsLock ? 'ACTIVO' : 'INACTIVO'})` 
-                    : `Disable Caps Lock on inactivity (Status: ${autoUnlockCapsLock ? 'ACTIVE' : 'INACTIVE'})`)
-              }
-              style={{ 
+              style={{
                 padding: 6,
                 position: 'relative',
                 color: isCapsLockActive 
@@ -1101,17 +1250,29 @@ export default function NoteEditor({
                 justifyContent: 'center',
                 transition: 'all 0.2s',
                 boxShadow: (isCapsLockActive && autoUnlockCapsLock)
-                  ? '0 0 8px rgba(239, 68, 68, 0.25)' 
+                  ? '0 0 2px rgba(239, 68, 68, 0.08)' 
                   : 'none',
                 animation: (isCapsLockActive && autoUnlockCapsLock) 
                   ? 'cyber-warning-pulse 1.5s infinite ease-in-out' 
                   : 'none',
               }}
               onMouseEnter={e => { 
-                if (!autoUnlockCapsLock && !isCapsLockActive) e.currentTarget.style.color = 'var(--text-primary)'; 
+                e.currentTarget.style.background = 'var(--bg-hover)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                if (isCapsLockActive && autoUnlockCapsLock) {
+                  e.currentTarget.style.color = '#ff7070';
+                } else {
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }
               }}
               onMouseLeave={e => { 
-                if (!autoUnlockCapsLock && !isCapsLockActive) e.currentTarget.style.color = 'var(--text-muted)'; 
+                e.currentTarget.style.background = autoUnlockCapsLock ? 'var(--accent-dim)' : 'transparent';
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.color = isCapsLockActive 
+                  ? '#ef4444' 
+                  : autoUnlockCapsLock 
+                    ? 'var(--accent-light)' 
+                    : 'var(--text-muted)';
               }}
             >
               <Keyboard size={14} />
@@ -1126,19 +1287,20 @@ export default function NoteEditor({
                   height: 5,
                   background: '#ef4444',
                   borderRadius: '50%',
-                  boxShadow: '0 0 6px #ef4444',
+                  boxShadow: '0 0 3px #ef4444',
                   animation: 'dot-pulse 1.5s infinite ease-in-out',
                 }} />
               )}
             </button>
+            </Tooltip>
 
             <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
 
             {/* Pin */}
-            <button 
+            <Tooltip placement="bottom" label={pinned ? (language === 'es' ? "Desfijar nota" : "Unpin note") : (language === 'es' ? "Fijar nota" : "Pin note")}>
+            <button
               onClick={handlePin}
-              title={pinned ? (language === 'es' ? "Desfijar nota" : "Unpin note") : (language === 'es' ? "Fijar nota" : "Pin note")}
-              style={{ 
+              style={{
                 padding: 6,
                 color: pinned ? 'var(--accent-light)' : 'var(--text-muted)',
                 background: pinned ? 'var(--accent-dim)' : 'transparent',
@@ -1150,18 +1312,26 @@ export default function NoteEditor({
                 justifyContent: 'center',
                 transition: 'all 0.2s',
               }}
-              onMouseEnter={e => { if (!pinned) e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { if (!pinned) e.currentTarget.style.color = 'var(--text-muted)'; }}
+              onMouseEnter={e => { 
+                e.currentTarget.style.background = 'var(--bg-hover)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={e => { 
+                e.currentTarget.style.background = pinned ? 'var(--accent-dim)' : 'transparent';
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.color = pinned ? 'var(--accent-light)' : 'var(--text-muted)';
+              }}
             >
               <Pin size={14} />
             </button>
+            </Tooltip>
 
             {/* Guardar manual */}
             <AnimatePresence>
               {!autosaveEnabled && hasUnsavedChanges && (
                 <motion.button
                   onClick={handleManualSave}
-                  title={language === 'es' ? "Guardar cambios pendientes" : "Save pending changes"}
                   initial={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
                   animate={{ scale: 1, opacity: 1, width: 'auto', marginRight: 4 }}
                   exit={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
@@ -1193,10 +1363,10 @@ export default function NoteEditor({
             </AnimatePresence>
 
             {/* Vista HTML */}
-            <button 
+            <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Ver código fuente)' : 'HTML View (Source code)'}>
+            <button
               onClick={() => setIsRaw(!isRaw)}
-              title={language === 'es' ? 'Vista HTML (Ver código fuente)' : 'HTML View (Source code)'}
-              style={{ 
+              style={{
                 padding: 6,
                 color: isRaw ? 'var(--accent-light)' : 'var(--text-muted)',
                 background: isRaw ? 'var(--accent-dim)' : 'transparent',
@@ -1209,19 +1379,28 @@ export default function NoteEditor({
                 transition: 'all 0.2s',
                 outline: 'none',
               }}
-              onMouseEnter={e => { if (!isRaw) e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { if (!isRaw) e.currentTarget.style.color = 'var(--text-muted)'; }}
+              onMouseEnter={e => { 
+                e.currentTarget.style.background = 'var(--bg-hover)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={e => { 
+                e.currentTarget.style.background = isRaw ? 'var(--accent-dim)' : 'transparent';
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.color = isRaw ? 'var(--accent-light)' : 'var(--text-muted)';
+              }}
             >
               <Braces size={14} />
             </button>
+            </Tooltip>
 
             <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
 
             {/* Cambiar vista */}
-            <button 
+            <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Actual: ${layoutMode} columnas)` : `Change view (Current: ${layoutMode} columns)`}>
+            <button
               onClick={onToggleLayout}
-              title={language === 'es' ? `Cambiar vista (Actual: ${layoutMode} columnas)` : `Change view (Current: ${layoutMode} columns)`}
-              style={{ 
+              style={{
                 padding: 6,
                 color: 'var(--text-muted)',
                 background: 'transparent',
@@ -1234,23 +1413,32 @@ export default function NoteEditor({
                 transition: 'all 0.2s',
                 outline: 'none',
               }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.color = 'var(--text-muted)';
+              }}
             >
               <PanelLeft size={14} />
             </button>
+            </Tooltip>
 
             <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
 
             {/* Exportar nota dropdown trigger */}
             <div style={{ position: 'relative', display: 'flex' }}>
-              <button 
+              <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota (.md / .html)' : 'Export note (.md / .html)'}>
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowExportMenu(!showExportMenu);
                 }}
-                title={language === 'es' ? 'Exportar nota (.md / .html)' : 'Export note (.md / .html)'}
-                style={{ 
+                style={{
                   padding: 6,
                   color: showExportMenu ? 'var(--accent-light)' : 'var(--text-muted)',
                   background: showExportMenu ? 'var(--accent-dim)' : 'transparent',
@@ -1263,11 +1451,20 @@ export default function NoteEditor({
                   transition: 'all 0.2s',
                   outline: 'none',
                 }}
-                onMouseEnter={e => { if (!showExportMenu) e.currentTarget.style.color = 'var(--text-primary)'; }}
-                onMouseLeave={e => { if (!showExportMenu) e.currentTarget.style.color = 'var(--text-muted)'; }}
+                onMouseEnter={e => { 
+                  e.currentTarget.style.background = 'var(--bg-hover)';
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }}
+                onMouseLeave={e => { 
+                  e.currentTarget.style.background = showExportMenu ? 'var(--accent-dim)' : 'transparent';
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.color = showExportMenu ? 'var(--accent-light)' : 'var(--text-muted)';
+                }}
               >
                 <Download size={14} />
               </button>
+              </Tooltip>
 
               <AnimatePresence>
                 {showExportMenu && (
@@ -1340,10 +1537,11 @@ export default function NoteEditor({
           </div>
         </div>
       </div>
-                {/* Toolbar Container (Original lines 693-771) */}
+                {/* Toolbar Container */}
       <div style={{
         display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--border)',
         flexShrink: 0, background: 'var(--bg-notelist)',
+        position: 'relative', // Necesario para que la barra de imagen se posicione absolutamente
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', flexWrap: 'wrap' }}>
           {editor && (
@@ -1380,15 +1578,30 @@ export default function NoteEditor({
           )}
         </div>
 
+        {/* Barra de imagen flotante: posicionada absolutamente para no desplazar el contenido */}
         <AnimatePresence>
           {editor?.isActive('image') && (
             <motion.div
-              initial={{ height: 0, y: -10, opacity: 0 }}
-              animate={{ height: 'auto', y: 0, opacity: 1 }}
-              exit={{ height: 0, y: -10, opacity: 0 }}
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
               style={{
-                background: 'var(--bg-editor)', borderTop: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', overflow: 'hidden',
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 20,
+                background: 'rgba(10, 10, 18, 0.92)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                borderTop: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '8px 16px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
               }}
             >
               <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>{language === 'es' ? 'Imagen:' : 'Image:'}</span>
@@ -1421,11 +1634,16 @@ export default function NoteEditor({
         </AnimatePresence>
       </div>
 
-      {/* Editor Content Container (Scrolling) */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      {/* Editor Area: relative wrapper para que el minimapa flote a la derecha */}
+      <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
+        {/* Editor Content Container (Scrolling) */}
+        <div
+          ref={scrollContainerRef}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: showMinimap ? MINIMAP_WIDTH + 6 : 0 }}
+        >
 
         <div 
-          className={showLineCounter ? 'show-line-numbers' : ''}
+          className={showLineGutter ? 'show-line-numbers' : ''}
           style={{ position: 'relative', cursor: 'text', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}
           onContextMenu={() => {
             lastContextMenuTargetRef.current = 'editor';
@@ -1494,6 +1712,62 @@ export default function NoteEditor({
 
       </div>
 
+      {/* ─── Minimap ─────────────────────────────────────────────── */}
+      {showMinimap && (
+        <div
+          ref={minimapRef}
+          onClick={handleMinimapClick}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMinimapMenu({ x: e.clientX, y: e.clientY }); }}
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: MINIMAP_WIDTH,
+            background: 'rgba(8, 8, 16, 0.85)',
+            borderLeft: '1px solid var(--border)',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            zIndex: 5,
+            userSelect: 'none',
+          }}
+        >
+          {/* Contenido escalado: HTML seteado vía DOM directo, sin re-renders */}
+          <div
+            ref={minimapContentRef}
+            style={{
+              width: minimapScale > 0 ? MINIMAP_WIDTH / minimapScale : 1280,
+              transform: `scale(${minimapScale})`,
+              transformOrigin: 'top left',
+              color: 'var(--text-muted)',
+              pointerEvents: 'none',
+              fontSize: '16px',
+              lineHeight: 1.5,
+            }}
+          />
+          {/* Indicador de viewport (arrastrable) — actualizado vía DOM directo */}
+          <div
+            ref={minimapIndicatorRef}
+            onMouseDown={handleMinimapIndicatorMouseDown}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              display: 'none', // se muestra vía updateMinimapIndicator()
+              background: 'var(--accent)',
+              opacity: 0.15,
+              borderTop: '1px solid var(--accent)',
+              borderBottom: '1px solid var(--accent)',
+              cursor: 'grab',
+              pointerEvents: 'auto',
+              transition: isDragging ? 'none' : 'top 0.05s linear, height 0.05s linear',
+            }}
+          />
+        </div>
+      )}
+
+      </div>{/* Cierre del wrapper relativo del editor area */}
+
       <div style={{
         padding: '6px 16px',
         background: 'var(--bg-notelist)',
@@ -1512,9 +1786,9 @@ export default function NoteEditor({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
           <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.85, marginRight: 2 }}>{language === 'es' ? 'Escala:' : 'Scale:'}</span>
           
-          <button 
+          <Tooltip placement="top" label={language === 'es' ? 'Reducir tamaño de interfaz (5%)' : 'Reduce interface scale (5%)'}>
+          <button
             onClick={() => onScaleChange?.(Math.max(0.8, parseFloat((uiScale - 0.05).toFixed(2))))}
-            title={language === 'es' ? 'Reducir tamaño de interfaz (5%)' : 'Reduce interface scale (5%)'}
             style={{
               background: 'transparent',
               border: 'none',
@@ -1533,6 +1807,7 @@ export default function NoteEditor({
           >
             <Minus size={11} />
           </button>
+          </Tooltip>
 
           <input 
             type="range"
@@ -1554,9 +1829,9 @@ export default function NoteEditor({
             }}
           />
 
-          <button 
+          <Tooltip placement="top" label={language === 'es' ? 'Aumentar tamaño de interfaz (5%)' : 'Increase interface scale (5%)'}>
+          <button
             onClick={() => onScaleChange?.(Math.min(1.5, parseFloat((uiScale + 0.05).toFixed(2))))}
-            title={language === 'es' ? 'Aumentar tamaño de interfaz (5%)' : 'Increase interface scale (5%)'}
             style={{
               background: 'transparent',
               border: 'none',
@@ -1575,6 +1850,7 @@ export default function NoteEditor({
           >
             <Plus size={11} />
           </button>
+          </Tooltip>
 
           <span style={{ fontSize: 9.5, fontWeight: 700, minWidth: 32, color: 'var(--accent-light)', textAlign: 'right', marginLeft: 4 }}>
             {Math.round(uiScale * 100)}%
@@ -1590,14 +1866,16 @@ export default function NoteEditor({
                 <span>COL {lineInfo.col}</span>
                 <span>TOTAL {lineInfo.total} {language === 'es' ? 'LN' : 'LNS'}</span>
               </div>
-              <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
+              {showWordCounter && <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>}
             </>
           )}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <span>{textMetrics.words} {language === 'es' ? 'PALABRAS' : 'WORDS'}</span>
-            <span>{textMetrics.chars} {language === 'es' ? 'CARS' : 'CHARS'}</span>
-            <span style={{ color: 'var(--accent-light)', fontWeight: 600 }}>{textMetrics.readingTime} {textMetrics.readingTime === 1 ? (language === 'es' ? 'MIN' : 'MIN') : (language === 'es' ? 'MINS' : 'MINS')} {language === 'es' ? 'LEER' : 'READ'}</span>
-          </div>
+          {showWordCounter && (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <span>{textMetrics.words} {language === 'es' ? 'PALABRAS' : 'WORDS'}</span>
+              <span>{textMetrics.chars} {language === 'es' ? 'CARS' : 'CHARS'}</span>
+              <span style={{ color: 'var(--accent-light)', fontWeight: 600 }}>{textMetrics.readingTime} {textMetrics.readingTime === 1 ? (language === 'es' ? 'MIN' : 'MIN') : (language === 'es' ? 'MINS' : 'MINS')} {language === 'es' ? 'LEER' : 'READ'}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1962,61 +2240,6 @@ export default function NoteEditor({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {hoveredTab && createPortal(
-        <div style={{
-          position: 'fixed',
-          left: hoveredTab.rect.left + hoveredTab.rect.width / 2,
-          top: hoveredTab.rect.bottom + 8,
-          transform: 'translateX(-50%)',
-          background: 'rgba(15, 15, 20, 0.95)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid var(--border)',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 10px var(--accent-glow)',
-          borderRadius: 8,
-          padding: '8px 12px',
-          color: '#fff',
-          fontSize: 11,
-          zIndex: 99999,
-          pointerEvents: 'none',
-          whiteSpace: 'nowrap',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-          alignItems: 'center',
-          animation: 'tooltipFadeIn 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{hoveredTab.title}</span>
-          {hoveredTab.folderName && (
-            <span style={{ 
-              fontSize: 9, 
-              color: hoveredTab.folderColor || 'var(--text-muted)',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              opacity: 0.9,
-              letterSpacing: '0.05em',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}>
-              <span>{hoveredTab.folderIcon || '📁'}</span>
-              <span>{hoveredTab.folderName}</span>
-            </span>
-          )}
-          <div style={{
-            position: 'absolute',
-            top: -4,
-            left: '50%',
-            transform: 'translateX(-50%) rotate(45deg)',
-            width: 8,
-            height: 8,
-            background: 'rgba(15, 15, 20, 0.95)',
-            borderTop: '1px solid var(--border)',
-            borderLeft: '1px solid var(--border)',
-          }} />
-        </div>,
-        document.body
-      )}
 
       {/* Caso B — Aviso al salir del editor con cambios sin guardar (modo manual) */}
       <AnimatePresence>

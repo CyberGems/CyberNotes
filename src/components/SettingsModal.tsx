@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { Language, TRANSLATIONS } from '../languages';
-import { X, Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2 } from 'lucide-react';
+import { X, Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, RefreshCw, Sparkles, Settings } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -26,6 +26,8 @@ interface Props {
   onRememberLastNoteChange: (v: boolean) => void;
   showLineCounter: boolean;
   onShowLineCounterChange: (v: boolean) => void;
+  showLineGutter: boolean;
+  onShowLineGutterChange: (v: boolean) => void;
   autosaveEnabled: boolean;
   onAutosaveEnabledChange: (v: boolean) => void;
   autoUnlockCapsLock: boolean;
@@ -40,9 +42,13 @@ interface Props {
   onLock: () => void;
   tabsWidthMode: 'normal' | 'wide';
   onTabsWidthModeChange: (v: 'normal' | 'wide') => void;
+  showMinimap: boolean;
+  onShowMinimapChange: (v: boolean) => void;
+  showWordCounter: boolean;
+  onShowWordCounterChange: (v: boolean) => void;
 }
 
-type Tab = 'general' | 'security' | 'about';
+type Tab = 'general' | 'appearance' | 'security' | 'maintenance' | 'about';
 
 export default function SettingsModal({ 
   language, onLanguageChange,
@@ -51,13 +57,16 @@ export default function SettingsModal({
   autoLockMinutes, onAutoLockChange,
   rememberLastNote, onRememberLastNoteChange,
   showLineCounter, onShowLineCounterChange,
+  showLineGutter, onShowLineGutterChange,
   autosaveEnabled, onAutosaveEnabledChange,
   autoUnlockCapsLock, onAutoUnlockCapsLockChange,
   autoUnlockCapsLockTimeout, onAutoUnlockCapsLockTimeoutChange,
   capsLockSound, onCapsLockSoundChange,
   capsLockSoundScope, onCapsLockSoundScopeChange,
   onClose, onLock,
-  tabsWidthMode, onTabsWidthModeChange
+  tabsWidthMode, onTabsWidthModeChange,
+  showMinimap, onShowMinimapChange,
+  showWordCounter, onShowWordCounterChange,
 }: Props) {
   const [tab, setTab] = useState<Tab>('general');
   const [currentPwd, setCurrentPwd] = useState('');
@@ -70,6 +79,8 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+  const [autoCheckUpdates, setAutoCheckUpdates] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'available'>('idle');
 
   // Diálogo personalizado (reemplaza alert/confirm nativos)
   const [dialog, setDialog] = useState<DialogOptions | null>(null);
@@ -98,6 +109,8 @@ export default function SettingsModal({
       setMinimizeToTray(minVal === 'true');
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
+      const autoCheck = await window.cyberNotesAPI.getSetting('auto_check_updates');
+      setAutoCheckUpdates(autoCheck === 'true');
     };
     loadSettings();
   }, []);
@@ -115,6 +128,21 @@ export default function SettingsModal({
   const handleToggleAutoStart = async (val: boolean) => {
     setAutoStart(val);
     await window.cyberNotesAPI.setAutoStart(val);
+  };
+
+  const handleToggleAutoCheckUpdates = async (val: boolean) => {
+    setAutoCheckUpdates(val);
+    await window.cyberNotesAPI.setSetting('auto_check_updates', val.toString());
+  };
+
+  const handleCheckForUpdates = async () => {
+    setUpdateCheckStatus('checking');
+    try {
+      const result = await window.cyberNotesAPI.checkForUpdates();
+      setUpdateCheckStatus(result ? 'available' : 'up-to-date');
+    } catch {
+      setUpdateCheckStatus('idle');
+    }
   };
 
   const handleSetPassword = async () => {
@@ -226,8 +254,10 @@ export default function SettingsModal({
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, padding: '16px 24px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           {[
-            { id: 'general' as Tab, label: language === 'es' ? 'General' : 'General', icon: <Palette size={14} /> },
+            { id: 'general' as Tab, label: language === 'es' ? 'General' : 'General', icon: <Settings size={14} /> },
+            { id: 'appearance' as Tab, label: language === 'es' ? 'Apariencia' : 'Appearance', icon: <Sparkles size={14} /> },
             { id: 'security' as Tab, label: language === 'es' ? 'Seguridad' : 'Security', icon: <Shield size={14} /> },
+            { id: 'maintenance' as Tab, label: language === 'es' ? 'Mantenimiento' : 'Maintenance', icon: <FolderOpen size={14} /> },
             { id: 'about' as Tab, label: language === 'es' ? 'Acerca de' : 'About', icon: <Monitor size={14} /> },
           ].map(t => (
             <button
@@ -261,159 +291,6 @@ export default function SettingsModal({
           {/* ── GENERAL ── */}
           {tab === 'general' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {language === 'es' ? 'Tema visual' : 'Visual Theme'}
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {THEMES.map(theme => (
-                    <button
-                      key={theme.id}
-                      onClick={() => onThemeChange(theme.id as ThemeId)}
-                      style={{
-                        padding: '14px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        border: currentTheme === theme.id ? `2px solid var(--accent)` : '1px solid var(--border)',
-                        background: currentTheme === theme.id ? 'var(--accent-dim)' : 'var(--bg-surface)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        transition: 'all var(--transition)',
-                        boxShadow: currentTheme === theme.id ? '0 0 12px var(--accent-glow)' : 'none',
-                      }}
-                    >
-                      <div style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
-                        background: getPreviewColor(theme.id, currentTheme === theme.id ? colorIntensity : 50),
-                        flexShrink: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 16,
-                      }}>
-                        {theme.emoji}
-                      </div>
-                      <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{language === 'es' ? theme.name : (theme.id === 'cyberpunk' ? 'Cyberpunk' : theme.id === 'matrix' ? 'Matrix' : theme.id === 'aurora' ? 'Aurora' : theme.id === 'sakura' ? 'Sakura' : theme.id === 'graphite' ? 'Graphite' : 'Light')}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {currentTheme === theme.id ? (language === 'es' ? '● Activo' : '● Active') : (language === 'es' ? 'Click para activar' : 'Click to activate')}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{
-                padding: '16px',
-                background: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                opacity: isColorfulTheme(currentTheme) ? 1 : 0.4,
-                pointerEvents: isColorfulTheme(currentTheme) ? 'auto' : 'none',
-                transition: 'opacity var(--transition)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Intensidad de color' : 'Color Intensity'}</span>
-                  <span style={{ fontSize: 13, color: 'var(--accent-light)', fontWeight: 700, background: 'var(--accent-dim)', padding: '2px 8px', borderRadius: 4 }}>
-                    {colorIntensity}%
-                  </span>
-                </div>
-                <input 
-                  type="range" min="0" max="100" step="5" 
-                  value={colorIntensity}
-                  onChange={(e) => onIntensityChange(parseInt(e.target.value))}
-                  style={{ width: '100%', accentColor: 'var(--accent)' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  <span>{language === 'es' ? 'Suave' : 'Soft'}</span>
-                  <span>{language === 'es' ? 'Intenso' : 'Vibrant'}</span>
-                </div>
-                {!isColorfulTheme(currentTheme) && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>
-                    {language === 'es' ? `No aplica para ${currentTheme === 'graphite' ? 'Graphite' : 'Light'}` : `Not applicable for ${currentTheme === 'graphite' ? 'Graphite' : 'Light'}`}
-                  </div>
-                )}
-              </div>
-
-              <div className="divider" />
- 
-
-
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {language === 'es' ? 'Fondo Personalizado' : 'Custom Background'}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {/* Selector de Imagen */}
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <div style={{
-                      width: 80,
-                      height: 50,
-                      borderRadius: 8,
-                      background: bgImage ? `url("${bgImage}")` : 'var(--bg-surface)',
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      border: '1px solid var(--border)',
-                      flexShrink: 0
-                    }} />
-                    <div style={{ flex: 1, display: 'flex', gap: 8 }}>
-                      <button 
-                        className="btn btn-primary" 
-                        style={{ flex: 1, fontSize: 12 }}
-                        onClick={async () => {
-                          const url = await window.cyberNotesAPI.selectAndSaveImage();
-                          if (url) onBgImageChange(url);
-                        }}
-                      >
-                        {language === 'es' ? 'Cambiar imagen' : 'Change image'}
-                      </button>
-                      {bgImage && (
-                        <button 
-                          className="btn btn-danger" 
-                          style={{ padding: '8px 12px' }}
-                          onClick={() => onBgImageChange(null)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Sliders */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                        <span style={{ color: 'var(--text-primary)' }}>{language === 'es' ? 'Efecto Glass (Desenfoque)' : 'Glass Blur Effect'}</span>
-                        <span style={{ color: 'var(--accent-light)' }}>{glassBlur}px</span>
-                      </div>
-                      <input 
-                        type="range" min="0" max="40" step="1" 
-                        value={glassBlur} onChange={(e) => onBlurChange(parseInt(e.target.value))}
-                        style={{ width: '100%', accentColor: 'var(--accent)' }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                        <span style={{ color: 'var(--text-primary)' }}>{language === 'es' ? 'Opacidad del Overlay' : 'Overlay Opacity'}</span>
-                        <span style={{ color: 'var(--accent-light)' }}>{Math.round(bgOpacity * 100)}%</span>
-                      </div>
-                      <input 
-                        type="range" min="0" max="0.95" step="0.05" 
-                        value={bgOpacity} onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-                        style={{ width: '100%', accentColor: 'var(--accent)' }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="divider" />
-
               <div>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   {language === 'es' ? 'Comportamiento' : 'Behavior'}
@@ -579,6 +456,57 @@ export default function SettingsModal({
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
+                  }} onClick={() => onShowLineGutterChange(!showLineGutter)}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Líneas numeradas (gutter)' : 'Line numbers (gutter)'}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra la numeración de líneas al costado izquierdo del editor' : 'Show line numbers on the left side of the editor'}</span>
+                    </div>
+                    <div className={`custom-switch ${showLineGutter ? 'active' : ''}`} />
+                  </label>
+
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
+                  }} onClick={() => onShowMinimapChange(!showMinimap)}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>🗺️ {language === 'es' ? 'Minimapa' : 'Minimap'}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra un minimapa del documento para navegación rápida' : 'Show a document minimap for quick navigation'}</span>
+                    </div>
+                    <div className={`custom-switch ${showMinimap ? 'active' : ''}`} />
+                  </label>
+
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
+                  }} onClick={() => onShowWordCounterChange(!showWordCounter)}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}># {language === 'es' ? 'Contador de palabras' : 'Word counter'}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra palabras, caracteres y tiempo de lectura en la barra de estado' : 'Show words, characters and reading time in the status bar'}</span>
+                    </div>
+                    <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
+                  </label>
+
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
                   }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Autoguardado' : 'Autosave'}</span>
@@ -632,10 +560,10 @@ export default function SettingsModal({
                           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{language === 'es' ? 'Tiempo de inactividad' : 'Inactivity timeout'}</span>
                           <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 700 }}>
                             {(() => {
-                              const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 0];
+                              const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
                               const CAPS_LOCK_LABELS = language === 'es' 
-                                ? ['5s', '10s', '15s', '30s', '45s', '1m', '2m', '5m', '10m', '15m', '30m', '1h', '2h', '3h', '6h', 'Al instante (Siempre activo / Forever)'] 
-                                : ['5s', '10s', '15s', '30s', '45s', '1m', '2m', '5m', '10m', '15m', '30m', '1h', '2h', '3h', '6h', 'Instantly (Always active / Forever)'];
+                                ? ['5s', '10s', '15s', '30s', '45s', '1m', '2m', '5m', '10m', '15m', '30m', '1h', '2h', '3h', '6h', '12h', '24h'] 
+                                : ['5s', '10s', '15s', '30s', '45s', '1m', '2m', '5m', '10m', '15m', '30m', '1h', '2h', '3h', '6h', '12h', '24h'];
                               const idx = CAPS_LOCK_STEPS.indexOf(autoUnlockCapsLockTimeout);
                               return idx !== -1 ? CAPS_LOCK_LABELS[idx] : '8s';
                             })()}
@@ -644,15 +572,15 @@ export default function SettingsModal({
                         <input 
                           type="range"
                           min="0"
-                          max="15"
+                          max="16"
                           step="1"
                           value={(() => {
-                            const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 0];
+                            const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
                             const idx = CAPS_LOCK_STEPS.indexOf(autoUnlockCapsLockTimeout);
                             return idx !== -1 ? idx : 1;
                           })()}
                           onChange={(e) => {
-                            const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 0];
+                            const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
                             const idx = parseInt(e.target.value);
                             onAutoUnlockCapsLockTimeoutChange(CAPS_LOCK_STEPS[idx]);
                           }}
@@ -707,71 +635,156 @@ export default function SettingsModal({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── APPEARANCE ── */}
+          {tab === 'appearance' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {language === 'es' ? 'Tema visual' : 'Visual Theme'}
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {THEMES.map(theme => (
+                    <button
+                      key={theme.id}
+                      onClick={() => onThemeChange(theme.id as ThemeId)}
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: 'var(--radius-md)',
+                        border: currentTheme === theme.id ? `2px solid var(--accent)` : '1px solid var(--border)',
+                        background: currentTheme === theme.id ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        transition: 'all var(--transition)',
+                        boxShadow: currentTheme === theme.id ? '0 0 12px var(--accent-glow)' : 'none',
+                      }}
+                    >
+                      <div style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        background: getPreviewColor(theme.id, currentTheme === theme.id ? colorIntensity : 50),
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 16,
+                      }}>
+                        {theme.emoji}
+                      </div>
+                      <div style={{ textAlign: 'left' }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{theme.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {currentTheme === theme.id ? (language === 'es' ? '● Activo' : '● Active') : (language === 'es' ? 'Click para activar' : 'Click to activate')}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: 'var(--bg-surface)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                opacity: isColorfulTheme(currentTheme) ? 1 : 0.4,
+                pointerEvents: isColorfulTheme(currentTheme) ? 'auto' : 'none',
+                transition: 'opacity var(--transition)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Intensidad de color' : 'Color Intensity'}</span>
+                  <span style={{ fontSize: 13, color: 'var(--accent-light)', fontWeight: 700, background: 'var(--accent-dim)', padding: '2px 8px', borderRadius: 4 }}>
+                    {colorIntensity}%
+                  </span>
+                </div>
+                <input 
+                  type="range" min="0" max="100" step="5" 
+                  value={colorIntensity}
+                  onChange={(e) => onIntensityChange(parseInt(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--accent)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  <span>{language === 'es' ? 'Suave' : 'Soft'}</span>
+                  <span>{language === 'es' ? 'Intenso' : 'Vibrant'}</span>
+                </div>
+                {!isColorfulTheme(currentTheme) && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>
+                    {language === 'es' ? `No aplica para ${currentTheme === 'graphite' ? 'Graphite' : 'Light'}` : `Not applicable for ${currentTheme === 'graphite' ? 'Graphite' : 'Light'}`}
+                  </div>
+                )}
+              </div>
 
               <div className="divider" />
 
               <div>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {language === 'es' ? 'Herramientas y Datos' : 'Tools & Data'}
+                  {language === 'es' ? 'Fondo Personalizado' : 'Custom Background'}
                 </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => window.cyberNotesAPI.openDevTools()}
-                    style={{ gap: 8, fontSize: 13 }}
-                  >
-                    <Monitor size={15} />
-                    {language === 'es' ? 'Abrir consola' : 'Open console'}
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => window.cyberNotesAPI.openDataFolder()}
-                    style={{ gap: 8, fontSize: 13 }}
-                  >
-                    <FolderOpen size={15} />
-                    {language === 'es' ? 'Carpeta de datos' : 'Data folder'}
-                  </button>
-                  
-                  <button
-                    className="btn btn-ghost"
-                    onClick={async () => {
-                      const ok = await window.cyberNotesAPI.exportData();
-                      if (ok) await showDialog({
-                        variant: 'success',
-                        title: language === 'es' ? 'Exportación completada' : 'Export complete',
-                        message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
-                      });
-                    }}
-                    style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))' }}
-                  >
-                    <Download size={15} />
-                    {language === 'es' ? 'Exportar Backup (JSON)' : 'Export Backup (JSON)'}
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    style={{ gap: 8, fontSize: 13, color: 'var(--warning)' }}
-                    onClick={async () => {
-                      const proceed = await showDialog({
-                        variant: 'warning',
-                        confirm: true,
-                        title: language === 'es' ? 'Importar backup' : 'Import backup',
-                        message: language === 'es' ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?' : 'Importing a backup will merge data with current notes. Do you want to continue?',
-                      });
-                      if (!proceed) return;
-                      const ok = await window.cyberNotesAPI.importData();
-                      if (ok) {
-                        await showDialog({
-                          variant: 'success',
-                          title: language === 'es' ? 'Importación completada' : 'Import complete',
-                          message: language === 'es' ? 'Datos importados correctamente. La aplicación se recargará.' : 'Data successfully imported. The application will reload.',
-                        });
-                        window.location.reload();
-                      }
-                    }}
-                  >
-                    <Upload size={15} />
-                    {language === 'es' ? 'Importar Backup' : 'Import Backup'}
-                  </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{
+                      width: 80,
+                      height: 50,
+                      borderRadius: 8,
+                      background: bgImage ? `url("${bgImage}")` : 'var(--bg-surface)',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      border: '1px solid var(--border)',
+                      flexShrink: 0
+                    }} />
+                    <div style={{ flex: 1, display: 'flex', gap: 8 }}>
+                      <button 
+                        className="btn btn-primary" 
+                        style={{ flex: 1, fontSize: 12 }}
+                        onClick={async () => {
+                          const url = await window.cyberNotesAPI.selectAndSaveImage();
+                          if (url) onBgImageChange(url);
+                        }}
+                      >
+                        {language === 'es' ? 'Cambiar imagen' : 'Change image'}
+                      </button>
+                      {bgImage && (
+                        <button 
+                          className="btn btn-danger" 
+                          style={{ padding: '8px 12px' }}
+                          onClick={() => onBgImageChange(null)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span style={{ color: 'var(--text-primary)' }}>{language === 'es' ? 'Efecto Glass (Desenfoque)' : 'Glass Blur Effect'}</span>
+                        <span style={{ color: 'var(--accent-light)' }}>{glassBlur}px</span>
+                      </div>
+                      <input 
+                        type="range" min="0" max="40" step="1" 
+                        value={glassBlur} onChange={(e) => onBlurChange(parseInt(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--accent)' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span style={{ color: 'var(--text-primary)' }}>{language === 'es' ? 'Opacidad del Overlay' : 'Overlay Opacity'}</span>
+                        <span style={{ color: 'var(--accent-light)' }}>{Math.round(bgOpacity * 100)}%</span>
+                      </div>
+                      <input 
+                        type="range" min="0" max="0.95" step="0.05" 
+                        value={bgOpacity} onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--accent)' }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -920,6 +933,152 @@ export default function SettingsModal({
             </div>
           )}
 
+          {/* ── MAINTENANCE ── */}
+          {tab === 'maintenance' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Updates */}
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {language === 'es' ? 'Actualizaciones' : 'Updates'}
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    gap: 12,
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {t.maintenance.checkUpdates}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {t.maintenance.checkUpdatesDesc}
+                      </span>
+                      {updateCheckStatus !== 'idle' && (
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: updateCheckStatus === 'checking' ? 'var(--accent-light)'
+                            : updateCheckStatus === 'up-to-date' ? 'var(--success)'
+                            : '#f59e0b',
+                          marginTop: 2,
+                        }}>
+                          {updateCheckStatus === 'checking'
+                            ? t.maintenance.checking
+                            : updateCheckStatus === 'up-to-date'
+                              ? t.maintenance.upToDate
+                              : t.maintenance.updateAvailable}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleCheckForUpdates}
+                      disabled={updateCheckStatus === 'checking'}
+                      style={{ gap: 6, fontSize: 12, padding: '8px 14px', whiteSpace: 'nowrap' }}
+                    >
+                      <RefreshCw size={13} className={updateCheckStatus === 'checking' ? 'spin' : ''} />
+                      {t.maintenance.checkNow}
+                    </button>
+                  </div>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }} onClick={() => handleToggleAutoCheckUpdates(!autoCheckUpdates)}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {t.maintenance.autoCheckUpdates}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {t.maintenance.autoCheckUpdatesDesc}
+                      </span>
+                    </div>
+                    <div className={`custom-switch ${autoCheckUpdates ? 'active' : ''}`} />
+                  </label>
+                </div>
+              </div>
+
+              <div className="divider" />
+
+              {/* Tools & Data */}
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {language === 'es' ? 'Herramientas y Datos' : 'Tools & Data'}
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => window.cyberNotesAPI.openDevTools()}
+                    style={{ gap: 8, fontSize: 13 }}
+                  >
+                    <Monitor size={15} />
+                    {language === 'es' ? 'Abrir consola' : 'Open console'}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => window.cyberNotesAPI.openDataFolder()}
+                    style={{ gap: 8, fontSize: 13 }}
+                  >
+                    <FolderOpen size={15} />
+                    {language === 'es' ? 'Carpeta de datos' : 'Data folder'}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={async () => {
+                      const ok = await window.cyberNotesAPI.exportData();
+                      if (ok) await showDialog({
+                        variant: 'success',
+                        title: language === 'es' ? 'Exportación completada' : 'Export complete',
+                        message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
+                      });
+                    }}
+                    style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))' }}
+                  >
+                    <Download size={15} />
+                    {language === 'es' ? 'Exportar Backup (JSON)' : 'Export Backup (JSON)'}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ gap: 8, fontSize: 13, color: 'var(--warning)' }}
+                    onClick={async () => {
+                      const proceed = await showDialog({
+                        variant: 'warning',
+                        confirm: true,
+                        title: language === 'es' ? 'Importar backup' : 'Import backup',
+                        message: language === 'es' ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?' : 'Importing a backup will merge data with current notes. Do you want to continue?',
+                      });
+                      if (!proceed) return;
+                      const ok = await window.cyberNotesAPI.importData();
+                      if (ok) {
+                        await showDialog({
+                          variant: 'success',
+                          title: language === 'es' ? 'Importación completada' : 'Import complete',
+                          message: language === 'es' ? 'Datos importados correctamente. La aplicación se recargará.' : 'Data successfully imported. The application will reload.',
+                        });
+                        window.location.reload();
+                      }
+                    }}
+                  >
+                    <Upload size={15} />
+                    {language === 'es' ? 'Importar Backup' : 'Import Backup'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── ABOUT ── */}
           {tab === 'about' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '20px 0' }}>
@@ -935,7 +1094,7 @@ export default function SettingsModal({
                 />
               <div style={{ textAlign: 'center' }}>
                 <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>CyberNotes</h2>
-                <p style={{ color: 'var(--text-muted)', marginTop: 6, fontSize: 13 }}>{language === 'es' ? 'Versión 1.5.0' : 'Version 1.5.0'}</p>
+                <p style={{ color: 'var(--text-muted)', marginTop: 6, fontSize: 13 }}>{language === 'es' ? 'Versión 1.5.1' : 'Version 1.5.1'}</p>
               </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 1.7 }}>
                 {language === 'es' 
