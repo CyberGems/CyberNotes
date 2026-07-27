@@ -1791,7 +1791,14 @@ export default function NoteEditor({
         {/* Editor Content Container (Scrolling) */}
         <div
           ref={scrollContainerRef}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: showMinimap ? MINIMAP_WIDTH + 6 : 0 }}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: 'auto',
+            paddingRight: showMinimap ? MINIMAP_WIDTH + 10 : 10,
+            transition: 'padding-right 0.22s ease',
+          }}
         >
 
         <div 
@@ -1864,58 +1871,179 @@ export default function NoteEditor({
 
       </div>
 
-      {/* ─── Minimap ─────────────────────────────────────────────── */}
-      {showMinimap && (
-        <div
-          ref={minimapRef}
-          onClick={handleMinimapClick}
-          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMinimapMenu({ x: e.clientX, y: e.clientY }); }}
+      {/* ─── Minimap (retraíble) ─────────────────────────────────── */}
+      {/* Carril de toggle: siempre visible a la derecha del editor */}
+      <Tooltip
+        placement="left"
+        label={showMinimap
+          ? (language === 'es' ? 'Ocultar minimapa' : 'Hide minimap')
+          : (language === 'es' ? 'Mostrar minimapa' : 'Show minimap')}
+      >
+        <button
+          type="button"
+          aria-label={showMinimap ? 'Hide minimap' : 'Show minimap'}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onShowMinimapChange?.(!showMinimap)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMinimapMenu({ x: e.clientX, y: e.clientY });
+          }}
           style={{
             position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: MINIMAP_WIDTH,
-            background: 'rgba(8, 8, 16, 0.85)',
-            borderLeft: '1px solid var(--border)',
-            overflow: 'hidden',
+            right: showMinimap ? MINIMAP_WIDTH : 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 10,
+            height: 56,
+            zIndex: 8,
+            padding: 0,
+            border: 'none',
+            borderRadius: showMinimap ? '6px 0 0 6px' : '6px 0 0 6px',
             cursor: 'pointer',
-            zIndex: 5,
-            userSelect: 'none',
+            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'right 0.22s ease, background 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
+            const line = e.currentTarget.querySelector('[data-minimap-rail]') as HTMLElement | null;
+            if (line) {
+              line.style.background = 'var(--accent)';
+              line.style.boxShadow = '0 0 8px var(--accent-glow)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            const line = e.currentTarget.querySelector('[data-minimap-rail]') as HTMLElement | null;
+            if (line) {
+              line.style.background = 'rgba(255,255,255,0.22)';
+              line.style.boxShadow = 'none';
+            }
           }}
         >
-          {/* Contenido escalado: HTML seteado vía DOM directo, sin re-renders */}
-          <div
-            ref={minimapContentRef}
+          <span
+            data-minimap-rail
             style={{
-              width: minimapScale > 0 ? MINIMAP_WIDTH / minimapScale : 1280,
-              transform: `scale(${minimapScale})`,
-              transformOrigin: 'top left',
-              color: 'var(--text-muted)',
-              pointerEvents: 'none',
-              fontSize: '16px',
-              lineHeight: 1.5,
+              width: 2,
+              height: 36,
+              borderRadius: 2,
+              background: 'rgba(255,255,255,0.22)',
+              transition: 'background 0.15s ease, box-shadow 0.15s ease',
             }}
           />
-          {/* Indicador de viewport (arrastrable) — actualizado vía DOM directo */}
+        </button>
+      </Tooltip>
+
+      <div
+        ref={minimapRef}
+        onClick={showMinimap ? handleMinimapClick : undefined}
+        onContextMenu={(e) => {
+          if (!showMinimap) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setMinimapMenu({ x: e.clientX, y: e.clientY });
+        }}
+        style={{
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: showMinimap ? MINIMAP_WIDTH : 0,
+          background: 'rgba(8, 8, 16, 0.85)',
+          borderLeft: showMinimap ? '1px solid var(--border)' : '1px solid transparent',
+          overflow: 'hidden',
+          cursor: showMinimap ? 'pointer' : 'default',
+          zIndex: 5,
+          userSelect: 'none',
+          opacity: showMinimap ? 1 : 0,
+          pointerEvents: showMinimap ? 'auto' : 'none',
+          transition: 'width 0.22s ease, opacity 0.18s ease, border-color 0.22s ease',
+        }}
+      >
+        {/* Contenido escalado: HTML seteado vía DOM directo, sin re-renders */}
+        <div
+          ref={minimapContentRef}
+          style={{
+            width: minimapScale > 0 ? MINIMAP_WIDTH / minimapScale : 1280,
+            transform: `scale(${minimapScale})`,
+            transformOrigin: 'top left',
+            color: 'var(--text-muted)',
+            pointerEvents: 'none',
+            fontSize: '16px',
+            lineHeight: 1.5,
+          }}
+        />
+        {/* Indicador de viewport (arrastrable) — actualizado vía DOM directo */}
+        <div
+          ref={minimapIndicatorRef}
+          onMouseDown={handleMinimapIndicatorMouseDown}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            display: 'none', // se muestra vía updateMinimapIndicator()
+            background: 'var(--accent)',
+            opacity: 0.15,
+            borderTop: '1px solid var(--accent)',
+            borderBottom: '1px solid var(--accent)',
+            cursor: 'grab',
+            pointerEvents: 'auto',
+            transition: isDragging ? 'none' : 'top 0.05s linear, height 0.05s linear',
+          }}
+        />
+      </div>
+
+      {minimapMenu && createPortal(
+        <>
           <div
-            ref={minimapIndicatorRef}
-            onMouseDown={handleMinimapIndicatorMouseDown}
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              display: 'none', // se muestra vía updateMinimapIndicator()
-              background: 'var(--accent)',
-              opacity: 0.15,
-              borderTop: '1px solid var(--accent)',
-              borderBottom: '1px solid var(--accent)',
-              cursor: 'grab',
-              pointerEvents: 'auto',
-              transition: isDragging ? 'none' : 'top 0.05s linear, height 0.05s linear',
-            }}
+            style={{ position: 'fixed', inset: 0, zIndex: 100000 }}
+            onMouseDown={(e) => { e.preventDefault(); setMinimapMenu(null); }}
           />
-        </div>
+          <div
+            className="glass-effect"
+            style={{
+              position: 'fixed',
+              left: minimapMenu.x,
+              top: minimapMenu.y,
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: 6,
+              zIndex: 100001,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              minWidth: 160,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          >
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onShowMinimapChange?.(!showMinimap);
+                setMinimapMenu(null);
+              }}
+              style={{
+                textAlign: 'left', padding: '6px 10px', fontSize: 13,
+                background: 'transparent', border: 'none', borderRadius: 4,
+                color: 'var(--text-primary)', cursor: 'pointer',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              {showMinimap
+                ? (language === 'es' ? 'Ocultar minimapa' : 'Hide minimap')
+                : (language === 'es' ? 'Mostrar minimapa' : 'Show minimap')}
+            </button>
+          </div>
+        </>,
+        document.body
       )}
 
       </div>{/* Cierre del wrapper relativo del editor area */}

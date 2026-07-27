@@ -49,8 +49,10 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   /** Nota abierta con content completo (listas solo llevan meta). */
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  /** True hasta conocer si hay sesión que restaurar / content listo (evita flash de bienvenida). */
+  const [sessionReady, setSessionReady] = useState(false);
   /** True mientras se pide content a disco (cambio de nota sin cache). */
-  const [noteLoading, setNoteLoading] = useState(false);
+  const [noteLoading, setNoteLoading] = useState(true);
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
   const [draftCache, setDraftCache] = useState<Record<string, { title: string; content: string }>>({});
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
@@ -299,14 +301,24 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           } else {
             setSelectedNoteId(savedIds[0]);
           }
+          // loadFullNote pondrá noteLoading=false al terminar
+          setNoteLoading(true);
+        } else {
+          setNoteLoading(false);
         }
       } else if (s.last_note_id) {
         setOpenNoteIds([s.last_note_id]);
         setSelectedNoteId(s.last_note_id);
+        setNoteLoading(true);
+      } else {
+        setNoteLoading(false);
       }
+    } else {
+      setNoteLoading(false);
     }
     // Marcar que la carga inicial de base de datos ha concluido con éxito
     isLoadedRef.current = true;
+    setSessionReady(true);
   };
 
   const loadFolders = async () => {
@@ -923,7 +935,10 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
         <NoteEditor
           language={language}
           note={selectedNote}
-          isNoteLoading={!!selectedNoteId && (noteLoading || !selectedNote || selectedNote.id !== selectedNoteId)}
+          isNoteLoading={
+            !sessionReady
+            || (!!selectedNoteId && (noteLoading || !selectedNote || selectedNote.id !== selectedNoteId))
+          }
           onSave={handleSaveNote}
           onCreateNote={handleCreateNote}
           layoutMode={layoutMode}
