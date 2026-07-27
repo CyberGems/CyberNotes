@@ -76,7 +76,12 @@ export function useInputContextMenu(language: Language) {
   const Item = ({ label, enabled, onClick, danger }: { label: string; enabled: boolean; onClick: () => void; danger?: boolean }) => (
     <button
       disabled={!enabled}
-      onClick={enabled ? onClick : undefined}
+      onMouseDown={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!enabled) return;
+        onClick();
+      }}
       style={itemStyle(enabled, danger)}
       onMouseEnter={e => { if (enabled) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}

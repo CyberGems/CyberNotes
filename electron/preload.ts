@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
   replaceMisspelling: (word: string) => ipcRenderer.invoke('replace-misspelling', word),
   addToDictionary: (word: string) => ipcRenderer.invoke('add-to-dictionary', word),
+  writeImageToClipboard: (url: string) => ipcRenderer.invoke('clipboard:writeImage', url),
   unlockCapsLock: () => ipcRenderer.invoke('unlock-caps-lock'),
   checkCapsLock: () => ipcRenderer.invoke('check-caps-lock'),
   onContextMenuData: (callback: (data: any) => void) => {

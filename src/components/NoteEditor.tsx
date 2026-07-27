@@ -368,6 +368,7 @@ export default function NoteEditor({
     suggestions?: string[];
     misspelledWord?: string;
     target?: 'title' | 'editor';
+    imageSrc?: string | null;
     hasSelection: boolean;
     hasContent: boolean;
     canPaste: boolean;
@@ -552,12 +553,6 @@ export default function NoteEditor({
   }, [autoUnlockCapsLock, isCapsLockActive, timeLeft, autoUnlockCapsLockTimeout]);
 
   useEffect(() => {
-    const closeMenu = () => {
-      setContextMenu(null);
-      setShowExportMenu(false);
-    };
-    document.addEventListener('click', closeMenu);
-    
     // Escuchar el menú contextual desde Electron
     let unregisterContext: (() => void) | undefined;
     if (window.cyberNotesAPI && window.cyberNotesAPI.onContextMenuData) {
@@ -576,6 +571,7 @@ export default function NoteEditor({
         let hasContent = false;
         let canUndo = false;
         let canRedo = false;
+        let imageSrc: string | null = data.imageSrc || null;
 
         if (target === 'title') {
           const input = titleInputRef.current;
@@ -594,6 +590,30 @@ export default function NoteEditor({
           hasContent = ed.state.doc.textContent.length > 0;
           canUndo = ed.can().undo();
           canRedo = ed.can().redo();
+          if (!imageSrc && ed.isActive('image')) {
+            imageSrc = ed.getAttributes('image').src || null;
+          }
+          // Fallback: nodo bajo el cursor del último mousedown
+          if (!imageSrc) {
+            const el = (window as any).lastMouseDownEl as HTMLElement | null;
+            const img = el?.closest?.('img') as HTMLImageElement | null;
+            if (img?.src) imageSrc = img.src;
+          }
+          // Seleccionar el nodo imagen para que Cortar/Eliminar funcionen
+          if (imageSrc) {
+            let foundPos: number | null = null;
+            ed.state.doc.descendants((node: any, pos: number) => {
+              if (foundPos !== null) return false;
+              if (node.type.name === 'image' && node.attrs?.src === imageSrc) {
+                foundPos = pos;
+                return false;
+              }
+            });
+            if (foundPos !== null) {
+              ed.commands.setNodeSelection(foundPos);
+              hasSelection = true;
+            }
+          }
         }
 
         setContextMenu({
@@ -603,7 +623,8 @@ export default function NoteEditor({
           suggestions: data.suggestions || [],
           misspelledWord: data.misspelledWord || '',
           target,
-          hasSelection,
+          imageSrc,
+          hasSelection: hasSelection || !!imageSrc,
           hasContent,
           canPaste: false,
           canUndo,
@@ -623,10 +644,16 @@ export default function NoteEditor({
     }
     
     return () => {
-      document.removeEventListener('click', closeMenu);
       if (unregisterContext) unregisterContext();
     };
   }, []);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const close = () => setShowExportMenu(false);
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showExportMenu]);
 
   // Reposiciona el menú contextual para que no se desborde de la ventana.
   // Mide el tamaño real (su ancho varía: sugerencias, "agregar al diccionario", etc.).
@@ -2005,26 +2032,40 @@ export default function NoteEditor({
       </div>
 
       {contextMenu && editor && createPortal(
-        <div
-          ref={contextMenuRef}
-          className="glass-effect"
-          style={{
-            position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
-            background: 'var(--bg-modal)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            padding: 6,
-            zIndex: 100000,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-            minWidth: 160,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-          }}
-          onClick={e => e.stopPropagation()}
-        >
+        <>
+          {/* Backdrop: cierra al mousedown fuera (evita carrera con click del ítem). */}
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+          />
+          <div
+            ref={contextMenuRef}
+            className="glass-effect"
+            style={{
+              position: 'fixed',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: 6,
+              zIndex: 100000,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              minWidth: 160,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+            onMouseDown={(e) => {
+              // Evita que el editor pierda la selección / trague el primer click
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
           {(() => {
             const itemStyle = (enabled: boolean, danger?: boolean): React.CSSProperties => ({
               textAlign: 'left', padding: '6px 10px', fontSize: 13,
@@ -2033,15 +2074,23 @@ export default function NoteEditor({
               cursor: enabled ? 'pointer' : 'default',
               opacity: enabled ? 1 : 0.5,
             });
+            const runAction = (fn: () => void) => {
+              try { fn(); } finally { setContextMenu(null); }
+            };
             const MenuBtn = ({
-              label, enabled, onClick, danger, extraStyle,
+              label, enabled, onAction, danger, extraStyle,
             }: {
-              label: string; enabled: boolean; onClick: () => void; danger?: boolean; extraStyle?: React.CSSProperties;
+              label: string; enabled: boolean; onAction: () => void; danger?: boolean; extraStyle?: React.CSSProperties;
             }) => (
               <button
                 type="button"
                 disabled={!enabled}
-                onClick={enabled ? onClick : undefined}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!enabled) return;
+                  runAction(onAction);
+                }}
                 style={{ ...itemStyle(enabled, danger), ...extraStyle }}
                 onMouseEnter={e => {
                   if (enabled) (e.currentTarget as HTMLElement).style.background = danger ? 'var(--danger-dim)' : 'var(--bg-hover)';
@@ -2051,6 +2100,19 @@ export default function NoteEditor({
                 {label}
               </button>
             );
+
+            const copySelectionOrImage = async () => {
+              if (contextMenu.imageSrc) {
+                const ok = await window.cyberNotesAPI.writeImageToClipboard(contextMenu.imageSrc);
+                if (ok) return;
+              }
+              document.execCommand('copy');
+            };
+
+            const copyLabel = contextMenu.imageSrc
+              ? (language === 'es' ? 'Copiar imagen' : 'Copy image')
+              : (language === 'es' ? 'Copiar' : 'Copy');
+
             return (
               <>
           {contextMenu.suggestions && contextMenu.suggestions.length > 0 && (
@@ -2058,11 +2120,13 @@ export default function NoteEditor({
               {contextMenu.suggestions.map((suggestion: string) => (
                 <button
                   key={suggestion}
-                  onClick={() => {
-                     if (window.cyberNotesAPI && window.cyberNotesAPI.replaceMisspelling) {
-                       window.cyberNotesAPI.replaceMisspelling(suggestion);
-                     }
-                     setContextMenu(null);
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    runAction(() => {
+                      window.cyberNotesAPI?.replaceMisspelling?.(suggestion);
+                    });
                   }}
                   style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
@@ -2076,11 +2140,13 @@ export default function NoteEditor({
           {contextMenu.misspelledWord && (
             <>
               <button
-                onClick={() => {
-                   if (window.cyberNotesAPI && window.cyberNotesAPI.addToDictionary) {
-                     window.cyberNotesAPI.addToDictionary(contextMenu.misspelledWord!);
-                   }
-                   setContextMenu(null);
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  runAction(() => {
+                    window.cyberNotesAPI?.addToDictionary?.(contextMenu.misspelledWord!);
+                  });
                 }}
                 style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--success)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
@@ -2094,37 +2160,23 @@ export default function NoteEditor({
 
           {contextMenu.linkHref && (
             <>
-              <button
-                onClick={() => { window.open(contextMenu.linkHref, '_blank'); setContextMenu(null); }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--accent-light)', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {language === 'es' ? 'Abrir en navegador' : 'Open in browser'}
-              </button>
-              
-              <button
-                onClick={() => {
-                  setEditLinkData({ href: contextMenu.linkHref! });
-                  setContextMenu(null);
-                }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {language === 'es' ? 'Editar enlace' : 'Edit link'}
-              </button>
-              <button
-                onClick={() => {
-                  editor.chain().focus().extendMarkRange('link').unsetLink().run();
-                  setContextMenu(null);
-                }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--danger)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {language === 'es' ? 'Eliminar enlace' : 'Remove link'}
-              </button>
+              <MenuBtn
+                label={language === 'es' ? 'Abrir en navegador' : 'Open in browser'}
+                enabled
+                extraStyle={{ color: 'var(--accent-light)', fontWeight: 600 }}
+                onAction={() => { window.open(contextMenu.linkHref, '_blank'); }}
+              />
+              <MenuBtn
+                label={language === 'es' ? 'Editar enlace' : 'Edit link'}
+                enabled
+                onAction={() => { setEditLinkData({ href: contextMenu.linkHref! }); }}
+              />
+              <MenuBtn
+                label={language === 'es' ? 'Eliminar enlace' : 'Remove link'}
+                enabled
+                danger
+                onAction={() => { editor.chain().focus().extendMarkRange('link').unsetLink().run(); }}
+              />
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
             </>
           )}
@@ -2132,27 +2184,25 @@ export default function NoteEditor({
           <MenuBtn
             label={language === 'es' ? 'Deshacer' : 'Undo'}
             enabled={contextMenu.canUndo}
-            onClick={() => {
+            onAction={() => {
               if (contextMenu.target === 'title') {
                 titleInputRef.current?.focus();
                 document.execCommand('undo');
               } else {
                 editor.chain().focus().undo().run();
               }
-              setContextMenu(null);
             }}
           />
           <MenuBtn
             label={language === 'es' ? 'Rehacer' : 'Redo'}
             enabled={contextMenu.canRedo}
-            onClick={() => {
+            onAction={() => {
               if (contextMenu.target === 'title') {
                 titleInputRef.current?.focus();
                 document.execCommand('redo');
               } else {
                 editor.chain().focus().redo().run();
               }
-              setContextMenu(null);
             }}
           />
           
@@ -2161,17 +2211,17 @@ export default function NoteEditor({
           <MenuBtn
             label={language === 'es' ? 'Cortar' : 'Cut'}
             enabled={contextMenu.hasSelection}
-            onClick={() => { document.execCommand('cut'); setContextMenu(null); }}
+            onAction={() => { document.execCommand('cut'); }}
           />
           <MenuBtn
-            label={language === 'es' ? 'Copiar' : 'Copy'}
-            enabled={contextMenu.hasSelection}
-            onClick={() => { document.execCommand('copy'); setContextMenu(null); }}
+            label={copyLabel}
+            enabled={contextMenu.hasSelection || !!contextMenu.imageSrc}
+            onAction={() => { void copySelectionOrImage(); }}
           />
           <MenuBtn
             label={language === 'es' ? 'Pegar' : 'Paste'}
             enabled={contextMenu.canPaste}
-            onClick={() => {
+            onAction={() => {
               navigator.clipboard.readText().then(text => {
                 if (contextMenu.target === 'title') {
                   const input = titleInputRef.current;
@@ -2191,20 +2241,18 @@ export default function NoteEditor({
               }).catch(() => {
                 document.execCommand('paste');
               });
-              setContextMenu(null);
             }}
           />
           
           <MenuBtn
             label={language === 'es' ? 'Seleccionar todo' : 'Select all'}
             enabled={contextMenu.hasContent}
-            onClick={() => {
+            onAction={() => {
               if (contextMenu.target === 'title') {
                 titleInputRef.current?.select();
               } else {
                 editor.chain().focus().selectAll().run();
               }
-              setContextMenu(null);
             }}
           />
           
@@ -2212,7 +2260,7 @@ export default function NoteEditor({
             label={t.general.delete}
             enabled={contextMenu.hasSelection}
             danger
-            onClick={() => {
+            onAction={() => {
               if (contextMenu.target === 'title') {
                 const input = titleInputRef.current;
                 if (input) {
@@ -2228,7 +2276,6 @@ export default function NoteEditor({
               } else {
                 editor.chain().focus().deleteSelection().run();
               }
-              setContextMenu(null);
             }}
           />
 
@@ -2241,19 +2288,19 @@ export default function NoteEditor({
                 label={language === 'es' ? 'Negrita' : 'Bold'}
                 enabled
                 extraStyle={{ fontWeight: 'bold' }}
-                onClick={() => { editor.chain().focus().toggleBold().run(); setContextMenu(null); }}
+                onAction={() => { editor.chain().focus().toggleBold().run(); }}
               />
               <MenuBtn
                 label={language === 'es' ? 'Cursiva' : 'Italic'}
                 enabled
                 extraStyle={{ fontStyle: 'italic' }}
-                onClick={() => { editor.chain().focus().toggleItalic().run(); setContextMenu(null); }}
+                onAction={() => { editor.chain().focus().toggleItalic().run(); }}
               />
               <MenuBtn
                 label={language === 'es' ? 'Subrayado' : 'Underline'}
                 enabled
                 extraStyle={{ textDecoration: 'underline' }}
-                onClick={() => { editor.chain().focus().toggleUnderline().run(); setContextMenu(null); }}
+                onAction={() => { editor.chain().focus().toggleUnderline().run(); }}
               />
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
@@ -2261,14 +2308,15 @@ export default function NoteEditor({
               <MenuBtn
                 label={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
                 enabled
-                onClick={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); setContextMenu(null); }}
+                onAction={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); }}
               />
             </>
           )}
               </>
             );
           })()}
-        </div>,
+          </div>
+        </>,
         document.body
       )}
 

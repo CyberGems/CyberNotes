@@ -88,6 +88,7 @@ declare global {
       // Spellcheck
       replaceMisspelling: (word: string) => Promise<void>;
       addToDictionary: (word: string) => Promise<void>;
+      writeImageToClipboard: (url: string) => Promise<boolean>;
       // Keyboard
       unlockCapsLock: () => Promise<boolean>;
       checkCapsLock: () => Promise<boolean>;

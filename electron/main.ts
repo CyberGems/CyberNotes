@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen, clipboard, nativeImage, net } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -492,12 +492,17 @@ function createWindow() {
   // Interceptar click derecho para enviar sugerencias de ortografía al frontend
   mainWindow.webContents.on('context-menu', (event, params) => {
     event.preventDefault();
+    const imageSrc =
+      params.mediaType === 'image' && params.srcURL
+        ? params.srcURL
+        : (params.hasImageContents && params.srcURL ? params.srcURL : null);
     mainWindow?.webContents.send('context-menu-data', {
       x: params.x,
       y: params.y,
       suggestions: params.dictionarySuggestions,
       misspelledWord: params.misspelledWord,
-      linkURL: params.linkURL
+      linkURL: params.linkURL,
+      imageSrc,
     });
   });
   
@@ -544,6 +549,37 @@ ipcMain.handle('open-data-folder', () => shell.openPath(userDataPath));
 ipcMain.handle('replace-misspelling', (_e: any, word: string) => mainWindow?.webContents.replaceMisspelling(word));
 ipcMain.handle('add-to-dictionary', (_e: any, word: string) => {
   session.defaultSession.addWordToSpellCheckerDictionary(word);
+});
+ipcMain.handle('clipboard:writeImage', async (_e: any, url: string) => {
+  try {
+    if (!url || typeof url !== 'string') return false;
+    let img = nativeImage.createEmpty();
+
+    if (url.startsWith('data:')) {
+      img = nativeImage.createFromDataURL(url);
+    } else if (url.startsWith('file:')) {
+      let filePath: string;
+      try {
+        filePath = fileURLToPath(url);
+      } catch {
+        filePath = decodeURIComponent(url.replace(/^file:\/\//i, '').replace(/^\//, ''));
+      }
+      if (!fs.existsSync(filePath)) return false;
+      img = nativeImage.createFromPath(filePath);
+    } else {
+      const response = await net.fetch(url);
+      if (!response.ok) return false;
+      const buf = Buffer.from(await response.arrayBuffer());
+      img = nativeImage.createFromBuffer(buf);
+    }
+
+    if (img.isEmpty()) return false;
+    clipboard.writeImage(img);
+    return true;
+  } catch (err) {
+    console.error('[CyberNotes] clipboard:writeImage failed:', err);
+    return false;
+  }
 });
 ipcMain.handle('unlock-caps-lock', async () => {
   if (process.platform !== 'win32') return false;
