@@ -26,6 +26,8 @@ import {
 interface Props {
   language: Language;
   note: Note | null;
+  /** Cargando content de otra nota: no mostrar bienvenida; overlay / preloader. */
+  isNoteLoading?: boolean;
   onSave: (note: Note) => void;
   onCreateNote: () => void;
   layoutMode: number;
@@ -132,7 +134,8 @@ const ToolbarBtn = ({
 
 export default function NoteEditor({ 
   language,
-  note, 
+  note,
+  isNoteLoading = false,
   onSave, 
   onCreateNote, 
   layoutMode, 
@@ -1038,7 +1041,56 @@ export default function NoteEditor({
 
   const t = TRANSLATIONS[language];
 
+  const noteLoader = (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 14,
+        background: 'rgba(8, 8, 14, 0.55)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        pointerEvents: 'all',
+      }}
+    >
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          border: '2px solid rgba(255,255,255,0.12)',
+          borderTopColor: 'var(--accent)',
+          boxShadow: '0 0 12px var(--accent-glow)',
+        }}
+      />
+      <span style={{
+        fontSize: 'calc(12.5px * var(--ui-scale))',
+        color: 'var(--text-secondary)',
+        letterSpacing: '0.02em',
+      }}>
+        {language === 'es' ? 'Cargando nota…' : 'Loading note…'}
+      </span>
+    </div>
+  );
+
   if (!note) {
+    if (isNoteLoading) {
+      return (
+        <div className="glass-effect editor-glass" style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          background: 'var(--bg-editor)', position: 'relative', overflow: 'hidden',
+        }}>
+          {noteLoader}
+        </div>
+      );
+    }
     return (
       <div className="glass-effect editor-glass" style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -1064,8 +1116,9 @@ export default function NoteEditor({
     <div
       ref={editorRootRef}
       className={`glass-effect editor-glass ${isFocused ? 'focused-immersive' : ''}`}
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-editor)', overflow: 'hidden' }}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-editor)', overflow: 'hidden', position: 'relative' }}
     >
+      {isNoteLoading && noteLoader}
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (
         <div style={{ background: 'rgba(10, 10, 15, 0.95)', borderBottom: '1px solid var(--border)', overflow: 'hidden' }}>

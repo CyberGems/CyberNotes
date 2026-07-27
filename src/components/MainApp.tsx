@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { Folder, Note, ThemeId } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import TitleBar from './TitleBar';
@@ -49,6 +49,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   /** Nota abierta con content completo (listas solo llevan meta). */
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  /** True mientras se pide content a disco (cambio de nota sin cache). */
+  const [noteLoading, setNoteLoading] = useState(false);
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
   const [draftCache, setDraftCache] = useState<Record<string, { title: string; content: string }>>({});
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
@@ -348,23 +350,37 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const loadFullNote = useCallback(async (id: string | null) => {
     if (!id) {
       setSelectedNote(null);
+      setNoteLoading(false);
       return;
     }
     const meta = allNotesRef.current.find(n => n.id === id) || notesRef.current.find(n => n.id === id);
     const cached = contentCacheRef.current[id];
     if (cached !== undefined && meta) {
       setSelectedNote({ ...meta, content: cached });
+      setNoteLoading(false);
       return;
     }
+    // Mantener la nota anterior en pantalla; solo marcar carga
+    setNoteLoading(true);
     const full = await window.cyberNotesAPI.getNoteById(id);
-    if (!full || selectedNoteIdRef.current !== id) return;
+    if (!full || selectedNoteIdRef.current !== id) {
+      // Otra navegación ganó la carrera: no apagar loading aquí si el id ya cambió
+      if (selectedNoteIdRef.current === id) setNoteLoading(false);
+      return;
+    }
     contentCacheRef.current[id] = full.content || '';
     setSelectedNote({ ...toNoteMeta(full), content: full.content || '' });
+    setNoteLoading(false);
   }, []);
 
-  // Cargar contenido solo al cambiar de nota (no en cada autosave/meta update)
-  useEffect(() => {
-    loadFullNote(selectedNoteId);
+  // useLayoutEffect: con cache, actualiza selectedNote antes del paint (sin flash a bienvenida)
+  useLayoutEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (cancelled) return;
+      await loadFullNote(selectedNoteId);
+    })();
+    return () => { cancelled = true; };
   }, [selectedNoteId, loadFullNote]);
 
   const handleSelectFolder = async (folderId: string | null) => {
@@ -550,12 +566,14 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     });
 
     if (selectedNoteId === id) {
-      setSelectedNote(null);
       const remainingTabs = openNoteIds.filter(noteId => noteId !== id);
       if (remainingTabs.length > 0) {
         setSelectedNoteId(remainingTabs[0]);
+      } else if (remaining.length > 0) {
+        setSelectedNoteId(remaining[0].id);
       } else {
-        setSelectedNoteId(remaining.length > 0 ? remaining[0].id : null);
+        setSelectedNote(null);
+        setSelectedNoteId(null);
       }
     }
   };
@@ -904,7 +922,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
         {/* Editor */}
         <NoteEditor
           language={language}
-          note={selectedNote && selectedNote.id === selectedNoteId ? selectedNote : null}
+          note={selectedNote}
+          isNoteLoading={!!selectedNoteId && (noteLoading || !selectedNote || selectedNote.id !== selectedNoteId)}
           onSave={handleSaveNote}
           onCreateNote={handleCreateNote}
           layoutMode={layoutMode}
