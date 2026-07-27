@@ -333,7 +333,19 @@ export default function NoteEditor({
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
   const [isRaw, setIsRaw] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, linkHref?: string, suggestions?: string[], misspelledWord?: string, target?: 'title' | 'editor' } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    linkHref?: string;
+    suggestions?: string[];
+    misspelledWord?: string;
+    target?: 'title' | 'editor';
+    hasSelection: boolean;
+    hasContent: boolean;
+    canPaste: boolean;
+    canUndo: boolean;
+    canRedo: boolean;
+  } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const linkInputMenu = useInputContextMenu(language);
   const [editLinkData, setEditLinkData] = useState<{ href: string } | null>(null);
@@ -531,14 +543,57 @@ export default function NoteEditor({
         }
 
         // El reposicionamiento dentro de la ventana lo afina useLayoutEffect tras medir el menú.
+        const target = lastContextMenuTargetRef.current;
+        let hasSelection = false;
+        let hasContent = false;
+        let canUndo = false;
+        let canRedo = false;
+
+        if (target === 'title') {
+          const input = titleInputRef.current;
+          if (input) {
+            hasSelection = input.selectionStart !== input.selectionEnd;
+            hasContent = (input.value?.length ?? 0) > 0;
+          }
+          try {
+            canUndo = document.queryCommandEnabled('undo');
+            canRedo = document.queryCommandEnabled('redo');
+          } catch {
+            canUndo = true;
+            canRedo = true;
+          }
+        } else if (editorRef.current) {
+          const ed = editorRef.current;
+          const { from, to } = ed.state.selection;
+          hasSelection = from !== to;
+          hasContent = ed.state.doc.content.size > 2; // doc vacío ≈ size 2 (empty paragraph)
+          canUndo = ed.can().undo();
+          canRedo = ed.can().redo();
+        }
+
         setContextMenu({
           x: mousePos.x,
           y: mousePos.y,
           linkHref: data.linkURL,
           suggestions: data.suggestions || [],
           misspelledWord: data.misspelledWord || '',
-          target: lastContextMenuTargetRef.current
+          target,
+          hasSelection,
+          hasContent,
+          canPaste: false,
+          canUndo,
+          canRedo,
         });
+
+        // Pegar: habilitar solo si el portapapeles tiene texto
+        navigator.clipboard.readText()
+          .then(text => {
+            setContextMenu(cm => (cm ? { ...cm, canPaste: text.length > 0 } : cm));
+          })
+          .catch(() => {
+            // Sin permiso de clipboard: permitir pegar (el SO puede gestionar el paste)
+            setContextMenu(cm => (cm ? { ...cm, canPaste: true } : cm));
+          });
       });
     }
     
@@ -1913,6 +1968,34 @@ export default function NoteEditor({
           }}
           onClick={e => e.stopPropagation()}
         >
+          {(() => {
+            const itemStyle = (enabled: boolean, danger?: boolean): React.CSSProperties => ({
+              textAlign: 'left', padding: '6px 10px', fontSize: 13,
+              background: 'transparent', border: 'none', borderRadius: 4,
+              color: !enabled ? 'var(--text-muted)' : danger ? 'var(--danger)' : 'var(--text-primary)',
+              cursor: enabled ? 'pointer' : 'default',
+              opacity: enabled ? 1 : 0.5,
+            });
+            const MenuBtn = ({
+              label, enabled, onClick, danger, extraStyle,
+            }: {
+              label: string; enabled: boolean; onClick: () => void; danger?: boolean; extraStyle?: React.CSSProperties;
+            }) => (
+              <button
+                type="button"
+                disabled={!enabled}
+                onClick={enabled ? onClick : undefined}
+                style={{ ...itemStyle(enabled, danger), ...extraStyle }}
+                onMouseEnter={e => {
+                  if (enabled) (e.currentTarget as HTMLElement).style.background = danger ? 'var(--danger-dim)' : 'var(--bg-hover)';
+                }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {label}
+              </button>
+            );
+            return (
+              <>
           {contextMenu.suggestions && contextMenu.suggestions.length > 0 && (
             <>
               {contextMenu.suggestions.map((suggestion: string) => (
@@ -1989,29 +2072,24 @@ export default function NoteEditor({
             </>
           )}
 
-          <button
+          <MenuBtn
+            label={language === 'es' ? 'Deshacer' : 'Undo'}
+            enabled={contextMenu.canUndo}
             onClick={() => {
-              console.warn('Undo clicked. contextMenu:', contextMenu);
-              if (contextMenu && contextMenu.target === 'title') {
-                console.warn('Target is title. Focusing title input.');
+              if (contextMenu.target === 'title') {
                 titleInputRef.current?.focus();
                 document.execCommand('undo');
               } else {
-                console.warn('Target is editor. Executing editor undo.');
                 editor.chain().focus().undo().run();
               }
               setContextMenu(null);
             }}
-            disabled={contextMenu && contextMenu.target === 'title' ? false : !editor.can().undo()}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: (contextMenu && contextMenu.target === 'title') || editor.can().undo() ? 'var(--text-primary)' : 'var(--text-muted)', border: 'none', borderRadius: 4, cursor: (contextMenu && contextMenu.target === 'title') || editor.can().undo() ? 'pointer' : 'default', opacity: (contextMenu && contextMenu.target === 'title') || editor.can().undo() ? 1 : 0.5 }}
-            onMouseEnter={e => { if ((contextMenu && contextMenu.target === 'title') || editor.can().undo()) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Deshacer' : 'Undo'}
-          </button>
-          <button
+          />
+          <MenuBtn
+            label={language === 'es' ? 'Rehacer' : 'Redo'}
+            enabled={contextMenu.canRedo}
             onClick={() => {
-              if (contextMenu && contextMenu.target === 'title') {
+              if (contextMenu.target === 'title') {
                 titleInputRef.current?.focus();
                 document.execCommand('redo');
               } else {
@@ -2019,36 +2097,26 @@ export default function NoteEditor({
               }
               setContextMenu(null);
             }}
-            disabled={contextMenu && contextMenu.target === 'title' ? false : !editor.can().redo()}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: (contextMenu && contextMenu.target === 'title') || editor.can().redo() ? 'var(--text-primary)' : 'var(--text-muted)', border: 'none', borderRadius: 4, cursor: (contextMenu && contextMenu.target === 'title') || editor.can().redo() ? 'pointer' : 'default', opacity: (contextMenu && contextMenu.target === 'title') || editor.can().redo() ? 1 : 0.5 }}
-            onMouseEnter={e => { if ((contextMenu && contextMenu.target === 'title') || editor.can().redo()) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Rehacer' : 'Redo'}
-          </button>
+          />
           
           <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-          <button
+          <MenuBtn
+            label={language === 'es' ? 'Cortar' : 'Cut'}
+            enabled={contextMenu.hasSelection}
             onClick={() => { document.execCommand('cut'); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Cortar' : 'Cut'}
-          </button>
-          <button
+          />
+          <MenuBtn
+            label={language === 'es' ? 'Copiar' : 'Copy'}
+            enabled={contextMenu.hasSelection}
             onClick={() => { document.execCommand('copy'); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Copiar' : 'Copy'}
-          </button>
-          <button
+          />
+          <MenuBtn
+            label={language === 'es' ? 'Pegar' : 'Paste'}
+            enabled={contextMenu.canPaste}
             onClick={() => {
               navigator.clipboard.readText().then(text => {
-                if (contextMenu && contextMenu.target === 'title') {
+                if (contextMenu.target === 'title') {
                   const input = titleInputRef.current;
                   if (input) {
                     const start = input.selectionStart || 0;
@@ -2068,32 +2136,27 @@ export default function NoteEditor({
               });
               setContextMenu(null);
             }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Pegar' : 'Paste'}
-          </button>
+          />
           
-          <button
+          <MenuBtn
+            label={language === 'es' ? 'Seleccionar todo' : 'Select all'}
+            enabled={contextMenu.hasContent}
             onClick={() => {
-              if (contextMenu && contextMenu.target === 'title') {
+              if (contextMenu.target === 'title') {
                 titleInputRef.current?.select();
               } else {
                 editor.chain().focus().selectAll().run();
               }
               setContextMenu(null);
             }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {language === 'es' ? 'Seleccionar todo' : 'Select all'}
-          </button>
+          />
           
-          <button
+          <MenuBtn
+            label={t.general.delete}
+            enabled={contextMenu.hasSelection}
+            danger
             onClick={() => {
-              if (contextMenu && contextMenu.target === 'title') {
+              if (contextMenu.target === 'title') {
                 const input = titleInputRef.current;
                 if (input) {
                   const start = input.selectionStart || 0;
@@ -2110,55 +2173,44 @@ export default function NoteEditor({
               }
               setContextMenu(null);
             }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--danger)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--danger-dim)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {t.general.delete}
-          </button>
+          />
 
           {/* Formato de texto enriquecido: no aplica al título (input de texto plano). */}
           {contextMenu.target !== 'title' && (
             <>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-              <button
+              <MenuBtn
+                label={language === 'es' ? 'Negrita' : 'Bold'}
+                enabled
+                extraStyle={{ fontWeight: 'bold' }}
                 onClick={() => { editor.chain().focus().toggleBold().run(); setContextMenu(null); }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, fontWeight: 'bold', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {language === 'es' ? 'Negrita' : 'Bold'}
-              </button>
-              <button
+              />
+              <MenuBtn
+                label={language === 'es' ? 'Cursiva' : 'Italic'}
+                enabled
+                extraStyle={{ fontStyle: 'italic' }}
                 onClick={() => { editor.chain().focus().toggleItalic().run(); setContextMenu(null); }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, fontStyle: 'italic', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {language === 'es' ? 'Cursiva' : 'Italic'}
-              </button>
-              <button
+              />
+              <MenuBtn
+                label={language === 'es' ? 'Subrayado' : 'Underline'}
+                enabled
+                extraStyle={{ textDecoration: 'underline' }}
                 onClick={() => { editor.chain().focus().toggleUnderline().run(); setContextMenu(null); }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, textDecoration: 'underline', background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {language === 'es' ? 'Subrayado' : 'Underline'}
-              </button>
+              />
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-              <button
+              <MenuBtn
+                label={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
+                enabled
                 onClick={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); setContextMenu(null); }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, color: 'var(--text-muted)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
-              </button>
+              />
             </>
           )}
+              </>
+            );
+          })()}
         </div>,
         document.body
       )}
