@@ -134,12 +134,66 @@ async function initDatabase() {
   // Migración: DBs antiguas sin columna thumb
   ensureColumn('notes', 'thumb', "TEXT DEFAULT ''");
 
+  // Rellenar miniaturas de notas existentes (una sola vez / solo filas vacías)
+  backfillNoteThumbs();
+
   // Guardar schema inicial
   saveDbToDisk();
 
   // Carpeta de imágenes
   if (!fs.existsSync(imagesPath)) {
     fs.mkdirSync(imagesPath, { recursive: true });
+  }
+}
+
+/** Extrae la primera imagen del content (HTML o JSON TipTap) en el main process. */
+function extractThumbFromContent(content: string | null | undefined): string {
+  if (!content || typeof content !== 'string') return '';
+
+  if (content.trim().startsWith('{')) {
+    try {
+      const doc = JSON.parse(content);
+      let foundSrc = '';
+      const walk = (node: any) => {
+        if (foundSrc) return;
+        if (node?.type === 'image' && node.attrs?.src) {
+          foundSrc = String(node.attrs.src);
+          return;
+        }
+        if (Array.isArray(node?.content)) node.content.forEach(walk);
+      };
+      if (Array.isArray(doc?.content)) doc.content.forEach(walk);
+      if (foundSrc) return foundSrc;
+    } catch {
+      /* fallback HTML */
+    }
+  }
+
+  const match = content.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+  return match?.[1] || '';
+}
+
+/** Backfill de thumb sin re-guardar cada nota en el editor. */
+function backfillNoteThumbs() {
+  if (!db) return;
+  const rows = queryAll(
+    `SELECT id, content FROM notes
+     WHERE (thumb IS NULL OR thumb = '')
+       AND content IS NOT NULL AND content != ''
+       AND (content LIKE '%<img%' OR content LIKE '%"type":"image"%' OR content LIKE '%"type": "image"%')`
+  );
+  if (rows.length === 0) return;
+
+  let updated = 0;
+  for (const row of rows) {
+    const thumb = extractThumbFromContent(row.content);
+    if (!thumb) continue;
+    db.run('UPDATE notes SET thumb = ? WHERE id = ?', [thumb, row.id]);
+    updated++;
+  }
+  if (updated > 0) {
+    dbDirty = true;
+    console.log(`[CyberNotes] Backfilled thumbs for ${updated} note(s)`);
   }
 }
 

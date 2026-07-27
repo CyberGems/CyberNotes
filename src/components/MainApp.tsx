@@ -596,21 +596,6 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     }
   };
 
-  // Get available icons: all icons minus those in use (unless it's the currentFolderId)
-  const getAvailableIcons = useCallback((currentFolderId?: string) => {
-    const usedIcons = new Set(
-      folders
-        .filter(f => !currentFolderId || f.id !== currentFolderId)
-        .map(f => f.icon)
-    );
-    const allIcons = ['folder', 'file-text', 'briefcase', 'home', 'zap', 'lightbulb', 'palette', 'book', 'microscope', 'target', 'heart', 'star', 'archive', 'inbox', 'code', 'users', 'rocket', 'bookmark', 'wrench', 'layers'];
-    return {
-      all: allIcons,
-      available: allIcons.filter(icon => !usedIcons.has(icon)),
-      usedIcons,
-    };
-  }, [folders]);
-
   // Get available colors: all colors minus those in use (unless it's the currentFolderId)
   const getAvailableColors = useCallback((currentFolderId?: string) => {
     const currentFolder = folders.find(f => f.id === currentFolderId);
@@ -876,7 +861,6 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
               onLock={onLock}
               searchQuery={searchQuery}
               onSearch={handleSearch}
-              getAvailableIcons={getAvailableIcons}
               getAvailableColors={getAvailableColors}
               onMoveNote={handleMoveNote}
             />

@@ -31,7 +31,6 @@ interface Props {
   searchQuery: string;
   onSearch: (q: string) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
-  getAvailableIcons: (currentFolderId?: string) => { all: string[]; available: string[]; usedIcons: Set<string> };
   getAvailableColors: (currentFolderId?: string) => { all: string[]; available: string[]; usedColors: Set<string> };
 }
 
@@ -68,7 +67,7 @@ function timeAgo(iso: string, language: Language): string {
 export default function Sidebar({
   language, folders, selectedFolderId, noteCount, recentNotes, allNotes, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
-  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, getAvailableIcons, getAvailableColors,
+  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
 }: Props) {
   const t = TRANSLATIONS[language];
@@ -573,12 +572,12 @@ export default function Sidebar({
               style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
             />
 
-            {/* Iconos - 2 filas de 10 */}
+            {/* Iconos - 2 filas de 10 (reutilizables entre carpetas) */}
             <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {language === 'es' ? 'Selecciona tu icono único' : 'Select your unique icon'}
+              {language === 'es' ? 'Selecciona un icono' : 'Select an icon'}
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
-              {getAvailableIcons().available.map(icon => (
+              {FOLDER_ICONS.map(icon => (
                 <button
                   key={icon}
                   type="button"
@@ -603,7 +602,7 @@ export default function Sidebar({
 
             {/* Colores - 2 filas de 10 */}
             <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {language === 'es' ? 'Selecciona tu color único' : 'Select your unique color'}
+              {language === 'es' ? 'Asigna un color único de carpeta' : 'Assign a unique folder color'}
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
               {FOLDER_COLORS.map(c => {
@@ -976,58 +975,38 @@ export default function Sidebar({
             />
 
             <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {language === 'es' ? 'Selecciona tu icono único' : 'Select your unique icon'}
+              {language === 'es' ? 'Selecciona un icono' : 'Select an icon'}
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
               {FOLDER_ICONS.map(icon => {
-                const { usedIcons } = getAvailableIcons(editingFolder.id);
-                const isUsed = usedIcons.has(icon);
                 const isSelected = editingFolder.icon === icon;
                 return (
                   <button
                     key={icon}
                     type="button"
-                    onClick={() => !isUsed || isSelected ? setEditingFolder({ ...editingFolder, icon }) : null}
-                    disabled={isUsed && !isSelected}
+                    onClick={() => setEditingFolder({ ...editingFolder, icon })}
                     style={{
                       border: isSelected ? '2px solid var(--accent)' : '1px solid var(--border)',
-                      background: isUsed && !isSelected ? 'var(--bg-surface)' : 'var(--bg-input)',
+                      background: 'var(--bg-input)',
                       borderRadius: 6,
                       padding: '6px',
-                      cursor: isUsed && !isSelected ? 'not-allowed' : 'pointer',
-                      opacity: isUsed && !isSelected ? 0.4 : 1,
+                      cursor: 'pointer',
+                      opacity: 1,
                       position: 'relative',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       aspectRatio: '1',
                     }}
-                    title={isUsed && !isSelected ? language === 'es' ? 'Icono en uso' : 'Icon in use' : ''}
                   >
                     <FolderIcon name={icon} color={isSelected ? 'var(--accent)' : '#ffffff'} size={16} />
-                    {isUsed && !isSelected && (
-                      <span style={{
-                        position: 'absolute',
-                        top: -2,
-                        right: -2,
-                        width: 10,
-                        height: 10,
-                        background: '#ef4444',
-                        borderRadius: '50%',
-                        fontSize: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                      }}>✓</span>
-                    )}
                   </button>
                 );
               })}
             </div>
 
             <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {language === 'es' ? 'Selecciona tu color único' : 'Select your unique color'}
+              {language === 'es' ? 'Asigna un color único de carpeta' : 'Assign a unique folder color'}
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
               {FOLDER_COLORS.map(c => {
