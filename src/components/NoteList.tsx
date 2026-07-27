@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
@@ -45,43 +45,12 @@ function formatDate(iso: string, language: Language): string {
   }
 }
 
-function extractFirstImage(content: string | null): string | null {
-  if (!content || typeof content !== 'string') return null;
-  
-  // Si parece JSON (notas antiguas), buscar en el árbol
-  if (content.trim().startsWith('{')) {
-    try {
-      const doc = JSON.parse(content);
-      let foundSrc: string | null = null;
-      const walk = (node: any) => {
-        if (foundSrc) return;
-        if (node.type === 'image' && node.attrs && node.attrs.src) {
-          foundSrc = node.attrs.src;
-        }
-        if (node.content && Array.isArray(node.content)) {
-          node.content.forEach(walk);
-        }
-      };
-      if (doc.content && Array.isArray(doc.content)) {
-        doc.content.forEach(walk);
-      }
-      if (foundSrc) return foundSrc;
-    } catch (e) {
-      // Si falla, intentamos procesarlo como HTML por si acaso
-    }
-  }
-
-  // Usar un parser real en lugar de regex para máxima fiabilidad con HTML
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(content, 'text/html');
-  const img = doc.querySelector('img');
-  
-  if (!img) return null;
-  
-  return img.getAttribute('src');
-}
-
 type ViewMode = 'normal' | 'compact';
+
+/** Altura de slot virtual = card + márgenes verticales del diseño original. */
+const ROW_NORMAL = 112;  // ~104 card + 8 (margin 4+4)
+const ROW_COMPACT = 58;  // ~52 card + 6 (margin 3+3)
+const OVERSCAN = 8;
 
 export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
@@ -97,8 +66,15 @@ export default function NoteList({
   const [renameTarget, setRenameTarget] = useState<Note | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(600);
   const listRef = useRef<HTMLDivElement>(null);
   const inputMenu = useInputContextMenu(language);
+  const folderMap = useMemo(() => {
+    const m = new Map<string, Folder>();
+    folders.forEach(f => m.set(f.id, f));
+    return m;
+  }, [folders]);
 
   // Cargar la densidad de la lista guardada (default: vista completa / 'normal')
   useEffect(() => {
@@ -123,21 +99,41 @@ export default function NoteList({
   }, []);
 
   // Lógica de ordenación
-  const sortedNotes = [...initialNotes].sort((a, b) => {
-    if (a.pinned !== b.pinned) return b.pinned - a.pinned;
-    if (sortBy === 'updated') return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    if (sortBy === 'created') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    if (sortBy === 'alpha') return a.title.localeCompare(b.title);
-    return b.title.localeCompare(a.title);
-  });
+  const sortedNotes = useMemo(() => {
+    return [...initialNotes].sort((a, b) => {
+      if (a.pinned !== b.pinned) return b.pinned - a.pinned;
+      if (sortBy === 'updated') return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      if (sortBy === 'created') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === 'alpha') return a.title.localeCompare(b.title);
+      return b.title.localeCompare(a.title);
+    });
+  }, [initialNotes, sortBy]);
 
-  // Calcular notas ocultas debajo del scroll
+  const rowHeight = viewMode === 'compact' ? ROW_COMPACT : ROW_NORMAL;
+  const totalHeight = sortedNotes.length * rowHeight;
+
+  // Virtualización: solo montar filas visibles
+  const { startIndex, endIndex, offsetY } = useMemo(() => {
+    const start = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN);
+    const visible = Math.ceil(viewportHeight / rowHeight) + OVERSCAN * 2;
+    const end = Math.min(sortedNotes.length, start + visible);
+    return { startIndex: start, endIndex: end, offsetY: start * rowHeight };
+  }, [scrollTop, viewportHeight, rowHeight, sortedNotes.length]);
+
+  const visibleNotes = useMemo(
+    () => sortedNotes.slice(startIndex, endIndex),
+    [sortedNotes, startIndex, endIndex]
+  );
+
+  // Calcular notas ocultas debajo del scroll + medir viewport
   useEffect(() => {
     const el = listRef.current;
-    if (!el || sortedNotes.length === 0) return;
+    if (!el) return;
     const update = () => {
+      setViewportHeight(el.clientHeight);
+      setScrollTop(el.scrollTop);
       let remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (remaining > 10) {
+      if (remaining > 10 && sortedNotes.length > 0) {
         let ratio = remaining / el.scrollHeight;
         let hidden = Math.max(1, Math.round(ratio * sortedNotes.length));
         setHiddenCount(Math.min(hidden, sortedNotes.length));
@@ -146,13 +142,25 @@ export default function NoteList({
       }
     };
     update();
-    el.addEventListener('scroll', update);
+    el.addEventListener('scroll', update, { passive: true });
     window.addEventListener('resize', update);
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
     return () => {
       el.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
+      ro.disconnect();
     };
-  }, [sortedNotes.length]);
+  }, [sortedNotes.length, rowHeight]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, note: Note) => {
+    e.preventDefault();
+    let safeX = e.clientX;
+    let safeY = e.clientY;
+    if (safeX + 160 > window.innerWidth) safeX = window.innerWidth - 160;
+    if (safeY + 250 > window.innerHeight) safeY = window.innerHeight - 250;
+    setContextMenu({ x: safeX, y: safeY, note });
+  }, []);
 
   const getHeaderTitle = () => {
     if (searchQuery) {
@@ -294,10 +302,10 @@ export default function NoteList({
           <AnimatePresence mode="wait">
             <motion.div
               key={selectedFolder?.id || 'all'}
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
-              transition={{ duration: 0.15 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
               style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}
             >
               {sortedNotes.length === 0 ? (
@@ -311,32 +319,35 @@ export default function NoteList({
                   }
                 </div>
               ) : (
-                sortedNotes.map(note => {
-                  const folder = folders.find(f => f.id === note.folder_id) ?? null;
-                  return (
-                    <NoteItem
-                      key={note.id}
-                      language={language}
-                      note={note}
-                      folder={folder}
-                      viewMode={viewMode}
-                      isSelected={note.id === selectedNoteId}
-                      onClick={() => onSelectNote(note.id)}
-                      onDelete={() => setNoteToDelete(note)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        let safeX = e.clientX;
-                        let safeY = e.clientY;
-                        // Evitar desborde por la derecha (menú mide ~140px)
-                        if (safeX + 160 > window.innerWidth) safeX = window.innerWidth - 160;
-                        // Evitar desborde por abajo (menú mide ~250px)
-                        if (safeY + 250 > window.innerHeight) safeY = window.innerHeight - 250;
-                        setContextMenu({ x: safeX, y: safeY, note });
-                      }}
-                    />
-                  );
-                })
-            )}
+                <div style={{ height: totalHeight, position: 'relative' }}>
+                  <div style={{ transform: `translateY(${offsetY}px)` }}>
+                    {visibleNotes.map(note => {
+                      const folder = note.folder_id ? (folderMap.get(note.folder_id) ?? null) : null;
+                      return (
+                        <div
+                          key={note.id}
+                          style={{
+                            height: rowHeight,
+                            boxSizing: 'border-box',
+                            padding: viewMode === 'compact' ? '3px 0' : '4px 0',
+                          }}
+                        >
+                          <NoteItem
+                            language={language}
+                            note={note}
+                            folder={folder}
+                            viewMode={viewMode}
+                            isSelected={note.id === selectedNoteId}
+                            onClick={() => onSelectNote(note.id)}
+                            onDelete={() => setNoteToDelete(note)}
+                            onContextMenu={(e) => handleContextMenu(e, note)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
           </motion.div>
         </AnimatePresence>
         </div>
@@ -630,12 +641,12 @@ interface NoteItemProps {
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDelete, onContextMenu }: NoteItemProps) {
-  const firstImage = viewMode === 'normal' ? extractFirstImage(note.content) : null;
+const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDelete, onContextMenu }: NoteItemProps) {
+  const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
   const t = TRANSLATIONS[language];
 
   return (
-    <motion.div
+    <div
       onClick={onClick}
       onContextMenu={onContextMenu}
       draggable={true}
@@ -643,15 +654,11 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
         (e as any).dataTransfer.setData('text/plain', note.id);
         (e as any).dataTransfer.effectAllowed = 'move';
       }}
-      whileHover="hover"
-      whileTap="tap"
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.2 }}
       style={{
+        height: '100%',
+        boxSizing: 'border-box',
         padding: viewMode === 'compact' ? '5px 14px' : '10px 14px',
-        margin: viewMode === 'compact' ? '3px 12px' : '4px 12px',
+        margin: '0 12px',
         borderRadius: 'var(--radius-md)',
         background: isSelected ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
         cursor: 'pointer',
@@ -659,25 +666,21 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
         transition: 'background var(--transition), border-color var(--transition)',
         border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border)',
         boxShadow: isSelected ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
-      }}
-      variants={{
-        hover: {
-          scale: 1.015,
-          background: isSelected ? 'var(--bg-active)' : 'var(--bg-hover)',
-          borderColor: isSelected ? 'var(--accent)' : 'rgba(255, 255, 255, 0.12)',
-          boxShadow: isSelected ? '0 6px 18px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.03)' : '0 4px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.02)',
-          transition: { type: 'spring', stiffness: 400, damping: 20 }
-        },
-        tap: {
-          scale: 0.985,
-          transition: { duration: 0.1 }
-        }
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
       className="note-item"
+      onMouseEnter={e => {
+        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+      }}
+      onMouseLeave={e => {
+        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.01)';
+      }}
     >
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0 }}>
             {note.pinned === 1 && <Pin size={11} color="var(--accent)" style={{ flexShrink: 0 }} />}
             <span style={{
               fontSize: 'calc(13px * var(--ui-scale))',
@@ -702,7 +705,7 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               lineHeight: 1.45,
-              marginBottom: 0,
+              margin: 0,
               maxHeight: '2.9em',
             }}>
               {note.preview || (language === 'es' ? 'Sin contenido' : 'No content')}
@@ -724,6 +727,7 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
             <img 
               src={firstImage} 
               alt="Preview" 
+              loading="lazy"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
               onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
             />
@@ -740,6 +744,7 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
         justifyContent: 'space-between',
         marginTop: viewMode === 'compact' ? 3 : 8,
         gap: 8,
+        flexShrink: 0,
       }}>
         <span>{formatDate(note.updated_at, language)}</span>
         {folder && (
@@ -817,7 +822,6 @@ function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDel
           transform: translateY(-50%) scale(1.08) !important;
         }
       `}</style>
-    </motion.div>
+    </div>
   );
-}
-
+});

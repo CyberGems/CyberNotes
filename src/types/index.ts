@@ -13,8 +13,11 @@ export interface Note {
   id: string;
   folder_id: string | null;
   title: string;
-  content: string; // JSON serializado de TipTap
+  /** HTML/JSON TipTap. Vacío en listados meta; completo al abrir con getNoteById. */
+  content: string;
   preview: string;
+  /** URL de la primera imagen (miniatura de lista); evita parsear content. */
+  thumb?: string;
   pinned: number; // 0 | 1
   created_at: string;
   updated_at: string;
@@ -51,6 +54,7 @@ declare global {
       setUnsavedChanges: (val: boolean) => Promise<void>;
       // Settings
       getSetting: (key: string) => Promise<string | null>;
+      getSettings: (keys: string[]) => Promise<Record<string, string | null>>;
       setSetting: (key: string, value: string) => Promise<boolean>;
       setAutoStart: (enable: boolean) => Promise<boolean>;
       getAutoStart: () => Promise<boolean>;
@@ -62,6 +66,7 @@ declare global {
       // Notes
       getAllNotes: () => Promise<Note[]>;
       getNotesByFolder: (folderId: string | null) => Promise<Note[]>;
+      getNoteById: (id: string) => Promise<Note | null>;
       saveNote: (note: Note) => Promise<Note>;
       deleteNote: (id: string) => Promise<boolean>;
       searchNotes: (query: string) => Promise<Note[]>;

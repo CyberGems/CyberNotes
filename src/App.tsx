@@ -17,13 +17,11 @@ export default function App() {
   useEffect(() => {
     const init = async () => {
       try {
-        const savedTheme = await window.cyberNotesAPI.getSetting('theme');
-        const savedIntensity = await window.cyberNotesAPI.getSetting('colorIntensity');
-        const savedLanguage = await window.cyberNotesAPI.getSetting('language');
+        const s = await window.cyberNotesAPI.getSettings(['theme', 'colorIntensity', 'language']);
         
-        let t = savedTheme ? (savedTheme as ThemeId) : 'cyber-dark';
-        let i = savedIntensity ? parseInt(savedIntensity) : 50;
-        let l = savedLanguage ? (savedLanguage as Language) : 'en';
+        let t = s.theme ? (s.theme as ThemeId) : 'cyber-dark';
+        let i = s.colorIntensity ? parseInt(s.colorIntensity) : 50;
+        let l = s.language ? (s.language as Language) : 'en';
 
         setTheme(t);
         setColorIntensity(i);

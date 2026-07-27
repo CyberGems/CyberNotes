@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
 
   // -- Settings --
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
+  getSettings: (keys: string[]) => ipcRenderer.invoke('settings:getMany', keys),
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
   setAutoStart: (enable: boolean) => ipcRenderer.invoke('settings:setAutoStart', enable),
   getAutoStart: () => ipcRenderer.invoke('settings:getAutoStart'),
@@ -71,6 +72,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Notes --
   getAllNotes: () => ipcRenderer.invoke('notes:getAll'),
   getNotesByFolder: (folderId: string | null) => ipcRenderer.invoke('notes:getByFolder', folderId),
+  getNoteById: (id: string) => ipcRenderer.invoke('notes:getById', id),
   saveNote: (note: any) => ipcRenderer.invoke('notes:save', note),
   deleteNote: (id: string) => ipcRenderer.invoke('notes:delete', id),
   searchNotes: (query: string) => ipcRenderer.invoke('notes:search', query),

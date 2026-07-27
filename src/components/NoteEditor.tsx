@@ -12,6 +12,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
+import { extractPreview, extractThumb } from '../utils/notes';
 import Tooltip from './Tooltip';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
@@ -75,13 +76,6 @@ const CustomImage = Image.extend({
   },
 });
 
-function extractPreview(html: string): string {
-  if (!html) return '';
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return (tmp.textContent || tmp.innerText || '').slice(0, 200).replace(/\s+/g, ' ');
-}
-
 const ToolbarBtn = ({
   onClick, active = false, title, children, disabled = false,
 }: { onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean }) => (
@@ -142,6 +136,7 @@ export default function NoteEditor({
   onShowMinimapChange,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentNoteRef = useRef<Note | null>(note);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const editorRootRef = useRef<HTMLDivElement | null>(null);
@@ -193,15 +188,26 @@ export default function NoteEditor({
     }
   }, []);
 
-  // Sincronizar HTML del minimap desde el editor (con rAF para esperar a setContent)
-  const syncMinimapHtml = useCallback(() => {
+  // Sincronizar HTML del minimap desde el editor (debounced: evita innerHTML en cada tecla)
+  const minimapSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncMinimapHtml = useCallback((immediate = false) => {
     if (!showMinimapRef.current) return;
-    requestAnimationFrame(() => {
-      if (!minimapContentRef.current || !editorRef.current) return;
-      const html = editorRef.current.getHTML();
-      minimapContentRef.current.innerHTML = html;
-      updateMinimapIndicator();
-    });
+    const run = () => {
+      requestAnimationFrame(() => {
+        if (!minimapContentRef.current || !editorRef.current) return;
+        const html = editorRef.current.getHTML();
+        minimapContentRef.current.innerHTML = html;
+        updateMinimapIndicator();
+      });
+    };
+    if (immediate) {
+      if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
+      minimapSyncTimer.current = null;
+      run();
+      return;
+    }
+    if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
+    minimapSyncTimer.current = setTimeout(run, 150);
   }, [updateMinimapIndicator]);
 
   // Calcular la escala del minimapa basada en el ancho real del editor
@@ -627,10 +633,12 @@ export default function NoteEditor({
         if (current) {
           if (autosaveEnabledRef.current) {
             const preview = extractPreview(html);
-            onSave({ ...current, content: html, preview });
+            const thumb = extractThumb(html);
+            onSave({ ...current, content: html, preview, thumb });
             isDirtyRef.current = false;
           } else {
             // Modo manual: NO persistir al perder el foco; solo mantener el borrador al día.
+            if (draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
             onEditDraft?.(current.id, localTitleRef.current, html);
           }
         }
@@ -685,7 +693,7 @@ export default function NoteEditor({
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const html = editor.getHTML();
     const preview = extractPreview(html);
-    onSave({ ...note, content: html, title: localTitle, preview });
+    onSave({ ...note, content: html, title: localTitle, preview, thumb: extractThumb(html) });
     setHasUnsavedChanges(false);
     isDirtyRef.current = false;
   }, [editor, note, localTitle, onSave]);
@@ -710,9 +718,9 @@ export default function NoteEditor({
     isDirtyRef.current = false;
     setHasUnsavedChanges(false);
     onDiscardDraft?.(note.id);
-    syncMinimapHtml();
+    syncMinimapHtml(true);
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
-  }, [editor, note, onDiscardDraft]);
+  }, [editor, note, onDiscardDraft, syncMinimapHtml]);
 
   // Sincronizar estado de cambios no guardados con el proceso principal
   useEffect(() => {
@@ -752,7 +760,7 @@ export default function NoteEditor({
     updateLineInfo(editor);
 
     // Sincronizar minimap con el nuevo contenido de la nota
-    syncMinimapHtml();
+    syncMinimapHtml(true);
     
     if ((draft ? draft.title : note.title) === 'Nueva nota') {
       setTimeout(() => {
@@ -783,7 +791,7 @@ export default function NoteEditor({
         if (current && editor && autosaveEnabledRef.current) {
           const html = editor.getHTML();
           const preview = extractPreview(html);
-          onSave({ ...current, content: html, preview });
+          onSave({ ...current, content: html, preview, thumb: extractThumb(html) });
           isDirtyRef.current = false;
         }
       }
@@ -800,7 +808,11 @@ export default function NoteEditor({
       setHasUnsavedChanges(true);
       const current = currentNoteRef.current;
       if (current) {
-        onEditDraft?.(current.id, localTitleRef.current, html);
+        // Throttle: no bombardear al padre en cada tecla (solo marcar dirty + sync periódico)
+        if (draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
+        draftSyncTimer.current = setTimeout(() => {
+          onEditDraft?.(current.id, localTitleRef.current, html);
+        }, 300);
       }
       return;
     }
@@ -809,10 +821,11 @@ export default function NoteEditor({
       const current = currentNoteRef.current;
       if (!current) return;
       const preview = extractPreview(html);
-      onSave({ ...current, content: html, preview });
+      const thumb = extractThumb(html);
+      onSave({ ...current, content: html, preview, thumb });
       isDirtyRef.current = false;
     }, 500);
-  }, [onSave, autosaveEnabled]);
+  }, [onSave, autosaveEnabled, onEditDraft]);
 
   const handlePin = () => {
     if (!note) return;

@@ -39,10 +39,47 @@ const { v4: uuidv4 } = require('uuid');
 let db: any = null;
 let SQL: any = null;
 
+/** Columnas ligeras para listados (sin content HTML completo). */
+const NOTE_META_COLS = 'id, folder_id, title, preview, thumb, pinned, created_at, updated_at';
+
+const DB_FLUSH_MS = 1500;
+let dbDirty = false;
+let dbFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
 function saveDbToDisk() {
   if (!db) return;
   const data = db.export();
   fs.writeFileSync(dbPath, Buffer.from(data));
+  dbDirty = false;
+}
+
+/** Programa un flush diferido; coalescea muchas escrituras (autosave, settings, etc.). */
+function scheduleDbFlush(delayMs = DB_FLUSH_MS) {
+  dbDirty = true;
+  if (dbFlushTimer) clearTimeout(dbFlushTimer);
+  dbFlushTimer = setTimeout(() => {
+    dbFlushTimer = null;
+    if (dbDirty) saveDbToDisk();
+  }, delayMs);
+}
+
+/** Fuerza escritura inmediata (quit, export, import, operaciones críticas). */
+function flushDbNow() {
+  if (dbFlushTimer) {
+    clearTimeout(dbFlushTimer);
+    dbFlushTimer = null;
+  }
+  if (dbDirty || db) {
+    // Siempre exportar si hay dirty; si no dirty y solo se pide flush, no-op salvo dirty
+    if (dbDirty) saveDbToDisk();
+  }
+}
+
+function ensureColumn(table: string, column: string, typeSql: string) {
+  const cols = queryAll(`PRAGMA table_info(${table})`);
+  if (!cols.some((c: any) => c.name === column)) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeSql}`);
+  }
 }
 
 async function initDatabase() {
@@ -87,11 +124,15 @@ async function initDatabase() {
       title      TEXT NOT NULL DEFAULT 'Nueva nota',
       content    TEXT NOT NULL DEFAULT '',
       preview    TEXT DEFAULT '',
+      thumb      TEXT DEFAULT '',
       pinned     INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
+
+  // Migración: DBs antiguas sin columna thumb
+  ensureColumn('notes', 'thumb', "TEXT DEFAULT ''");
 
   // Guardar schema inicial
   saveDbToDisk();
@@ -120,10 +161,30 @@ function queryGet(sql: string, params: any[] = []): any | null {
   return rows.length > 0 ? rows[0] : null;
 }
 
-function runQuery(sql: string, params: any[] = []) {
+/** Ejecuta SQL y programa flush diferido (no bloquea el main en cada UPDATE). */
+function runQuery(sql: string, params: any[] = [], opts?: { flushNow?: boolean }) {
   if (!db) throw new Error('Base de datos no inicializada');
   db.run(sql, params);
-  saveDbToDisk();
+  if (opts?.flushNow) {
+    dbDirty = true;
+    flushDbNow();
+  } else {
+    scheduleDbFlush();
+  }
+}
+
+/** Varias mutaciones sin flush intermedio; un solo schedule al final. */
+function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>, opts?: { flushNow?: boolean }) {
+  if (!db) throw new Error('Base de datos no inicializada');
+  for (const op of ops) {
+    db.run(op.sql, op.params ?? []);
+  }
+  if (opts?.flushNow) {
+    dbDirty = true;
+    flushDbNow();
+  } else {
+    scheduleDbFlush();
+  }
 }
 
 // ─── Ventana y Tray ────────────────────────────────────────────────────────
@@ -300,25 +361,38 @@ function createWindow() {
     show: false,
   });
 
-  // Guardar estado al cambiar
-  const saveWindowState = () => {
+  // Guardar estado al cambiar (debounce: evitar N flushes durante resize/drag)
+  let windowStateTimer: ReturnType<typeof setTimeout> | null = null;
+  const saveWindowState = (immediate = false) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
-    const isMax = mainWindow.isMaximized();
-    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false']);
+    const doSave = () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      const isMax = mainWindow.isMaximized();
+      runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false']);
 
-    const b = mainWindow.getBounds();
-    if (b.width > 100 && b.height > 100) {
-      runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify(b)]);
+      const b = mainWindow.getBounds();
+      if (b.width > 100 && b.height > 100) {
+        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify(b)]);
+      }
+    };
+
+    if (immediate) {
+      if (windowStateTimer) clearTimeout(windowStateTimer);
+      windowStateTimer = null;
+      doSave();
+      return;
     }
+    if (windowStateTimer) clearTimeout(windowStateTimer);
+    windowStateTimer = setTimeout(doSave, 500);
   };
 
-  mainWindow.on('resize', saveWindowState);
-  mainWindow.on('move', saveWindowState);
-  mainWindow.on('close', saveWindowState);
-  mainWindow.on('maximize', saveWindowState);
-  mainWindow.on('unmaximize', saveWindowState);
-  mainWindow.on('hide', saveWindowState);
+  mainWindow.on('resize', () => saveWindowState(false));
+  mainWindow.on('move', () => saveWindowState(false));
+  mainWindow.on('close', () => saveWindowState(true));
+  mainWindow.on('maximize', () => saveWindowState(true));
+  mainWindow.on('unmaximize', () => saveWindowState(true));
+  mainWindow.on('hide', () => saveWindowState(true));
 
   // Manejar minimizar (Bandeja de sistema)
   mainWindow.on('minimize', () => {
@@ -489,6 +563,16 @@ ipcMain.handle('settings:get', (_e: any, key: string) => {
   return row ? row.value : null;
 });
 
+ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
+  const result: Record<string, string | null> = {};
+  if (!Array.isArray(keys)) return result;
+  for (const key of keys) {
+    const row = queryGet('SELECT value FROM settings WHERE key = ?', [key]);
+    result[key] = row ? row.value : null;
+  }
+  return result;
+});
+
 ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
   if (key === 'auto_unlock_caps_lock' || key === 'language') {
@@ -538,37 +622,45 @@ ipcMain.handle('folders:update', (_e: any, folder: any) => {
 });
 
 ipcMain.handle('folders:delete', (_e: any, id: string) => {
-  runQuery('DELETE FROM notes WHERE folder_id = ?', [id]);
-  runQuery('DELETE FROM folders WHERE id = ?', [id]);
+  runQueryBatch([
+    { sql: 'DELETE FROM notes WHERE folder_id = ?', params: [id] },
+    { sql: 'DELETE FROM folders WHERE id = ?', params: [id] },
+  ]);
   return true;
 });
 
 // -- Notes --
+// Listados sin `content` (HTML TipTap puede ser muy grande).
 ipcMain.handle('notes:getAll', () => {
-  return queryAll('SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC');
+  return queryAll(`SELECT ${NOTE_META_COLS} FROM notes ORDER BY pinned DESC, updated_at DESC`);
 });
 
 ipcMain.handle('notes:getByFolder', (_e: any, folderId: string | null) => {
   if (folderId === 'floating') {
-    return queryAll('SELECT * FROM notes WHERE folder_id IS NULL OR folder_id = "" ORDER BY pinned DESC, updated_at DESC');
+    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE folder_id IS NULL OR folder_id = "" ORDER BY pinned DESC, updated_at DESC`);
   }
   if (!folderId) {
-    return queryAll('SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC');
+    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes ORDER BY pinned DESC, updated_at DESC`);
   }
-  return queryAll('SELECT * FROM notes WHERE folder_id = ? ORDER BY pinned DESC, updated_at DESC', [folderId]);
+  return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE folder_id = ? ORDER BY pinned DESC, updated_at DESC`, [folderId]);
+});
+
+ipcMain.handle('notes:getById', (_e: any, id: string) => {
+  return queryGet('SELECT * FROM notes WHERE id = ?', [id]);
 });
 
 ipcMain.handle('notes:save', (_e: any, note: any) => {
+  const thumb = typeof note.thumb === 'string' ? note.thumb : '';
   const exists = queryGet('SELECT id FROM notes WHERE id = ?', [note.id]);
   if (exists) {
     runQuery(
-      'UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, pinned = ?, updated_at = ? WHERE id = ?',
-      [note.folder_id, note.title, note.content, note.preview, note.pinned, note.updated_at, note.id]
+      'UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, thumb = ?, pinned = ?, updated_at = ? WHERE id = ?',
+      [note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.updated_at, note.id]
     );
   } else {
     runQuery(
-      'INSERT INTO notes (id, folder_id, title, content, preview, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [note.id, note.folder_id, note.title, note.content, note.preview, note.pinned, note.created_at, note.updated_at]
+      'INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [note.id, note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.created_at, note.updated_at]
     );
   }
   return note;
@@ -581,8 +673,15 @@ ipcMain.handle('notes:delete', (_e: any, id: string) => {
 
 ipcMain.handle('notes:search', (_e: any, query: string) => {
   const q = `%${query}%`;
+  // title + preview primero (rápido). content solo si la query tiene ≥2 chars.
+  if (!query || query.trim().length < 2) {
+    return queryAll(
+      `SELECT ${NOTE_META_COLS} FROM notes WHERE title LIKE ? OR preview LIKE ? ORDER BY pinned DESC, updated_at DESC`,
+      [q, q]
+    );
+  }
   return queryAll(
-    'SELECT * FROM notes WHERE title LIKE ? OR preview LIKE ? OR content LIKE ? ORDER BY pinned DESC, updated_at DESC',
+    `SELECT ${NOTE_META_COLS} FROM notes WHERE title LIKE ? OR preview LIKE ? OR content LIKE ? ORDER BY pinned DESC, updated_at DESC`,
     [q, q, q]
   );
 });
@@ -613,6 +712,7 @@ ipcMain.handle('data:export', async () => {
   });
   if (result.canceled || !result.filePath) return false;
 
+  flushDbNow();
   const folders = queryAll('SELECT * FROM folders');
   const notes = queryAll('SELECT * FROM notes');
   const exportData = { folders, notes, version: 1 };
@@ -634,18 +734,25 @@ ipcMain.handle('data:import', async () => {
     if (!data.folders || !data.notes) return false;
 
     // Backup current DB
+    flushDbNow();
     const backupPath = dbPath + '.backup-' + Date.now();
     if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
 
-    // Insert imported (replace on conflict)
+    // Insert imported en un solo batch + un flush (evita N exports a disco)
+    const ops: Array<{ sql: string; params?: any[] }> = [];
     for (const f of data.folders) {
-      runQuery('INSERT OR REPLACE INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [f.id, f.name, f.icon, f.color, f.sort_order, f.created_at]);
+      ops.push({
+        sql: 'INSERT OR REPLACE INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        params: [f.id, f.name, f.icon, f.color, f.sort_order, f.created_at],
+      });
     }
     for (const n of data.notes) {
-      runQuery('INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [n.id, n.folder_id, n.title, n.content, n.preview, n.pinned, n.created_at, n.updated_at]);
+      ops.push({
+        sql: 'INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        params: [n.id, n.folder_id, n.title, n.content, n.preview, n.thumb || '', n.pinned, n.created_at, n.updated_at],
+      });
     }
+    runQueryBatch(ops, { flushNow: true });
     return true;
   } catch (e) {
     console.error('Import error:', e);
@@ -695,6 +802,12 @@ if (!gotTheLock) {
     if (process.platform !== 'darwin') {
       if (!tray) app.quit();
     }
+  });
+
+  app.on('before-quit', () => {
+    isQuitting = true;
+    stopCapsLockWorker();
+    flushDbNow();
   });
 }
 

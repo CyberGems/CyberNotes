@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Folder, Note, ThemeId } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import TitleBar from './TitleBar';
@@ -8,6 +8,7 @@ import NoteEditor from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import ConfirmDialog from './ConfirmDialog';
 import { motion, AnimatePresence } from 'motion/react';
+import { toNoteMeta, extractThumb } from '../utils/notes';
 
 // Mapeo de emojis antiguos a nombres de iconos nuevos
 const EMOJI_TO_ICON_MAP: Record<string, string> = {
@@ -46,6 +47,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  /** Nota abierta con content completo (listas solo llevan meta). */
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
   const [draftCache, setDraftCache] = useState<Record<string, { title: string; content: string }>>({});
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
@@ -87,6 +90,16 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadedRef = useRef(false);
+  const contentCacheRef = useRef<Record<string, string>>({});
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusBarUrlRef = useRef<string | null>(null);
+  const rootStyleRef = useRef<HTMLDivElement | null>(null);
+  const selectedNoteIdRef = useRef<string | null>(null);
+  const allNotesRef = useRef<Note[]>([]);
+  const notesRef = useRef<Note[]>([]);
+  selectedNoteIdRef.current = selectedNoteId;
+  allNotesRef.current = allNotes;
+  notesRef.current = notes;
 
   useEffect(() => {
     const trackMouse = (e: MouseEvent) => {
@@ -144,14 +157,18 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     };
   }, []);
 
-  // Lógica de Auto-bloqueo
+  // Lógica de Auto-bloqueo (throttle de actividad: no resetear en cada mousemove)
   useEffect(() => {
     if (autoLockMinutes <= 0) {
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
 
+    let lastReset = 0;
     const resetTimer = () => {
+      const now = Date.now();
+      if (now - lastReset < 1000) return;
+      lastReset = now;
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         onLock();
@@ -159,7 +176,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     };
 
     const events = ['mousedown', 'mousemove', 'keydown', 'wheel', 'touchstart'];
-    events.forEach(e => window.addEventListener(e, resetTimer));
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
 
     resetTimer();
 
@@ -169,28 +186,35 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     };
   }, [autoLockMinutes, onLock]);
 
-  // Detector de links vía mousemove (máxima compatibilidad)
+  // Detector de links vía mousemove (throttled con rAF)
   useEffect(() => {
+    let raf = 0;
     const handleMouseMove = (e: MouseEvent) => {
-      // Inspeccionamos el elemento bajo el cursor de forma precisa
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const link = el?.closest('a');
-      
-      if (link && link.href) {
-        const url = link.href;
-        // Solo mostrar si es un link real (web) o tiene protocolo
-        if (url.startsWith('http') || url.startsWith('https') || url.startsWith('mailto:') || url.includes('www.')) {
-          if (statusBarUrl !== url) setStatusBarUrl(url);
-          return;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const link = el?.closest('a');
+        let next: string | null = null;
+        if (link && link.href) {
+          const url = link.href;
+          if (url.startsWith('http') || url.startsWith('https') || url.startsWith('mailto:') || url.includes('www.')) {
+            next = url;
+          }
         }
-      }
-      
-      if (statusBarUrl !== null) setStatusBarUrl(null);
+        if (statusBarUrlRef.current !== next) {
+          statusBarUrlRef.current = next;
+          setStatusBarUrl(next);
+        }
+      });
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [statusBarUrl]);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   // Guardar última nota y sesión de pestañas si la opción está activa
   useEffect(() => {
@@ -226,85 +250,57 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   }, [selectedNoteId]);
 
   const loadSettings = async () => {
-    const scale = await window.cyberNotesAPI.getSetting('ui_scale');
-    if (scale) setUiScale(parseFloat(scale));
+    const s = await window.cyberNotesAPI.getSettings([
+      'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity', 'auto_lock_minutes',
+      'remember_last_note', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
+      'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
+      'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
+      'show_word_counter', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
+    ]);
 
-    const bg = await window.cyberNotesAPI.getSetting('bg_image');
-    if (bg) setBgImage(bg);
+    if (s.ui_scale) setUiScale(parseFloat(s.ui_scale));
+    if (s.bg_image) setBgImage(s.bg_image);
+    if (s.glass_blur) setGlassBlur(parseFloat(s.glass_blur));
+    if (s.bg_opacity) setBgOpacity(parseFloat(s.bg_opacity));
+    if (s.auto_lock_minutes) setAutoLockMinutes(parseInt(s.auto_lock_minutes));
 
-    const blur = await window.cyberNotesAPI.getSetting('glass_blur');
-    if (blur) setGlassBlur(parseFloat(blur));
-
-    const op = await window.cyberNotesAPI.getSetting('bg_opacity');
-    if (op) setBgOpacity(parseFloat(op));
-
-    const lock = await window.cyberNotesAPI.getSetting('auto_lock_minutes');
-    if (lock) setAutoLockMinutes(parseInt(lock));
-
-    const remember = await window.cyberNotesAPI.getSetting('remember_last_note');
-    const isRemember = remember === 'true';
+    const isRemember = s.remember_last_note === 'true';
     setRememberLastNote(isRemember);
 
-    const lineCounter = await window.cyberNotesAPI.getSetting('show_line_counter');
-    const lineGutter = await window.cyberNotesAPI.getSetting('show_line_gutter');
-    if (lineGutter === null) setShowLineGutter(true);
-    else setShowLineGutter(lineGutter === 'true');
-    setShowLineCounter(lineCounter === 'true');
+    if (s.show_line_gutter === null) setShowLineGutter(true);
+    else setShowLineGutter(s.show_line_gutter === 'true');
+    setShowLineCounter(s.show_line_counter === 'true');
 
-    const autosave = await window.cyberNotesAPI.getSetting('autosave_enabled');
-    if (autosave !== null) setAutosaveEnabled(autosave === 'true');
-
-    const dismissed = await window.cyberNotesAPI.getSetting('confirm_leave_note_dismissed');
-    setConfirmLeaveDismissed(dismissed === 'true');
-
-    const capsLock = await window.cyberNotesAPI.getSetting('auto_unlock_caps_lock');
-    setAutoUnlockCapsLock(capsLock === 'true');
-
-    const capsLockTimeout = await window.cyberNotesAPI.getSetting('auto_unlock_caps_lock_timeout');
-    if (capsLockTimeout) setAutoUnlockCapsLockTimeout(parseInt(capsLockTimeout));
-
-    const soundVal = await window.cyberNotesAPI.getSetting('caps_lock_sound');
-    setCapsLockSound(soundVal || 'cyber-beep');
-
-    const scopeVal = await window.cyberNotesAPI.getSetting('caps_lock_sound_scope');
-    setCapsLockSoundScope(scopeVal || 'app');
-
-    const tabsWidth = await window.cyberNotesAPI.getSetting('tabs_width_mode');
-    if (tabsWidth) setTabsWidthMode(tabsWidth as 'normal' | 'wide');
-
-    const minimap = await window.cyberNotesAPI.getSetting('show_minimap');
-    if (minimap) setShowMinimap(minimap === 'true');
-
-    const wordCounter = await window.cyberNotesAPI.getSetting('show_word_counter');
-    setShowWordCounter(wordCounter === 'true');
-
-    const recentCleared = await window.cyberNotesAPI.getSetting('recent_cleared_at');
-    if (recentCleared) setRecentClearedAt(parseInt(recentCleared));
-
-    const openedHist = await window.cyberNotesAPI.getSetting('opened_history');
-    if (openedHist) {
-      try { setOpenedHistory(JSON.parse(openedHist)); } catch { /* ignorar JSON corrupto */ }
+    if (s.autosave_enabled !== null) setAutosaveEnabled(s.autosave_enabled === 'true');
+    setConfirmLeaveDismissed(s.confirm_leave_note_dismissed === 'true');
+    setAutoUnlockCapsLock(s.auto_unlock_caps_lock === 'true');
+    if (s.auto_unlock_caps_lock_timeout) setAutoUnlockCapsLockTimeout(parseInt(s.auto_unlock_caps_lock_timeout));
+    setCapsLockSound(s.caps_lock_sound || 'cyber-beep');
+    setCapsLockSoundScope(s.caps_lock_sound_scope || 'app');
+    if (s.tabs_width_mode) setTabsWidthMode(s.tabs_width_mode as 'normal' | 'wide');
+    if (s.show_minimap) setShowMinimap(s.show_minimap === 'true');
+    setShowWordCounter(s.show_word_counter === 'true');
+    if (s.recent_cleared_at) setRecentClearedAt(parseInt(s.recent_cleared_at));
+    if (s.opened_history) {
+      try { setOpenedHistory(JSON.parse(s.opened_history)); } catch { /* ignorar JSON corrupto */ }
     }
 
     if (isRemember) {
-      const savedIdsStr = await window.cyberNotesAPI.getSetting('open_note_ids');
+      const savedIdsStr = s.open_note_ids;
       if (savedIdsStr) {
         const savedIds = savedIdsStr.split(',').filter(id => id.trim() !== '');
         if (savedIds.length > 0) {
           setOpenNoteIds(savedIds);
-          const lastId = await window.cyberNotesAPI.getSetting('last_note_id');
+          const lastId = s.last_note_id;
           if (lastId && savedIds.includes(lastId)) {
             setSelectedNoteId(lastId);
           } else {
             setSelectedNoteId(savedIds[0]);
           }
         }
-      } else {
-        const lastId = await window.cyberNotesAPI.getSetting('last_note_id');
-        if (lastId) {
-          setOpenNoteIds([lastId]);
-          setSelectedNoteId(lastId);
-        }
+      } else if (s.last_note_id) {
+        setOpenNoteIds([s.last_note_id]);
+        setSelectedNoteId(s.last_note_id);
       }
     }
     // Marcar que la carga inicial de base de datos ha concluido con éxito
@@ -331,7 +327,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
 
   const loadAllNotes = async () => {
     const all = await window.cyberNotesAPI.getAllNotes();
-    setAllNotes(all);
+    setAllNotes(all.map(toNoteMeta));
   };
 
   const loadNotes = async (folderId: string | null) => {
@@ -341,19 +337,48 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     } else {
       n = await window.cyberNotesAPI.getNotesByFolder(folderId);
     }
-    setNotes(n);
+    setNotes(n.map(toNoteMeta));
     // Si no hay nota seleccionada y hay notas, selecciona la primera
-    if (n.length > 0 && !selectedNoteId) {
+    if (n.length > 0 && !selectedNoteIdRef.current) {
       setSelectedNoteId(n[0].id);
     }
   };
+
+  /** Carga content completo de una nota (cache en memoria para pestañas abiertas). */
+  const loadFullNote = useCallback(async (id: string | null) => {
+    if (!id) {
+      setSelectedNote(null);
+      return;
+    }
+    const meta = allNotesRef.current.find(n => n.id === id) || notesRef.current.find(n => n.id === id);
+    const cached = contentCacheRef.current[id];
+    if (cached !== undefined && meta) {
+      setSelectedNote({ ...meta, content: cached });
+      return;
+    }
+    const full = await window.cyberNotesAPI.getNoteById(id);
+    if (!full || selectedNoteIdRef.current !== id) return;
+    contentCacheRef.current[id] = full.content || '';
+    setSelectedNote({ ...toNoteMeta(full), content: full.content || '' });
+  }, []);
+
+  // Cargar contenido solo al cambiar de nota (no en cada autosave/meta update)
+  useEffect(() => {
+    loadFullNote(selectedNoteId);
+  }, [selectedNoteId, loadFullNote]);
 
   const handleSelectFolder = async (folderId: string | null) => {
     setSelectedFolderId(folderId);
     setSearchQuery('');
     const n = await window.cyberNotesAPI.getNotesByFolder(folderId);
-    setNotes(n);
+    setNotes(n.map(toNoteMeta));
   };
+
+  const patchNoteMeta = useCallback((updated: Note) => {
+    const meta = toNoteMeta(updated);
+    setNotes(prev => prev.map(n => n.id === meta.id ? { ...n, ...meta } : n));
+    setAllNotes(prev => prev.map(n => n.id === meta.id ? { ...n, ...meta } : n));
+  }, []);
 
   const handleRenameNote = async (id: string, title: string) => {
     const note = allNotes.find(n => n.id === id);
@@ -367,26 +392,32 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       }));
     }
     
-    const updated = { ...note, title, updated_at: new Date().toISOString() };
-    setNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
-    setAllNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
+    const content = contentCacheRef.current[id] ?? (await window.cyberNotesAPI.getNoteById(id))?.content ?? '';
+    contentCacheRef.current[id] = content;
+    const updated = { ...note, title, content, updated_at: new Date().toISOString() };
+    patchNoteMeta(updated);
+    if (selectedNoteId === id) {
+      setSelectedNote(prev => prev ? { ...prev, title, updated_at: updated.updated_at } : prev);
+    }
     await window.cyberNotesAPI.saveNote(updated);
   };
 
-  const handleSearch = async (q: string) => {
+  const handleSearch = useCallback((q: string) => {
     setSearchQuery(q);
-    if (!q) {
-      const n = await window.cyberNotesAPI.getNotesByFolder(selectedFolderId);
-      setNotes(n);
-      return;
-    }
-    const n = await window.cyberNotesAPI.searchNotes(q);
-    setNotes(n);
-    setSelectedNoteId(n.length > 0 ? n[0].id : null);
-  };
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(async () => {
+      if (!q) {
+        const n = await window.cyberNotesAPI.getNotesByFolder(selectedFolderId);
+        setNotes(n.map(toNoteMeta));
+        return;
+      }
+      const n = await window.cyberNotesAPI.searchNotes(q);
+      setNotes(n.map(toNoteMeta));
+      setSelectedNoteId(n.length > 0 ? n[0].id : null);
+    }, 250);
+  }, [selectedFolderId]);
 
   const handleCreateNote = async () => {
-    console.log('[MainApp] handleCreateNote triggered');
     const now = new Date().toISOString();
     const newNote: Note = {
       id: window.crypto.randomUUID(),
@@ -394,16 +425,18 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       title: language === 'es' ? 'Nueva nota' : 'New note',
       content: '',
       preview: '',
+      thumb: '',
       pinned: 0,
       created_at: now,
       updated_at: now,
     };
-    console.log('[MainApp] Creating note:', newNote);
     try {
       const saved = await window.cyberNotesAPI.saveNote(newNote);
-      console.log('[MainApp] Note saved:', saved);
-      setNotes(prev => [saved, ...prev]);
-      setAllNotes(prev => [saved, ...prev]);
+      contentCacheRef.current[saved.id] = saved.content || '';
+      const meta = toNoteMeta(saved);
+      setNotes(prev => [meta, ...prev]);
+      setAllNotes(prev => [meta, ...prev]);
+      setSelectedNote({ ...meta, content: saved.content || '' });
       setSelectedNoteId(saved.id);
     } catch (err) {
       console.error('[MainApp] Error creating note:', err);
@@ -411,24 +444,29 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   };
 
   const handleSaveNote = useCallback(async (note: Note) => {
-    const updated = { ...note, updated_at: new Date().toISOString() };
-    setNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
-    setAllNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
+    const thumb = note.thumb || extractThumb(note.content);
+    const updated = { ...note, thumb, updated_at: new Date().toISOString() };
+    contentCacheRef.current[updated.id] = updated.content || '';
+    patchNoteMeta(updated);
+    setSelectedNote(prev => (prev && prev.id === updated.id ? updated : prev));
     await window.cyberNotesAPI.saveNote(updated);
     
     // Al guardar exitosamente, eliminamos la nota del caché de borradores sucios
     setDraftCache(prev => {
+      if (!(note.id in prev)) return prev;
       const next = { ...prev };
       delete next[note.id];
       return next;
     });
-  }, []);
+  }, [patchNoteMeta]);
 
   const handleEditDraft = useCallback((id: string, title: string, content: string) => {
-    setDraftCache(prev => ({
-      ...prev,
-      [id]: { title, content }
-    }));
+    contentCacheRef.current[id] = content;
+    setDraftCache(prev => {
+      const cur = prev[id];
+      if (cur && cur.title === title && cur.content === content) return prev;
+      return { ...prev, [id]: { title, content } };
+    });
   }, []);
 
   const handleDiscardDraft = useCallback((id: string) => {
@@ -479,9 +517,14 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const handleCloseTab = useCallback((id: string) => {
     const isDirty = draftCache[id] !== undefined && !autosaveEnabled;
     if (isDirty) {
-      const noteToClose = allNotes.find(n => n.id === id);
-      if (noteToClose) {
-        setNoteToCloseWithDraft(noteToClose);
+      const meta = allNotes.find(n => n.id === id);
+      if (meta) {
+        const draft = draftCache[id];
+        setNoteToCloseWithDraft({
+          ...meta,
+          content: draft?.content ?? contentCacheRef.current[id] ?? '',
+          title: draft?.title ?? meta.title,
+        });
         return;
       }
     }
@@ -491,6 +534,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
 
   const handleDeleteNote = async (id: string) => {
     await window.cyberNotesAPI.deleteNote(id);
+    delete contentCacheRef.current[id];
     const remaining = notes.filter(n => n.id !== id);
     setNotes(remaining);
     setAllNotes(prev => prev.filter(n => n.id !== id));
@@ -506,6 +550,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     });
 
     if (selectedNoteId === id) {
+      setSelectedNote(null);
       const remainingTabs = openNoteIds.filter(noteId => noteId !== id);
       if (remainingTabs.length > 0) {
         setSelectedNoteId(remainingTabs[0]);
@@ -516,26 +561,38 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   };
 
   const handleTogglePin = async (note: Note) => {
-    const updated = { ...note, pinned: note.pinned === 1 ? 0 : 1 };
+    const content = contentCacheRef.current[note.id]
+      ?? (selectedNote?.id === note.id ? selectedNote.content : undefined)
+      ?? (await window.cyberNotesAPI.getNoteById(note.id))?.content
+      ?? '';
+    contentCacheRef.current[note.id] = content;
+    const updated = { ...note, content, pinned: note.pinned === 1 ? 0 : 1, updated_at: new Date().toISOString() };
     await window.cyberNotesAPI.saveNote(updated);
-    setNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
-    setAllNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
+    patchNoteMeta(updated);
+    if (selectedNoteId === note.id) {
+      setSelectedNote(prev => prev ? { ...prev, pinned: updated.pinned, updated_at: updated.updated_at } : prev);
+    }
   };
 
   const handleMoveNote = async (noteId: string, targetFolderId: string | null) => {
     const note = allNotes.find(n => n.id === noteId);
     if (!note) return;
-    const updated = { ...note, folder_id: targetFolderId, updated_at: new Date().toISOString() };
+    const content = contentCacheRef.current[noteId]
+      ?? (selectedNote?.id === noteId ? selectedNote.content : undefined)
+      ?? (await window.cyberNotesAPI.getNoteById(noteId))?.content
+      ?? '';
+    contentCacheRef.current[noteId] = content;
+    const updated = { ...note, content, folder_id: targetFolderId, updated_at: new Date().toISOString() };
     await window.cyberNotesAPI.saveNote(updated);
     
-    setAllNotes(prev => prev.map(n => n.id === noteId ? updated : n));
+    patchNoteMeta(updated);
+    if (selectedNoteId === noteId) {
+      setSelectedNote(prev => prev ? { ...prev, folder_id: targetFolderId, updated_at: updated.updated_at } : prev);
+    }
 
     // Si estamos viendo una carpeta específica y movemos la nota a otra, la quitamos de la lista visible
     if (selectedFolderId !== null && selectedFolderId !== targetFolderId && !searchQuery) {
-       const remaining = notes.filter(n => n.id !== noteId);
-       setNotes(remaining);
-    } else {
-       setNotes(prev => prev.map(n => n.id === noteId ? updated : n));
+       setNotes(prev => prev.filter(n => n.id !== noteId));
     }
   };
 
@@ -592,10 +649,13 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const handleDeleteFolder = async (id: string) => {
     await window.cyberNotesAPI.deleteFolder(id);
     setFolders(prev => prev.filter(f => f.id !== id));
+    // Notas de esa carpeta ya no existen en DB
+    setAllNotes(prev => prev.filter(n => n.folder_id !== id));
+    setNotes(prev => prev.filter(n => n.folder_id !== id));
     if (selectedFolderId === id) {
       setSelectedFolderId(null);
       const n = await window.cyberNotesAPI.getNotesByFolder(null);
-      setNotes(n);
+      setNotes(n.map(toNoteMeta));
       setSelectedNoteId(n.length > 0 ? n[0].id : null);
     }
   };
@@ -670,19 +730,33 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     await window.cyberNotesAPI.setSetting('caps_lock_sound_scope', val);
   };
 
-  const selectedNote = allNotes.find(n => n.id === selectedNoteId) ?? null;
+  const recentNotesSorted = useMemo(() =>
+    [...allNotes]
+      .filter(n => !recentClearedAt || new Date(n.updated_at).getTime() > recentClearedAt)
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
+  [allNotes, recentClearedAt]);
+
+  const recentNotesTop10 = useMemo(() => recentNotesSorted.slice(0, 10), [recentNotesSorted]);
+  const recentNotesTop6 = useMemo(() =>
+    [...allNotes].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 6),
+  [allNotes]);
 
   const startDragSidebar = (e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = sidebarWidth;
+    const root = rootStyleRef.current;
     const onMove = (ev: MouseEvent) => {
-       setSidebarWidth(Math.min(Math.max(startWidth + (ev.clientX - startX), 150), 500));
+      const w = Math.min(Math.max(startWidth + (ev.clientX - startX), 150), 500);
+      if (root) root.style.setProperty('--sidebar-width', `${w}px`);
+      (onMove as any)._last = w;
     };
     const onUp = () => {
-       document.removeEventListener('mousemove', onMove);
-       document.removeEventListener('mouseup', onUp);
-       document.body.style.cursor = 'default';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = 'default';
+      const w = (onMove as any)._last;
+      if (typeof w === 'number') setSidebarWidth(w);
     };
     document.body.style.cursor = 'col-resize';
     document.addEventListener('mousemove', onMove);
@@ -693,13 +767,18 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = noteListWidth;
+    const root = rootStyleRef.current;
     const onMove = (ev: MouseEvent) => {
-       setNoteListWidth(Math.min(Math.max(startWidth + (ev.clientX - startX), 200), 600));
+      const w = Math.min(Math.max(startWidth + (ev.clientX - startX), 200), 600);
+      if (root) root.style.setProperty('--notelist-width', `${w}px`);
+      (onMove as any)._last = w;
     };
     const onUp = () => {
-       document.removeEventListener('mousemove', onMove);
-       document.removeEventListener('mouseup', onUp);
-       document.body.style.cursor = 'default';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = 'default';
+      const w = (onMove as any)._last;
+      if (typeof w === 'number') setNoteListWidth(w);
     };
     document.body.style.cursor = 'col-resize';
     document.addEventListener('mousemove', onMove);
@@ -708,6 +787,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
 
   return (
     <div 
+      ref={rootStyleRef}
       className={bgImage ? 'has-bg' : ''}
       style={{ 
         display: 'flex', 
@@ -742,9 +822,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           const note = allNotes.find(n => n.id === id);
           if (note) setSelectedFolderId(note.folder_id);
         }}
-        recentNotes={[...allNotes]
-          .filter(n => !recentClearedAt || new Date(n.updated_at).getTime() > recentClearedAt)
-          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 10)}
+        recentNotes={recentNotesTop10}
         onClearRecent={async () => {
           const now = Date.now().toString();
           await window.cyberNotesAPI.setSetting('recent_cleared_at', now);
@@ -775,7 +853,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
               folders={folders}
               selectedFolderId={selectedFolderId}
               noteCount={allNotes.length}
-              recentNotes={[...allNotes].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 6)}
+              recentNotes={recentNotesTop6}
               allNotes={allNotes}
               openedHistory={openedHistory}
               recentClearedAt={recentClearedAt}
@@ -842,7 +920,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
         {/* Editor */}
         <NoteEditor
           language={language}
-          note={selectedNote}
+          note={selectedNote && selectedNote.id === selectedNoteId ? selectedNote : null}
           onSave={handleSaveNote}
           onCreateNote={handleCreateNote}
           layoutMode={layoutMode}
