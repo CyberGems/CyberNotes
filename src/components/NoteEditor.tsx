@@ -2,7 +2,8 @@ import { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
+import { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
@@ -75,6 +76,30 @@ const CustomImage = Image.extend({
     };
   },
 });
+
+/**
+ * Carga contenido en TipTap sin contaminar el historial de Undo/Redo.
+ * Sin esto, Ctrl+Z / Deshacer puede restaurar el contenido de otra nota.
+ */
+function loadEditorContent(editor: Editor, raw: string) {
+  let content: string | object = raw || '';
+  if (typeof content === 'string' && content.trim().startsWith('{')) {
+    try {
+      content = JSON.parse(content);
+    } catch {
+      /* HTML / texto plano */
+    }
+  }
+
+  editor.chain().setMeta('addToHistory', false).setContent(content, false).run();
+
+  // Reinicia el estado de plugins (incluye history vacío) conservando el doc actual
+  const fresh = EditorState.create({
+    doc: editor.state.doc,
+    plugins: editor.state.plugins,
+  });
+  editor.view.updateState(fresh);
+}
 
 const ToolbarBtn = ({
   onClick, active = false, title, children, disabled = false,
@@ -555,18 +580,15 @@ export default function NoteEditor({
             hasSelection = input.selectionStart !== input.selectionEnd;
             hasContent = (input.value?.length ?? 0) > 0;
           }
-          try {
-            canUndo = document.queryCommandEnabled('undo');
-            canRedo = document.queryCommandEnabled('redo');
-          } catch {
-            canUndo = true;
-            canRedo = true;
-          }
+          // queryCommandEnabled('undo') suele devolver true sin historial real → no exponer undo/redo aquí.
+          // El input sigue soportando Ctrl+Z nativo.
+          canUndo = false;
+          canRedo = false;
         } else if (editorRef.current) {
           const ed = editorRef.current;
           const { from, to } = ed.state.selection;
           hasSelection = from !== to;
-          hasContent = ed.state.doc.content.size > 2; // doc vacío ≈ size 2 (empty paragraph)
+          hasContent = ed.state.doc.textContent.length > 0;
           canUndo = ed.can().undo();
           canRedo = ed.can().redo();
         }
@@ -758,16 +780,7 @@ export default function NoteEditor({
     if (!editor || !note) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     isSelectionChangingRef.current = true;
-    const content = note.content || '';
-    if (content.trim().startsWith('{')) {
-      try {
-        editor.commands.setContent(JSON.parse(content), false);
-      } catch {
-        editor.commands.setContent(content, false);
-      }
-    } else {
-      editor.commands.setContent(content, false);
-    }
+    loadEditorContent(editor, note.content || '');
     setLocalTitle(note.title || '');
     localTitleRef.current = note.title || '';
     isDirtyRef.current = false;
@@ -798,18 +811,9 @@ export default function NoteEditor({
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
-    // Carga inteligente: intenta parsear JSON, si falla carga como HTML
+    // Carga limpia: sin meter el cambio de nota en el historial de Undo
     const content = draft ? draft.content : (note.content || '');
-    if (content.trim().startsWith('{')) {
-      try {
-        const parsed = JSON.parse(content);
-        editor.commands.setContent(parsed, false);
-      } catch (e) {
-        editor.commands.setContent(content, false);
-      }
-    } else {
-      editor.commands.setContent(content, false);
-    }
+    loadEditorContent(editor, content);
 
     updateTextMetrics(editor);
     updateLineInfo(editor);
