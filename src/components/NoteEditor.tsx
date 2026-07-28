@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react';
+import { useEffect, useRef, useCallback, useState, useLayoutEffect, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,7 +19,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
-  Plus, Pin, Keyboard, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
+  Plus, Pin, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Download, X
 } from 'lucide-react';
 
@@ -134,6 +134,29 @@ const ToolbarBtn = ({
   </Tooltip>
 );
 
+/** Misma huella táctil que ToolbarBtn (barra de formato del editor). */
+const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProperties => ({
+  background: active ? (opts?.warn ? 'rgba(239, 68, 68, 0.12)' : 'var(--accent-dim)') : 'transparent',
+  color: active
+    ? (opts?.warn ? '#fca5a5' : 'var(--accent-light)')
+    : 'var(--text-muted)',
+  border: active
+    ? (opts?.warn ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--accent)')
+    : '1px solid transparent',
+  borderRadius: 6,
+  padding: '6px 8px',
+  minWidth: 32,
+  minHeight: 32,
+  boxSizing: 'border-box',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'color 0.2s, border 0.2s, background 0.2s',
+  outline: 'none',
+  position: 'relative',
+});
+
 export default function NoteEditor({ 
   language,
   note,
@@ -178,7 +201,6 @@ export default function NoteEditor({
   const tabStripRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const minimapRef = useRef<HTMLDivElement>(null);
-  const [overscrollOffset, setOverscrollOffset] = useState(0);
 
   // ─── Minimap state ──────────────────────────────────────────────
   const minimapIndicatorRef = useRef<HTMLDivElement>(null);
@@ -358,40 +380,68 @@ export default function NoteEditor({
     document.addEventListener('mouseup', onUp);
   };
 
-  useEffect(() => {
+  // Rueda en tabs + rebote suave en los extremos (rubber-band)
+  useLayoutEffect(() => {
     const el = tabStripRef.current;
     if (!el) return;
 
-    let bounceTimeout: ReturnType<typeof setTimeout> | null = null;
+    const MAX_PULL = 12;
+    const RESISTANCE = 0.08;
+    let offset = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const applyOffset = (value: number, animate: boolean) => {
+      offset = value;
+      el.style.transition = animate ? 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)' : 'none';
+      el.style.transform = value === 0 ? '' : `translateX(${value}px)`;
+    };
+
+    const settle = () => {
+      if (offset === 0) return;
+      applyOffset(0, true);
+    };
 
     const handleWheel = (e: WheelEvent) => {
-      if (el.scrollWidth > el.clientWidth) {
-        e.preventDefault();
-        
-        const oldScrollLeft = el.scrollLeft;
-        el.scrollLeft += e.deltaY;
-        
-        if (el.scrollLeft === oldScrollLeft) {
-          // Límite alcanzado, calcular el desplazamiento elástico
-          const pull = -e.deltaY * 0.15;
-          setOverscrollOffset(prev => Math.min(30, Math.max(-30, prev + pull)));
-          
-          if (bounceTimeout) clearTimeout(bounceTimeout);
-          bounceTimeout = setTimeout(() => {
-            setOverscrollOffset(0);
-          }, 150);
-        } else {
-          setOverscrollOffset(0);
-        }
+      if (el.scrollWidth <= el.clientWidth) return;
+
+      e.preventDefault();
+
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      const atStart = el.scrollLeft <= 0.5;
+      const atEnd = el.scrollLeft >= maxScroll - 0.5;
+      // Rueda invertida: deltaY>0 → hacia el inicio; deltaY<0 → hacia el final
+      const towardStart = e.deltaY > 0;
+      const towardEnd = e.deltaY < 0;
+
+      if (atStart && towardStart) {
+        const next = Math.min(MAX_PULL, offset + e.deltaY * RESISTANCE);
+        applyOffset(next, false);
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(settle, 120);
+        return;
       }
+
+      if (atEnd && towardEnd) {
+        const next = Math.max(-MAX_PULL, offset + e.deltaY * RESISTANCE);
+        applyOffset(next, false);
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(settle, 120);
+        return;
+      }
+
+      // Scroll normal: soltar rebote si había
+      if (offset !== 0) applyOffset(0, true);
+      el.scrollLeft -= e.deltaY;
     };
 
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       el.removeEventListener('wheel', handleWheel);
-      if (bounceTimeout) clearTimeout(bounceTimeout);
+      if (settleTimer) clearTimeout(settleTimer);
+      el.style.transition = '';
+      el.style.transform = '';
     };
-  }, [openNoteIds]);
+  }, [openNoteIds, note?.id]);
 
   // Scroll a la pestaña activa cuando se selecciona una nota desde la lista
   // (incluso si la pestaña ya estaba abierta pero fuera de vista)
@@ -454,6 +504,7 @@ export default function NoteEditor({
   const [capsToast, setCapsToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevCapsActiveRef = useRef<boolean | null>(null);
+  const capsAutoUnlockPendingRef = useRef(false);
   const prevCapsActiveForSoundRef = useRef<boolean | null>(null);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -505,7 +556,7 @@ export default function NoteEditor({
     };
   }, [autoUnlockCapsLock, autoUnlockCapsLockTimeout]);
 
-  // 3. Toast solo en auto-desactivación (el estado ON se ve en la title bar)
+  // 3. Toast solo si nosotros apagamos Caps (no si el usuario lo hace a mano)
   useEffect(() => {
     if (prevCapsActiveRef.current === null) {
       prevCapsActiveRef.current = isCapsLockActive;
@@ -513,14 +564,18 @@ export default function NoteEditor({
     }
 
     if (prevCapsActiveRef.current !== isCapsLockActive) {
-      if (!isCapsLockActive && autoUnlockCapsLock && timeLeft === 0) {
+      if (!isCapsLockActive && capsAutoUnlockPendingRef.current) {
+        capsAutoUnlockPendingRef.current = false;
         setCapsToast(TRANSLATIONS[language].editor.capsLockToastAuto);
         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
         toastTimeoutRef.current = setTimeout(() => setCapsToast(null), 2200);
+      } else if (!isCapsLockActive) {
+        // Apagado manual: no toast
+        capsAutoUnlockPendingRef.current = false;
       }
       prevCapsActiveRef.current = isCapsLockActive;
     }
-  }, [isCapsLockActive, autoUnlockCapsLock, timeLeft, language]);
+  }, [isCapsLockActive, language]);
 
   // Reportar estado Caps Lock a TitleBar
   useEffect(() => {
@@ -586,6 +641,8 @@ export default function NoteEditor({
   useEffect(() => {
     if (autoUnlockCapsLock && isCapsLockActive && timeLeft === 0) {
       const triggerUnlock = async () => {
+        // Marca el apagado como automático (para el toast)
+        capsAutoUnlockPendingRef.current = true;
         // Unconditionally clear visual indicators immediately!
         setIsCapsLockActive(false);
 
@@ -1224,15 +1281,11 @@ export default function NoteEditor({
       {isNoteLoading && noteLoader}
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (
-        <div style={{ background: 'rgba(10, 10, 15, 0.95)', borderBottom: '1px solid var(--border)', overflow: 'hidden' }}>
-          <div 
-            ref={tabStripRef} 
+        <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div
+            ref={tabStripRef}
             className={`tab-strip ${tabsWidthMode === 'wide' ? 'tabs-wide' : ''}`}
-            style={{
-              transform: `translateX(${overscrollOffset}px)`,
-              transition: overscrollOffset === 0 ? 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)' : 'none',
-              borderBottom: 'none',
-            }}
+            style={{ borderBottom: 'none' }}
           >
             {openNoteIds.map((tabId) => {
               const tabNote = notes.find(n => n.id === tabId);
@@ -1385,7 +1438,7 @@ export default function NoteEditor({
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
-            gap: 6, 
+            gap: 4, 
             flexShrink: 0,
             background: 'var(--bg-surface)',
             border: '1px solid var(--border)',
@@ -1393,106 +1446,61 @@ export default function NoteEditor({
             borderRadius: 'var(--radius-md)',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
           }}>
-            {/* Auto-desactivar Caps Lock (el countdown vive en la title bar) */}
-            <Tooltip placement="bottom" label={autoUnlockCapsLock ? t.editor.capsLockAutoOn : t.editor.capsLockAutoOff}>
+            {/* Auto-desactivar Caps Lock (countdown en title bar) */}
+            <Tooltip placement="bottom" label={t.editor.capsLockAutoOn}>
             <button
               type="button"
               onClick={() => {
                 const nextVal = !autoUnlockCapsLock;
                 onAutoUnlockCapsLockChange?.(nextVal);
-                setCapsToast(nextVal ? t.editor.capsLockFeatureOn : t.editor.capsLockFeatureOff);
-                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-                toastTimeoutRef.current = setTimeout(() => setCapsToast(null), 2000);
+                // Sin toast: el estado se ve en el botón y en la title bar
               }}
-              style={{
-                padding: 6,
-                position: 'relative',
-                color: isCapsLockActive
-                  ? '#ef4444'
-                  : autoUnlockCapsLock
-                    ? 'var(--accent-light)'
-                    : 'var(--text-muted)',
-                background: autoUnlockCapsLock ? 'var(--accent-dim)' : 'transparent',
-                border: (isCapsLockActive && autoUnlockCapsLock)
-                  ? '1px solid rgba(239, 68, 68, 0.4)'
-                  : '1px solid transparent',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s',
-                boxShadow: 'none',
-                animation: (isCapsLockActive && autoUnlockCapsLock)
-                  ? 'cyber-warning-pulse 1.5s infinite ease-in-out'
-                  : 'none',
-              }}
+              style={noteActionBtnStyle(autoUnlockCapsLock)}
               onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--bg-hover)';
-                e.currentTarget.style.transform = 'scale(1.05)';
-                if (isCapsLockActive && autoUnlockCapsLock) {
-                  e.currentTarget.style.color = '#ff7070';
-                } else {
-                  e.currentTarget.style.color = 'var(--text-primary)';
-                }
+                e.currentTarget.style.color = 'var(--text-primary)';
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = autoUnlockCapsLock ? 'var(--accent-dim)' : 'transparent';
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.color = isCapsLockActive
-                  ? '#ef4444'
-                  : autoUnlockCapsLock
-                    ? 'var(--accent-light)'
-                    : 'var(--text-muted)';
+                e.currentTarget.style.color = autoUnlockCapsLock ? 'var(--accent-light)' : 'var(--text-muted)';
               }}
             >
-              <Keyboard size={14} />
+              <CaseSensitive size={15} />
               {isCapsLockActive && (
                 <span style={{
                   position: 'absolute',
-                  top: 2,
-                  right: 2,
-                  width: 5,
-                  height: 5,
-                  background: '#ef4444',
+                  top: 4,
+                  right: 4,
+                  width: 6,
+                  height: 6,
+                  background: autoUnlockCapsLock ? 'var(--accent-light)' : '#ef4444',
                   borderRadius: '50%',
-                  boxShadow: '0 0 3px #ef4444',
-                  animation: 'dot-pulse 1.5s infinite ease-in-out',
+                  boxShadow: autoUnlockCapsLock
+                    ? '0 0 4px var(--accent-glow)'
+                    : '0 0 3px #ef4444',
                 }} />
               )}
             </button>
             </Tooltip>
 
-            <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
+            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
 
             {/* Pin */}
             <Tooltip placement="bottom" label={pinned ? (language === 'es' ? "Desfijar nota" : "Unpin note") : (language === 'es' ? "Fijar nota" : "Pin note")}>
             <button
+              type="button"
               onClick={handlePin}
-              style={{
-                padding: 6,
-                color: pinned ? 'var(--accent-light)' : 'var(--text-muted)',
-                background: pinned ? 'var(--accent-dim)' : 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={e => { 
+              style={noteActionBtnStyle(pinned)}
+              onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--bg-hover)';
-                e.currentTarget.style.transform = 'scale(1.05)';
                 e.currentTarget.style.color = 'var(--text-primary)';
               }}
-              onMouseLeave={e => { 
+              onMouseLeave={e => {
                 e.currentTarget.style.background = pinned ? 'var(--accent-dim)' : 'transparent';
-                e.currentTarget.style.transform = 'scale(1)';
                 e.currentTarget.style.color = pinned ? 'var(--accent-light)' : 'var(--text-muted)';
               }}
             >
-              <Pin size={14} />
+              <Pin size={15} />
             </button>
             </Tooltip>
 
@@ -1509,8 +1517,9 @@ export default function NoteEditor({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 5,
-                    padding: '4px 10px',
-                    borderRadius: 'var(--radius-sm)',
+                    padding: '6px 10px',
+                    minHeight: 32,
+                    borderRadius: 6,
                     border: '1px solid var(--accent)',
                     background: 'var(--accent-dim)',
                     color: 'var(--accent-light)',
@@ -1525,7 +1534,7 @@ export default function NoteEditor({
                   whileTap={{ scale: 0.95 }}
                   onMouseDown={(e) => e.preventDefault()}
                 >
-                  <Save size={13} />
+                  <Save size={15} />
                   <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
                 </motion.button>
               )}
@@ -1534,104 +1543,65 @@ export default function NoteEditor({
             {/* Vista HTML */}
             <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Ver código fuente)' : 'HTML View (Source code)'}>
             <button
+              type="button"
               onClick={() => setIsRaw(!isRaw)}
-              style={{
-                padding: 6,
-                color: isRaw ? 'var(--accent-light)' : 'var(--text-muted)',
-                background: isRaw ? 'var(--accent-dim)' : 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s',
-                outline: 'none',
-              }}
-              onMouseEnter={e => { 
+              style={noteActionBtnStyle(isRaw)}
+              onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--bg-hover)';
-                e.currentTarget.style.transform = 'scale(1.05)';
                 e.currentTarget.style.color = 'var(--text-primary)';
               }}
-              onMouseLeave={e => { 
+              onMouseLeave={e => {
                 e.currentTarget.style.background = isRaw ? 'var(--accent-dim)' : 'transparent';
-                e.currentTarget.style.transform = 'scale(1)';
                 e.currentTarget.style.color = isRaw ? 'var(--accent-light)' : 'var(--text-muted)';
               }}
             >
-              <Braces size={14} />
+              <Braces size={15} />
             </button>
             </Tooltip>
 
-            <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
+            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
 
             {/* Cambiar vista */}
             <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Actual: ${layoutMode} columnas)` : `Change view (Current: ${layoutMode} columns)`}>
             <button
+              type="button"
               onClick={onToggleLayout}
-              style={{
-                padding: 6,
-                color: 'var(--text-muted)',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s',
-                outline: 'none',
-              }}
+              style={noteActionBtnStyle(false)}
               onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--bg-hover)';
-                e.currentTarget.style.transform = 'scale(1.05)';
                 e.currentTarget.style.color = 'var(--text-primary)';
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.transform = 'scale(1)';
                 e.currentTarget.style.color = 'var(--text-muted)';
               }}
             >
-              <PanelLeft size={14} />
+              <PanelLeft size={15} />
             </button>
             </Tooltip>
 
-            <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
+            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
 
             {/* Exportar nota dropdown trigger */}
             <div style={{ position: 'relative', display: 'flex' }}>
               <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota (.md / .html)' : 'Export note (.md / .html)'}>
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowExportMenu(!showExportMenu);
                 }}
-                style={{
-                  padding: 6,
-                  color: showExportMenu ? 'var(--accent-light)' : 'var(--text-muted)',
-                  background: showExportMenu ? 'var(--accent-dim)' : 'transparent',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                  outline: 'none',
-                }}
-                onMouseEnter={e => { 
+                style={noteActionBtnStyle(showExportMenu)}
+                onMouseEnter={e => {
                   e.currentTarget.style.background = 'var(--bg-hover)';
-                  e.currentTarget.style.transform = 'scale(1.05)';
                   e.currentTarget.style.color = 'var(--text-primary)';
                 }}
-                onMouseLeave={e => { 
+                onMouseLeave={e => {
                   e.currentTarget.style.background = showExportMenu ? 'var(--accent-dim)' : 'transparent';
-                  e.currentTarget.style.transform = 'scale(1)';
                   e.currentTarget.style.color = showExportMenu ? 'var(--accent-light)' : 'var(--text-muted)';
                 }}
               >
-                <Download size={14} />
+                <Download size={15} />
               </button>
               </Tooltip>
 
@@ -2574,39 +2544,52 @@ export default function NoteEditor({
         </div>
       )}
 
-      <AnimatePresence>
-        {capsToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 20 }}
-            style={{
-              position: 'absolute',
-              top: 75,
-              left: '50%',
-              x: '-50%',
-              zIndex: 9999,
-              background: 'var(--bg-modal)',
-              border: '1px solid var(--accent)',
-              color: 'var(--accent-light)',
-              padding: '8px 18px',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              fontWeight: 600,
-              boxShadow: '0 4px 20px var(--accent-glow)',
-              pointerEvents: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-            className="glass-effect"
-          >
-            <span style={{ color: 'var(--accent)' }}>ℹ️</span>
-            <span>{capsToast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: 48,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            zIndex: 100000,
+            padding: '0 16px',
+          }}
+        >
+          <AnimatePresence>
+            {capsToast && (
+              <motion.div
+                key="caps-toast"
+                initial={{ opacity: 0, y: -10, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+                style={{
+                  background: 'var(--bg-modal)',
+                  border: '1px solid var(--accent)',
+                  color: 'var(--accent-light)',
+                  padding: '8px 18px',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  boxShadow: '0 8px 28px rgba(0,0,0,0.45), 0 0 16px var(--accent-glow)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  maxWidth: 'min(420px, 92vw)',
+                }}
+                className="glass-effect"
+              >
+                <span style={{ color: 'var(--accent)' }} aria-hidden>ℹ️</span>
+                <span>{capsToast}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>,
+        document.body
+      )}
 
       {/* Caso B — Aviso al salir del editor con cambios sin guardar (modo manual) */}
       <AnimatePresence>

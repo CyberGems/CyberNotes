@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Lock, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, LogOut, FileText } from 'lucide-react';
+import { Minus, Square, X, BookOpen, Menu, Settings, Lock, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, LogOut, FileText, Info } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 
@@ -8,6 +8,7 @@ interface Props {
   language?: 'es' | 'en';
   onLock?: () => void;
   onOpenSettings?: () => void;
+  onOpenAbout?: () => void;
   onSelectNote?: (id: string) => void;
   onClearRecent?: () => void;
   recentNotes?: Note[];
@@ -46,6 +47,7 @@ export default function TitleBar({
   language = 'en',
   onLock,
   onOpenSettings,
+  onOpenAbout,
   onSelectNote,
   onClearRecent,
   recentNotes = [],
@@ -143,7 +145,7 @@ export default function TitleBar({
         </span>
       </div>
 
-      {/* Indicador Caps Lock — usa el espacio libre del centro */}
+      {/* Indicador Caps Lock — siempre visible, dinámico */}
       <div
         style={{
           flex: 1,
@@ -155,81 +157,96 @@ export default function TitleBar({
           WebkitAppRegion: 'no-drag',
         } as any}
       >
-        {capsStatus?.active && (
-          <Tooltip
-            placement="bottom"
-            label={autoUnlockCapsLock
+        {(() => {
+          const capsOn = !!capsStatus?.active;
+          const autoOn = !!autoUnlockCapsLock;
+          const timeLeft = capsStatus?.timeLeft ?? 0;
+          // ON = azul accent; OFF = muted (estilo neutro actual)
+          const chipStyle: CSSProperties = capsOn
+            ? {
+                border: '1px solid var(--accent)',
+                background: 'var(--accent-dim)',
+                color: 'var(--accent-light)',
+              }
+            : {
+                border: '1px solid var(--border)',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'var(--text-secondary)',
+              };
+          const tooltip = !capsOn
+            ? t('Bloq Mayús apagado', 'Caps Lock is off')
+            : autoOn
               ? t('El Bloq Mayús se apagará solo si dejas de escribir', 'Caps Lock will turn off if you stop typing')
-              : t('Bloq Mayús encendido (auto-desactivar está apagado)', 'Caps Lock is on (auto-disable is off)')}
-          >
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                maxWidth: '100%',
-                padding: '3px 10px',
-                borderRadius: 999,
-                border: autoUnlockCapsLock
-                  ? '1px solid rgba(239, 68, 68, 0.45)'
-                  : '1px solid var(--border)',
-                background: autoUnlockCapsLock
-                  ? 'rgba(239, 68, 68, 0.12)'
-                  : 'rgba(255,255,255,0.04)',
-                color: autoUnlockCapsLock ? '#fca5a5' : 'var(--text-secondary)',
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: 0.2,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                cursor: 'default',
-              }}
-            >
-              <span style={{ fontSize: 12, lineHeight: 1 }} aria-hidden>⇪</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {t('Bloq Mayús activo', 'Caps Lock on')}
-                {autoUnlockCapsLock && capsStatus.timeLeft > 0 && (
-                  <span style={{ opacity: 0.9, fontWeight: 500 }}>
-                    {' · '}
-                    {t('se apaga en', 'turns off in')}{' '}
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
-                      {formatCapsTime(capsStatus.timeLeft)}
+              : t('Bloq Mayús encendido (auto-desactivar está apagado)', 'Caps Lock is on (auto-disable is off)');
+
+          return (
+            <Tooltip placement="bottom" label={tooltip}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  maxWidth: '100%',
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: 0.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  cursor: 'default',
+                  transition: 'background 0.2s, border-color 0.2s, color 0.2s',
+                  ...chipStyle,
+                }}
+              >
+                <span style={{ fontSize: 12, lineHeight: 1, opacity: capsOn ? 1 : 0.7 }} aria-hidden>⇪</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {capsOn
+                    ? t('Bloq Mayús activo', 'Caps Lock on')
+                    : t('Bloq Mayús apagado', 'Caps Lock off')}
+                  {capsOn && autoOn && timeLeft > 0 && (
+                    <span style={{ opacity: 0.95, fontWeight: 500 }}>
+                      {' · '}
+                      {t('se apaga en', 'turns off in')}{' '}
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                        {formatCapsTime(timeLeft)}
+                      </span>
                     </span>
-                  </span>
-                )}
-                {autoUnlockCapsLock && capsStatus.timeLeft === 0 && (
-                  <span style={{ opacity: 0.9, fontWeight: 500 }}>
-                    {' · '}{t('apagando…', 'turning off…')}
-                  </span>
-                )}
-              </span>
-              {autoUnlockCapsLock && autoUnlockCapsLockTimeout > 0 && capsStatus.timeLeft > 0 && (
-                <span
-                  aria-hidden
-                  style={{
-                    width: 36,
-                    height: 3,
-                    borderRadius: 2,
-                    background: 'rgba(255,255,255,0.12)',
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      display: 'block',
-                      height: '100%',
-                      width: `${Math.max(4, Math.min(100, (capsStatus.timeLeft / autoUnlockCapsLockTimeout) * 100))}%`,
-                      background: '#ef4444',
-                      borderRadius: 2,
-                      transition: 'width 0.35s linear',
-                    }}
-                  />
+                  )}
+                  {capsOn && autoOn && timeLeft === 0 && (
+                    <span style={{ opacity: 0.95, fontWeight: 500 }}>
+                      {' · '}{t('apagando…', 'turning off…')}
+                    </span>
+                  )}
                 </span>
-              )}
-            </div>
-          </Tooltip>
-        )}
+                {capsOn && autoOn && autoUnlockCapsLockTimeout > 0 && timeLeft > 0 && (
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 36,
+                      height: 3,
+                      borderRadius: 2,
+                      background: 'rgba(255,255,255,0.12)',
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'block',
+                        height: '100%',
+                        width: `${Math.max(4, Math.min(100, (timeLeft / autoUnlockCapsLockTimeout) * 100))}%`,
+                        background: '#ef4444',
+                        borderRadius: 2,
+                        transition: 'width 0.35s linear',
+                      }}
+                    />
+                  </span>
+                )}
+              </div>
+            </Tooltip>
+          );
+        })()}
       </div>
 
       {/* Controles de ventana */}
@@ -277,6 +294,13 @@ export default function TitleBar({
               >
                 <Settings size={14} style={{ opacity: 0.7 }} />
                 <span>{t('Ajustes', 'Settings')}</span>
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
+              >
+                <Info size={14} style={{ opacity: 0.7 }} />
+                <span>{t('Acerca de', 'About')}</span>
               </button>
               <button
                 className="menu-item"

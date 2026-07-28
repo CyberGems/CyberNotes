@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen, clipboard, nativeImage, net } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
+import { initUpdater, setAutoUpdate } from './updater';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -611,17 +613,23 @@ ipcMain.handle('check-caps-lock', async () => {
   });
 });
 
-// -- Updates --
-ipcMain.handle('check-for-updates', async () => {
-  // Requires: npm install electron-updater
-  try {
-    const { autoUpdater } = require('electron-updater');
-    const result = await autoUpdater.checkForUpdates();
-    return !!result?.updateInfo?.version;
-  } catch {
-    console.log('[CyberNotes] Update check: electron-updater not installed.');
-    return false;
+// -- Updates (handled by electron/updater.ts via update:check|download|install) --
+ipcMain.handle('app:getVersions', () => ({
+  app: app.getVersion(),
+  electron: process.versions.electron,
+  chrome: process.versions.chrome,
+  node: process.versions.node,
+  platform: process.platform,
+  arch: process.arch,
+  osRelease: os.release(),
+  osType: os.type(),
+}));
+
+ipcMain.handle('shell:openExternal', (_e: any, url: string) => {
+  if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+    return shell.openExternal(url);
   }
+  return false;
 });
 
 // -- Auth --
@@ -671,6 +679,9 @@ ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   if (key === 'caps_lock_sound_scope') {
     if (value === 'global') startCapsLockWorker();
     else stopCapsLockWorker();
+  }
+  if (key === 'auto_check_updates') {
+    setAutoUpdate(value === 'true');
   }
   return true;
 });
@@ -873,14 +884,9 @@ if (!gotTheLock) {
       startCapsLockWorker();
     }
 
-    // Auto-check for updates on startup
+    // Auto-check for updates on startup (default on when unset)
     const autoCheck = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_check_updates']);
-    if (autoCheck?.value === 'true') {
-      try {
-        const { autoUpdater } = require('electron-updater');
-        autoUpdater.checkForUpdates().catch(() => {});
-      } catch { /* electron-updater not installed */ }
-    }
+    initUpdater(autoCheck ? autoCheck.value === 'true' : true);
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

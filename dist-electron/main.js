@@ -1,45 +1,99 @@
-import { app, ipcMain, shell, session, dialog, BrowserWindow, Tray, Menu } from "electron";
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
-import { createRequire } from "module";
-import { exec, spawn } from "child_process";
-const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
-const require$1 = createRequire(import.meta.url);
-const isDev = !app.isPackaged;
-let iconPath = path.join(__dirname$1, "..", "public", "icon.png");
-if (!isDev) {
-  iconPath = path.join(app.getAppPath(), "dist", "icon.png");
+import { BrowserWindow as x, ipcMain as a, app as c, shell as M, session as X, nativeImage as O, net as ee, clipboard as te, dialog as P, Tray as se, Menu as ne } from "electron";
+import f from "path";
+import p from "fs";
+import q from "os";
+import { fileURLToPath as K } from "url";
+import { createRequire as oe } from "module";
+import { exec as Y, spawn as re } from "child_process";
+import { autoUpdater as E } from "electron-updater";
+let v = !1;
+function S(t) {
+  for (const e of x.getAllWindows())
+    e.webContents.send("update:status", t);
 }
-if (!fs.existsSync(iconPath)) {
-  const fallbackIcon = path.join(isDev ? path.join(__dirname$1, "..", "public") : path.join(app.getAppPath(), "dist"), "icon.ico");
-  if (fs.existsSync(fallbackIcon)) iconPath = fallbackIcon;
+function ae(t) {
+  v = t, E.autoDownload = !1, E.autoInstallOnAppQuit = !0, E.on("checking-for-update", () => S({ state: "checking" })), E.on("update-available", (e) => {
+    S({ state: "available", version: e.version }), v && E.downloadUpdate().catch((s) => {
+      S({ state: "error", message: String((s == null ? void 0 : s.message) || s) });
+    });
+  }), E.on("update-not-available", (e) => {
+    S({ state: "not-available", version: e.version });
+  }), E.on("download-progress", (e) => {
+    S({ state: "downloading", percent: Math.round(e.percent) });
+  }), E.on("update-downloaded", (e) => {
+    S({ state: "downloaded", version: e.version });
+  }), E.on("error", (e) => {
+    S({ state: "error", message: String((e == null ? void 0 : e.message) || e) });
+  }), le(), v && setTimeout(() => {
+    E.checkForUpdates().catch(() => {
+    });
+  }, 8e3);
 }
-const bcrypt = require$1("bcryptjs");
-const userDataPath = app.getPath("userData");
-const dbPath = path.join(userDataPath, "cybernotes.db");
-const imagesPath = path.join(userDataPath, "images");
-const { v4: uuidv4 } = require$1("uuid");
-let db = null;
-let SQL = null;
-function saveDbToDisk() {
-  if (!db) return;
-  const data = db.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
+function ie(t) {
+  v = t;
 }
-async function initDatabase() {
-  const sqlWasmPath = isDev ? path.join(__dirname$1, "..", "node_modules", "sql.js", "dist", "sql-wasm.wasm") : path.join(process.resourcesPath, "sql-wasm.wasm");
-  const initSqlJs = require$1("sql.js");
-  SQL = await initSqlJs({
-    locateFile: () => sqlWasmPath
+function le() {
+  a.handle("update:check", async () => {
+    var t;
+    try {
+      const e = new Promise((r, o) => {
+        setTimeout(() => o(new Error("Update check timed out")), 2e4);
+      }), s = await Promise.race([
+        E.checkForUpdates(),
+        e
+      ]);
+      return { ok: !0, version: (t = s == null ? void 0 : s.updateInfo) == null ? void 0 : t.version };
+    } catch (e) {
+      return console.error("[Updater] Check failed:", e), { ok: !1, error: String((e == null ? void 0 : e.message) || e) };
+    } finally {
+    }
+  }), a.handle("update:download", async () => {
+    try {
+      return await E.downloadUpdate(), { ok: !0 };
+    } catch (t) {
+      return { ok: !1, error: String((t == null ? void 0 : t.message) || t) };
+    }
+  }), a.handle("update:install", () => {
+    E.quitAndInstall(!1, !0);
   });
-  if (fs.existsSync(dbPath)) {
-    const fileBuffer = fs.readFileSync(dbPath);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
-  }
-  db.run(`
+}
+const C = f.dirname(K(import.meta.url)), H = oe(import.meta.url), A = !c.isPackaged;
+let b = f.join(C, "..", "public", "icon.png");
+A || (b = f.join(c.getAppPath(), "dist", "icon.png"));
+if (!p.existsSync(b)) {
+  const t = f.join(A ? f.join(C, "..", "public") : f.join(c.getAppPath(), "dist"), "icon.ico");
+  p.existsSync(t) && (b = t);
+}
+const J = H("bcryptjs"), W = c.getPath("userData"), L = f.join(W, "cybernotes.db"), U = f.join(W, "images"), { v4: ce } = H("uuid");
+let u = null, I = null;
+const w = "id, folder_id, title, preview, thumb, pinned, created_at, updated_at", de = 1500;
+let R = !1, y = null;
+function $() {
+  if (!u) return;
+  const t = u.export();
+  p.writeFileSync(L, Buffer.from(t)), R = !1;
+}
+function V(t = de) {
+  R = !0, y && clearTimeout(y), y = setTimeout(() => {
+    y = null, R && $();
+  }, t);
+}
+function D() {
+  y && (clearTimeout(y), y = null), (R || u) && R && $();
+}
+function ue(t, e, s) {
+  h(`PRAGMA table_info(${t})`).some((o) => o.name === e) || u.run(`ALTER TABLE ${t} ADD COLUMN ${e} ${s}`);
+}
+async function fe() {
+  const t = A ? f.join(C, "..", "node_modules", "sql.js", "dist", "sql-wasm.wasm") : f.join(process.resourcesPath, "sql-wasm.wasm");
+  if (I = await H("sql.js")({
+    locateFile: () => t
+  }), p.existsSync(L)) {
+    const s = p.readFileSync(L);
+    u = new I.Database(s);
+  } else
+    u = new I.Database();
+  u.run(`
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -60,45 +114,78 @@ async function initDatabase() {
       title      TEXT NOT NULL DEFAULT 'Nueva nota',
       content    TEXT NOT NULL DEFAULT '',
       preview    TEXT DEFAULT '',
+      thumb      TEXT DEFAULT '',
       pinned     INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-  `);
-  saveDbToDisk();
-  if (!fs.existsSync(imagesPath)) {
-    fs.mkdirSync(imagesPath, { recursive: true });
+  `), ue("notes", "thumb", "TEXT DEFAULT ''"), pe(), $(), p.existsSync(U) || p.mkdirSync(U, { recursive: !0 });
+}
+function Ee(t) {
+  if (!t || typeof t != "string") return "";
+  if (t.trim().startsWith("{"))
+    try {
+      const s = JSON.parse(t);
+      let r = "";
+      const o = (i) => {
+        var l;
+        if (!r) {
+          if ((i == null ? void 0 : i.type) === "image" && ((l = i.attrs) != null && l.src)) {
+            r = String(i.attrs.src);
+            return;
+          }
+          Array.isArray(i == null ? void 0 : i.content) && i.content.forEach(o);
+        }
+      };
+      if (Array.isArray(s == null ? void 0 : s.content) && s.content.forEach(o), r) return r;
+    } catch {
+    }
+  const e = t.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+  return (e == null ? void 0 : e[1]) || "";
+}
+function pe() {
+  if (!u) return;
+  const t = h(
+    `SELECT id, content FROM notes
+     WHERE (thumb IS NULL OR thumb = '')
+       AND content IS NOT NULL AND content != ''
+       AND (content LIKE '%<img%' OR content LIKE '%"type":"image"%' OR content LIKE '%"type": "image"%')`
+  );
+  if (t.length === 0) return;
+  let e = 0;
+  for (const s of t) {
+    const r = Ee(s.content);
+    r && (u.run("UPDATE notes SET thumb = ? WHERE id = ?", [r, s.id]), e++);
   }
+  e > 0 && (R = !0, console.log(`[CyberNotes] Backfilled thumbs for ${e} note(s)`));
 }
-function queryAll(sql, params = []) {
-  if (!db) throw new Error("Base de datos no inicializada");
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
+function h(t, e = []) {
+  if (!u) throw new Error("Base de datos no inicializada");
+  const s = u.prepare(t);
+  s.bind(e);
+  const r = [];
+  for (; s.step(); )
+    r.push(s.getAsObject());
+  return s.free(), r;
 }
-function queryGet(sql, params = []) {
-  const rows = queryAll(sql, params);
-  return rows.length > 0 ? rows[0] : null;
+function d(t, e = []) {
+  const s = h(t, e);
+  return s.length > 0 ? s[0] : null;
 }
-function runQuery(sql, params = []) {
-  if (!db) throw new Error("Base de datos no inicializada");
-  db.run(sql, params);
-  saveDbToDisk();
+function m(t, e = [], s) {
+  if (!u) throw new Error("Base de datos no inicializada");
+  u.run(t, e), V();
 }
-let mainWindow = null;
-let tray = null;
-let isQuitting = false;
-let hasUnsavedChanges = false;
-let capsLockWorker = null;
-function startCapsLockWorker() {
-  if (capsLockWorker) return;
-  if (process.platform !== "win32") return;
-  const psScript = `
+function Q(t, e) {
+  if (!u) throw new Error("Base de datos no inicializada");
+  for (const s of t)
+    u.run(s.sql, s.params ?? []);
+  e != null && e.flushNow ? (R = !0, D()) : V();
+}
+let n = null, g = null, k = !1, B = !1, T = null;
+function G() {
+  if (T || process.platform !== "win32") return;
+  const t = `
     Add-Type -AssemblyName System.Windows.Forms;
     $lastState = [System.Windows.Forms.Control]::IsKeyLocked('CapsLock')
     Write-Host "STATE:$lastState"
@@ -112,480 +199,356 @@ function startCapsLockWorker() {
     }
   `;
   try {
-    capsLockWorker = spawn("powershell", ["-Command", psScript]);
-    capsLockWorker.stdout.on("data", (data) => {
-      const output = data.toString();
-      const lines = output.split("\n");
-      for (const line of lines) {
-        if (line.trim().startsWith("STATE:")) {
-          const state = line.trim().substring(6).toLowerCase() === "true";
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("global-caps-lock-changed", state);
-          }
+    T = re("powershell", ["-Command", t]), T.stdout.on("data", (e) => {
+      const r = e.toString().split(`
+`);
+      for (const o of r)
+        if (o.trim().startsWith("STATE:")) {
+          const i = o.trim().substring(6).toLowerCase() === "true";
+          n && !n.isDestroyed() && n.webContents.send("global-caps-lock-changed", i);
         }
-      }
+    }), T.on("exit", () => {
+      T = null;
     });
-    capsLockWorker.on("exit", () => {
-      capsLockWorker = null;
-    });
-  } catch (err) {
-    console.error("Failed to start caps lock worker:", err);
+  } catch (e) {
+    console.error("Failed to start caps lock worker:", e);
   }
 }
-function stopCapsLockWorker() {
-  if (capsLockWorker) {
-    capsLockWorker.kill();
-    capsLockWorker = null;
-  }
+function Z() {
+  T && (T.kill(), T = null);
 }
-function restoreWindow() {
-  if (!mainWindow) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  const maxVal = queryGet("SELECT value FROM settings WHERE key = ?", ["is_maximized"]);
-  if ((maxVal == null ? void 0 : maxVal.value) === "true") mainWindow.maximize();
-  mainWindow.show();
-  mainWindow.focus();
+function _() {
+  if (!n) return;
+  n.isMinimized() && n.restore();
+  const t = d("SELECT value FROM settings WHERE key = ?", ["is_maximized"]);
+  (t == null ? void 0 : t.value) === "true" && n.maximize(), n.show(), n.focus();
 }
-function getTrayMenuTemplate() {
-  const capsLockVal = queryGet("SELECT value FROM settings WHERE key = ?", ["auto_unlock_caps_lock"]);
-  const isCapsUnlockEnabled = (capsLockVal == null ? void 0 : capsLockVal.value) === "true";
-  const langVal = queryGet("SELECT value FROM settings WHERE key = ?", ["language"]);
-  const lang = (langVal == null ? void 0 : langVal.value) || "en";
-  const isEs = lang === "es";
+function he() {
+  const t = d("SELECT value FROM settings WHERE key = ?", ["auto_unlock_caps_lock"]), e = (t == null ? void 0 : t.value) === "true", s = d("SELECT value FROM settings WHERE key = ?", ["language"]), o = ((s == null ? void 0 : s.value) || "en") === "es";
   return [
-    { label: `CyberNotes  ·  v${app.getVersion()}`, enabled: false },
+    { label: `CyberNotes  ·  v${c.getVersion()}`, enabled: !1 },
     { type: "separator" },
-    { label: isEs ? "Abrir CyberNotes" : "Open CyberNotes", click: restoreWindow },
+    { label: o ? "Abrir CyberNotes" : "Open CyberNotes", click: _ },
     {
-      label: isEs ? "Configuración" : "Settings",
+      label: o ? "Configuración" : "Settings",
       click: () => {
-        restoreWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("open-settings");
-        }
+        _(), n && !n.isDestroyed() && n.webContents.send("open-settings");
       }
     },
     { type: "separator" },
     {
-      label: isEs ? "Desactivar CapsLock por inactividad" : "Disable Caps Lock on inactivity",
+      label: o ? "Desactivar CapsLock por inactividad" : "Disable Caps Lock on inactivity",
       type: "checkbox",
-      checked: isCapsUnlockEnabled,
-      click: (menuItem) => {
-        const newVal = menuItem.checked;
-        runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["auto_unlock_caps_lock", newVal ? "true" : "false"]);
-        updateTrayMenu();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("setting-changed", { key: "auto_unlock_caps_lock", value: newVal ? "true" : "false" });
-        }
+      checked: e,
+      click: (i) => {
+        const l = i.checked;
+        m("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["auto_unlock_caps_lock", l ? "true" : "false"]), j(), n && !n.isDestroyed() && n.webContents.send("setting-changed", { key: "auto_unlock_caps_lock", value: l ? "true" : "false" });
       }
     },
     { type: "separator" },
     {
-      label: isEs ? "Salir" : "Quit",
+      label: o ? "Salir" : "Quit",
       click: () => {
-        isQuitting = true;
-        app.quit();
+        k = !0, c.quit();
       }
     }
   ];
 }
-function updateTrayMenu() {
-  if (!tray || tray.isDestroyed()) return;
-  try {
-    const contextMenu = Menu.buildFromTemplate(getTrayMenuTemplate());
-    tray.setContextMenu(contextMenu);
-  } catch (err) {
-    console.error("Failed to update tray menu:", err);
-  }
-}
-function createTray() {
-  try {
-    tray = new Tray(iconPath);
-    updateTrayMenu();
-    tray.setToolTip("CyberNotes");
-    tray.on("click", () => {
-      if (mainWindow == null ? void 0 : mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        restoreWindow();
-      }
-    });
-  } catch (err) {
-    console.error("Failed to create tray:", err);
-  }
-}
-function createWindow() {
-  const boundsJson = queryGet("SELECT value FROM settings WHERE key = ?", ["window_bounds"]);
-  const isMaximizedVal = queryGet("SELECT value FROM settings WHERE key = ?", ["is_maximized"]);
-  let bounds = { width: 1100, height: 700, x: void 0, y: void 0 };
-  if (boundsJson) {
+function j() {
+  if (!(!g || g.isDestroyed()))
     try {
-      const savedBounds = JSON.parse(boundsJson.value);
-      if (savedBounds.width > 400 && savedBounds.height > 400) {
-        bounds = savedBounds;
-      }
-    } catch (e) {
+      const t = ne.buildFromTemplate(he());
+      g.setContextMenu(t);
+    } catch (t) {
+      console.error("Failed to update tray menu:", t);
     }
+}
+function me() {
+  try {
+    g = new se(b), j(), g.setToolTip("CyberNotes"), g.on("click", () => {
+      n != null && n.isVisible() ? n.hide() : _();
+    });
+  } catch (t) {
+    console.error("Failed to create tray:", t);
   }
-  mainWindow = new BrowserWindow({
-    width: bounds.width,
-    height: bounds.height,
-    x: bounds.x,
-    y: bounds.y,
-    center: !bounds.x,
+}
+function z() {
+  const t = d("SELECT value FROM settings WHERE key = ?", ["window_bounds"]), e = d("SELECT value FROM settings WHERE key = ?", ["is_maximized"]);
+  let s = { width: 1100, height: 700, x: void 0, y: void 0 };
+  if (t)
+    try {
+      const i = JSON.parse(t.value);
+      i.width > 400 && i.height > 400 && (s = i);
+    } catch {
+    }
+  n = new x({
+    width: s.width,
+    height: s.height,
+    x: s.x,
+    y: s.y,
+    center: !s.x,
     minWidth: 900,
     minHeight: 600,
-    frame: false,
+    frame: !1,
     titleBarStyle: "hidden",
     backgroundColor: "#0d0d14",
-    icon: iconPath,
+    icon: b,
     webPreferences: {
-      preload: path.join(__dirname$1, "preload.mjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webSecurity: false
+      preload: f.join(C, "preload.mjs"),
+      contextIsolation: !0,
+      nodeIntegration: !1,
+      webSecurity: !1
     },
-    show: false
+    show: !1
   });
-  const saveWindowState = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    const isMax = mainWindow.isMaximized();
-    runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["is_maximized", isMax ? "true" : "false"]);
-    const b = mainWindow.getBounds();
-    if (b.width > 100 && b.height > 100) {
-      runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["window_bounds", JSON.stringify(b)]);
+  let r = null;
+  const o = (i = !1) => {
+    if (!n || n.isDestroyed()) return;
+    const l = () => {
+      if (!n || n.isDestroyed()) return;
+      const F = n.isMaximized();
+      m("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["is_maximized", F ? "true" : "false"]);
+      const N = n.getBounds();
+      N.width > 100 && N.height > 100 && m("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["window_bounds", JSON.stringify(N)]);
+    };
+    if (i) {
+      r && clearTimeout(r), r = null, l();
+      return;
     }
+    r && clearTimeout(r), r = setTimeout(l, 500);
   };
-  mainWindow.on("resize", saveWindowState);
-  mainWindow.on("move", saveWindowState);
-  mainWindow.on("close", saveWindowState);
-  mainWindow.on("maximize", saveWindowState);
-  mainWindow.on("unmaximize", saveWindowState);
-  mainWindow.on("hide", saveWindowState);
-  mainWindow.on("minimize", () => {
-    const minimizeToTray = queryGet("SELECT value FROM settings WHERE key = ?", ["minimize_to_tray"]);
-    if ((minimizeToTray == null ? void 0 : minimizeToTray.value) === "true") {
-      mainWindow == null ? void 0 : mainWindow.hide();
-    }
-  });
-  mainWindow.on("close", (event) => {
-    const closeToTray = queryGet("SELECT value FROM settings WHERE key = ?", ["close_to_tray"]);
-    if ((closeToTray == null ? void 0 : closeToTray.value) === "true" && !isQuitting) {
-      event.preventDefault();
-      mainWindow == null ? void 0 : mainWindow.hide();
-      return false;
-    }
-    if (hasUnsavedChanges) {
-      event.preventDefault();
-      restoreWindow();
-      mainWindow == null ? void 0 : mainWindow.webContents.send("confirm-unsaved-exit");
-      return false;
-    }
-    if (tray && !tray.isDestroyed()) {
-      tray.destroy();
-      tray = null;
-    }
-  });
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http")) {
-      shell.openExternal(url);
-    }
-    return { action: "deny" };
-  });
-  mainWindow.webContents.on("context-menu", (event, params) => {
-    event.preventDefault();
-    mainWindow == null ? void 0 : mainWindow.webContents.send("context-menu-data", {
-      x: params.x,
-      y: params.y,
-      suggestions: params.dictionarySuggestions,
-      misspelledWord: params.misspelledWord,
-      linkURL: params.linkURL
+  n.on("resize", () => o(!1)), n.on("move", () => o(!1)), n.on("close", () => o(!0)), n.on("maximize", () => o(!0)), n.on("unmaximize", () => o(!0)), n.on("hide", () => o(!0)), n.on("minimize", () => {
+    const i = d("SELECT value FROM settings WHERE key = ?", ["minimize_to_tray"]);
+    (i == null ? void 0 : i.value) === "true" && (n == null || n.hide());
+  }), n.on("close", (i) => {
+    const l = d("SELECT value FROM settings WHERE key = ?", ["close_to_tray"]);
+    if ((l == null ? void 0 : l.value) === "true" && !k)
+      return i.preventDefault(), n == null || n.hide(), !1;
+    if (B)
+      return i.preventDefault(), _(), n == null || n.webContents.send("confirm-unsaved-exit"), !1;
+    g && !g.isDestroyed() && (g.destroy(), g = null);
+  }), n.webContents.setWindowOpenHandler(({ url: i }) => (i.startsWith("http") && M.openExternal(i), { action: "deny" })), n.webContents.on("context-menu", (i, l) => {
+    i.preventDefault();
+    const F = l.mediaType === "image" && l.srcURL || l.hasImageContents && l.srcURL ? l.srcURL : null;
+    n == null || n.webContents.send("context-menu-data", {
+      x: l.x,
+      y: l.y,
+      suggestions: l.dictionarySuggestions,
+      misspelledWord: l.misspelledWord,
+      linkURL: l.linkURL,
+      imageSrc: F
     });
-  });
-  if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
-  } else {
-    mainWindow.loadFile(path.join(__dirname$1, "../dist/index.html"));
-  }
-  mainWindow.once("ready-to-show", () => {
-    if (process.argv.includes("--hidden")) return;
-    if ((isMaximizedVal == null ? void 0 : isMaximizedVal.value) === "true") {
-      mainWindow == null ? void 0 : mainWindow.maximize();
-    }
-    mainWindow.show();
-    mainWindow.focus();
+  }), A ? n.loadURL("http://localhost:5173") : n.loadFile(f.join(C, "../dist/index.html")), n.once("ready-to-show", () => {
+    process.argv.includes("--hidden") || ((e == null ? void 0 : e.value) === "true" && (n == null || n.maximize()), n.show(), n.focus());
   });
 }
-ipcMain.handle("window-minimize", () => {
-  const minimizeToTray = queryGet("SELECT value FROM settings WHERE key = ?", ["minimize_to_tray"]);
-  if ((minimizeToTray == null ? void 0 : minimizeToTray.value) === "true") {
-    mainWindow == null ? void 0 : mainWindow.hide();
-  } else {
-    mainWindow == null ? void 0 : mainWindow.minimize();
-  }
+a.handle("window-minimize", () => {
+  const t = d("SELECT value FROM settings WHERE key = ?", ["minimize_to_tray"]);
+  (t == null ? void 0 : t.value) === "true" ? n == null || n.hide() : n == null || n.minimize();
 });
-ipcMain.handle("window-maximize-toggle", () => {
-  if (mainWindow == null ? void 0 : mainWindow.isMaximized()) mainWindow.unmaximize();
-  else mainWindow == null ? void 0 : mainWindow.maximize();
+a.handle("window-maximize-toggle", () => {
+  n != null && n.isMaximized() ? n.unmaximize() : n == null || n.maximize();
 });
-ipcMain.handle("window-close", () => mainWindow == null ? void 0 : mainWindow.close());
-ipcMain.handle("window:unsavedChanges:set", (_e, val) => {
-  hasUnsavedChanges = val;
+a.handle("window-close", () => n == null ? void 0 : n.close());
+a.handle("window:unsavedChanges:set", (t, e) => {
+  B = e;
 });
-ipcMain.handle("open-dev-tools", () => mainWindow == null ? void 0 : mainWindow.webContents.openDevTools({ mode: "detach" }));
-ipcMain.handle("open-data-folder", () => shell.openPath(userDataPath));
-ipcMain.handle("replace-misspelling", (_e, word) => mainWindow == null ? void 0 : mainWindow.webContents.replaceMisspelling(word));
-ipcMain.handle("add-to-dictionary", (_e, word) => {
-  session.defaultSession.addWordToSpellCheckerDictionary(word);
+a.handle("open-dev-tools", () => n == null ? void 0 : n.webContents.openDevTools({ mode: "detach" }));
+a.handle("open-data-folder", () => M.openPath(W));
+a.handle("replace-misspelling", (t, e) => n == null ? void 0 : n.webContents.replaceMisspelling(e));
+a.handle("add-to-dictionary", (t, e) => {
+  X.defaultSession.addWordToSpellCheckerDictionary(e);
 });
-ipcMain.handle("unlock-caps-lock", async () => {
-  if (process.platform !== "win32") return false;
-  return new Promise((resolve) => {
-    const psScript = "Add-Type -AssemblyName System.Windows.Forms; if ([System.Windows.Forms.Control]::IsKeyLocked('CapsLock')) { (New-Object -ComObject WScript.Shell).SendKeys('{CAPSLOCK}'); Write-Host 'unlocked' } else { Write-Host 'already-off' }";
-    exec(`powershell -Command "${psScript}"`, (err, stdout) => {
-      if (err) {
-        console.error("Failed to unlock caps lock:", err);
-        resolve(false);
-      } else {
-        const out = stdout.trim();
-        resolve(out === "unlocked" || out === "already-off");
-      }
-    });
-  });
-});
-ipcMain.handle("check-caps-lock", async () => {
-  if (process.platform !== "win32") return false;
-  return new Promise((resolve) => {
-    const psScript = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Control]::IsKeyLocked('CapsLock')";
-    exec(`powershell -Command "${psScript}"`, (err, stdout) => {
-      if (err) {
-        resolve(false);
-      } else {
-        resolve(stdout.trim().toLowerCase() === "true");
-      }
-    });
-  });
-});
-ipcMain.handle("check-for-updates", async () => {
-  var _a;
+a.handle("clipboard:writeImage", async (t, e) => {
   try {
-    const { autoUpdater } = require$1("electron-updater");
-    const result = await autoUpdater.checkForUpdates();
-    return !!((_a = result == null ? void 0 : result.updateInfo) == null ? void 0 : _a.version);
-  } catch {
-    console.log("[CyberNotes] Update check: electron-updater not installed.");
-    return false;
+    if (!e || typeof e != "string") return !1;
+    let s = O.createEmpty();
+    if (e.startsWith("data:"))
+      s = O.createFromDataURL(e);
+    else if (e.startsWith("file:")) {
+      let r;
+      try {
+        r = K(e);
+      } catch {
+        r = decodeURIComponent(e.replace(/^file:\/\//i, "").replace(/^\//, ""));
+      }
+      if (!p.existsSync(r)) return !1;
+      s = O.createFromPath(r);
+    } else {
+      const r = await ee.fetch(e);
+      if (!r.ok) return !1;
+      const o = Buffer.from(await r.arrayBuffer());
+      s = O.createFromBuffer(o);
+    }
+    return s.isEmpty() ? !1 : (te.writeImage(s), !0);
+  } catch (s) {
+    return console.error("[CyberNotes] clipboard:writeImage failed:", s), !1;
   }
 });
-ipcMain.handle("auth:hasPassword", () => {
-  const row = queryGet("SELECT value FROM settings WHERE key = ?", ["password_hash"]);
-  return !!row;
-});
-ipcMain.handle("auth:setPassword", async (_e, password) => {
-  const hash = await bcrypt.hash(password, 10);
-  runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["password_hash", hash]);
-  return true;
-});
-ipcMain.handle("auth:verifyPassword", async (_e, password) => {
-  const row = queryGet("SELECT value FROM settings WHERE key = ?", ["password_hash"]);
-  if (!row) return true;
-  return bcrypt.compare(password, row.value);
-});
-ipcMain.handle("auth:removePassword", () => {
-  runQuery("DELETE FROM settings WHERE key = ?", ["password_hash"]);
-  return true;
-});
-ipcMain.handle("settings:get", (_e, key) => {
-  const row = queryGet("SELECT value FROM settings WHERE key = ?", [key]);
-  return row ? row.value : null;
-});
-ipcMain.handle("settings:set", (_e, key, value) => {
-  runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value]);
-  if (key === "auto_unlock_caps_lock" || key === "language") {
-    updateTrayMenu();
-  }
-  if (key === "caps_lock_sound_scope") {
-    if (value === "global") startCapsLockWorker();
-    else stopCapsLockWorker();
-  }
-  return true;
-});
-ipcMain.handle("settings:setAutoStart", (_e, enable) => {
-  app.setLoginItemSettings({
-    openAtLogin: enable,
-    openAsHidden: true,
-    // macOS
-    args: enable ? ["--hidden"] : []
-    // Windows / Linux
+a.handle("unlock-caps-lock", async () => process.platform !== "win32" ? !1 : new Promise((t) => {
+  Y(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; if ([System.Windows.Forms.Control]::IsKeyLocked('CapsLock')) { (New-Object -ComObject WScript.Shell).SendKeys('{CAPSLOCK}'); Write-Host 'unlocked' } else { Write-Host 'already-off' }"`, (s, r) => {
+    if (s)
+      console.error("Failed to unlock caps lock:", s), t(!1);
+    else {
+      const o = r.trim();
+      t(o === "unlocked" || o === "already-off");
+    }
   });
-  runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["auto_start", enable ? "true" : "false"]);
-  return true;
+}));
+a.handle("check-caps-lock", async () => process.platform !== "win32" ? !1 : new Promise((t) => {
+  Y(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Control]::IsKeyLocked('CapsLock')"`, (s, r) => {
+    t(s ? !1 : r.trim().toLowerCase() === "true");
+  });
+}));
+a.handle("app:getVersions", () => ({
+  app: c.getVersion(),
+  electron: process.versions.electron,
+  chrome: process.versions.chrome,
+  node: process.versions.node,
+  platform: process.platform,
+  arch: process.arch,
+  osRelease: q.release(),
+  osType: q.type()
+}));
+a.handle("shell:openExternal", (t, e) => typeof e == "string" && /^https?:\/\//i.test(e) ? M.openExternal(e) : !1);
+a.handle("auth:hasPassword", () => !!d("SELECT value FROM settings WHERE key = ?", ["password_hash"]));
+a.handle("auth:setPassword", async (t, e) => {
+  const s = await J.hash(e, 10);
+  return m("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["password_hash", s]), !0;
 });
-ipcMain.handle("settings:getAutoStart", () => {
-  const settings = app.getLoginItemSettings();
-  return settings.openAtLogin;
+a.handle("auth:verifyPassword", async (t, e) => {
+  const s = d("SELECT value FROM settings WHERE key = ?", ["password_hash"]);
+  return s ? J.compare(e, s.value) : !0;
 });
-ipcMain.handle("folders:getAll", () => {
-  return queryAll("SELECT * FROM folders ORDER BY name COLLATE NOCASE ASC");
+a.handle("auth:removePassword", () => (m("DELETE FROM settings WHERE key = ?", ["password_hash"]), !0));
+a.handle("settings:get", (t, e) => {
+  const s = d("SELECT value FROM settings WHERE key = ?", [e]);
+  return s ? s.value : null;
 });
-ipcMain.handle("folders:create", (_e, folder) => {
-  runQuery(
-    "INSERT INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-    [folder.id, folder.name, folder.icon, folder.color, folder.sort_order, folder.created_at]
-  );
-  return folder;
-});
-ipcMain.handle("folders:update", (_e, folder) => {
-  runQuery(
-    "UPDATE folders SET name = ?, icon = ?, color = ?, sort_order = ? WHERE id = ?",
-    [folder.name, folder.icon, folder.color, folder.sort_order, folder.id]
-  );
-  return true;
-});
-ipcMain.handle("folders:delete", (_e, id) => {
-  runQuery("DELETE FROM notes WHERE folder_id = ?", [id]);
-  runQuery("DELETE FROM folders WHERE id = ?", [id]);
-  return true;
-});
-ipcMain.handle("notes:getAll", () => {
-  return queryAll("SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC");
-});
-ipcMain.handle("notes:getByFolder", (_e, folderId) => {
-  if (folderId === "floating") {
-    return queryAll('SELECT * FROM notes WHERE folder_id IS NULL OR folder_id = "" ORDER BY pinned DESC, updated_at DESC');
+a.handle("settings:getMany", (t, e) => {
+  const s = {};
+  if (!Array.isArray(e)) return s;
+  for (const r of e) {
+    const o = d("SELECT value FROM settings WHERE key = ?", [r]);
+    s[r] = o ? o.value : null;
   }
-  if (!folderId) {
-    return queryAll("SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC");
-  }
-  return queryAll("SELECT * FROM notes WHERE folder_id = ? ORDER BY pinned DESC, updated_at DESC", [folderId]);
+  return s;
 });
-ipcMain.handle("notes:save", (_e, note) => {
-  const exists = queryGet("SELECT id FROM notes WHERE id = ?", [note.id]);
-  if (exists) {
-    runQuery(
-      "UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, pinned = ?, updated_at = ? WHERE id = ?",
-      [note.folder_id, note.title, note.content, note.preview, note.pinned, note.updated_at, note.id]
-    );
-  } else {
-    runQuery(
-      "INSERT INTO notes (id, folder_id, title, content, preview, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [note.id, note.folder_id, note.title, note.content, note.preview, note.pinned, note.created_at, note.updated_at]
-    );
-  }
-  return note;
+a.handle("settings:set", (t, e, s) => (m("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [e, s]), (e === "auto_unlock_caps_lock" || e === "language") && j(), e === "caps_lock_sound_scope" && (s === "global" ? G() : Z()), e === "auto_check_updates" && ie(s === "true"), !0));
+a.handle("settings:setAutoStart", (t, e) => (c.setLoginItemSettings({
+  openAtLogin: e,
+  openAsHidden: !0,
+  // macOS
+  args: e ? ["--hidden"] : []
+  // Windows / Linux
+}), m("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["auto_start", e ? "true" : "false"]), !0));
+a.handle("settings:getAutoStart", () => c.getLoginItemSettings().openAtLogin);
+a.handle("folders:getAll", () => h("SELECT * FROM folders ORDER BY name COLLATE NOCASE ASC"));
+a.handle("folders:create", (t, e) => (m(
+  "INSERT INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  [e.id, e.name, e.icon, e.color, e.sort_order, e.created_at]
+), e));
+a.handle("folders:update", (t, e) => (m(
+  "UPDATE folders SET name = ?, icon = ?, color = ?, sort_order = ? WHERE id = ?",
+  [e.name, e.icon, e.color, e.sort_order, e.id]
+), !0));
+a.handle("folders:delete", (t, e) => (Q([
+  { sql: "DELETE FROM notes WHERE folder_id = ?", params: [e] },
+  { sql: "DELETE FROM folders WHERE id = ?", params: [e] }
+]), !0));
+a.handle("notes:getAll", () => h(`SELECT ${w} FROM notes ORDER BY pinned DESC, updated_at DESC`));
+a.handle("notes:getByFolder", (t, e) => e === "floating" ? h(`SELECT ${w} FROM notes WHERE folder_id IS NULL OR folder_id = "" ORDER BY pinned DESC, updated_at DESC`) : e ? h(`SELECT ${w} FROM notes WHERE folder_id = ? ORDER BY pinned DESC, updated_at DESC`, [e]) : h(`SELECT ${w} FROM notes ORDER BY pinned DESC, updated_at DESC`));
+a.handle("notes:getById", (t, e) => d("SELECT * FROM notes WHERE id = ?", [e]));
+a.handle("notes:save", (t, e) => {
+  const s = typeof e.thumb == "string" ? e.thumb : "";
+  return d("SELECT id FROM notes WHERE id = ?", [e.id]) ? m(
+    "UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, thumb = ?, pinned = ?, updated_at = ? WHERE id = ?",
+    [e.folder_id, e.title, e.content, e.preview, s, e.pinned, e.updated_at, e.id]
+  ) : m(
+    "INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [e.id, e.folder_id, e.title, e.content, e.preview, s, e.pinned, e.created_at, e.updated_at]
+  ), e;
 });
-ipcMain.handle("notes:delete", (_e, id) => {
-  runQuery("DELETE FROM notes WHERE id = ?", [id]);
-  return true;
-});
-ipcMain.handle("notes:search", (_e, query) => {
-  const q = `%${query}%`;
-  return queryAll(
-    "SELECT * FROM notes WHERE title LIKE ? OR preview LIKE ? OR content LIKE ? ORDER BY pinned DESC, updated_at DESC",
-    [q, q, q]
+a.handle("notes:delete", (t, e) => (m("DELETE FROM notes WHERE id = ?", [e]), !0));
+a.handle("notes:search", (t, e) => {
+  const s = `%${e}%`;
+  return !e || e.trim().length < 2 ? h(
+    `SELECT ${w} FROM notes WHERE title LIKE ? OR preview LIKE ? ORDER BY pinned DESC, updated_at DESC`,
+    [s, s]
+  ) : h(
+    `SELECT ${w} FROM notes WHERE title LIKE ? OR preview LIKE ? OR content LIKE ? ORDER BY pinned DESC, updated_at DESC`,
+    [s, s, s]
   );
 });
-ipcMain.handle("images:selectAndSave", async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+a.handle("images:selectAndSave", async () => {
+  const t = await P.showOpenDialog(n, {
     title: "Seleccionar imagen",
     filters: [{ name: "Imágenes", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg"] }],
     properties: ["openFile"]
   });
-  if (result.canceled || !result.filePaths.length) return null;
-  const sourcePath = result.filePaths[0];
-  const ext = path.extname(sourcePath);
-  const filename = `${uuidv4()}${ext}`;
-  const destPath = path.join(imagesPath, filename);
-  fs.copyFileSync(sourcePath, destPath);
-  return `file:///${destPath.replace(/\\/g, "/")}`;
+  if (t.canceled || !t.filePaths.length) return null;
+  const e = t.filePaths[0], s = f.extname(e), r = `${ce()}${s}`, o = f.join(U, r);
+  return p.copyFileSync(e, o), `file:///${o.replace(/\\/g, "/")}`;
 });
-ipcMain.handle("data:export", async () => {
-  const result = await dialog.showSaveDialog(mainWindow, {
+a.handle("data:export", async () => {
+  const t = await P.showSaveDialog(n, {
     title: "Exportar datos de CyberNotes",
     defaultPath: "cybernotes-export.json",
     filters: [{ name: "JSON", extensions: ["json"] }]
   });
-  if (result.canceled || !result.filePath) return false;
-  const folders = queryAll("SELECT * FROM folders");
-  const notes = queryAll("SELECT * FROM notes");
-  const exportData = { folders, notes, version: 1 };
-  fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2));
-  return true;
+  if (t.canceled || !t.filePath) return !1;
+  D();
+  const e = h("SELECT * FROM folders"), s = h("SELECT * FROM notes"), r = { folders: e, notes: s, version: 1 };
+  return p.writeFileSync(t.filePath, JSON.stringify(r, null, 2)), !0;
 });
-ipcMain.handle("data:import", async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+a.handle("data:import", async () => {
+  const t = await P.showOpenDialog(n, {
     title: "Importar datos a CyberNotes",
     filters: [{ name: "JSON", extensions: ["json"] }],
     properties: ["openFile"]
   });
-  if (result.canceled || !result.filePaths.length) return false;
+  if (t.canceled || !t.filePaths.length) return !1;
   try {
-    const data = JSON.parse(fs.readFileSync(result.filePaths[0], "utf-8"));
-    if (!data.folders || !data.notes) return false;
-    const backupPath = dbPath + ".backup-" + Date.now();
-    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
-    for (const f of data.folders) {
-      runQuery(
-        "INSERT OR REPLACE INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        [f.id, f.name, f.icon, f.color, f.sort_order, f.created_at]
-      );
-    }
-    for (const n of data.notes) {
-      runQuery(
-        "INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [n.id, n.folder_id, n.title, n.content, n.preview, n.pinned, n.created_at, n.updated_at]
-      );
-    }
-    return true;
+    const e = JSON.parse(p.readFileSync(t.filePaths[0], "utf-8"));
+    if (!e.folders || !e.notes) return !1;
+    D();
+    const s = L + ".backup-" + Date.now();
+    p.existsSync(L) && p.copyFileSync(L, s);
+    const r = [];
+    for (const o of e.folders)
+      r.push({
+        sql: "INSERT OR REPLACE INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        params: [o.id, o.name, o.icon, o.color, o.sort_order, o.created_at]
+      });
+    for (const o of e.notes)
+      r.push({
+        sql: "INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        params: [o.id, o.folder_id, o.title, o.content, o.preview, o.thumb || "", o.pinned, o.created_at, o.updated_at]
+      });
+    return Q(r, { flushNow: !0 }), !0;
   } catch (e) {
-    console.error("Import error:", e);
-    return false;
+    return console.error("Import error:", e), !1;
   }
 });
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on("second-instance", (event, commandLine, workingDirectory) => {
-    restoreWindow();
+const ge = c.requestSingleInstanceLock();
+ge ? (c.on("second-instance", (t, e, s) => {
+  _();
+}), c.whenReady().then(async () => {
+  X.defaultSession.setSpellCheckerLanguages(["es-ES", "en-US"]), await fe(), z(), me();
+  const t = d("SELECT value FROM settings WHERE key = ?", ["caps_lock_sound_scope"]);
+  (t == null ? void 0 : t.value) === "global" && G();
+  const e = d("SELECT value FROM settings WHERE key = ?", ["auto_check_updates"]);
+  ae(e ? e.value === "true" : !0), c.on("activate", () => {
+    x.getAllWindows().length === 0 ? z() : _();
   });
-  app.whenReady().then(async () => {
-    session.defaultSession.setSpellCheckerLanguages(["es-ES", "en-US"]);
-    await initDatabase();
-    createWindow();
-    createTray();
-    const scopeVal = queryGet("SELECT value FROM settings WHERE key = ?", ["caps_lock_sound_scope"]);
-    if ((scopeVal == null ? void 0 : scopeVal.value) === "global") {
-      startCapsLockWorker();
-    }
-    const autoCheck = queryGet("SELECT value FROM settings WHERE key = ?", ["auto_check_updates"]);
-    if ((autoCheck == null ? void 0 : autoCheck.value) === "true") {
-      try {
-        const { autoUpdater } = require$1("electron-updater");
-        autoUpdater.checkForUpdates().catch(() => {
-        });
-      } catch {
-      }
-    }
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-      else restoreWindow();
-    });
-  });
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      if (!tray) app.quit();
-    }
-  });
-}
-ipcMain.handle("window-force-close", () => {
-  isQuitting = true;
-  mainWindow == null ? void 0 : mainWindow.close();
+}), c.on("window-all-closed", () => {
+  process.platform !== "darwin" && (g || c.quit());
+}), c.on("before-quit", () => {
+  k = !0, Z(), D();
+})) : c.quit();
+a.handle("window-force-close", () => {
+  k = !0, n == null || n.close();
 });
-ipcMain.handle("confirm-unsaved-exit-response", (_e, discard) => {
-  if (discard) {
-    hasUnsavedChanges = false;
-    isQuitting = true;
-    mainWindow == null ? void 0 : mainWindow.close();
-  }
+a.handle("confirm-unsaved-exit-response", (t, e) => {
+  e && (B = !1, k = !0, n == null || n.close());
 });

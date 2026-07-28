@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
-import { Language, TRANSLATIONS } from '../languages';
-import { X, Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, RefreshCw, Sparkles, Settings } from 'lucide-react';
+import { Language } from '../languages';
+import { Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -48,7 +48,7 @@ interface Props {
   onShowWordCounterChange: (v: boolean) => void;
 }
 
-type Tab = 'general' | 'appearance' | 'security' | 'maintenance' | 'about';
+type Tab = 'general' | 'appearance' | 'security' | 'maintenance';
 
 export default function SettingsModal({ 
   language, onLanguageChange,
@@ -79,9 +79,6 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
-  const [autoCheckUpdates, setAutoCheckUpdates] = useState(false);
-  const [updateCheckStatus, setUpdateCheckStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'available'>('idle');
-
   // Diálogo personalizado (reemplaza alert/confirm nativos)
   const [dialog, setDialog] = useState<DialogOptions | null>(null);
   const dialogResolver = useRef<((accepted: boolean) => void) | null>(null);
@@ -99,8 +96,6 @@ export default function SettingsModal({
 
   const inputMenu = useInputContextMenu(language);
 
-  const t = TRANSLATIONS[language];
-
   useEffect(() => {
     const loadSettings = async () => {
       const val = await window.cyberNotesAPI.getSetting('close_to_tray');
@@ -109,11 +104,24 @@ export default function SettingsModal({
       setMinimizeToTray(minVal === 'true');
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
-      const autoCheck = await window.cyberNotesAPI.getSetting('auto_check_updates');
-      setAutoCheckUpdates(autoCheck === 'true');
     };
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const navItems: { id: Tab; label: string; icon: ReactNode }[] = [
+    { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <Settings size={13} /> },
+    { id: 'appearance', label: language === 'es' ? 'Apariencia' : 'Appearance', icon: <Palette size={13} /> },
+    { id: 'security', label: language === 'es' ? 'Seguridad' : 'Security', icon: <Shield size={13} /> },
+    { id: 'maintenance', label: language === 'es' ? 'Mantenimiento' : 'Maintenance', icon: <FolderOpen size={13} /> },
+  ];
 
   const handleToggleTray = async (val: boolean) => {
     setCloseToTray(val);
@@ -128,21 +136,6 @@ export default function SettingsModal({
   const handleToggleAutoStart = async (val: boolean) => {
     setAutoStart(val);
     await window.cyberNotesAPI.setAutoStart(val);
-  };
-
-  const handleToggleAutoCheckUpdates = async (val: boolean) => {
-    setAutoCheckUpdates(val);
-    await window.cyberNotesAPI.setSetting('auto_check_updates', val.toString());
-  };
-
-  const handleCheckForUpdates = async () => {
-    setUpdateCheckStatus('checking');
-    try {
-      const result = await window.cyberNotesAPI.checkForUpdates();
-      setUpdateCheckStatus(result ? 'available' : 'up-to-date');
-    } catch {
-      setUpdateCheckStatus('idle');
-    }
   };
 
   const handleSetPassword = async () => {
@@ -214,85 +207,47 @@ export default function SettingsModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: bgImage ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.65)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9998,
-      backdropFilter: bgImage ? 'blur(2px)' : 'blur(4px)',
-    }} onClick={onClose}>
+    <>
+    <div className="panel-overlay" onClick={onClose}>
       <div
+        className="panel settings-panel"
         onClick={e => e.stopPropagation()}
-        className="animate-fade-in"
-        style={{
-          background: 'var(--bg-modal)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          width: 560,
-          maxHeight: '80vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
-        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={language === 'es' ? 'Ajustes' : 'Settings'}
       >
-        {/* Header */}
-        <div style={{
-          padding: '20px 24px 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0,
-        }}>
-          <h2 style={{ fontSize: 'calc(18px * var(--ui-scale))', fontWeight: 700, color: 'var(--text-primary)' }}>⚙️ {language === 'es' ? 'Ajustes' : 'Settings'}</h2>
-          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
-        </div>
+        <div className="settings-layout">
+          <aside className="settings-nav">
+            <div className="settings-nav-title">
+              <Settings size={14} />
+              <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
+            </div>
+            <div className="settings-nav-items">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`settings-nav-btn${tab === item.id ? ' active' : ''}`}
+                  onClick={() => setTab(item.id)}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="settings-nav-footer">
+              <button type="button" className="settings-nav-close" onClick={onClose}>
+                {language === 'es' ? 'Cerrar' : 'Close'}
+              </button>
+            </div>
+          </aside>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, padding: '16px 24px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {[
-            { id: 'general' as Tab, label: language === 'es' ? 'General' : 'General', icon: <Settings size={14} /> },
-            { id: 'appearance' as Tab, label: language === 'es' ? 'Apariencia' : 'Appearance', icon: <Sparkles size={14} /> },
-            { id: 'security' as Tab, label: language === 'es' ? 'Seguridad' : 'Security', icon: <Shield size={14} /> },
-            { id: 'maintenance' as Tab, label: language === 'es' ? 'Mantenimiento' : 'Maintenance', icon: <FolderOpen size={14} /> },
-            { id: 'about' as Tab, label: language === 'es' ? 'Acerca de' : 'About', icon: <Monitor size={14} /> },
-          ].map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                borderRadius: '8px 8px 0 0',
-                border: 'none',
-                background: tab === t.id ? 'var(--bg-active)' : 'transparent',
-                color: tab === t.id ? 'var(--accent-light)' : 'var(--text-muted)',
-                fontWeight: tab === t.id ? 600 : 400,
-                fontSize: 13,
-                cursor: 'pointer',
-                borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
-                transition: 'all var(--transition)',
-              }}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          <div className="settings-content">
 
           {/* ── GENERAL ── */}
           {tab === 'general' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div className="settings-card">
+                <h3>
                   {language === 'es' ? 'Comportamiento' : 'Behavior'}
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -634,15 +589,14 @@ export default function SettingsModal({
                     )}
                   </div>
                 </div>
-              </div>
             </div>
           )}
 
           {/* ── APPEARANCE ── */}
           {tab === 'appearance' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <>
+            <div className="settings-card">
+                <h3>
                   {language === 'es' ? 'Tema visual' : 'Visual Theme'}
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -685,19 +639,19 @@ export default function SettingsModal({
                     </button>
                   ))}
                 </div>
-              </div>
+            </div>
 
+            <div className="settings-card">
+                <h3>
+                  {language === 'es' ? 'Intensidad de color' : 'Color Intensity'}
+                </h3>
               <div style={{
-                padding: '16px',
-                background: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
                 opacity: isColorfulTheme(currentTheme) ? 1 : 0.4,
                 pointerEvents: isColorfulTheme(currentTheme) ? 'auto' : 'none',
                 transition: 'opacity var(--transition)',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Intensidad de color' : 'Color Intensity'}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Intensidad' : 'Intensity'}</span>
                   <span style={{ fontSize: 13, color: 'var(--accent-light)', fontWeight: 700, background: 'var(--accent-dim)', padding: '2px 8px', borderRadius: 4 }}>
                     {colorIntensity}%
                   </span>
@@ -718,11 +672,10 @@ export default function SettingsModal({
                   </div>
                 )}
               </div>
+            </div>
 
-              <div className="divider" />
-
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div className="settings-card">
+                <h3>
                   {language === 'es' ? 'Fondo Personalizado' : 'Custom Background'}
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -786,14 +739,16 @@ export default function SettingsModal({
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
+            </>
           )}
 
           {/* ── SECURITY ── */}
           {tab === 'security' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            <>
+            <div className="settings-card">
+              <h3>{language === 'es' ? 'Contraseña' : 'Password'}</h3>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
                 {language === 'es' 
                   ? 'La contraseña protege el acceso a la app. Deja los campos vacíos si no quieres contraseña.' 
                   : 'The password protects access to the app. Leave fields empty if you do not want a password.'}
@@ -876,32 +831,23 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              <div className="divider" />
+              <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
 
               <button
                 className="btn btn-ghost"
                 onClick={() => { onClose(); onLock(); }}
-                style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))', justifyContent: 'flex-start' }}
+                style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))', justifyContent: 'flex-start', width: '100%' }}
               >
                 <Lock size={14} />
                 {language === 'es' ? 'Bloquear app ahora' : 'Lock app now'}
               </button>
+            </div>
 
-              <div className="divider" />
-
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div className="settings-card">
+                <h3>
                   {language === 'es' ? 'Auto-bloqueo por inactividad' : 'Auto-lock on inactivity'}
                 </h3>
-                <div style={{ 
-                  padding: '16px',
-                  background: 'var(--bg-surface)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12
-                }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Shield size={18} /></div>
                     <select 
@@ -929,185 +875,84 @@ export default function SettingsModal({
                       : 'The application will lock automatically if no mouse or keyboard activity is detected for the selected period.'}
                   </p>
                 </div>
-              </div>
             </div>
+            </>
           )}
 
           {/* ── MAINTENANCE ── */}
           {tab === 'maintenance' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* Updates */}
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {language === 'es' ? 'Actualizaciones' : 'Updates'}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    gap: 12,
-                  }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {t.maintenance.checkUpdates}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {t.maintenance.checkUpdatesDesc}
-                      </span>
-                      {updateCheckStatus !== 'idle' && (
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: updateCheckStatus === 'checking' ? 'var(--accent-light)'
-                            : updateCheckStatus === 'up-to-date' ? 'var(--success)'
-                            : '#f59e0b',
-                          marginTop: 2,
-                        }}>
-                          {updateCheckStatus === 'checking'
-                            ? t.maintenance.checking
-                            : updateCheckStatus === 'up-to-date'
-                              ? t.maintenance.upToDate
-                              : t.maintenance.updateAvailable}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      className="btn btn-primary"
-                      onClick={handleCheckForUpdates}
-                      disabled={updateCheckStatus === 'checking'}
-                      style={{ gap: 6, fontSize: 12, padding: '8px 14px', whiteSpace: 'nowrap' }}
-                    >
-                      <RefreshCw size={13} className={updateCheckStatus === 'checking' ? 'spin' : ''} />
-                      {t.maintenance.checkNow}
-                    </button>
-                  </div>
-
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer',
-                  }} onClick={() => handleToggleAutoCheckUpdates(!autoCheckUpdates)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {t.maintenance.autoCheckUpdates}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {t.maintenance.autoCheckUpdatesDesc}
-                      </span>
-                    </div>
-                    <div className={`custom-switch ${autoCheckUpdates ? 'active' : ''}`} />
-                  </label>
-                </div>
-              </div>
-
-              <div className="divider" />
-
-              {/* Tools & Data */}
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {language === 'es' ? 'Herramientas y Datos' : 'Tools & Data'}
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => window.cyberNotesAPI.openDevTools()}
-                    style={{ gap: 8, fontSize: 13 }}
-                  >
-                    <Monitor size={15} />
-                    {language === 'es' ? 'Abrir consola' : 'Open console'}
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => window.cyberNotesAPI.openDataFolder()}
-                    style={{ gap: 8, fontSize: 13 }}
-                  >
-                    <FolderOpen size={15} />
-                    {language === 'es' ? 'Carpeta de datos' : 'Data folder'}
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={async () => {
-                      const ok = await window.cyberNotesAPI.exportData();
-                      if (ok) await showDialog({
+            <div className="settings-card">
+              <h3>
+                {language === 'es' ? 'Herramientas y Datos' : 'Tools & Data'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => window.cyberNotesAPI.openDevTools()}
+                  style={{ gap: 8, fontSize: 13 }}
+                >
+                  <Monitor size={15} />
+                  {language === 'es' ? 'Abrir consola' : 'Open console'}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => window.cyberNotesAPI.openDataFolder()}
+                  style={{ gap: 8, fontSize: 13 }}
+                >
+                  <FolderOpen size={15} />
+                  {language === 'es' ? 'Carpeta de datos' : 'Data folder'}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={async () => {
+                    const ok = await window.cyberNotesAPI.exportData();
+                    if (ok) await showDialog({
+                      variant: 'success',
+                      title: language === 'es' ? 'Exportación completada' : 'Export complete',
+                      message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
+                    });
+                  }}
+                  style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))' }}
+                >
+                  <Download size={15} />
+                  {language === 'es' ? 'Exportar Backup (JSON)' : 'Export Backup (JSON)'}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  style={{ gap: 8, fontSize: 13, color: 'var(--warning)' }}
+                  onClick={async () => {
+                    const proceed = await showDialog({
+                      variant: 'warning',
+                      confirm: true,
+                      title: language === 'es' ? 'Importar backup' : 'Import backup',
+                      message: language === 'es' ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?' : 'Importing a backup will merge data with current notes. Do you want to continue?',
+                    });
+                    if (!proceed) return;
+                    const ok = await window.cyberNotesAPI.importData();
+                    if (ok) {
+                      await showDialog({
                         variant: 'success',
-                        title: language === 'es' ? 'Exportación completada' : 'Export complete',
-                        message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
+                        title: language === 'es' ? 'Importación completada' : 'Import complete',
+                        message: language === 'es' ? 'Datos importados correctamente. La aplicación se recargará.' : 'Data successfully imported. The application will reload.',
                       });
-                    }}
-                    style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))' }}
-                  >
-                    <Download size={15} />
-                    {language === 'es' ? 'Exportar Backup (JSON)' : 'Export Backup (JSON)'}
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    style={{ gap: 8, fontSize: 13, color: 'var(--warning)' }}
-                    onClick={async () => {
-                      const proceed = await showDialog({
-                        variant: 'warning',
-                        confirm: true,
-                        title: language === 'es' ? 'Importar backup' : 'Import backup',
-                        message: language === 'es' ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?' : 'Importing a backup will merge data with current notes. Do you want to continue?',
-                      });
-                      if (!proceed) return;
-                      const ok = await window.cyberNotesAPI.importData();
-                      if (ok) {
-                        await showDialog({
-                          variant: 'success',
-                          title: language === 'es' ? 'Importación completada' : 'Import complete',
-                          message: language === 'es' ? 'Datos importados correctamente. La aplicación se recargará.' : 'Data successfully imported. The application will reload.',
-                        });
-                        window.location.reload();
-                      }
-                    }}
-                  >
-                    <Upload size={15} />
-                    {language === 'es' ? 'Importar Backup' : 'Import Backup'}
-                  </button>
-                </div>
+                      window.location.reload();
+                    }
+                  }}
+                >
+                  <Upload size={15} />
+                  {language === 'es' ? 'Importar Backup' : 'Import Backup'}
+                </button>
               </div>
             </div>
           )}
 
-          {/* ── ABOUT ── */}
-          {tab === 'about' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '20px 0' }}>
-                <img 
-                  src="icon.png" 
-                  alt="CyberNotes Icon" 
-                  style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 20,
-                    boxShadow: '0 0 32px var(--accent-glow)',
-                  }} 
-                />
-              <div style={{ textAlign: 'center' }}>
-                <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>CyberNotes</h2>
-                <p style={{ color: 'var(--text-muted)', marginTop: 6, fontSize: 13 }}>{language === 'es' ? 'Versión 1.5.1' : 'Version 1.5.1'}</p>
-              </div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 1.7 }}>
-                {language === 'es' 
-                  ? 'Tu app de notas personal. Offline, privada, y rápida.\nConstruida con Electron + React + TipTap.' 
-                  : 'Your personal notes app. Offline, private, and fast.\nBuilt with Electron + React + TipTap.'}
-              </p>
-            </div>
-          )}
+          </div>
         </div>
       </div>
+    </div>
 
       <DialogHost language={language} options={dialog} onResolve={resolveDialog} />
       {inputMenu.menu}
-    </div>
+    </>
   );
 }

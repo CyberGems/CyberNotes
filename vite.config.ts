@@ -7,6 +7,7 @@ import electron from 'vite-plugin-electron/simple';
 const EXTERNAL_MODULES = [
   'better-sqlite3',
   'electron',
+  'electron-updater',
   'path',
   'fs',
   'os',

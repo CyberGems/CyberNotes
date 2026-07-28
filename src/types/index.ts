@@ -73,8 +73,27 @@ declare global {
       // Import / Export
       exportData: () => Promise<boolean>;
       importData: () => Promise<boolean>;
-      // Updates
-      checkForUpdates: () => Promise<boolean>;
+      // Updates / About
+      checkForUpdates: () => Promise<{ ok: boolean; version?: string; error?: string }>;
+      downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;
+      installUpdate: () => Promise<void>;
+      onUpdateStatus: (callback: (status: {
+        state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+        version?: string;
+        percent?: number;
+        message?: string;
+      }) => void) => () => void;
+      getVersions: () => Promise<{
+        app: string;
+        electron: string;
+        chrome: string;
+        node: string;
+        platform: string;
+        arch: string;
+        osRelease: string;
+        osType: string;
+      }>;
+      openExternal: (url: string) => Promise<boolean>;
       // Assets
       selectAndSaveImage: () => Promise<string | null>;
       // Events

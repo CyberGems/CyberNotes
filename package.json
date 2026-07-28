@@ -46,6 +46,11 @@
     "portable": {
       "artifactName": "${productName}_Portable_${version}.${ext}"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "CyberGems",
+      "repo": "CyberNotes"
+    },
     "extraResources": [
       {
         "from": "node_modules/sql.js/dist/sql-wasm.wasm",
@@ -63,6 +68,7 @@
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",
     "bcryptjs": "^3.0.2",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.511.0",
     "motion": "^12.12.1",
     "react": "^19.1.0",

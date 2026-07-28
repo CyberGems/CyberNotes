@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 import NoteList from './NoteList';
 import NoteEditor from './NoteEditor';
 import SettingsModal from './SettingsModal';
+import AboutModal from './AboutModal';
 import ConfirmDialog from './ConfirmDialog';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb } from '../utils/notes';
@@ -61,6 +62,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [dontAskChecked, setDontAskChecked] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
@@ -833,6 +835,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
         language={language}
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenAbout={() => setShowAbout(true)}
         onSelectNote={(id) => {
           setSelectedNoteId(id);
           const note = allNotes.find(n => n.id === id);
@@ -1012,6 +1015,13 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           onShowMinimapChange={handleShowMinimapChange}
           showWordCounter={showWordCounter}
           onShowWordCounterChange={(v: boolean) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
+        />
+      )}
+
+      {showAbout && (
+        <AboutModal
+          language={language}
+          onClose={() => setShowAbout(false)}
         />
       )}
 

@@ -85,6 +85,15 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),
 
-  // -- Updates --
-  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  // -- Updates / About --
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateStatus: (callback: (status: any) => void) => {
+    const listener = (_e: any, status: any) => callback(status);
+    ipcRenderer.on('update:status', listener);
+    return () => ipcRenderer.removeListener('update:status', listener);
+  },
+  getVersions: () => ipcRenderer.invoke('app:getVersions'),
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 });
