@@ -680,7 +680,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
     >
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0, paddingRight: 28 }}>
             {note.pinned === 1 && <Pin size={11} color="var(--accent)" style={{ flexShrink: 0 }} />}
             <span style={{
               fontSize: 'calc(13px * var(--ui-scale))',
@@ -690,6 +690,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               flex: 1,
+              minWidth: 0,
             }}>
               {note.title || t.noteList.unnamedNote}
             </span>
@@ -707,6 +708,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
               lineHeight: 1.45,
               margin: 0,
               maxHeight: '2.9em',
+              paddingRight: firstImage ? 0 : 28,
             }}>
               {note.preview || (language === 'es' ? 'Sin contenido' : 'No content')}
             </p>
@@ -724,20 +726,20 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
             flexShrink: 0,
             marginTop: 2,
           }}>
-            <img 
-              src={firstImage} 
-              alt="Preview" 
+            <img
+              src={firstImage}
+              alt="Preview"
               loading="lazy"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
             />
           </div>
         )}
       </div>
 
-      <div style={{ 
-        fontSize: 'calc(10.5px * var(--ui-scale))', 
-        color: 'var(--text-secondary)', 
+      <div style={{
+        fontSize: 'calc(10.5px * var(--ui-scale))',
+        color: 'var(--text-secondary)',
         opacity: 0.9,
         display: 'flex',
         alignItems: 'center',
@@ -781,45 +783,49 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         )}
       </div>
 
-      <button
-        className="delete-note-btn"
-        onClick={e => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        style={{
-          position: 'absolute',
-          right: 14,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          background: 'rgba(20, 20, 25, 0.85)',
-          backdropFilter: 'blur(6px)',
-          border: '1px solid var(--border)',
-          color: 'var(--text-muted)',
-          cursor: 'pointer',
-          opacity: 0,
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-          zIndex: 5,
-        }}
-      >
-        <Trash2 size={14} />
-      </button>
+      <Tooltip placement="left" label={language === 'es' ? 'Eliminar nota' : 'Delete note'}>
+        <button
+          type="button"
+          className="delete-note-btn"
+          onClick={e => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          aria-label={language === 'es' ? 'Eliminar nota' : 'Delete note'}
+          style={{
+            position: 'absolute',
+            top: viewMode === 'compact' ? 5 : 8,
+            right: 8,
+            zIndex: 5,
+            background: 'rgba(20, 20, 25, 0.88)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            opacity: 0,
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: viewMode === 'compact' ? 22 : 26,
+            height: viewMode === 'compact' ? 22 : 26,
+            borderRadius: '50%',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            padding: 0,
+          }}
+        >
+          <Trash2 size={viewMode === 'compact' ? 12 : 13} />
+        </button>
+      </Tooltip>
 
       <style>{`
         .note-item:hover .delete-note-btn { opacity: 1 !important; }
-        .note-item:hover .delete-note-btn:hover { 
-          color: #ff4d4d !important; 
-          background: rgba(239, 68, 68, 0.2) !important;
-          border-color: rgba(239, 68, 68, 0.4) !important;
-          box-shadow: 0 0 12px rgba(239, 68, 68, 0.35) !important;
-          transform: translateY(-50%) scale(1.08) !important;
+        .note-item:hover .delete-note-btn:hover {
+          color: #fff !important;
+          background: #ef4444 !important;
+          border-color: #ef4444 !important;
+          box-shadow: none !important;
+          transform: scale(1.08) !important;
         }
       `}</style>
     </div>

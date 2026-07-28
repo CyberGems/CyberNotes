@@ -316,7 +316,7 @@ export default function Sidebar({
           }}>{noteCount}</span>
         </motion.button>
 
-        {/* Notas Sueltas / Floating Notes */}
+        {/* Sin carpeta / Unfiled */}
         <motion.button
           onClick={() => onSelectFolder('floating')}
           onDragOver={e => {

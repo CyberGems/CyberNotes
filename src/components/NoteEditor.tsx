@@ -180,10 +180,12 @@ export default function NoteEditor({
   // ─── Minimap state ──────────────────────────────────────────────
   const minimapIndicatorRef = useRef<HTMLDivElement>(null);
   const minimapContentRef = useRef<HTMLDivElement>(null);
+  const minimapPanRef = useRef<HTMLDivElement>(null);
   const showMinimapRef = useRef(showMinimap);
   showMinimapRef.current = showMinimap; // mantener actualizado para callbacks estables
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
   const [minimapScale, setMinimapScale] = useState(0.075);
+  const minimapScaleRef = useRef(0.075);
   const [minimapMenu, setMinimapMenu] = useState<{ x: number; y: number } | null>(null);
   const MINIMAP_WIDTH = 96;
 
@@ -203,28 +205,60 @@ export default function NoteEditor({
   const updateMinimapIndicator = useCallback(() => {
     const el = scrollContainerRef.current;
     const indicator = minimapIndicatorRef.current;
-    if (!el || !indicator) return;
+    const mm = minimapRef.current;
+    const content = minimapContentRef.current;
+    const panEl = minimapPanRef.current;
+    if (!el || !indicator || !mm || !content) return;
+
     const total = el.scrollHeight;
     const view = el.clientHeight;
     const top = el.scrollTop;
-    if (total > 0) {
-      indicator.style.top = `${(top / total) * 100}%`;
-      indicator.style.height = `${(view / total) * 100}%`;
-      indicator.style.display = 'block';
-    } else {
+    if (total <= 0) {
       indicator.style.display = 'none';
+      return;
     }
+
+    const scale = minimapScaleRef.current || 0;
+    const scaledH = content.offsetHeight * scale;
+    const mmH = mm.clientHeight;
+    const maxScroll = Math.max(0, total - view);
+    const scrollRatio = maxScroll > 0 ? top / maxScroll : 0;
+
+    // Docs largos: desplazar el preview para que coincida con el scroll del editor
+    if (panEl) {
+      const pan = scaledH > mmH && maxScroll > 0 ? scrollRatio * (scaledH - mmH) : 0;
+      panEl.style.transform = `translateY(${-pan}px)`;
+    }
+
+    const mapH = scaledH > 0 ? Math.min(Math.max(scaledH, 8), mmH) : mmH;
+    const indH = Math.max(8, (view / total) * mapH);
+    indicator.style.display = 'block';
+    indicator.style.top = `${scrollRatio * Math.max(0, mapH - indH)}px`;
+    indicator.style.height = `${indH}px`;
   }, []);
 
-  // Sincronizar HTML del minimap desde el editor (debounced: evita innerHTML en cada tecla)
+  // Sincronizar HTML del minimap desde el DOM renderizado del editor (más fiel que getHTML())
   const minimapSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncMinimapHtml = useCallback((immediate = false) => {
     if (!showMinimapRef.current) return;
     const run = () => {
       requestAnimationFrame(() => {
-        if (!minimapContentRef.current || !editorRef.current) return;
-        const html = editorRef.current.getHTML();
-        minimapContentRef.current.innerHTML = html;
+        const target = minimapContentRef.current;
+        const ed = editorRef.current;
+        if (!target || !ed?.view?.dom) return;
+
+        // Clonar el DOM pintado: mismos nodos, estilos inline de imágenes, etc.
+        target.innerHTML = ed.view.dom.innerHTML;
+
+        // Quitar ruido visual de edición (placeholder, selección)
+        target.querySelectorAll('.ProseMirror-selectednode').forEach((n) => {
+          n.classList.remove('ProseMirror-selectednode');
+        });
+        target.querySelectorAll('[data-placeholder]').forEach((n) => {
+          n.removeAttribute('data-placeholder');
+          n.classList.remove('is-editor-empty', 'is-empty');
+        });
+
         updateMinimapIndicator();
       });
     };
@@ -238,29 +272,34 @@ export default function NoteEditor({
     minimapSyncTimer.current = setTimeout(run, 150);
   }, [updateMinimapIndicator]);
 
-  // Calcular la escala del minimapa basada en el ancho real del editor
+  // Escala = ancho del ProseMirror real / ancho del minimapa (mismo wrapping que el documento)
   useEffect(() => {
     if (!showMinimap) return;
     const updateScale = () => {
-      const el = scrollContainerRef.current;
-      if (!el) return;
-      const editorWidth = el.clientWidth;
+      const prose = editorRef.current?.view?.dom as HTMLElement | undefined;
+      if (!prose) return;
+      const editorWidth = prose.offsetWidth;
       if (editorWidth > 0) {
-        setMinimapScale(MINIMAP_WIDTH / editorWidth);
+        const next = MINIMAP_WIDTH / editorWidth;
+        minimapScaleRef.current = next;
+        setMinimapScale(next);
+        requestAnimationFrame(updateMinimapIndicator);
       }
     };
     updateScale();
+    const prose = editorRef.current?.view?.dom as HTMLElement | undefined;
     const observer = new ResizeObserver(updateScale);
+    if (prose) observer.observe(prose);
     if (scrollContainerRef.current) observer.observe(scrollContainerRef.current);
     return () => observer.disconnect();
-  }, [showMinimap, note?.id]);
+  }, [showMinimap, note?.id, showLineGutter, updateMinimapIndicator]);
 
   // Poblar minimap solo al activarlo (el cambio de nota lo maneja syncMinimapHtml)
   useEffect(() => {
     if (!showMinimap) return;
-    syncMinimapHtml();
+    syncMinimapHtml(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showMinimap]);
+  }, [showMinimap, showLineGutter]);
 
   // Scroll del editor → actualizar indicador vía DOM (sin React)
   useEffect(() => {
@@ -279,9 +318,14 @@ export default function NoteEditor({
   const scrollEditorToMinimapY = (clientY: number) => {
     const el = scrollContainerRef.current;
     const mm = minimapRef.current;
+    const content = minimapContentRef.current;
     if (!el || !mm) return;
     const rect = mm.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    const scale = minimapScaleRef.current || 0;
+    const scaledH = content ? content.offsetHeight * scale : rect.height;
+    const mapH = scaledH > 0 ? Math.min(Math.max(scaledH, 8), rect.height) : rect.height;
+    const y = clientY - rect.top;
+    const ratio = Math.max(0, Math.min(1, y / mapH));
     const maxScroll = el.scrollHeight - el.clientHeight;
     el.scrollTop = ratio * maxScroll;
   };
@@ -712,6 +756,37 @@ export default function NoteEditor({
     editorProps: {
       attributes: {
         spellcheck: 'true',
+      },
+      handleKeyDown: (_view, event) => {
+        // Tab = sangría / espacios; evita saltar el foco a otros controles de la UI
+        if (event.key !== 'Tab') return false;
+        event.preventDefault();
+
+        const { state, dispatch } = _view;
+        if (event.shiftKey) {
+          // Shift+Tab: quitar un tabulador o hasta 4 espacios antes del cursor
+          const { $from } = state.selection;
+          const before = $from.parent.textBetween(
+            Math.max(0, $from.parentOffset - 4),
+            $from.parentOffset,
+            undefined,
+            '\ufffc',
+          );
+          if (before.endsWith('\t')) {
+            dispatch(state.tr.delete($from.pos - 1, $from.pos));
+            return true;
+          }
+          const spaces = before.match(/ +$/)?.[0] ?? '';
+          if (spaces.length > 0) {
+            const n = Math.min(4, spaces.length);
+            dispatch(state.tr.delete($from.pos - n, $from.pos));
+            return true;
+          }
+          return true;
+        }
+
+        dispatch(state.tr.insertText('\t'));
+        return true;
       },
     },
     content: '',
@@ -1963,19 +2038,23 @@ export default function NoteEditor({
           transition: 'width 0.22s ease, opacity 0.18s ease, border-color 0.22s ease',
         }}
       >
-        {/* Contenido escalado: HTML seteado vía DOM directo, sin re-renders */}
+        {/* Contenido escalado: clona el DOM del ProseMirror con los mismos estilos */}
         <div
-          ref={minimapContentRef}
-          style={{
-            width: minimapScale > 0 ? MINIMAP_WIDTH / minimapScale : 1280,
-            transform: `scale(${minimapScale})`,
-            transformOrigin: 'top left',
-            color: 'var(--text-muted)',
-            pointerEvents: 'none',
-            fontSize: '16px',
-            lineHeight: 1.5,
-          }}
-        />
+          ref={minimapPanRef}
+          className={showLineGutter ? 'show-line-numbers' : undefined}
+          style={{ pointerEvents: 'none', willChange: 'transform' }}
+        >
+          <div
+            ref={minimapContentRef}
+            className="ProseMirror minimap-prose"
+            style={{
+              width: minimapScale > 0 ? MINIMAP_WIDTH / minimapScale : 1280,
+              transform: `scale(${minimapScale})`,
+              transformOrigin: 'top left',
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
         {/* Indicador de viewport (arrastrable) — actualizado vía DOM directo */}
         <div
           ref={minimapIndicatorRef}
@@ -1989,7 +2068,7 @@ export default function NoteEditor({
             opacity: 0.15,
             borderTop: '1px solid var(--accent)',
             borderBottom: '1px solid var(--accent)',
-            cursor: 'grab',
+            cursor: isDragging ? 'grabbing' : 'grab',
             pointerEvents: 'auto',
             transition: isDragging ? 'none' : 'top 0.05s linear, height 0.05s linear',
           }}
@@ -2049,114 +2128,162 @@ export default function NoteEditor({
       </div>{/* Cierre del wrapper relativo del editor area */}
 
       <div style={{
-        padding: '6px 16px',
+        padding: '4px 12px',
         background: 'var(--bg-notelist)',
         borderTop: '1px solid var(--border)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        gap: 12,
         fontSize: 10,
         color: 'var(--text-muted)',
         fontFamily: 'var(--font-mono)',
-        letterSpacing: 0.5,
-        opacity: 0.95,
-        flexShrink: 0
+        letterSpacing: 0.3,
+        flexShrink: 0,
+        minHeight: 28,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
       }}>
-        {/* Global UI Scale Text Size Controller */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
-          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.85, marginRight: 2 }}>{language === 'es' ? 'Escala:' : 'Scale:'}</span>
-          
-          <Tooltip placement="top" label={language === 'es' ? 'Reducir tamaño de interfaz (5%)' : 'Reduce interface scale (5%)'}>
-          <button
-            onClick={() => onScaleChange?.(Math.max(0.8, parseFloat((uiScale - 0.05).toFixed(2))))}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              outline: 'none',
-              transition: 'color 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-light)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-            onMouseDown={e => e.preventDefault()}
-          >
-            <Minus size={11} />
-          </button>
+        {/* Escala UI — sin etiqueta textual; tooltips descriptivos */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <Tooltip placement="top" label={language === 'es' ? 'Reducir escala de interfaz' : 'Decrease UI scale'}>
+            <button
+              type="button"
+              onClick={() => onScaleChange?.(Math.max(0.8, parseFloat((uiScale - 0.05).toFixed(2))))}
+              style={{
+                background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                cursor: 'pointer', padding: '2px 3px', display: 'flex', outline: 'none',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-light)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+              onMouseDown={e => e.preventDefault()}
+            >
+              <Minus size={11} />
+            </button>
           </Tooltip>
 
-          <input 
-            type="range"
-            min="0.8"
-            max="1.5"
-            step="0.05"
-            value={uiScale}
-            onChange={(e) => onScaleChange?.(parseFloat(e.target.value))}
-            style={{
-              width: 80,
-              height: 4,
-              background: 'var(--border)',
-              borderRadius: 2,
-              appearance: 'none',
-              outline: 'none',
-              cursor: 'pointer',
-              accentColor: 'var(--accent)',
-              transition: 'background 0.2s',
-            }}
-          />
-
-          <Tooltip placement="top" label={language === 'es' ? 'Aumentar tamaño de interfaz (5%)' : 'Increase interface scale (5%)'}>
-          <button
-            onClick={() => onScaleChange?.(Math.min(1.5, parseFloat((uiScale + 0.05).toFixed(2))))}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              outline: 'none',
-              transition: 'color 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-light)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-            onMouseDown={e => e.preventDefault()}
-          >
-            <Plus size={11} />
-          </button>
+          <Tooltip placement="top" label={language === 'es' ? 'Escala de la interfaz' : 'Interface scale'}>
+            <input
+              type="range"
+              min="0.8"
+              max="1.5"
+              step="0.05"
+              value={uiScale}
+              onChange={(e) => onScaleChange?.(parseFloat(e.target.value))}
+              onWheel={(e) => {
+                e.preventDefault();
+                // Rueda hacia abajo = subir escala (convención de la suite)
+                const delta = e.deltaY > 0 ? 0.05 : -0.05;
+                const next = Math.min(1.5, Math.max(0.8, parseFloat((uiScale + delta).toFixed(2))));
+                if (next !== uiScale) onScaleChange?.(next);
+              }}
+              aria-label={language === 'es' ? 'Escala de interfaz' : 'UI scale'}
+              style={{
+                width: 64, height: 4, background: 'var(--border)', borderRadius: 2,
+                appearance: 'none', outline: 'none', cursor: 'pointer', accentColor: 'var(--accent)',
+              }}
+            />
           </Tooltip>
 
-          <span style={{ fontSize: 9.5, fontWeight: 700, minWidth: 32, color: 'var(--accent-light)', textAlign: 'right', marginLeft: 4 }}>
-            {Math.round(uiScale * 100)}%
-          </span>
+          <Tooltip placement="top" label={language === 'es' ? 'Aumentar escala de interfaz' : 'Increase UI scale'}>
+            <button
+              type="button"
+              onClick={() => onScaleChange?.(Math.min(1.5, parseFloat((uiScale + 0.05).toFixed(2))))}
+              style={{
+                background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                cursor: 'pointer', padding: '2px 3px', display: 'flex', outline: 'none',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-light)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+              onMouseDown={e => e.preventDefault()}
+            >
+              <Plus size={11} />
+            </button>
+          </Tooltip>
+
+          <Tooltip placement="top" label={language === 'es' ? `Escala actual: ${Math.round(uiScale * 100)}%` : `Current scale: ${Math.round(uiScale * 100)}%`}>
+            <span style={{ fontSize: 10, fontWeight: 700, minWidth: 30, color: 'var(--accent-light)', textAlign: 'right', cursor: 'default' }}>
+              {Math.round(uiScale * 100)}%
+            </span>
+          </Tooltip>
         </div>
 
-        {/* Editor Line/Col stats & Text Metrics */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, opacity: 0.85 }}>
-          {showLineCounter && (
-            <>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <span>LN {lineInfo.line}</span>
-                <span>COL {lineInfo.col}</span>
-                <span>TOTAL {lineInfo.total} {language === 'es' ? 'LN' : 'LNS'}</span>
-              </div>
-              {showWordCounter && <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>}
-            </>
-          )}
-          {showWordCounter && (
-            <div style={{ display: 'flex', gap: 10 }}>
-              <span>{textMetrics.words} {language === 'es' ? 'PALABRAS' : 'WORDS'}</span>
-              <span>{textMetrics.chars} {language === 'es' ? 'CARS' : 'CHARS'}</span>
-              <span style={{ color: 'var(--accent-light)', fontWeight: 600 }}>{textMetrics.readingTime} {textMetrics.readingTime === 1 ? (language === 'es' ? 'MIN' : 'MIN') : (language === 'es' ? 'MINS' : 'MINS')} {language === 'es' ? 'LEER' : 'READ'}</span>
-            </div>
-          )}
-        </div>
+        {/* Métricas compactas: números + tooltips */}
+        {(showLineCounter || showWordCounter) && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0,
+            flexShrink: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+          }}>
+            {showLineCounter && (
+              <>
+                <Tooltip
+                  placement="top"
+                  label={language === 'es'
+                    ? `Línea ${lineInfo.line}, columna ${lineInfo.col}`
+                    : `Line ${lineInfo.line}, column ${lineInfo.col}`}
+                >
+                  <span style={{ cursor: 'default', padding: '0 6px', opacity: 0.9 }}>
+                    {lineInfo.line}:{lineInfo.col}
+                  </span>
+                </Tooltip>
+                <span style={{ opacity: 0.25, userSelect: 'none' }}>·</span>
+                <Tooltip
+                  placement="top"
+                  label={language === 'es'
+                    ? `${lineInfo.total} líneas en total`
+                    : `${lineInfo.total} lines total`}
+                >
+                  <span style={{ cursor: 'default', padding: '0 6px', opacity: 0.9 }}>
+                    {lineInfo.total}L
+                  </span>
+                </Tooltip>
+              </>
+            )}
+            {showLineCounter && showWordCounter && (
+              <span style={{ opacity: 0.25, userSelect: 'none', margin: '0 2px' }}>|</span>
+            )}
+            {showWordCounter && (
+              <>
+                <Tooltip
+                  placement="top"
+                  label={language === 'es'
+                    ? `${textMetrics.words.toLocaleString('es-ES')} palabras`
+                    : `${textMetrics.words.toLocaleString('en-US')} words`}
+                >
+                  <span style={{ cursor: 'default', padding: '0 6px', opacity: 0.9 }}>
+                    {textMetrics.words}{language === 'es' ? 'p' : 'w'}
+                  </span>
+                </Tooltip>
+                <span style={{ opacity: 0.25, userSelect: 'none' }}>·</span>
+                <Tooltip
+                  placement="top"
+                  label={language === 'es'
+                    ? `${textMetrics.chars.toLocaleString('es-ES')} caracteres`
+                    : `${textMetrics.chars.toLocaleString('en-US')} characters`}
+                >
+                  <span style={{ cursor: 'default', padding: '0 6px', opacity: 0.9 }}>
+                    {textMetrics.chars}c
+                  </span>
+                </Tooltip>
+                <span style={{ opacity: 0.25, userSelect: 'none' }}>·</span>
+                <Tooltip
+                  placement="top"
+                  label={language === 'es'
+                    ? `Tiempo de lectura estimado: ~${textMetrics.readingTime} min`
+                    : `Estimated reading time: ~${textMetrics.readingTime} min`}
+                >
+                  <span style={{ cursor: 'default', padding: '0 6px', color: 'var(--accent-light)', fontWeight: 600 }}>
+                    ~{textMetrics.readingTime}m
+                  </span>
+                </Tooltip>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {contextMenu && editor && createPortal(

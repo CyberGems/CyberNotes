@@ -16,8 +16,8 @@ export const TRANSLATIONS = {
     },
     sidebar: {
       allNotes: 'Todas las notas',
-      floatingNotes: 'Notas sueltas',
-      folders: 'Folders',
+      floatingNotes: 'Sin carpeta',
+      folders: 'Carpetas',
       newFolder: 'Nueva carpeta',
       folderName: 'Nombre de la carpeta',
       create: 'Crear',
@@ -175,6 +175,11 @@ export const TRANSLATIONS = {
       enter: 'Entrar',
       incorrectPassword: 'Contraseña incorrecta',
       verifyError: 'Error al verificar contraseña',
+      minimize: 'Minimizar',
+      maximize: 'Maximizar / Restaurar',
+      close: 'Cerrar',
+      showPassword: 'Mostrar contraseña',
+      hidePassword: 'Ocultar contraseña',
     },
   },
   en: {
@@ -192,7 +197,7 @@ export const TRANSLATIONS = {
     },
     sidebar: {
       allNotes: 'All Notes',
-      floatingNotes: 'Floating Notes',
+      floatingNotes: 'Unfiled',
       folders: 'Folders',
       newFolder: 'New Folder',
       folderName: 'Folder Name',
@@ -351,6 +356,11 @@ export const TRANSLATIONS = {
       enter: 'Enter',
       incorrectPassword: 'Incorrect password',
       verifyError: 'Error verifying password',
+      minimize: 'Minimize',
+      maximize: 'Maximize / Restore',
+      close: 'Close',
+      showPassword: 'Show password',
+      hidePassword: 'Hide password',
     },
   },
 };

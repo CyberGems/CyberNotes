@@ -255,6 +255,8 @@ body:has(.has-bg),
   line-height: 1.3;
   color: var(--text-primary);
   font-family: var(--font-ui);
+  white-space: pre-wrap;
+  tab-size: 4;
 }
 
 /* ─── Line Numbers Gutter ─── */
@@ -436,6 +438,39 @@ body:has(.has-bg),
   left: 0;
   top: 0;
   white-space: nowrap;
+}
+
+/* ─── Minimap: misma tipografía/padding que el editor; sin chrome de edición ─── */
+.ProseMirror.minimap-prose {
+  min-height: 0 !important;
+  caret-color: transparent !important;
+  cursor: default !important;
+  user-select: none !important;
+}
+
+.ProseMirror.minimap-prose::after {
+  display: none !important;
+}
+
+.ProseMirror.minimap-prose > *::before {
+  content: none !important;
+}
+
+.ProseMirror.minimap-prose p.is-editor-empty:first-child::before {
+  content: none !important;
+}
+
+.ProseMirror.minimap-prose img {
+  cursor: default !important;
+  pointer-events: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border-color: transparent !important;
+}
+
+.ProseMirror.minimap-prose a {
+  cursor: default !important;
+  pointer-events: none !important;
 }
 
 /* ─── Animations ──────────────────────────────────────────── */

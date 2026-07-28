@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Lock, Eye, EyeOff, Shield, Minus, Square, X } from 'lucide-react';
+import { Lock, Eye, EyeOff, Minus, Square, X } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import Tooltip from './Tooltip';
 
 interface Props {
   language: Language;
@@ -103,32 +104,38 @@ export default function LockScreen({ language, onUnlock }: Props) {
           alignItems: 'center',
           gap: 4,
         }}>
-          <button
-            className="btn-icon"
-            onClick={() => window.cyberNotesAPI.windowMinimize()}
-            title={language === 'es' ? 'Minimizar' : 'Minimize'}
-            style={{ width: 26, height: 26 }}
-          >
-            <Minus size={12} />
-          </button>
-          <button
-            className="btn-icon"
-            onClick={() => window.cyberNotesAPI.windowMaximizeToggle()}
-            title={language === 'es' ? 'Maximizar/Restaurar' : 'Maximize/Restore'}
-            style={{ width: 26, height: 26 }}
-          >
-            <Square size={11} />
-          </button>
-          <button
-            className="btn-icon"
-            onClick={() => window.cyberNotesAPI.windowClose()}
-            title={language === 'es' ? 'Cerrar' : 'Close'}
-            style={{ width: 26, height: 26, color: 'var(--text-muted)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--danger)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
-          >
-            <X size={13} />
-          </button>
+          <Tooltip placement="bottom" label={t.lockScreen.minimize}>
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => window.cyberNotesAPI.windowMinimize()}
+              style={{ width: 26, height: 26 }}
+            >
+              <Minus size={12} />
+            </button>
+          </Tooltip>
+          <Tooltip placement="bottom" label={t.lockScreen.maximize}>
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => window.cyberNotesAPI.windowMaximizeToggle()}
+              style={{ width: 26, height: 26 }}
+            >
+              <Square size={11} />
+            </button>
+          </Tooltip>
+          <Tooltip placement="bottom" label={t.lockScreen.close}>
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => window.cyberNotesAPI.windowClose()}
+              style={{ width: 26, height: 26, color: 'var(--text-muted)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--danger)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+            >
+              <X size={13} />
+            </button>
+          </Tooltip>
         </div>
 
         {/* Logo */}
@@ -140,14 +147,14 @@ export default function LockScreen({ language, onUnlock }: Props) {
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            <img 
-              src="icon.png" 
+            <img
+              src="icon.png"
               style={{
                 width: 64,
                 height: 64,
                 borderRadius: 18,
                 boxShadow: '0 0 24px var(--accent-glow)',
-              }} 
+              }}
               alt="Logo"
             />
           </div>
@@ -156,7 +163,7 @@ export default function LockScreen({ language, onUnlock }: Props) {
               CyberNotes
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-              {hasPassword 
+              {hasPassword
                 ? t.lockScreen.enterPassword
                 : t.lockScreen.noPassword}
             </p>
@@ -179,22 +186,28 @@ export default function LockScreen({ language, onUnlock }: Props) {
                 style={{ paddingRight: 40, fontSize: 15 }}
                 disabled={loading}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="btn-icon"
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                }}
-                tabIndex={-1}
+              <Tooltip
+                placement="top"
+                label={showPassword ? t.lockScreen.hidePassword : t.lockScreen.showPassword}
               >
-                {showPassword
-                  ? <EyeOff size={16} color="var(--text-muted)" />
-                  : <Eye size={16} color="var(--text-muted)" />}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="btn-icon"
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                  }}
+                  tabIndex={-1}
+                  aria-label={showPassword ? t.lockScreen.hidePassword : t.lockScreen.showPassword}
+                >
+                  {showPassword
+                    ? <EyeOff size={16} color="var(--text-muted)" />
+                    : <Eye size={16} color="var(--text-muted)" />}
+                </button>
+              </Tooltip>
             </div>
           )}
 
