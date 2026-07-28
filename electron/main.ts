@@ -792,19 +792,44 @@ ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   return true;
 });
 
+/** Must match on set + get — Windows openAtLogin is false if args differ (Electron docs). */
+const AUTO_START_ARGS = ['--hidden'] as const;
+
+function readAutoStartEnabled(): boolean {
+  // Primary: entry registered with --hidden (our current set path)
+  if (app.getLoginItemSettings({ args: [...AUTO_START_ARGS] }).openAtLogin) return true;
+  // Legacy: entry without args
+  const plain = app.getLoginItemSettings();
+  if (plain.openAtLogin) return true;
+  // Windows: any Run key for this exe (ignores args mismatch)
+  if (process.platform === 'win32' && plain.executableWillLaunchAtLogin) return true;
+  return false;
+}
+
+function writeAutoStartEnabled(enable: boolean): void {
+  if (enable) {
+    // Prefer a single canonical entry with --hidden (tray on login).
+    app.setLoginItemSettings({ openAtLogin: false, args: [] });
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: true, // macOS only; ignored on Windows
+      args: [...AUTO_START_ARGS],
+    });
+  } else {
+    // Clear both possible registrations so the toggle and OS stay in sync.
+    app.setLoginItemSettings({ openAtLogin: false, args: [...AUTO_START_ARGS] });
+    app.setLoginItemSettings({ openAtLogin: false, args: [] });
+  }
+}
+
 ipcMain.handle('settings:setAutoStart', (_e: any, enable: boolean) => {
-  app.setLoginItemSettings({
-    openAtLogin: enable,
-    openAsHidden: true, // macOS
-    args: enable ? ['--hidden'] : [] // Windows / Linux
-  });
+  writeAutoStartEnabled(!!enable);
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auto_start', enable ? 'true' : 'false']);
   return true;
 });
 
 ipcMain.handle('settings:getAutoStart', () => {
-  const settings = app.getLoginItemSettings();
-  return settings.openAtLogin;
+  return readAutoStartEnabled();
 });
 
 // -- Folders --
