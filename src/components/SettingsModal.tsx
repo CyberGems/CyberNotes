@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -117,7 +117,7 @@ export default function SettingsModal({
   }, [onClose]);
 
   const navItems: { id: Tab; label: string; icon: ReactNode }[] = [
-    { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <Settings size={13} /> },
+    { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <SlidersHorizontal size={13} /> },
     { id: 'appearance', label: language === 'es' ? 'Apariencia' : 'Appearance', icon: <Palette size={13} /> },
     { id: 'security', label: language === 'es' ? 'Seguridad' : 'Security', icon: <Shield size={13} /> },
     { id: 'maintenance', label: language === 'es' ? 'Mantenimiento' : 'Maintenance', icon: <FolderOpen size={13} /> },

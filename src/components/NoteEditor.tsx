@@ -603,19 +603,56 @@ export default function NoteEditor({
     }
   }, [isCapsLockActive, capsLockSound, capsLockSoundScope]);
 
-  // 3.7 Global sound trigger for Caps Lock state changes (from background worker)
+  // 3.7 Global Caps Lock from background worker: keep UI + timer in sync, play sound
   useEffect(() => {
     if (capsLockSoundScope !== 'global') return;
+    if (!window.cyberNotesAPI?.onGlobalCapsLockChanged) return;
 
-    if (window.cyberNotesAPI && window.cyberNotesAPI.onGlobalCapsLockChanged) {
-      const unsubscribe = window.cyberNotesAPI.onGlobalCapsLockChanged((_active) => {
-        if (capsLockSound && capsLockSound !== 'off') {
-          playSynthSound(capsLockSound);
+    const unsubscribe = window.cyberNotesAPI.onGlobalCapsLockChanged((active) => {
+      setIsCapsLockActive(!!active);
+      if (active && autoUnlockCapsLock) {
+        setTimeLeft(autoUnlockCapsLockTimeout);
+      } else {
+        setTimeLeft(0);
+      }
+      if (capsLockSound && capsLockSound !== 'off') {
+        playSynthSound(capsLockSound);
+      }
+    });
+    return unsubscribe;
+  }, [capsLockSoundScope, capsLockSound, autoUnlockCapsLock, autoUnlockCapsLockTimeout]);
+
+  // 3.8 Resync Caps Lock when returning to the app (tray / other window).
+  // Covers missed IPC while hidden and app-scope (no global worker).
+  useEffect(() => {
+    const syncCapsFromSystem = async () => {
+      if (!window.cyberNotesAPI?.checkCapsLock) return;
+      try {
+        const active = await window.cyberNotesAPI.checkCapsLock();
+        setIsCapsLockActive(active);
+        if (!active) {
+          setTimeLeft(0);
+        } else if (autoUnlockCapsLock) {
+          // Only (re)start countdown if we weren't already counting.
+          setTimeLeft(prev => (prev > 0 ? prev : autoUnlockCapsLockTimeout));
         }
-      });
-      return unsubscribe;
-    }
-  }, [capsLockSoundScope, capsLockSound]);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onFocus = () => { void syncCapsFromSystem(); };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void syncCapsFromSystem();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [autoUnlockCapsLock, autoUnlockCapsLockTimeout]);
 
   // 4. Isolated cleanup for toast timeout on component unmount
   useEffect(() => {

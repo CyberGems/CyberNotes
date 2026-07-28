@@ -796,6 +796,8 @@ body:has(.has-bg),
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-primary);
+  user-select: none;
+  cursor: default;
 }
 .settings-nav-title svg {
   color: var(--accent);
