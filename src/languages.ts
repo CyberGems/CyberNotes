@@ -207,6 +207,8 @@ export const TRANSLATIONS = {
       close: 'Cerrar',
       showPassword: 'Mostrar contraseña',
       hidePassword: 'Ocultar contraseña',
+      capsLockOn: 'Bloq Mayús está activado',
+      version: 'v{version}',
     },
   },
   en: {
@@ -415,6 +417,8 @@ export const TRANSLATIONS = {
       close: 'Close',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
+      capsLockOn: 'Caps Lock is on',
+      version: 'v{version}',
     },
   },
 };

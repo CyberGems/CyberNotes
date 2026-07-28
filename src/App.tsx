@@ -12,12 +12,18 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeId>('cyber-dark');
   const [colorIntensity, setColorIntensity] = useState(50);
   const [language, setLanguage] = useState<Language>('en');
+  const [bgImage, setBgImage] = useState<string | null>(null);
+  const [glassBlur, setGlassBlur] = useState(0);
+  const [bgOpacity, setBgOpacity] = useState(0.5);
 
   // Cargar tema e intensidad guardados
   useEffect(() => {
     const init = async () => {
       try {
-        const s = await window.cyberNotesAPI.getSettings(['theme', 'colorIntensity', 'language']);
+        const s = await window.cyberNotesAPI.getSettings([
+          'theme', 'colorIntensity', 'language',
+          'bg_image', 'glass_blur', 'bg_opacity',
+        ]);
         
         let t = s.theme ? (s.theme as ThemeId) : 'cyber-dark';
         let i = s.colorIntensity ? parseInt(s.colorIntensity) : 50;
@@ -27,6 +33,9 @@ export default function App() {
         setColorIntensity(i);
         setLanguage(l);
         applyThemeVars(t, i);
+        if (s.bg_image) setBgImage(s.bg_image);
+        if (s.glass_blur) setGlassBlur(parseFloat(s.glass_blur));
+        if (s.bg_opacity) setBgOpacity(parseFloat(s.bg_opacity));
 
         const hasPassword = await window.cyberNotesAPI.hasPassword();
         if (hasPassword) {
@@ -103,7 +112,15 @@ export default function App() {
   }
 
   if (view === 'lock') {
-    return <LockScreen language={language} onUnlock={handleUnlock} />;
+    return (
+      <LockScreen
+        language={language}
+        onUnlock={handleUnlock}
+        bgImage={bgImage}
+        glassBlur={glassBlur}
+        bgOpacity={bgOpacity}
+      />
+    );
   }
 
   return (
