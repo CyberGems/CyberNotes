@@ -16,6 +16,7 @@ export const TRANSLATIONS = {
     },
     sidebar: {
       allNotes: 'Todas las notas',
+      favorites: 'Favoritos',
       floatingNotes: 'Sin carpeta',
       folders: 'Carpetas',
       newFolder: 'Nueva carpeta',
@@ -103,7 +104,7 @@ export const TRANSLATIONS = {
       changeImage: 'Cambiar imagen',
       glassEffect: 'Efecto Glass (Desenfoque)',
       opacityOverlay: 'Opacidad del Overlay',
-      behavior: 'Comportamiento',
+      behavior: 'Preferencias',
       closeToTray: 'Cerrar a la bandeja de sistema',
       closeToTrayDesc: 'Al presionar X, la app se mantendrá activa en la bandeja',
       startWithWindows: 'Iniciar con Windows (minimizado)',
@@ -223,6 +224,7 @@ export const TRANSLATIONS = {
     },
     sidebar: {
       allNotes: 'All Notes',
+      favorites: 'Favorites',
       floatingNotes: 'Unfiled',
       folders: 'Folders',
       newFolder: 'New Folder',
@@ -310,7 +312,7 @@ export const TRANSLATIONS = {
       changeImage: 'Change Image',
       glassEffect: 'Glass Effect (Blur)',
       opacityOverlay: 'Overlay Opacity',
-      behavior: 'Behavior',
+      behavior: 'Preferences',
       closeToTray: 'Close to System Tray',
       closeToTrayDesc: 'When pressing X, the app remains running in the tray',
       startWithWindows: 'Start with Windows (minimized)',

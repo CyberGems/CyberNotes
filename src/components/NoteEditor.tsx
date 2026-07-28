@@ -19,7 +19,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
-  Plus, Pin, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
+  Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Download, X
 } from 'lucide-react';
 
@@ -1522,8 +1522,8 @@ export default function NoteEditor({
 
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
 
-            {/* Pin */}
-            <Tooltip placement="bottom" label={pinned ? (language === 'es' ? "Desfijar nota" : "Unpin note") : (language === 'es' ? "Fijar nota" : "Pin note")}>
+            {/* Favorite */}
+            <Tooltip placement="bottom" label={pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}>
             <button
               type="button"
               onClick={handlePin}
@@ -1537,7 +1537,7 @@ export default function NoteEditor({
                 e.currentTarget.style.color = pinned ? 'var(--accent-light)' : 'var(--text-muted)';
               }}
             >
-              <Pin size={15} />
+              <Star size={15} fill={pinned ? 'currentColor' : 'none'} />
             </button>
             </Tooltip>
 

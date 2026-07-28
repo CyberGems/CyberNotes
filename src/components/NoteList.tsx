@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Pin, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon from './FolderIcon';
@@ -456,7 +456,7 @@ export default function NoteList({
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
-            {contextMenu.note.pinned ? (language === 'es' ? 'Desfijar' : 'Unpin') : (language === 'es' ? 'Fijar' : 'Pin')}
+            {contextMenu.note.pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}
           </button>
 
           {folders.length > 0 && (
@@ -681,7 +681,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0, paddingRight: 28 }}>
-            {note.pinned === 1 && <Pin size={11} color="var(--accent)" style={{ flexShrink: 0 }} />}
+            {note.pinned === 1 && <Star size={11} color="var(--accent)" fill="var(--accent)" style={{ flexShrink: 0 }} />}
             <span style={{
               fontSize: 'calc(13px * var(--ui-scale))',
               fontWeight: 600,

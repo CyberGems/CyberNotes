@@ -455,7 +455,9 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     const now = new Date().toISOString();
     const newNote: Note = {
       id: window.crypto.randomUUID(),
-      folder_id: selectedFolderId === 'floating' ? null : selectedFolderId,
+      folder_id: (selectedFolderId === 'floating' || selectedFolderId === 'favorites')
+        ? null
+        : selectedFolderId,
       title: language === 'es' ? 'Nueva nota' : 'New note',
       content: '',
       preview: '',
@@ -484,6 +486,10 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     patchNoteMeta(updated);
     setSelectedNote(prev => (prev && prev.id === updated.id ? updated : prev));
     await window.cyberNotesAPI.saveNote(updated);
+
+    if (selectedFolderId === 'favorites' && updated.pinned !== 1 && !searchQuery) {
+      setNotes(prev => prev.filter(n => n.id !== updated.id));
+    }
     
     // Al guardar exitosamente, eliminamos la nota del caché de borradores sucios
     setDraftCache(prev => {
@@ -492,7 +498,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       delete next[note.id];
       return next;
     });
-  }, [patchNoteMeta]);
+  }, [patchNoteMeta, selectedFolderId, searchQuery]);
 
   const handleEditDraft = useCallback((id: string, title: string, content: string) => {
     contentCacheRef.current[id] = content;
@@ -607,6 +613,10 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     patchNoteMeta(updated);
     if (selectedNoteId === note.id) {
       setSelectedNote(prev => prev ? { ...prev, pinned: updated.pinned, updated_at: updated.updated_at } : prev);
+    }
+    // Leaving Favorites filter: unfavorited notes drop out of the visible list
+    if (selectedFolderId === 'favorites' && updated.pinned !== 1 && !searchQuery) {
+      setNotes(prev => prev.filter(n => n.id !== note.id));
     }
   };
 
@@ -928,6 +938,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
               onRenameNote={handleRenameNote}
               selectedFolder={selectedFolderId === 'floating'
                 ? { id: 'floating', name: TRANSLATIONS[language].sidebar.floatingNotes, icon: '☁️', color: '#06b6d4' } as Folder
+                : selectedFolderId === 'favorites'
+                  ? { id: 'favorites', name: TRANSLATIONS[language].sidebar.favorites, icon: 'star', color: '#f59e0b' } as Folder
                 : (folders.find(f => f.id === selectedFolderId) ?? null)}
               searchQuery={searchQuery}
             />

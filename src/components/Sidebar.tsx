@@ -5,7 +5,7 @@ import { Folder, Note } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import {
   Plus, FolderOpen, Settings, Lock, Search, X,
-  ChevronRight, Pencil, Trash2, FileText, Clock, Cloud,
+  ChevronRight, Pencil, Trash2, FileText, Clock, Cloud, Star,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon from './FolderIcon';
@@ -314,6 +314,78 @@ export default function Sidebar({
             borderRadius: 10,
             pointerEvents: 'none',
           }}>{noteCount}</span>
+        </motion.button>
+
+        {/* Favoritos / Favorites */}
+        <motion.button
+          onClick={() => onSelectFolder('favorites')}
+          whileHover="hover"
+          whileTap="tap"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid transparent',
+            background: selectedFolderId === 'favorites' && !searchQuery
+              ? 'var(--bg-active)'
+              : 'transparent',
+            color: selectedFolderId === 'favorites' && !searchQuery
+              ? 'var(--accent-light)'
+              : 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: 'calc(13px * var(--ui-scale))',
+            fontWeight: selectedFolderId === 'favorites' && !searchQuery ? 600 : 400,
+            textAlign: 'left',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            marginBottom: 4,
+            position: 'relative',
+            boxShadow: selectedFolderId === 'favorites' && !searchQuery
+              ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
+              : 'none',
+          }}
+          variants={{
+            hover: {
+              x: 3,
+              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
+              borderColor: 'rgba(255, 255, 255, 0.08)',
+              background: selectedFolderId === 'favorites' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
+              transition: { type: 'spring', stiffness: 400, damping: 18 }
+            },
+            tap: {
+              scale: 0.98,
+              x: 0,
+              transition: { duration: 0.1 }
+            }
+          }}
+        >
+          <motion.span
+            variants={{
+              hover: { scale: 1.2, rotate: [0, -12, 12, 0], transition: { type: 'spring', stiffness: 300, damping: 10 } }
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              pointerEvents: 'none',
+              color: selectedFolderId === 'favorites' && !searchQuery ? '#f59e0b' : '#f59e0b',
+            }}
+          >
+            <Star
+              size={15}
+              fill={selectedFolderId === 'favorites' && !searchQuery ? 'currentColor' : 'none'}
+            />
+          </motion.span>
+          <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.favorites}</span>
+          <span style={{
+            fontSize: 'calc(11px * var(--ui-scale))',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-muted)',
+            padding: '1px 6px',
+            borderRadius: 10,
+            pointerEvents: 'none',
+          }}>{allNotes.filter(n => n.pinned === 1).length}</span>
         </motion.button>
 
         {/* Sin carpeta / Unfiled */}

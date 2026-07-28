@@ -248,7 +248,7 @@ export default function SettingsModal({
           {tab === 'general' && (
             <div className="settings-card">
                 <h3>
-                  {language === 'es' ? 'Comportamiento' : 'Behavior'}
+                  {language === 'es' ? 'Preferencias' : 'Preferences'}
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {/* Language Selector Dropdown */}

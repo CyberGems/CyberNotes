@@ -846,6 +846,9 @@ ipcMain.handle('notes:getByFolder', (_e: any, folderId: string | null) => {
   if (folderId === 'floating') {
     return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE folder_id IS NULL OR folder_id = "" ORDER BY pinned DESC, updated_at DESC`);
   }
+  if (folderId === 'favorites') {
+    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE pinned = 1 ORDER BY updated_at DESC`);
+  }
   if (!folderId) {
     return queryAll(`SELECT ${NOTE_META_COLS} FROM notes ORDER BY pinned DESC, updated_at DESC`);
   }
