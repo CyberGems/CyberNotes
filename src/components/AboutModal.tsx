@@ -4,6 +4,7 @@ import {
   CircleDot, Tag, ClipboardCopy, Check,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
+import Tooltip from './Tooltip';
 
 const REPO_URL = 'https://github.com/CyberGems/CyberNotes';
 
@@ -144,15 +145,16 @@ export default function AboutModal({ language, onClose }: Props) {
       >
         <div className="modal-header" style={{ border: 'none', padding: '16px 16px 0', flexShrink: 0 }}>
           <div style={{ flex: 1 }} />
-          <button
-            type="button"
-            className="btn-icon"
-            onClick={handleClose}
-            title={t.close}
-            aria-label={t.close}
-          >
-            <X size={16} />
-          </button>
+          <Tooltip label={t.close} placement="left">
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={handleClose}
+              aria-label={t.close}
+            >
+              <X size={16} />
+            </button>
+          </Tooltip>
         </div>
 
         <div className="modal-body about-modal-body" style={{ textAlign: 'center', padding: '0 28px 20px', overflowY: 'auto' }}>
@@ -240,7 +242,6 @@ export default function AboutModal({ language, onClose }: Props) {
                 className={`btn btn-ghost about-action-btn about-diag-btn${diagCopied ? ' is-copied' : ''}`}
                 onClick={handleCopyDiagnostics}
                 disabled={!versions}
-                title={diagCopied ? t.diagnosticsCopied : t.copyDiagnostics}
               >
                 {diagCopied ? <Check size={14} /> : <ClipboardCopy size={14} />}
                 <span>{diagCopied ? t.diagnosticsCopied : t.copyDiagnostics}</span>
@@ -263,36 +264,39 @@ export default function AboutModal({ language, onClose }: Props) {
             © CyberGems • 2026
           </div>
           <div className="about-footer-links">
-            <button
-              type="button"
-              className="btn-icon"
-              style={{ width: 28, height: 28 }}
-              onClick={() => window.cyberNotesAPI.openExternal(REPO_URL)}
-              title={t.githubTooltip}
-              aria-label={t.githubTooltip}
-            >
-              <Github size={14} />
-            </button>
-            <button
-              type="button"
-              className="btn-icon"
-              style={{ width: 28, height: 28 }}
-              onClick={() => window.cyberNotesAPI.openExternal(`${REPO_URL}/issues`)}
-              title={t.issuesTooltip}
-              aria-label={t.issuesTooltip}
-            >
-              <CircleDot size={14} />
-            </button>
-            <button
-              type="button"
-              className="btn-icon"
-              style={{ width: 28, height: 28 }}
-              onClick={() => window.cyberNotesAPI.openExternal(`${REPO_URL}/releases`)}
-              title={t.releasesTooltip}
-              aria-label={t.releasesTooltip}
-            >
-              <Tag size={14} />
-            </button>
+            <Tooltip label={t.githubTooltip} placement="top">
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ width: 28, height: 28 }}
+                onClick={() => window.cyberNotesAPI.openExternal(REPO_URL)}
+                aria-label={t.githubTooltip}
+              >
+                <Github size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip label={t.issuesTooltip} placement="top">
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ width: 28, height: 28 }}
+                onClick={() => window.cyberNotesAPI.openExternal(`${REPO_URL}/issues`)}
+                aria-label={t.issuesTooltip}
+              >
+                <CircleDot size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip label={t.releasesTooltip} placement="top">
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ width: 28, height: 28 }}
+                onClick={() => window.cyberNotesAPI.openExternal(`${REPO_URL}/releases`)}
+                aria-label={t.releasesTooltip}
+              >
+                <Tag size={14} />
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>

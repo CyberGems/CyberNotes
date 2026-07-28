@@ -145,7 +145,7 @@ export const TRANSLATIONS = {
     about: {
       title: 'Acerca de CyberNotes',
       version: 'Versión {version}',
-      desc: 'Tu app de notas personal. Offline, privada y rápida. Construida con Electron + React + TipTap.',
+      desc: 'Tu app de notas personal. Offline, privada y rápida.',
       maintenance: 'Mantenimiento',
       autoUpdates: 'Actualizaciones automáticas',
       openFolder: 'Abrir carpeta de datos',
@@ -352,7 +352,7 @@ export const TRANSLATIONS = {
     about: {
       title: 'About CyberNotes',
       version: 'Version {version}',
-      desc: 'Your personal notes app. Offline, private, and fast. Built with Electron + React + TipTap.',
+      desc: 'Your personal notes app. Offline, private, and fast.',
       maintenance: 'Maintenance',
       autoUpdates: 'Auto updates',
       openFolder: 'Open data folder',

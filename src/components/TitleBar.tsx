@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Lock, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, LogOut, FileText, Info } from 'lucide-react';
+import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, LogOut, FileText, Info } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 
@@ -287,31 +287,6 @@ export default function TitleBar({
               display: 'flex',
               flexDirection: 'column',
             }}>
-              {/* Quick Actions */}
-              <button
-                className="menu-item"
-                onClick={() => { setMenuOpen(false); onOpenSettings?.(); }}
-              >
-                <Settings size={14} style={{ opacity: 0.7 }} />
-                <span>{t('Ajustes', 'Settings')}</span>
-              </button>
-              <button
-                className="menu-item"
-                onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
-              >
-                <Info size={14} style={{ opacity: 0.7 }} />
-                <span>{t('Acerca de', 'About')}</span>
-              </button>
-              <button
-                className="menu-item"
-                onClick={() => { setMenuOpen(false); onLock?.(); }}
-              >
-                <Lock size={14} style={{ opacity: 0.7 }} />
-                <span>{t('Bloquear app', 'Lock app')}</span>
-              </button>
-
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-
               {/* Recent Notes Submenu */}
               {recentNotes.length > 0 && (
                 <>
@@ -436,6 +411,30 @@ export default function TitleBar({
                   <div style={{ ...toggleDot, left: rememberLastNote ? 16 : 2 }} />
                 </div>
               </div>
+
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+
+              <button
+                className="menu-item"
+                onClick={() => { setMenuOpen(false); onOpenSettings?.(); }}
+              >
+                <Settings size={14} style={{ opacity: 0.7 }} />
+                <span>{t('Ajustes', 'Settings')}</span>
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
+              >
+                <Info size={14} style={{ opacity: 0.7 }} />
+                <span>{t('Acerca de', 'About')}</span>
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => { setMenuOpen(false); onLock?.(); }}
+              >
+                <LogOut size={14} style={{ opacity: 0.7 }} />
+                <span>{t('Cerrar sesión', 'Sign out')}</span>
+              </button>
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
