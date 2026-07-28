@@ -1,5 +1,9 @@
-import { autoUpdater } from 'electron-updater';
 import { ipcMain, BrowserWindow } from 'electron';
+import { createRequire } from 'module';
+
+// electron-updater is CommonJS; named ESM imports fail at runtime in this project.
+const require = createRequire(import.meta.url);
+const { autoUpdater } = require('electron-updater') as typeof import('electron-updater');
 
 /**
  * Update lifecycle via electron-updater, broadcast to the renderer as
