@@ -29,13 +29,33 @@ export default function App() {
         applyThemeVars(t, i);
 
         const hasPassword = await window.cyberNotesAPI.hasPassword();
-        setView(hasPassword ? 'lock' : 'app');
+        if (hasPassword) {
+          setView('lock');
+          await window.cyberNotesAPI.setSessionLocked(true);
+        } else {
+          setView('app');
+          await window.cyberNotesAPI.setSessionLocked(false);
+        }
       } catch (err) {
         console.error('Init error:', err);
         setView('app');
       }
     };
     init();
+  }, []);
+
+  // Main-process force lock (tray restore / idle watcher) — must ack so opacity can rise.
+  useEffect(() => {
+    const off = window.cyberNotesAPI.onForceLock(() => {
+      setView('lock');
+      // Defer ack to next frame so LockScreen has committed before the window becomes opaque.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.cyberNotesAPI.ackSessionLocked();
+        });
+      });
+    });
+    return off;
   }, []);
 
   const handleThemeChange = useCallback(async (t: ThemeId) => {
@@ -55,9 +75,16 @@ export default function App() {
     await window.cyberNotesAPI.setSetting('language', lang);
   }, []);
 
-  const handleUnlock = () => setView('app');
+  const handleUnlock = useCallback(() => {
+    setView('app');
+    window.cyberNotesAPI.setSessionLocked(false);
+  }, []);
 
-  const handleLock = () => setView('lock');
+  const handleLock = useCallback(() => {
+    setView('lock');
+    window.cyberNotesAPI.setSessionLocked(true);
+    window.cyberNotesAPI.ackSessionLocked();
+  }, []);
 
   if (view === 'loading') {
     return (

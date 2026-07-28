@@ -247,6 +247,50 @@ function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>, opts?: { flu
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+/** True while the UI should show LockScreen (password session). */
+let sessionLocked = false;
+/** Wall-clock last user activity — survives Chromium timer throttling while hidden. */
+let lastActivityAt = Date.now();
+let idleLockInterval: ReturnType<typeof setInterval> | null = null;
+
+function hasPasswordHash(): boolean {
+  return !!queryGet('SELECT value FROM settings WHERE key = ?', ['password_hash']);
+}
+
+function getAutoLockMs(): number {
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_lock_minutes']);
+  const mins = row ? parseInt(row.value, 10) : 0;
+  return Number.isFinite(mins) && mins > 0 ? mins * 60 * 1000 : 0;
+}
+
+function idleExceeded(): boolean {
+  const ms = getAutoLockMs();
+  if (ms <= 0) return false;
+  return Date.now() - lastActivityAt >= ms;
+}
+
+function shouldLockBeforeShow(): boolean {
+  if (!hasPasswordHash()) return false;
+  return sessionLocked || idleExceeded();
+}
+
+function requestRendererLock(): void {
+  sessionLocked = true;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('session:force-lock');
+  }
+}
+
+function startIdleLockWatcher(): void {
+  if (idleLockInterval) clearInterval(idleLockInterval);
+  // While in tray, Chromium often freezes renderer timers — enforce lock on wall clock.
+  idleLockInterval = setInterval(() => {
+    if (sessionLocked) return;
+    if (!hasPasswordHash()) return;
+    if (!idleExceeded()) return;
+    requestRendererLock();
+  }, 15_000);
+}
 let hasUnsavedChanges = false;
 let capsLockWorker: any = null;
 
@@ -300,12 +344,58 @@ function stopCapsLockWorker() {
 }
 
 function restoreWindow() {
-  if (!mainWindow) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  const maxVal = queryGet('SELECT value FROM settings WHERE key = ?', ['is_maximized']);
-  if (maxVal?.value === 'true') mainWindow.maximize();
-  mainWindow.show();
-  mainWindow.focus();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const finishShow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    const maxVal = queryGet('SELECT value FROM settings WHERE key = ?', ['is_maximized']);
+    if (maxVal?.value === 'true') mainWindow.maximize();
+    mainWindow.show();
+    mainWindow.setOpacity(1);
+    mainWindow.focus();
+  };
+
+  // Privacy gate: never reveal note content if the session must be locked.
+  // Opacity 0 avoids flashing a stale compositor frame of MainApp from tray.
+  if (shouldLockBeforeShow()) {
+    sessionLocked = true;
+    mainWindow.setOpacity(0);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.webContents.send('session:force-lock');
+
+    let settled = false;
+    const reveal = () => {
+      if (settled || !mainWindow || mainWindow.isDestroyed()) return;
+      settled = true;
+      // One paint tick so LockScreen replaces any stale buffer before becoming visible.
+      setTimeout(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.setOpacity(1);
+        mainWindow.focus();
+      }, 48);
+    };
+
+    const onLocked = () => {
+      clearTimeout(retryTimer);
+      clearTimeout(failsafeTimer);
+      reveal();
+    };
+    ipcMain.once('session:locked', onLocked);
+    const retryTimer = setTimeout(() => {
+      if (settled || !mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send('session:force-lock');
+    }, 200);
+    // Last resort: still reveal (opacity was 0 the whole time; LockScreen should be up).
+    const failsafeTimer = setTimeout(() => {
+      ipcMain.removeListener('session:locked', onLocked);
+      reveal();
+    }, 900);
+    return;
+  }
+
+  finishShow();
 }
 
 function getTrayMenuTemplate(): any[] {
@@ -638,6 +728,21 @@ ipcMain.handle('auth:hasPassword', () => {
   return !!row;
 });
 
+ipcMain.handle('session:activity', () => {
+  lastActivityAt = Date.now();
+  return true;
+});
+
+ipcMain.handle('session:set-locked', (_e: any, locked: boolean) => {
+  sessionLocked = !!locked;
+  if (!locked) lastActivityAt = Date.now();
+  return true;
+});
+
+ipcMain.on('session:locked', () => {
+  sessionLocked = true;
+});
+
 ipcMain.handle('auth:setPassword', async (_e: any, password: string) => {
   const hash = await bcrypt.hash(password, 10);
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hash]);
@@ -652,6 +757,7 @@ ipcMain.handle('auth:verifyPassword', async (_e: any, password: string) => {
 
 ipcMain.handle('auth:removePassword', () => {
   runQuery('DELETE FROM settings WHERE key = ?', ['password_hash']);
+  sessionLocked = false;
   return true;
 });
 
@@ -876,6 +982,10 @@ if (!gotTheLock) {
     session.defaultSession.setSpellCheckerLanguages(['es-ES', 'en-US']);
 
     await initDatabase();
+    // Start locked whenever a password exists so tray restore never assumes an open session.
+    sessionLocked = hasPasswordHash();
+    lastActivityAt = Date.now();
+    startIdleLockWatcher();
     createWindow();
     createTray();
 
@@ -902,6 +1012,10 @@ if (!gotTheLock) {
 
   app.on('before-quit', () => {
     isQuitting = true;
+    if (idleLockInterval) {
+      clearInterval(idleLockInterval);
+      idleLockInterval = null;
+    }
     stopCapsLockWorker();
     flushDbNow();
   });

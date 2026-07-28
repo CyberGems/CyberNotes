@@ -48,6 +48,16 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   },
   respondUnsavedExit: (discard: boolean) => ipcRenderer.invoke('confirm-unsaved-exit-response', discard),
 
+  // -- Session lock (privacy: no note flash from tray after idle) --
+  reportActivity: () => ipcRenderer.invoke('session:activity'),
+  setSessionLocked: (locked: boolean) => ipcRenderer.invoke('session:set-locked', locked),
+  ackSessionLocked: () => ipcRenderer.send('session:locked'),
+  onForceLock: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('session:force-lock', listener);
+    return () => ipcRenderer.removeListener('session:force-lock', listener);
+  },
+
   // -- Auth --
   hasPassword: () => ipcRenderer.invoke('auth:hasPassword'),
   setPassword: (password: string) => ipcRenderer.invoke('auth:setPassword', password),

@@ -52,6 +52,11 @@ declare global {
       removePassword: () => Promise<boolean>;
       // Unsaved Changes
       setUnsavedChanges: (val: boolean) => Promise<void>;
+      // Session lock
+      reportActivity: () => Promise<boolean>;
+      setSessionLocked: (locked: boolean) => Promise<boolean>;
+      ackSessionLocked: () => void;
+      onForceLock: (callback: () => void) => () => void;
       // Settings
       getSetting: (key: string) => Promise<string | null>;
       getSettings: (keys: string[]) => Promise<Record<string, string | null>>;

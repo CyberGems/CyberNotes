@@ -165,6 +165,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   }, []);
 
   // Lógica de Auto-bloqueo (throttle de actividad: no resetear en cada mousemove)
+  // lastActivity also syncs to main so tray restore can lock on wall-clock even if
+  // Chromium froze this setTimeout while the window was hidden.
   useEffect(() => {
     if (autoLockMinutes <= 0) {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -176,6 +178,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
       const now = Date.now();
       if (now - lastReset < 1000) return;
       lastReset = now;
+      window.cyberNotesAPI.reportActivity();
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         onLock();
