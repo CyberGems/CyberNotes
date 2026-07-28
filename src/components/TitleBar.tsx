@@ -15,6 +15,7 @@ interface Props {
   onAutosaveChange?: (v: boolean) => void;
   autoUnlockCapsLock?: boolean;
   onAutoUnlockCapsLockChange?: (v: boolean) => void;
+  autoUnlockCapsLockTimeout?: number;
   showMinimap?: boolean;
   onShowMinimapChange?: (v: boolean) => void;
   showLineCounter?: boolean;
@@ -25,6 +26,20 @@ interface Props {
   onShowWordCounterChange?: (v: boolean) => void;
   rememberLastNote?: boolean;
   onRememberLastNoteChange?: (v: boolean) => void;
+  /** Caps Lock físico activo + countdown (desde NoteEditor) */
+  capsStatus?: { active: boolean; timeLeft: number };
+}
+
+function formatCapsTime(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return `${h}h ${m}m`;
 }
 
 export default function TitleBar({
@@ -38,6 +53,7 @@ export default function TitleBar({
   onAutosaveChange,
   autoUnlockCapsLock = true,
   onAutoUnlockCapsLockChange,
+  autoUnlockCapsLockTimeout = 5,
   showMinimap = false,
   onShowMinimapChange,
   showLineCounter = false,
@@ -48,6 +64,7 @@ export default function TitleBar({
   onShowWordCounterChange,
   rememberLastNote = false,
   onRememberLastNoteChange,
+  capsStatus,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -105,13 +122,14 @@ export default function TitleBar({
       } as any}
     >
       {/* Logo + título */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <div style={{
           width: 22,
           height: 22,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          flexShrink: 0,
         }}>
           <img src="icon.png" style={{ width: 22, height: 22, borderRadius: 4 }} alt="Logo" />
         </div>
@@ -125,9 +143,98 @@ export default function TitleBar({
         </span>
       </div>
 
+      {/* Indicador Caps Lock — usa el espacio libre del centro */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: 0,
+          padding: '0 12px',
+          WebkitAppRegion: 'no-drag',
+        } as any}
+      >
+        {capsStatus?.active && (
+          <Tooltip
+            placement="bottom"
+            label={autoUnlockCapsLock
+              ? t('El Bloq Mayús se apagará solo si dejas de escribir', 'Caps Lock will turn off if you stop typing')
+              : t('Bloq Mayús encendido (auto-desactivar está apagado)', 'Caps Lock is on (auto-disable is off)')}
+          >
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                maxWidth: '100%',
+                padding: '3px 10px',
+                borderRadius: 999,
+                border: autoUnlockCapsLock
+                  ? '1px solid rgba(239, 68, 68, 0.45)'
+                  : '1px solid var(--border)',
+                background: autoUnlockCapsLock
+                  ? 'rgba(239, 68, 68, 0.12)'
+                  : 'rgba(255,255,255,0.04)',
+                color: autoUnlockCapsLock ? '#fca5a5' : 'var(--text-secondary)',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: 0.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                cursor: 'default',
+              }}
+            >
+              <span style={{ fontSize: 12, lineHeight: 1 }} aria-hidden>⇪</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {t('Bloq Mayús activo', 'Caps Lock on')}
+                {autoUnlockCapsLock && capsStatus.timeLeft > 0 && (
+                  <span style={{ opacity: 0.9, fontWeight: 500 }}>
+                    {' · '}
+                    {t('se apaga en', 'turns off in')}{' '}
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                      {formatCapsTime(capsStatus.timeLeft)}
+                    </span>
+                  </span>
+                )}
+                {autoUnlockCapsLock && capsStatus.timeLeft === 0 && (
+                  <span style={{ opacity: 0.9, fontWeight: 500 }}>
+                    {' · '}{t('apagando…', 'turning off…')}
+                  </span>
+                )}
+              </span>
+              {autoUnlockCapsLock && autoUnlockCapsLockTimeout > 0 && capsStatus.timeLeft > 0 && (
+                <span
+                  aria-hidden
+                  style={{
+                    width: 36,
+                    height: 3,
+                    borderRadius: 2,
+                    background: 'rgba(255,255,255,0.12)',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'block',
+                      height: '100%',
+                      width: `${Math.max(4, Math.min(100, (capsStatus.timeLeft / autoUnlockCapsLockTimeout) * 100))}%`,
+                      background: '#ef4444',
+                      borderRadius: 2,
+                      transition: 'width 0.35s linear',
+                    }}
+                  />
+                </span>
+              )}
+            </div>
+          </Tooltip>
+        )}
+      </div>
+
       {/* Controles de ventana */}
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 0, WebkitAppRegion: 'no-drag' } as any}
+        style={{ display: 'flex', alignItems: 'center', gap: 0, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
         {/* Burger Menu */}
         <div style={{ position: 'relative' }}>

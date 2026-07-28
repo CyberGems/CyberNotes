@@ -41,6 +41,8 @@ interface Props {
   onAutoUnlockCapsLockChange?: (v: boolean) => void;
   capsLockSound?: string;
   capsLockSoundScope?: string;
+  /** Estado Caps Lock → TitleBar (indicador visible) */
+  onCapsStatusChange?: (status: { active: boolean; timeLeft: number }) => void;
   uiScale?: number;
   onScaleChange?: (scale: number) => void;
   openNoteIds?: string[];
@@ -149,6 +151,7 @@ export default function NoteEditor({
   onAutoUnlockCapsLockChange,
   capsLockSound = 'cyber-beep',
   capsLockSoundScope = 'app',
+  onCapsStatusChange,
   uiScale = 1.0,
   onScaleChange,
   openNoteIds = [],
@@ -502,35 +505,33 @@ export default function NoteEditor({
     };
   }, [autoUnlockCapsLock, autoUnlockCapsLockTimeout]);
 
-  // 3. State transition toast trigger for physical CapsLock toggles
+  // 3. Toast solo en auto-desactivación (el estado ON se ve en la title bar)
   useEffect(() => {
-    // Avoid firing toast on the very first cold mount
     if (prevCapsActiveRef.current === null) {
       prevCapsActiveRef.current = isCapsLockActive;
       return;
     }
 
     if (prevCapsActiveRef.current !== isCapsLockActive) {
-      if (isCapsLockActive) {
-        setCapsToast(language === 'es' ? "Bloq Mayús: ACTIVADO ⚠️" : "Caps Lock: ON ⚠️");
-      } else {
-        // If it was auto-unlocked (timeLeft === 0), show a special Auto-desactivado toast.
-        // Works for both countdown-to-zero (timeout > 0) and instant mode (timeout === 0).
-        if (autoUnlockCapsLock && timeLeft === 0) {
-          setCapsToast(language === 'es' ? "Bloq Mayús: AUTO-DESACTIVADO 💡" : "Caps Lock: AUTO-UNLOCKED 💡");
-        } else {
-          setCapsToast(language === 'es' ? "Bloq Mayús: DESACTIVADO ✅" : "Caps Lock: OFF ✅");
-        }
+      if (!isCapsLockActive && autoUnlockCapsLock && timeLeft === 0) {
+        setCapsToast(TRANSLATIONS[language].editor.capsLockToastAuto);
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        toastTimeoutRef.current = setTimeout(() => setCapsToast(null), 2200);
       }
-
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-      toastTimeoutRef.current = setTimeout(() => {
-        setCapsToast(null);
-      }, 2000);
-
       prevCapsActiveRef.current = isCapsLockActive;
     }
-  }, [isCapsLockActive, autoUnlockCapsLock, timeLeft, language, autoUnlockCapsLockTimeout]);
+  }, [isCapsLockActive, autoUnlockCapsLock, timeLeft, language]);
+
+  // Reportar estado Caps Lock a TitleBar
+  useEffect(() => {
+    onCapsStatusChange?.({ active: isCapsLockActive, timeLeft });
+  }, [isCapsLockActive, timeLeft, onCapsStatusChange]);
+
+  // Limpiar indicador al desmontar
+  useEffect(() => {
+    return () => onCapsStatusChange?.({ active: false, timeLeft: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 3.5 Isolated sound trigger for Caps Lock state changes
   useEffect(() => {
@@ -1392,83 +1393,28 @@ export default function NoteEditor({
             borderRadius: 'var(--radius-md)',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
           }}>
-            {/* Countdown Timer Badge */}
-            <AnimatePresence>
-              {autoUnlockCapsLock && isCapsLockActive && timeLeft > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8, x: 5 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, x: 5 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(239, 68, 68, 0.4)',
-                    color: 'var(--text-muted)',
-                    padding: '2px 6px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-mono)',
-                    pointerEvents: 'none',
-                    whiteSpace: 'nowrap',
-                    gap: 4,
-                    animation: 'cyber-warning-pulse-border 1.5s infinite ease-in-out',
-                  }}
-                >
-                  <span>⏱️</span>
-                  <span>
-                    {(() => {
-                      if (timeLeft < 60) return `${timeLeft}s`;
-                      if (timeLeft < 3600) {
-                        const m = Math.floor(timeLeft / 60);
-                        const s = timeLeft % 60;
-                        return `${m}:${s < 10 ? '0' : ''}${s}`;
-                      }
-                      const h = Math.floor(timeLeft / 3600);
-                      const m = Math.floor((timeLeft % 3600) / 60);
-                      return `${h}h ${m}m`;
-                    })()}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Auto-Unlock CapsLock */}
-            <Tooltip placement="bottom" label={isCapsLockActive
-              ? (language === 'es'
-                  ? `Bloq Mayús ACTIVO (Auto-desactivar: ${autoUnlockCapsLock ? 'ENCENDIDO' : 'APAGADO'})`
-                  : `Caps Lock ACTIVE (Auto-unlock: ${autoUnlockCapsLock ? 'ON' : 'OFF'})`)
-              : (language === 'es'
-                  ? `Desactivar Bloq Mayús por inactividad (Estado: ${autoUnlockCapsLock ? 'ACTIVO' : 'INACTIVO'})`
-                  : `Disable Caps Lock on inactivity (Status: ${autoUnlockCapsLock ? 'ACTIVE' : 'INACTIVE'})`)}>
+            {/* Auto-desactivar Caps Lock (el countdown vive en la title bar) */}
+            <Tooltip placement="bottom" label={autoUnlockCapsLock ? t.editor.capsLockAutoOn : t.editor.capsLockAutoOff}>
             <button
+              type="button"
               onClick={() => {
                 const nextVal = !autoUnlockCapsLock;
                 onAutoUnlockCapsLockChange?.(nextVal);
-                
-                // Trigger a beautiful floating toast alert
-                setCapsToast(nextVal 
-                  ? (language === 'es' ? "Bloq Mayús Auto-desactivar: ACTIVADO" : "Caps Lock Auto-Unlock: ON")
-                  : (language === 'es' ? "Bloq Mayús Auto-desactivar: DESACTIVADO" : "Caps Lock Auto-Unlock: OFF")
-                );
+                setCapsToast(nextVal ? t.editor.capsLockFeatureOn : t.editor.capsLockFeatureOff);
                 if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-                toastTimeoutRef.current = setTimeout(() => {
-                  setCapsToast(null);
-                }, 2000);
+                toastTimeoutRef.current = setTimeout(() => setCapsToast(null), 2000);
               }}
               style={{
                 padding: 6,
                 position: 'relative',
-                color: isCapsLockActive 
-                  ? '#ef4444' 
-                  : autoUnlockCapsLock 
-                    ? 'var(--accent-light)' 
+                color: isCapsLockActive
+                  ? '#ef4444'
+                  : autoUnlockCapsLock
+                    ? 'var(--accent-light)'
                     : 'var(--text-muted)',
                 background: autoUnlockCapsLock ? 'var(--accent-dim)' : 'transparent',
                 border: (isCapsLockActive && autoUnlockCapsLock)
-                  ? '1px solid rgba(239, 68, 68, 0.4)' 
+                  ? '1px solid rgba(239, 68, 68, 0.4)'
                   : '1px solid transparent',
                 borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer',
@@ -1476,14 +1422,12 @@ export default function NoteEditor({
                 alignItems: 'center',
                 justifyContent: 'center',
                 transition: 'all 0.2s',
-                boxShadow: (isCapsLockActive && autoUnlockCapsLock)
-                  ? '0 0 2px rgba(239, 68, 68, 0.08)' 
-                  : 'none',
-                animation: (isCapsLockActive && autoUnlockCapsLock) 
-                  ? 'cyber-warning-pulse 1.5s infinite ease-in-out' 
+                boxShadow: 'none',
+                animation: (isCapsLockActive && autoUnlockCapsLock)
+                  ? 'cyber-warning-pulse 1.5s infinite ease-in-out'
                   : 'none',
               }}
-              onMouseEnter={e => { 
+              onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--bg-hover)';
                 e.currentTarget.style.transform = 'scale(1.05)';
                 if (isCapsLockActive && autoUnlockCapsLock) {
@@ -1492,20 +1436,18 @@ export default function NoteEditor({
                   e.currentTarget.style.color = 'var(--text-primary)';
                 }
               }}
-              onMouseLeave={e => { 
+              onMouseLeave={e => {
                 e.currentTarget.style.background = autoUnlockCapsLock ? 'var(--accent-dim)' : 'transparent';
                 e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.color = isCapsLockActive 
-                  ? '#ef4444' 
-                  : autoUnlockCapsLock 
-                    ? 'var(--accent-light)' 
+                e.currentTarget.style.color = isCapsLockActive
+                  ? '#ef4444'
+                  : autoUnlockCapsLock
+                    ? 'var(--accent-light)'
                     : 'var(--text-muted)';
               }}
             >
               <Keyboard size={14} />
-              
-              {/* Pulsing Red Dot for physical CapsLock active state (Only active when feature is also enabled) */}
-              {isCapsLockActive && autoUnlockCapsLock && (
+              {isCapsLockActive && (
                 <span style={{
                   position: 'absolute',
                   top: 2,

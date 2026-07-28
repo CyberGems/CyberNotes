@@ -85,6 +85,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [autoUnlockCapsLock, setAutoUnlockCapsLock] = useState(true);
   const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(5);
+  const [capsStatus, setCapsStatus] = useState<{ active: boolean; timeLeft: number }>({ active: false, timeLeft: 0 });
   const [capsLockSound, setCapsLockSound] = useState('cyber-beep');
   const [capsLockSoundScope, setCapsLockSoundScope] = useState('app');
   const [tabsWidthMode, setTabsWidthMode] = useState<'normal' | 'wide'>('normal');
@@ -847,6 +848,8 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
         onAutosaveChange={handleAutosaveEnabledChange}
         autoUnlockCapsLock={autoUnlockCapsLock}
         onAutoUnlockCapsLockChange={handleAutoUnlockCapsLockChange}
+        autoUnlockCapsLockTimeout={autoUnlockCapsLockTimeout}
+        capsStatus={capsStatus}
         showMinimap={showMinimap}
         onShowMinimapChange={(v) => { setShowMinimap(v); window.cyberNotesAPI.setSetting('show_minimap', v.toString()); }}
         showLineCounter={showLineCounter}
@@ -948,6 +951,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
           autoUnlockCapsLock={autoUnlockCapsLock}
           onAutoUnlockCapsLockChange={handleAutoUnlockCapsLockChange}
           autoUnlockCapsLockTimeout={autoUnlockCapsLockTimeout}
+          onCapsStatusChange={setCapsStatus}
           capsLockSound={capsLockSound}
           capsLockSoundScope={capsLockSoundScope}
           uiScale={uiScale}
