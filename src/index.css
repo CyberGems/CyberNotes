@@ -992,6 +992,21 @@ body:has(.has-bg),
   border-top: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.12);
 }
+.about-footer-brand {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.about-footer-brand:hover {
+  color: var(--text-primary);
+}
 .about-footer-links {
   display: flex;
   align-items: center;

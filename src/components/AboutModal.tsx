@@ -260,9 +260,16 @@ export default function AboutModal({ language, onClose }: Props) {
         </div>
 
         <div className="about-modal-footer">
-          <div style={{ fontWeight: 600, letterSpacing: '0.04em' }}>
-            © CyberGems • 2026
-          </div>
+          <Tooltip label={t.websiteTooltip} placement="top">
+            <button
+              type="button"
+              className="about-footer-brand"
+              onClick={() => window.cyberNotesAPI.openExternal('https://cybergems.org')}
+              aria-label={t.websiteTooltip}
+            >
+              © CyberGems • 2026
+            </button>
+          </Tooltip>
           <div className="about-footer-links">
             <Tooltip label={t.githubTooltip} placement="top">
               <button
