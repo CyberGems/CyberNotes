@@ -65,6 +65,7 @@ declare global {
       getSetting: (key: string) => Promise<string | null>;
       getSettings: (keys: string[]) => Promise<Record<string, string | null>>;
       setSetting: (key: string, value: string) => Promise<boolean>;
+      resetSettings: () => Promise<boolean>;
       setAutoStart: (enable: boolean) => Promise<boolean>;
       getAutoStart: () => Promise<boolean>;
       // Folders

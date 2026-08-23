@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -523,6 +523,8 @@ export default function SettingsModal({
                     <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
                   </label>
 
+
+
                   <label style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -532,14 +534,13 @@ export default function SettingsModal({
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
-                  }}>
+                  }} onClick={() => onAutosaveEnabledChange(!autosaveEnabled)}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Autoguardado' : 'Autosave'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Guardar automáticamente al editar. Si se desactiva, usa el botón Guardar en el editor.' : 'Save changes automatically as you type. If disabled, save changes manually.'}</span>
                     </div>
                     <div 
                       className={`custom-switch ${autosaveEnabled ? 'active' : ''}`}
-                      onClick={() => onAutosaveEnabledChange(!autosaveEnabled)}
                     />
                   </label>
 
@@ -1094,6 +1095,60 @@ export default function SettingsModal({
                   >
                     <FolderOpen size={15} />
                     {language === 'es' ? 'Abrir carpeta' : 'Open folder'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 3: Restablecer Ajustes de Fábrica */}
+              <div className="settings-card">
+                <h3>
+                  {language === 'es' ? 'Restablecer Ajustes' : 'Reset Settings'}
+                </h3>
+                <p className="setting-desc" style={{ marginBottom: 16 }}>
+                  {language === 'es'
+                    ? 'Restaura todos los ajustes de configuración de la app a sus valores originales de fábrica sin borrar tus notas ni carpetas.'
+                    : 'Restores all application settings to their original factory values without deleting your notes or folders.'}
+                </p>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                    <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {language === 'es' ? 'Restablecer a valores de fábrica' : 'Reset to factory defaults'}
+                    </span>
+                    <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
+                      {language === 'es'
+                        ? 'Tema, interfaz, atajos y preferencias volverán a su estado inicial.'
+                        : 'Theme, interface, shortcuts, and preferences will return to initial state.'}
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-danger"
+                    onClick={async () => {
+                      const proceed = await showDialog({
+                        variant: 'warning',
+                        confirm: true,
+                        title: language === 'es' ? 'Restablecer ajustes' : 'Reset settings',
+                        message: language === 'es'
+                          ? '¿Estás seguro de restablecer todos los ajustes de fábrica? Tus notas y carpetas se conservarán intactas.'
+                          : 'Are you sure you want to reset all settings to factory defaults? Your notes and folders will remain intact.',
+                      });
+                      if (!proceed) return;
+                      await window.cyberNotesAPI.resetSettings?.();
+                      window.location.reload();
+                    }}
+                    style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px' }}
+                  >
+                    <RotateCcw size={15} />
+                    {language === 'es' ? 'Restablecer' : 'Reset'}
                   </button>
                 </div>
               </div>

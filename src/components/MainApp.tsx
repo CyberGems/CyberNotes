@@ -96,7 +96,7 @@ export default function MainApp({
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [showLineCounter, setShowLineCounter] = useState(false);
   const [showLineGutter, setShowLineGutter] = useState(true);
-  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [autoUnlockCapsLock, setAutoUnlockCapsLock] = useState(true);
   const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(5);
   const [capsStatus, setCapsStatus] = useState<{ active: boolean; timeLeft: number }>({ active: false, timeLeft: 0 });
@@ -269,8 +269,7 @@ export default function MainApp({
     if (s.show_line_gutter === null) setShowLineGutter(true);
     else setShowLineGutter(s.show_line_gutter === 'true');
     setShowLineCounter(s.show_line_counter === 'true');
-
-    if (s.autosave_enabled !== null) setAutosaveEnabled(s.autosave_enabled === 'true');
+    setAutosaveEnabled(s.autosave_enabled === 'true');
     setConfirmLeaveDismissed(s.confirm_leave_note_dismissed === 'true');
     setAutoUnlockCapsLock(s.auto_unlock_caps_lock === 'true');
     if (s.auto_unlock_caps_lock_timeout) setAutoUnlockCapsLockTimeout(parseInt(s.auto_unlock_caps_lock_timeout));

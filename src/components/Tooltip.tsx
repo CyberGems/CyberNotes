@@ -7,6 +7,7 @@ type Placement = 'top' | 'bottom' | 'left' | 'right';
 interface TooltipProps {
   label: ReactNode;
   placement?: Placement;
+  delay?: number;
   children: ReactElement;
 }
 
@@ -22,10 +23,20 @@ function clamp(value: number, min: number, max: number) {
 // Clona al hijo y le añade los handlers de hover sin envolverlo en otro nodo,
 // de modo que no altera los layouts flex existentes. Se reposiciona para no
 // salirse de la pantalla y la flecha se re-ancla al centro del elemento.
-export default function Tooltip({ label, placement = 'bottom', children }: TooltipProps) {
+export default function Tooltip({ label, placement = 'bottom', delay = 250, children }: TooltipProps) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; arrow: CSSProperties } | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => clearTimer(), []);
 
   // Medimos el tooltip ya renderizado y calculamos la posición con clamping.
   useLayoutEffect(() => {
@@ -62,7 +73,7 @@ export default function Tooltip({ label, placement = 'bottom', children }: Toolt
   // Ocultar al hacer scroll para que el tooltip no quede "flotando".
   useEffect(() => {
     if (!anchor) return;
-    const hide = () => setAnchor(null);
+    const hide = () => { clearTimer(); setAnchor(null); };
     window.addEventListener('scroll', hide, true);
     window.addEventListener('wheel', hide, true);
     return () => {
@@ -76,14 +87,21 @@ export default function Tooltip({ label, placement = 'bottom', children }: Toolt
 
   const show = (e: ReactMouseEvent<HTMLElement>) => {
     child.props.onMouseEnter?.(e);
-    if (label) setAnchor(e.currentTarget.getBoundingClientRect());
+    clearTimer();
+    if (!label) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    timerRef.current = setTimeout(() => {
+      setAnchor(rect);
+    }, delay);
   };
   const hide = (e: ReactMouseEvent<HTMLElement>) => {
     child.props.onMouseLeave?.(e);
+    clearTimer();
     setAnchor(null);
   };
   const clickHide = (e: ReactMouseEvent<HTMLElement>) => {
     child.props.onClick?.(e);
+    clearTimer();
     setAnchor(null);
   };
 

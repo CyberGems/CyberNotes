@@ -976,6 +976,13 @@ ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
   return result;
 });
 
+ipcMain.handle('settings:reset', () => {
+  runQuery('DELETE FROM settings');
+  registerToggleHotkey();
+  updateTrayMenu();
+  return true;
+});
+
 ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
   if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled') {

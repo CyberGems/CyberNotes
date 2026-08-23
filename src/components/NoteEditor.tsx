@@ -1511,13 +1511,21 @@ export default function NoteEditor({
             {/* Guardar manual (alineado a la izquierda / primero) */}
             <AnimatePresence>
               {!autosaveEnabled && hasUnsavedChanges && (
-                <>
+                <motion.div
+                  key="manual-save-container"
+                  initial={{ opacity: 0, scale: 0.9, width: 0, marginRight: 0 }}
+                  animate={{ opacity: 1, scale: 1, width: 'auto', marginRight: 4 }}
+                  exit={{ opacity: 0, scale: 0.9, width: 0, marginRight: 0 }}
+                  transition={{ duration: 0.16, ease: 'easeInOut' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   <motion.button
                     onClick={handleManualSave}
-                    initial={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
-                    animate={{ scale: 1, opacity: 1, width: 'auto', marginRight: 4 }}
-                    exit={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
-                    transition={{ type: 'spring', stiffness: 450, damping: 25 }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1533,7 +1541,8 @@ export default function NoteEditor({
                       fontSize: 11,
                       animation: 'cyber-border-pulse 3s ease-in-out infinite',
                       whiteSpace: 'nowrap',
-                      overflow: 'hidden',
+                      marginRight: 4,
+                      flexShrink: 0,
                     }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -1542,12 +1551,12 @@ export default function NoteEditor({
                     <Save size={15} />
                     <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
                   </motion.button>
-                  <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
-                </>
+                  <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+                </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Auto-desbloqueo de mayúsculas (físico) */}
+            {/* Grupo 1: Estado y Marcadores (Bloq Mayús, Favorito) */}
             <Tooltip
               placement="bottom"
               label={
@@ -1590,8 +1599,6 @@ export default function NoteEditor({
             </button>
             </Tooltip>
 
-            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
-
             {/* Favorite */}
             <Tooltip placement="bottom" label={pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}>
             <button
@@ -1611,8 +1618,9 @@ export default function NoteEditor({
             </button>
             </Tooltip>
 
+            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
 
-            {/* Vista HTML */}
+            {/* Grupo 2: Vistas y Edición (HTML, Columnas) */}
             <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Ver código fuente)' : 'HTML View (Source code)'}>
             <button
               type="button"
@@ -1630,8 +1638,6 @@ export default function NoteEditor({
               <Braces size={15} />
             </button>
             </Tooltip>
-
-            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
 
             {/* Cambiar vista */}
             <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Actual: ${layoutMode} columnas)` : `Change view (Current: ${layoutMode} columns)`}>
@@ -1652,9 +1658,9 @@ export default function NoteEditor({
             </button>
             </Tooltip>
 
-            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
+            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
 
-            {/* Exportar nota dropdown trigger */}
+            {/* Grupo 3: Exportar nota dropdown trigger */}
             <div style={{ position: 'relative', display: 'flex' }}>
               <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota (.md / .html)' : 'Export note (.md / .html)'}>
               <button
@@ -1857,8 +1863,29 @@ export default function NoteEditor({
             overflowY: 'auto',
             paddingRight: showMinimap ? MINIMAP_WIDTH + 10 : 10,
             transition: 'padding-right 0.22s ease',
+            position: 'relative',
           }}
         >
+        {/* Tooltip en barra vertical de números de línea */}
+        {showLineGutter && (
+          <Tooltip placement="right" label={language === 'es' ? 'Barra de número de línea' : 'Line numbers gutter'}>
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 50,
+                zIndex: 2,
+                cursor: 'default',
+              }}
+              onContextMenu={() => {
+                lastContextMenuTargetRef.current = 'editor';
+                lastContextMenuTimeRef.current = Date.now();
+              }}
+            />
+          </Tooltip>
+        )}
 
         <div 
           className={showLineGutter ? 'show-line-numbers' : ''}
@@ -1916,7 +1943,18 @@ export default function NoteEditor({
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            setMinimapMenu({ x: e.clientX, y: e.clientY });
+            const MENU_WIDTH = 180;
+            const MENU_HEIGHT = 48;
+            const margin = 10;
+            let x = e.clientX;
+            let y = e.clientY;
+            if (x + MENU_WIDTH + margin > window.innerWidth) {
+              x = window.innerWidth - MENU_WIDTH - margin;
+            }
+            if (y + MENU_HEIGHT + margin > window.innerHeight) {
+              y = window.innerHeight - MENU_HEIGHT - margin;
+            }
+            setMinimapMenu({ x: Math.max(margin, x), y: Math.max(margin, y) });
           }}
           style={{
             position: 'absolute',
@@ -1973,7 +2011,18 @@ export default function NoteEditor({
           if (!showMinimap) return;
           e.preventDefault();
           e.stopPropagation();
-          setMinimapMenu({ x: e.clientX, y: e.clientY });
+          const MENU_WIDTH = 180;
+          const MENU_HEIGHT = 48;
+          const margin = 10;
+          let x = e.clientX;
+          let y = e.clientY;
+          if (x + MENU_WIDTH + margin > window.innerWidth) {
+            x = window.innerWidth - MENU_WIDTH - margin;
+          }
+          if (y + MENU_HEIGHT + margin > window.innerHeight) {
+            y = window.innerHeight - MENU_HEIGHT - margin;
+          }
+          setMinimapMenu({ x: Math.max(margin, x), y: Math.max(margin, y) });
         }}
         style={{
           position: 'absolute',
