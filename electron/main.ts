@@ -23,10 +23,33 @@ if (!fs.existsSync(iconPath)) {
   if (fs.existsSync(fallbackIcon)) iconPath = fallbackIcon;
 }
 
-// Tray icon path (uses .ico for native multi-res crisp rendering on Windows)
+// Tray icon path — ICO kept for fallback, but crisp rendering uses PNG resized to tray DPI (see getTrayIcon)
 let trayIconPath = path.join(isDev ? path.join(__dirname, '..', 'public') : path.join(app.getAppPath(), 'dist'), 'icon.ico');
 if (!fs.existsSync(trayIconPath)) {
   trayIconPath = iconPath;
+}
+
+function getTrayIcon(): string | Electron.NativeImage {
+  try {
+    const pngPath = isDev
+      ? path.join(__dirname, '..', 'public', 'icon.png')
+      : path.join(app.getAppPath(), 'dist', 'icon.png');
+    if (fs.existsSync(pngPath)) {
+      let scale = 1;
+      try { scale = screen.getPrimaryDisplay()?.scaleFactor || 1; } catch { scale = 1; }
+      let size = 16;
+      if (scale >= 2) size = 32;
+      else if (scale >= 1.5) size = 24;
+      else if (scale >= 1.25) size = 20;
+      else size = 16;
+      const img = nativeImage.createFromPath(pngPath);
+      if (!img.isEmpty()) {
+        const resized = img.resize({ width: size, height: size, quality: 'best' });
+        if (!resized.isEmpty()) return resized;
+      }
+    }
+  } catch { /* fallback to ICO */ }
+  return trayIconPath;
 }
 
 // ─── bcrypt (pure JS, no nativo) ──────────────────────────────────────────
@@ -605,7 +628,7 @@ function updateTrayMenu() {
 
 function createTray() {
   try {
-    tray = new Tray(trayIconPath);
+    tray = new Tray(getTrayIcon());
     tray.setToolTip(`CyberNotes v${app.getVersion()}`);
 
     tray.on('click', () => {
