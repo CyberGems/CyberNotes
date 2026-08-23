@@ -1561,7 +1561,7 @@ export default function NoteEditor({
                 e.currentTarget.style.color = pinned ? 'var(--accent-light)' : 'var(--text-muted)';
               }}
             >
-              <Star size={15} strokeWidth={2} fill={pinned ? 'currentColor' : 'none'} />
+              <Star size={15} fill={pinned ? 'currentColor' : 'none'} stroke={pinned ? 'none' : 'currentColor'} strokeWidth={pinned ? 0 : 2} />
             </button>
             </Tooltip>
 

@@ -653,12 +653,12 @@ export default function MainApp({
       created_at: now,
     };
     await window.cyberNotesAPI.createFolder(folder);
-    setFolders(prev => [...prev, folder]);
+    setFolders(prev => [...prev, folder].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
   };
 
   const handleUpdateFolder = async (folder: Folder) => {
     await window.cyberNotesAPI.updateFolder(folder);
-    setFolders(prev => prev.map(f => f.id === folder.id ? folder : f));
+    setFolders(prev => prev.map(f => f.id === folder.id ? folder : f).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
   };
 
   const handleDeleteFolder = async (id: string) => {

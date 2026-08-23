@@ -7,6 +7,12 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Ventana --
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximizeToggle: () => ipcRenderer.invoke('window-maximize-toggle'),
+  isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+  onMaximizedState: (callback: (isMax: boolean) => void) => {
+    const listener = (_e: any, isMax: boolean) => callback(isMax);
+    ipcRenderer.on('window:maximized-state', listener);
+    return () => ipcRenderer.removeListener('window:maximized-state', listener);
+  },
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowForceClose: () => ipcRenderer.invoke('window-force-close'),
   openDevTools: () => ipcRenderer.invoke('open-dev-tools'),

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen, clipboard, nativeImage, net } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen, clipboard, nativeImage, net, globalShortcut } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -392,7 +392,27 @@ function buildTrayMenuState() {
     settingsLabel: isEs ? 'Configuración' : 'Settings',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Quit',
+    shortcut: 'Alt+Shift+N',
   };
+}
+
+function registerToggleHotkey() {
+  try {
+    globalShortcut.unregisterAll();
+    globalShortcut.register('Alt+Shift+N', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (isWindowShown()) {
+        if (hasPasswordHash()) {
+          mainWindow.webContents.send('session:shield-enable');
+        }
+        mainWindow.hide();
+      } else {
+        restoreWindow();
+      }
+    });
+  } catch (err) {
+    console.error('Failed to register global hotkey Alt+Shift+N:', err);
+  }
 }
 
 function trayMenuGeometry(iconBounds: any, windowW: number, windowH: number) {
@@ -661,8 +681,14 @@ function createWindow() {
   mainWindow.on('resize', () => saveWindowState(false));
   mainWindow.on('move', () => saveWindowState(false));
   mainWindow.on('close', () => saveWindowState(true));
-  mainWindow.on('maximize', () => saveWindowState(true));
-  mainWindow.on('unmaximize', () => saveWindowState(true));
+  mainWindow.on('maximize', () => {
+    saveWindowState(true);
+    mainWindow?.webContents.send('window:maximized-state', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    saveWindowState(true);
+    mainWindow?.webContents.send('window:maximized-state', false);
+  });
   mainWindow.on('hide', () => {
     saveWindowState(true);
     updateTrayMenu();
@@ -785,6 +811,9 @@ ipcMain.handle('window-minimize', () => {
 ipcMain.handle('window-maximize-toggle', () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize();
   else mainWindow?.maximize();
+});
+ipcMain.handle('window:is-maximized', () => {
+  return !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized());
 });
 ipcMain.handle('window-close', () => mainWindow?.close());
 ipcMain.handle('window:unsavedChanges:set', (_e: any, val: boolean) => {
@@ -1179,6 +1208,7 @@ if (!gotTheLock) {
     startIdleLockWatcher();
     createWindow();
     createTray();
+    registerToggleHotkey();
 
     const scopeVal = queryGet('SELECT value FROM settings WHERE key = ?', ['caps_lock_sound_scope']);
     if (scopeVal?.value === 'global') {
@@ -1203,6 +1233,7 @@ if (!gotTheLock) {
 
   app.on('before-quit', () => {
     isQuitting = true;
+    try { globalShortcut.unregisterAll(); } catch (_) {}
     if (idleLockInterval) {
       clearInterval(idleLockInterval);
       idleLockInterval = null;

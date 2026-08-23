@@ -373,8 +373,8 @@ export default function Sidebar({
           >
             <Star
               size={15}
-              strokeWidth={2}
-              fill={selectedFolderId === 'favorites' && !searchQuery ? 'currentColor' : 'none'}
+              fill="currentColor"
+              stroke="none"
             />
           </motion.span>
           <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.favorites}</span>

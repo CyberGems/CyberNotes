@@ -681,7 +681,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0, paddingRight: 28 }}>
-            {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" strokeWidth={2} style={{ flexShrink: 0 }} />}
+            {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
             <span style={{
               fontSize: 'calc(13px * var(--ui-scale))',
               fontWeight: 600,

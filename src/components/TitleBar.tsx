@@ -44,7 +44,7 @@ function formatCapsTime(sec: number): string {
 }
 
 export default function TitleBar({
-  language = 'en',
+  language = 'es',
   onLock,
   onOpenSettings,
   onOpenAbout,
@@ -53,22 +53,23 @@ export default function TitleBar({
   recentNotes = [],
   autosaveEnabled = true,
   onAutosaveChange,
-  autoUnlockCapsLock = true,
+  autoUnlockCapsLock = false,
   onAutoUnlockCapsLockChange,
-  autoUnlockCapsLockTimeout = 5,
+  autoUnlockCapsLockTimeout = 10,
   showMinimap = false,
   onShowMinimapChange,
-  showLineCounter = false,
+  showLineCounter = true,
   onShowLineCounterChange,
   showLineGutter = true,
   onShowLineGutterChange,
-  showWordCounter = false,
+  showWordCounter = true,
   onShowWordCounterChange,
-  rememberLastNote = false,
+  rememberLastNote = true,
   onRememberLastNoteChange,
   capsStatus,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
@@ -85,6 +86,12 @@ export default function TitleBar({
     if (menuOpen) document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [menuOpen]);
+
+  useEffect(() => {
+    window.cyberNotesAPI.isMaximized?.().then(setIsMaximized).catch(() => {});
+    const unsub = window.cyberNotesAPI.onMaximizedState?.((max) => setIsMaximized(max));
+    return () => { unsub?.(); };
+  }, []);
 
   const t = (es: string, en: string) => language === 'es' ? es : en;
 
@@ -493,13 +500,28 @@ export default function TitleBar({
           <Minus size={13} />
         </button>
         </Tooltip>
-        <Tooltip placement="bottom" label={t('Maximizar', 'Maximize')}>
+        <Tooltip placement="bottom" label={isMaximized ? t('Restaurar', 'Restore') : t('Maximizar', 'Maximize')}>
         <button
           className="btn-icon titlebar-btn"
           onClick={() => window.cyberNotesAPI.windowMaximizeToggle()}
           style={{ width: 28, height: 28 }}
+          aria-label={isMaximized ? 'Restore' : 'Maximize'}
         >
-          <Square size={11} />
+          {isMaximized ? (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="4 14 10 14 10 20"/>
+              <polyline points="20 10 14 10 14 4"/>
+              <line x1="14" y1="10" x2="21" y2="3"/>
+              <line x1="10" y1="14" x2="3" y2="21"/>
+            </svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9"/>
+              <polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/>
+              <line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          )}
         </button>
         </Tooltip>
         <Tooltip placement="bottom" label={t('Cerrar', 'Close')}>

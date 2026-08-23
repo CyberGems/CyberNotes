@@ -41,6 +41,8 @@ declare global {
       // Ventana
       windowMinimize: () => Promise<void>;
       windowMaximizeToggle: () => Promise<void>;
+      isMaximized?: () => Promise<boolean>;
+      onMaximizedState?: (callback: (isMax: boolean) => void) => () => void;
       windowClose: () => Promise<void>;
       windowForceClose: () => Promise<void>;
       openDevTools: () => Promise<void>;
