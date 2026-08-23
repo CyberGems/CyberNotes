@@ -28,6 +28,7 @@ interface Props {
   rememberLastNote?: boolean;
   onRememberLastNoteChange?: (v: boolean) => void;
   minimizeToTray?: boolean;
+  closeToTray?: boolean;
   /** Caps Lock físico activo + countdown (desde NoteEditor) */
   capsStatus?: { active: boolean; timeLeft: number };
 }
@@ -68,6 +69,7 @@ export default function TitleBar({
   rememberLastNote = true,
   onRememberLastNoteChange,
   minimizeToTray = false,
+  closeToTray = false,
   capsStatus,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -543,7 +545,7 @@ export default function TitleBar({
           )}
         </button>
         </Tooltip>
-        <Tooltip placement="bottom" label={t('Cerrar', 'Close')}>
+        <Tooltip placement="bottom" label={closeToTray ? t('Cerrar a la bandeja', 'Close to tray') : t('Cerrar', 'Close')}>
         <button
           className="btn-icon titlebar-btn close-btn"
           onClick={() => window.cyberNotesAPI.windowClose()}
