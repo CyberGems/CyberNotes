@@ -1508,14 +1508,59 @@ export default function NoteEditor({
             borderRadius: 'var(--radius-md)',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
           }}>
-            {/* Auto-desactivar Caps Lock (countdown en title bar) */}
-            <Tooltip placement="bottom" label={t.editor.capsLockAutoOn}>
+            {/* Guardar manual (alineado a la izquierda / primero) */}
+            <AnimatePresence>
+              {!autosaveEnabled && hasUnsavedChanges && (
+                <>
+                  <motion.button
+                    onClick={handleManualSave}
+                    initial={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
+                    animate={{ scale: 1, opacity: 1, width: 'auto', marginRight: 4 }}
+                    exit={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '6px 10px',
+                      minHeight: 32,
+                      borderRadius: 6,
+                      border: '1px solid var(--accent)',
+                      background: 'var(--accent-dim)',
+                      color: 'var(--accent-light)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 11,
+                      animation: 'cyber-border-pulse 3s ease-in-out infinite',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                    }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <Save size={15} />
+                    <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
+                  </motion.button>
+                  <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Auto-desbloqueo de mayúsculas (físico) */}
+            <Tooltip
+              placement="bottom"
+              label={
+                autoUnlockCapsLock
+                  ? t.editor.capsLockAutoOn
+                  : t.editor.capsLockAutoOff
+              }
+            >
             <button
               type="button"
               onClick={() => {
                 const nextVal = !autoUnlockCapsLock;
                 onAutoUnlockCapsLockChange?.(nextVal);
-                // Sin toast: el estado se ve en el botón y en la title bar
               }}
               style={noteActionBtnStyle(autoUnlockCapsLock)}
               onMouseEnter={e => {
@@ -1527,7 +1572,7 @@ export default function NoteEditor({
                 e.currentTarget.style.color = autoUnlockCapsLock ? 'var(--accent-light)' : 'var(--text-muted)';
               }}
             >
-              <CaseSensitive size={15} />
+              <span style={{ fontSize: 14, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>⇪</span>
               {isCapsLockActive && (
                 <span style={{
                   position: 'absolute',
@@ -1566,41 +1611,6 @@ export default function NoteEditor({
             </button>
             </Tooltip>
 
-            {/* Guardar manual */}
-            <AnimatePresence>
-              {!autosaveEnabled && hasUnsavedChanges && (
-                <motion.button
-                  onClick={handleManualSave}
-                  initial={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
-                  animate={{ scale: 1, opacity: 1, width: 'auto', marginRight: 4 }}
-                  exit={{ scale: 0, opacity: 0, width: 0, marginRight: 0 }}
-                  transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    padding: '6px 10px',
-                    minHeight: 32,
-                    borderRadius: 6,
-                    border: '1px solid var(--accent)',
-                    background: 'var(--accent-dim)',
-                    color: 'var(--accent-light)',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: 11,
-                    animation: 'cyber-border-pulse 3s ease-in-out infinite',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                  }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  <Save size={15} />
-                  <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
-                </motion.button>
-              )}
-            </AnimatePresence>
 
             {/* Vista HTML */}
             <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Ver código fuente)' : 'HTML View (Source code)'}>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, LogOut, FileText, Info } from 'lucide-react';
+import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, LogOut, FileText, Info, Minimize2 } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 
@@ -27,6 +27,7 @@ interface Props {
   onShowWordCounterChange?: (v: boolean) => void;
   rememberLastNote?: boolean;
   onRememberLastNoteChange?: (v: boolean) => void;
+  minimizeToTray?: boolean;
   /** Caps Lock físico activo + countdown (desde NoteEditor) */
   capsStatus?: { active: boolean; timeLeft: number };
 }
@@ -66,6 +67,7 @@ export default function TitleBar({
   onShowWordCounterChange,
   rememberLastNote = true,
   onRememberLastNoteChange,
+  minimizeToTray = false,
   capsStatus,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -192,7 +194,7 @@ export default function TitleBar({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 8,
+                  gap: 6,
                   maxWidth: '100%',
                   padding: '3px 10px',
                   borderRadius: 999,
@@ -206,11 +208,20 @@ export default function TitleBar({
                   ...chipStyle,
                 }}
               >
-                <span style={{ fontSize: 12, lineHeight: 1, opacity: capsOn ? 1 : 0.7 }} aria-hidden>⇪</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {capsOn
-                    ? t('Bloq Mayús activo', 'Caps Lock on')
-                    : t('Bloq Mayús apagado', 'Caps Lock off')}
+                <span style={{ fontSize: 13, lineHeight: 1, opacity: capsOn ? 1 : 0.7, fontWeight: 700 }} aria-hidden>⇪</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span>{t('Bloq Mayús', 'Caps Lock')}</span>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: capsOn ? '#22c55e' : 'rgba(255,255,255,0.25)',
+                      boxShadow: capsOn ? '0 0 6px #22c55e' : 'none',
+                      flexShrink: 0,
+                    }}
+                  />
                   {capsOn && autoOn && timeLeft > 0 && (
                     <span style={{ opacity: 0.95, fontWeight: 500 }}>
                       {' · '}
@@ -362,7 +373,7 @@ export default function TitleBar({
                 className="menu-item"
                 onClick={() => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock)}
               >
-                <CaseSensitive size={14} style={{ opacity: 0.7 }} />
+                <span style={{ fontSize: 13, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, opacity: 0.7 }}>⇪</span>
                 <span style={{ flex: 1 }}>{t('Auto-unlock Caps', 'Auto-unlock Caps')}</span>
                 <div style={toggleStyle(autoUnlockCapsLock)}>
                   <div style={{ ...toggleDot, left: autoUnlockCapsLock ? 16 : 2 }} />
@@ -435,11 +446,20 @@ export default function TitleBar({
                 <Info size={14} style={{ opacity: 0.7 }} />
                 <span>{t('Acerca de', 'About')}</span>
               </button>
+              {minimizeToTray && (
+                <button
+                  className="menu-item"
+                  onClick={() => { setMenuOpen(false); window.cyberNotesAPI.windowMinimize(); }}
+                >
+                  <Minimize2 size={14} style={{ opacity: 0.7 }} />
+                  <span>{t('Ocultar en la bandeja', 'Hide to tray')}</span>
+                </button>
+              )}
               <button
                 className="menu-item"
                 onClick={() => { setMenuOpen(false); onLock?.(); }}
               >
-                <LogOut size={14} style={{ opacity: 0.7 }} />
+                <LogOut size={14} style={{ opacity: 0.7, transform: 'scaleX(-1)' }} />
                 <span>{t('Cerrar sesión', 'Sign out')}</span>
               </button>
 
@@ -472,9 +492,8 @@ export default function TitleBar({
                 <button
                   className="menu-item"
                   onClick={() => setExitConfirm(true)}
-                  style={{ color: '#ef4444' }}
                 >
-                  <LogOut size={14} style={{ opacity: 0.9 }} />
+                  <LogOut size={14} style={{ color: '#ef4444', transform: 'scaleX(-1)' }} />
                   <span>{t('Salir', 'Exit')}</span>
                 </button>
               )}
@@ -491,7 +510,7 @@ export default function TitleBar({
           margin: '0 6px',
         }} />
 
-        <Tooltip placement="bottom" label={t('Minimizar', 'Minimize')}>
+        <Tooltip placement="bottom" label={minimizeToTray ? t('Minimizar a la bandeja', 'Minimize to tray') : t('Minimizar', 'Minimize')}>
         <button
           className="btn-icon titlebar-btn"
           onClick={() => window.cyberNotesAPI.windowMinimize()}

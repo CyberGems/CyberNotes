@@ -93,6 +93,7 @@ export default function MainApp({
   } | null>(null);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [rememberLastNote, setRememberLastNote] = useState(false);
+  const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [showLineCounter, setShowLineCounter] = useState(false);
   const [showLineGutter, setShowLineGutter] = useState(true);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
@@ -149,6 +150,9 @@ export default function MainApp({
     const unregisterSettingChanged = window.cyberNotesAPI.onSettingChanged((data) => {
       if (data.key === 'auto_unlock_caps_lock') {
         setAutoUnlockCapsLock(data.value === 'true');
+      }
+      if (data.key === 'minimize_to_tray') {
+        setMinimizeToTray(data.value === 'true');
       }
     });
 
@@ -247,7 +251,7 @@ export default function MainApp({
   const loadSettings = async () => {
     const s = await window.cyberNotesAPI.getSettings([
       'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity', 'auto_lock_minutes',
-      'remember_last_note', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
+      'remember_last_note', 'minimize_to_tray', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
       'show_word_counter', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
@@ -260,6 +264,7 @@ export default function MainApp({
 
     const isRemember = s.remember_last_note === 'true';
     setRememberLastNote(isRemember);
+    setMinimizeToTray(s.minimize_to_tray === 'true');
 
     if (s.show_line_gutter === null) setShowLineGutter(true);
     else setShowLineGutter(s.show_line_gutter === 'true');
@@ -859,6 +864,7 @@ export default function MainApp({
         onShowWordCounterChange={(v) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
         rememberLastNote={rememberLastNote}
         onRememberLastNoteChange={handleRememberLastNoteChange}
+        minimizeToTray={minimizeToTray}
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
