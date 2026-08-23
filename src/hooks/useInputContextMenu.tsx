@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { Scissors, Copy, Clipboard, CheckSquare, Trash2 } from 'lucide-react';
 import { Language } from '../languages';
 
 interface MenuState {
@@ -65,15 +66,15 @@ export function useInputContextMenu(language: Language) {
 
   const t = (es: string, en: string) => (language === 'es' ? es : en);
 
-  const itemStyle = (enabled: boolean, danger?: boolean): React.CSSProperties => ({
+  const itemStyle = (enabled: boolean): CSSProperties => ({
     textAlign: 'left', padding: '6px 10px', fontSize: 13,
     background: 'transparent', border: 'none', borderRadius: 4,
-    color: !enabled ? 'var(--text-muted)' : danger ? 'var(--danger)' : 'var(--text-primary)',
+    color: !enabled ? 'var(--text-muted)' : 'var(--text-primary)',
     cursor: enabled ? 'pointer' : 'default',
     opacity: enabled ? 1 : 0.5,
   });
 
-  const Item = ({ label, enabled, onClick, danger }: { label: string; enabled: boolean; onClick: () => void; danger?: boolean }) => (
+  const Item = ({ icon, label, enabled, onClick, danger }: { icon: ReactNode; label: string; enabled: boolean; onClick: () => void; danger?: boolean }) => (
     <button
       disabled={!enabled}
       onMouseDown={e => {
@@ -82,11 +83,19 @@ export function useInputContextMenu(language: Language) {
         if (!enabled) return;
         onClick();
       }}
-      style={itemStyle(enabled, danger)}
+      style={{
+        ...itemStyle(enabled),
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}
       onMouseEnter={e => { if (enabled) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
     >
-      {label}
+      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, color: danger ? 'var(--danger)' : 'inherit', flexShrink: 0 }}>
+        {icon}
+      </span>
+      <span style={{ flex: 1 }}>{label}</span>
     </button>
   );
 
@@ -106,12 +115,12 @@ export function useInputContextMenu(language: Language) {
         onMouseDown={e => e.preventDefault()}  // mantiene el campo enfocado
         onClick={e => e.stopPropagation()}
       >
-        <Item label={t('Cortar', 'Cut')} enabled={menu.hasSelection && !menu.isPassword} onClick={() => exec('cut')} />
-        <Item label={t('Copiar', 'Copy')} enabled={menu.hasSelection && !menu.isPassword} onClick={() => exec('copy')} />
-        <Item label={t('Pegar', 'Paste')} enabled={true} onClick={paste} />
+        <Item icon={<Scissors size={13} />} label={t('Cortar', 'Cut')} enabled={menu.hasSelection && !menu.isPassword} onClick={() => exec('cut')} />
+        <Item icon={<Copy size={13} />} label={t('Copiar', 'Copy')} enabled={menu.hasSelection && !menu.isPassword} onClick={() => exec('copy')} />
+        <Item icon={<Clipboard size={13} />} label={t('Pegar', 'Paste')} enabled={true} onClick={paste} />
         <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-        <Item label={t('Seleccionar todo', 'Select all')} enabled={menu.hasValue} onClick={selectAll} />
-        <Item label={t('Eliminar', 'Delete')} enabled={menu.hasSelection} onClick={() => exec('delete')} danger />
+        <Item icon={<CheckSquare size={13} />} label={t('Seleccionar todo', 'Select all')} enabled={menu.hasValue} onClick={selectAll} />
+        <Item icon={<Trash2 size={13} />} label={t('Eliminar', 'Delete')} enabled={menu.hasSelection} onClick={() => exec('delete')} danger />
       </div>
     </>,
     document.body

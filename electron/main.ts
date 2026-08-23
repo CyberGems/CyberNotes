@@ -379,11 +379,17 @@ function isWindowShown(): boolean {
   return !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible());
 }
 
+function isToggleHotkeyEnabled(): boolean {
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', ['toggle_hotkey_enabled']);
+  return row ? row.value !== 'false' : true;
+}
+
 function buildTrayMenuState() {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const lang = langVal?.value || 'en';
   const isEs = lang === 'es';
   const visible = isWindowShown();
+  const hotkeyEnabled = isToggleHotkeyEnabled();
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
@@ -392,13 +398,14 @@ function buildTrayMenuState() {
     settingsLabel: isEs ? 'Configuración' : 'Settings',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Quit',
-    shortcut: 'Alt+Shift+N',
+    shortcut: hotkeyEnabled ? 'Alt+Shift+N' : '',
   };
 }
 
 function registerToggleHotkey() {
   try {
     globalShortcut.unregisterAll();
+    if (!isToggleHotkeyEnabled()) return;
     globalShortcut.register('Alt+Shift+N', () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       if (isWindowShown()) {
@@ -971,7 +978,10 @@ ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
 
 ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
-  if (key === 'auto_unlock_caps_lock' || key === 'language') {
+  if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled') {
+    if (key === 'toggle_hotkey_enabled') {
+      registerToggleHotkey();
+    }
     updateTrayMenu();
   }
   if (key === 'caps_lock_sound_scope') {

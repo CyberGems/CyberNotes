@@ -20,7 +20,8 @@ import {
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
   Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
-  Undo, Redo, Save, Download, X
+  Undo, Redo, Save, Download, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
+  CheckSquare, Trash2, RemoveFormatting, BookPlus
 } from 'lucide-react';
 
 interface Props {
@@ -2265,20 +2266,34 @@ export default function NoteEditor({
             onClick={(e) => e.stopPropagation()}
           >
           {(() => {
-            const itemStyle = (enabled: boolean, danger?: boolean): React.CSSProperties => ({
-              textAlign: 'left', padding: '6px 10px', fontSize: 13,
-              background: 'transparent', border: 'none', borderRadius: 4,
-              color: !enabled ? 'var(--text-muted)' : danger ? 'var(--danger)' : 'var(--text-primary)',
+            const itemStyle = (enabled: boolean): React.CSSProperties => ({
+              textAlign: 'left',
+              padding: '6px 10px',
+              fontSize: 13,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
               cursor: enabled ? 'pointer' : 'default',
-              opacity: enabled ? 1 : 0.5,
+              opacity: enabled ? 1 : 0.45,
+              color: !enabled ? 'var(--text-muted)' : 'var(--text-primary)',
             });
             const runAction = (fn: () => void) => {
               try { fn(); } finally { setContextMenu(null); }
             };
             const MenuBtn = ({
-              label, enabled, onAction, danger, extraStyle,
+              icon,
+              label,
+              enabled,
+              onAction,
+              danger,
+              extraStyle,
             }: {
-              label: string; enabled: boolean; onAction: () => void; danger?: boolean; extraStyle?: React.CSSProperties;
+              icon?: React.ReactNode;
+              label: string;
+              enabled: boolean;
+              onAction: () => void;
+              danger?: boolean;
+              extraStyle?: React.CSSProperties;
             }) => (
               <button
                 type="button"
@@ -2289,13 +2304,24 @@ export default function NoteEditor({
                   if (!enabled) return;
                   runAction(onAction);
                 }}
-                style={{ ...itemStyle(enabled, danger), ...extraStyle }}
+                style={{
+                  ...itemStyle(enabled),
+                  ...extraStyle,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
                 onMouseEnter={e => {
                   if (enabled) (e.currentTarget as HTMLElement).style.background = danger ? 'var(--danger-dim)' : 'var(--bg-hover)';
                 }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
-                {label}
+                {icon && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, color: danger ? 'var(--danger)' : 'inherit', flexShrink: 0 }}>
+                    {icon}
+                  </span>
+                )}
+                <span style={{ flex: 1 }}>{label}</span>
               </button>
             );
 
@@ -2346,11 +2372,12 @@ export default function NoteEditor({
                     window.cyberNotesAPI?.addToDictionary?.(contextMenu.misspelledWord!);
                   });
                 }}
-                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--success)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                style={{ textAlign: 'left', padding: '6px 10px', fontSize: 13, background: 'transparent', color: 'var(--success)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
-                {language === 'es' ? `Agregar "${contextMenu.misspelledWord}" al diccionario` : `Add "${contextMenu.misspelledWord}" to dictionary`}
+                <BookPlus size={13} style={{ flexShrink: 0 }} />
+                <span>{language === 'es' ? `Agregar "${contextMenu.misspelledWord}" al diccionario` : `Add "${contextMenu.misspelledWord}" to dictionary`}</span>
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
             </>
@@ -2359,17 +2386,20 @@ export default function NoteEditor({
           {contextMenu.linkHref && (
             <>
               <MenuBtn
+                icon={<ExternalLink size={13} />}
                 label={language === 'es' ? 'Abrir en navegador' : 'Open in browser'}
                 enabled
                 extraStyle={{ color: 'var(--accent-light)', fontWeight: 600 }}
                 onAction={() => { window.open(contextMenu.linkHref, '_blank'); }}
               />
               <MenuBtn
+                icon={<Pencil size={13} />}
                 label={language === 'es' ? 'Editar enlace' : 'Edit link'}
                 enabled
                 onAction={() => { setEditLinkData({ href: contextMenu.linkHref! }); }}
               />
               <MenuBtn
+                icon={<Unlink size={13} />}
                 label={language === 'es' ? 'Eliminar enlace' : 'Remove link'}
                 enabled
                 danger
@@ -2380,6 +2410,7 @@ export default function NoteEditor({
           )}
 
           <MenuBtn
+            icon={<Undo size={13} />}
             label={language === 'es' ? 'Deshacer' : 'Undo'}
             enabled={contextMenu.canUndo}
             onAction={() => {
@@ -2392,6 +2423,7 @@ export default function NoteEditor({
             }}
           />
           <MenuBtn
+            icon={<Redo size={13} />}
             label={language === 'es' ? 'Rehacer' : 'Redo'}
             enabled={contextMenu.canRedo}
             onAction={() => {
@@ -2407,16 +2439,19 @@ export default function NoteEditor({
           <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
           <MenuBtn
+            icon={<Scissors size={13} />}
             label={language === 'es' ? 'Cortar' : 'Cut'}
             enabled={contextMenu.hasSelection}
             onAction={() => { document.execCommand('cut'); }}
           />
           <MenuBtn
+            icon={<Copy size={13} />}
             label={copyLabel}
             enabled={contextMenu.hasSelection || !!contextMenu.imageSrc}
             onAction={() => { void copySelectionOrImage(); }}
           />
           <MenuBtn
+            icon={<Clipboard size={13} />}
             label={language === 'es' ? 'Pegar' : 'Paste'}
             enabled={contextMenu.canPaste}
             onAction={() => {
@@ -2443,6 +2478,7 @@ export default function NoteEditor({
           />
           
           <MenuBtn
+            icon={<CheckSquare size={13} />}
             label={language === 'es' ? 'Seleccionar todo' : 'Select all'}
             enabled={contextMenu.hasContent}
             onAction={() => {
@@ -2455,6 +2491,7 @@ export default function NoteEditor({
           />
           
           <MenuBtn
+            icon={<Trash2 size={13} />}
             label={t.general.delete}
             enabled={contextMenu.hasSelection}
             danger
@@ -2483,18 +2520,21 @@ export default function NoteEditor({
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
               <MenuBtn
+                icon={<Bold size={13} />}
                 label={language === 'es' ? 'Negrita' : 'Bold'}
                 enabled
                 extraStyle={{ fontWeight: 'bold' }}
                 onAction={() => { editor.chain().focus().toggleBold().run(); }}
               />
               <MenuBtn
+                icon={<Italic size={13} />}
                 label={language === 'es' ? 'Cursiva' : 'Italic'}
                 enabled
                 extraStyle={{ fontStyle: 'italic' }}
                 onAction={() => { editor.chain().focus().toggleItalic().run(); }}
               />
               <MenuBtn
+                icon={<UnderlineIcon size={13} />}
                 label={language === 'es' ? 'Subrayado' : 'Underline'}
                 enabled
                 extraStyle={{ textDecoration: 'underline' }}
@@ -2504,6 +2544,7 @@ export default function NoteEditor({
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
               <MenuBtn
+                icon={<RemoveFormatting size={13} />}
                 label={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
                 enabled
                 onAction={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); }}

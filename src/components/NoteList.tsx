@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal, FileText } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon from './FolderIcon';
@@ -337,7 +337,8 @@ export default function NoteList({
                             note={note}
                             folder={folder}
                             viewMode={viewMode}
-                            isSelected={note.id === selectedNoteId}
+                            isSelected={selectedNoteId === note.id}
+                            isContextActive={contextMenu?.note.id === note.id}
                             onClick={() => onSelectNote(note.id)}
                             onDelete={() => setNoteToDelete(note)}
                             onContextMenu={(e) => handleContextMenu(e, note)}
@@ -435,34 +436,40 @@ export default function NoteList({
           onClick={e => e.stopPropagation()}
         >
           <button
-            onClick={() => onSelectNote(contextMenu.note.id)}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+            onClick={() => { onSelectNote(contextMenu.note.id); setContextMenu(null); }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
-            {language === 'es' ? 'Abrir nota' : 'Open note'}
+            <FileText size={13} style={{ flexShrink: 0 }} />
+            <span>{language === 'es' ? 'Abrir nota' : 'Open note'}</span>
           </button>
           <button
             onClick={() => { setRenameTarget(contextMenu.note); setRenameInput(contextMenu.note.title); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
-            {language === 'es' ? 'Renombrar' : 'Rename'}
+            <Pencil size={13} style={{ flexShrink: 0 }} />
+            <span>{language === 'es' ? 'Renombrar' : 'Rename'}</span>
           </button>
           <button
-            onClick={() => onTogglePin(contextMenu.note)}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+            onClick={() => { onTogglePin(contextMenu.note); setContextMenu(null); }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
-            {contextMenu.note.pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}
+            <Star size={13} fill={contextMenu.note.pinned ? 'currentColor' : 'none'} color={contextMenu.note.pinned ? 'var(--accent-light)' : 'inherit'} style={{ flexShrink: 0 }} />
+            <span>{contextMenu.note.pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}</span>
           </button>
 
           {folders.length > 0 && (
             <>
               <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
-              <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{language === 'es' ? 'Mover a...' : 'Move to...'}</div>
+              <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <FolderInput size={11} />
+                <span>{language === 'es' ? 'Mover a...' : 'Move to...'}</span>
+              </div>
               <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <button
                   onClick={() => { onMoveNote(contextMenu.note.id, null); setContextMenu(null); }}
@@ -491,12 +498,14 @@ export default function NoteList({
           <button
             onClick={() => {
               setNoteToDelete(contextMenu.note);
+              setContextMenu(null);
             }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, color: 'var(--danger)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, color: 'var(--text-primary)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
-            {t.general.delete}
+            <Trash2 size={13} color="var(--danger)" style={{ color: 'var(--danger)', flexShrink: 0 }} />
+            <span>{t.general.delete}</span>
           </button>
         </div>,
         document.body
@@ -633,15 +642,16 @@ export default function NoteList({
 interface NoteItemProps {
   language: Language;
   note: Note;
-  folder: Folder | null;
-  viewMode: ViewMode;
+  folder?: Folder | null;
+  viewMode: 'normal' | 'compact';
   isSelected: boolean;
+  isContextActive?: boolean;
   onClick: () => void;
   onDelete: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, onClick, onDelete, onContextMenu }: NoteItemProps) {
+const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, onClick, onDelete, onContextMenu }: NoteItemProps) {
   const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
   const t = TRANSLATIONS[language];
 
@@ -660,12 +670,12 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         padding: viewMode === 'compact' ? '5px 14px' : '10px 14px',
         margin: '0 12px',
         borderRadius: 'var(--radius-md)',
-        background: isSelected ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
+        background: isSelected || isContextActive ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
         cursor: 'pointer',
         position: 'relative',
         transition: 'background var(--transition), border-color var(--transition)',
-        border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border)',
-        boxShadow: isSelected ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
+        border: isSelected || isContextActive ? '1px solid var(--accent)' : '1px solid var(--border)',
+        boxShadow: isSelected || isContextActive ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',

@@ -493,8 +493,10 @@ export default function Sidebar({
 
         {/* Lista de folders */}
         {folders.map(folder => {
-          const isTarget = activeDropTargetId === folder.id;
           const isSelected = selectedFolderId === folder.id;
+          const isTarget = isNoteDragging && activeDropTargetId === folder.id;
+          const isContextActive = contextMenu?.folder.id === folder.id;
+
           return (
             <motion.button
               key={folder.id}
@@ -507,7 +509,11 @@ export default function Sidebar({
                   setActiveDropTargetId(folder.id);
                 }
               }}
-              onDragLeave={() => setActiveDropTargetId(null)}
+              onDragLeave={() => {
+                if (activeDropTargetId === folder.id) {
+                  setActiveDropTargetId(null);
+                }
+              }}
               onDrop={e => {
                 e.preventDefault();
                 const noteId = e.dataTransfer.getData('text/plain');
@@ -532,29 +538,33 @@ export default function Sidebar({
                   ? isTarget
                     ? `1px solid ${folder.color}`
                     : `1px dashed ${folder.color}55`
-                  : '1px solid transparent',
+                  : isContextActive
+                    ? `1px solid ${folder.color}66`
+                    : '1px solid transparent',
                 background: isTarget
                   ? `${folder.color}22`
-                  : isSelected
+                  : isSelected || isContextActive
                     ? 'var(--bg-active)'
                     : 'transparent',
                 color: isTarget
                   ? '#fff'
-                  : isSelected
+                  : isSelected || isContextActive
                     ? 'var(--text-primary)'
                     : 'var(--text-secondary)',
                 cursor: 'pointer',
                 fontSize: 'calc(13px * var(--ui-scale))',
-                fontWeight: isSelected || isTarget ? 600 : 400,
+                fontWeight: isSelected || isTarget || isContextActive ? 600 : 400,
                 textAlign: 'left',
                 transition: 'all 0.12s ease-out',
                 marginBottom: 4,
                 position: 'relative',
                 boxShadow: isTarget
                   ? `0 0 12px ${folder.color}44, inset 0 0 6px ${folder.color}22`
-                  : isSelected
-                    ? `0 0 14px ${folder.color}18, inset 0 0 4px ${folder.color}0a, inset 0 1px 0 rgba(255,255,255,0.01)`
-                    : 'none',
+                  : isContextActive
+                    ? `0 0 16px ${folder.color}33, inset 0 0 4px ${folder.color}15, inset 0 1px 0 rgba(255,255,255,0.04)`
+                    : isSelected
+                      ? `0 0 14px ${folder.color}18, inset 0 0 4px ${folder.color}0a, inset 0 1px 0 rgba(255,255,255,0.01)`
+                      : 'none',
               }}
               variants={{
                 hover: {
@@ -888,19 +898,19 @@ export default function Sidebar({
               setContextMenu(null);
             }}
           >
-            <Pencil size={13} />
-            {language === 'es' ? 'Editar' : 'Edit'}
+            <Pencil size={13} style={{ flexShrink: 0 }} />
+            <span>{language === 'es' ? 'Editar carpeta' : 'Edit folder'}</span>
           </button>
           <button
-            className="btn btn-danger"
+            className="btn btn-ghost"
             style={{ width: '100%', justifyContent: 'flex-start', fontSize: 'calc(12px * var(--ui-scale))', padding: '6px 10px', gap: 8, marginTop: 2 }}
             onClick={() => {
               setFolderToDelete(contextMenu.folder);
               setContextMenu(null);
             }}
           >
-            <Trash2 size={13} />
-            {t.sidebar.context.delete}
+            <Trash2 size={13} color="var(--danger)" style={{ color: 'var(--danger)', flexShrink: 0 }} />
+            <span>{language === 'es' ? 'Eliminar carpeta' : 'Delete folder'}</span>
           </button>
         </div>,
         document.body

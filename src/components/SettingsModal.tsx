@@ -79,6 +79,7 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+  const [toggleHotkeyEnabled, setToggleHotkeyEnabled] = useState(true);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const initialSnapshotRef = useRef<string | null>(null);
@@ -110,13 +111,16 @@ export default function SettingsModal({
       setMinimizeToTray(mtt);
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
+      const hotkeyVal = await window.cyberNotesAPI.getSetting('toggle_hotkey_enabled');
+      const isHotkey = hotkeyVal ? hotkeyVal !== 'false' : true;
+      setToggleHotkeyEnabled(isHotkey);
 
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
         autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
         capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
-        closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart
+        closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkeyEnabled: isHotkey
       });
       setLoaded(true);
     };
@@ -130,7 +134,7 @@ export default function SettingsModal({
       autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
       capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
-      closeToTray, minimizeToTray, autoStart
+      closeToTray, minimizeToTray, autoStart, toggleHotkeyEnabled
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
       setHasSavedChanges(true);
@@ -141,7 +145,7 @@ export default function SettingsModal({
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
     capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
-    closeToTray, minimizeToTray, autoStart
+    closeToTray, minimizeToTray, autoStart, toggleHotkeyEnabled
   ]);
 
   useEffect(() => {
@@ -172,6 +176,11 @@ export default function SettingsModal({
   const handleToggleAutoStart = async (val: boolean) => {
     setAutoStart(val);
     await window.cyberNotesAPI.setAutoStart(val);
+  };
+
+  const handleToggleHotkey = async (val: boolean) => {
+    setToggleHotkeyEnabled(val);
+    await window.cyberNotesAPI.setSetting('toggle_hotkey_enabled', val ? 'true' : 'false');
   };
 
   const handleSetPassword = async () => {
@@ -385,6 +394,23 @@ export default function SettingsModal({
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'La app se abrirá en la bandeja al arrancar el equipo' : 'The app starts minimized to tray on system boot'}</span>
                     </div>
                     <div className={`custom-switch ${autoStart ? 'active' : ''}`} />
+                  </label>
+
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
+                  }} onClick={() => handleToggleHotkey(!toggleHotkeyEnabled)}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Atajo global de ventana (Alt+Shift+N)' : 'Global window shortcut (Alt+Shift+N)'}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Permite mostrar u ocultar CyberNotes desde cualquier aplicación con el teclado' : 'Show or hide CyberNotes from anywhere with the keyboard'}</span>
+                    </div>
+                    <div className={`custom-switch ${toggleHotkeyEnabled ? 'active' : ''}`} />
                   </label>
 
                   <label style={{ 
