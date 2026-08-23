@@ -275,7 +275,7 @@ export default function Sidebar({
             fontSize: 'calc(13px * var(--ui-scale))',
             fontWeight: (selectedFolderId === null && !searchQuery) || activeDropTargetId === 'all' ? 600 : 400,
             textAlign: 'left',
-            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'all 0.12s ease-out',
             marginBottom: 4,
             position: 'relative',
             boxShadow: selectedFolderId === null && !searchQuery
@@ -288,7 +288,7 @@ export default function Sidebar({
               boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
               borderColor: 'rgba(255, 255, 255, 0.08)',
               background: selectedFolderId === null && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
-              transition: { type: 'spring', stiffness: 400, damping: 18 }
+              transition: { duration: 0.1 }
             },
             tap: {
               scale: 0.98,
@@ -339,7 +339,7 @@ export default function Sidebar({
             fontSize: 'calc(13px * var(--ui-scale))',
             fontWeight: selectedFolderId === 'favorites' && !searchQuery ? 600 : 400,
             textAlign: 'left',
-            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'all 0.12s ease-out',
             marginBottom: 4,
             position: 'relative',
             boxShadow: selectedFolderId === 'favorites' && !searchQuery
@@ -352,7 +352,7 @@ export default function Sidebar({
               boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
               borderColor: 'rgba(255, 255, 255, 0.08)',
               background: selectedFolderId === 'favorites' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
-              transition: { type: 'spring', stiffness: 400, damping: 18 }
+              transition: { duration: 0.1 }
             },
             tap: {
               scale: 0.98,
@@ -373,6 +373,7 @@ export default function Sidebar({
           >
             <Star
               size={15}
+              strokeWidth={2}
               fill={selectedFolderId === 'favorites' && !searchQuery ? 'currentColor' : 'none'}
             />
           </motion.span>
@@ -437,7 +438,7 @@ export default function Sidebar({
             fontSize: 'calc(13px * var(--ui-scale))',
             fontWeight: (selectedFolderId === 'floating' && !searchQuery) || activeDropTargetId === 'floating' ? 600 : 400,
             textAlign: 'left',
-            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'all 0.12s ease-out',
             marginBottom: 4,
             position: 'relative',
             boxShadow: selectedFolderId === 'floating' && !searchQuery
@@ -450,7 +451,7 @@ export default function Sidebar({
               boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
               borderColor: 'rgba(255, 255, 255, 0.08)',
               background: selectedFolderId === 'floating' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
-              transition: { type: 'spring', stiffness: 400, damping: 18 }
+              transition: { duration: 0.1 }
             },
             tap: {
               scale: 0.98,
@@ -546,7 +547,7 @@ export default function Sidebar({
                 fontSize: 'calc(13px * var(--ui-scale))',
                 fontWeight: isSelected || isTarget ? 600 : 400,
                 textAlign: 'left',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.12s ease-out',
                 marginBottom: 4,
                 position: 'relative',
                 boxShadow: isTarget
@@ -561,7 +562,7 @@ export default function Sidebar({
                   boxShadow: `0 0 16px ${folder.color}2c, inset 0 0 4px ${folder.color}10, inset 0 1px 0 rgba(255,255,255,0.04)`,
                   borderColor: `${folder.color}44`,
                   background: isSelected ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
-                  transition: { type: 'spring', stiffness: 400, damping: 18 }
+                  transition: { duration: 0.1 }
                 },
                 tap: {
                   scale: 0.98,

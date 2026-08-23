@@ -367,135 +367,179 @@ function restoreWindow() {
   mainWindow.focus();
 }
 
-function createMenuIcon(svg: string) {
-  try {
-    return nativeImage.createFromDataURL('data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64')).resize({ width: 16, height: 16 });
-  } catch {
-    return undefined;
-  }
+const TRAY_MENU_SHADOW_PAD = 26;
+const TRAY_MENU_WIDTH = 268;
+const TRAY_MENU_EST_HEIGHT = 220;
+let trayMenuWin: BrowserWindow | null = null;
+let trayMenuAnchor: any = null;
+let trayMenuHideTimer: NodeJS.Timeout | null = null;
+let trayMenuLastShown = 0;
+
+function isWindowShown(): boolean {
+  return !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible());
 }
 
-const TRAY_ICONS = {
-  get app() {
-    try {
-      return nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16, quality: 'best' });
-    } catch {
-      return undefined;
-    }
-  },
-  get window() {
-    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="8"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="6" y1="4" x2="6" y2="8"/></svg>');
-  },
-  get settings() {
-    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>');
-  },
-  get about() {
-    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>');
-  },
-  get quit() {
-    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>');
-  }
-};
-
-function getTrayMenuTemplate(): any[] {
-  const capsLockVal = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_unlock_caps_lock']);
-  const isCapsUnlockEnabled = capsLockVal?.value === 'true';
-
+function buildTrayMenuState() {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const lang = langVal?.value || 'en';
   const isEs = lang === 'es';
-  const isShown = mainWindow?.isVisible();
+  const visible = isWindowShown();
+  return {
+    version: app.getVersion(),
+    head: 'CyberNotes v' + app.getVersion(),
+    visible,
+    showLabel: visible ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
+    settingsLabel: isEs ? 'Configuración' : 'Settings',
+    aboutLabel: isEs ? 'Acerca de...' : 'About...',
+    exitLabel: isEs ? 'Salir' : 'Quit',
+  };
+}
 
-  return [
-    {
-      label: `CyberNotes v${app.getVersion()}`,
-      icon: TRAY_ICONS.app,
-      click: () => {
-        restoreWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('open-about');
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: isShown ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
-      icon: TRAY_ICONS.window,
-      click: () => {
-        if (mainWindow?.isVisible()) {
-          if (hasPasswordHash()) {
-            mainWindow.webContents.send('session:shield-enable');
-          }
-          mainWindow.hide();
-        } else {
-          restoreWindow();
-        }
-      }
-    },
-    {
-      label: isEs ? 'Configuración' : 'Settings',
-      icon: TRAY_ICONS.settings,
-      click: () => {
-        restoreWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('open-settings');
-        }
-      }
-    },
-    {
-      label: isEs ? 'Acerca de CyberNotes' : 'About CyberNotes',
-      icon: TRAY_ICONS.about,
-      click: () => {
-        restoreWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('open-about');
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: isEs ? 'Desactivar CapsLock por inactividad' : 'Disable Caps Lock on inactivity',
-      type: 'checkbox',
-      checked: isCapsUnlockEnabled,
-      click: (menuItem: any) => {
-        const newVal = menuItem.checked;
-        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auto_unlock_caps_lock', newVal ? 'true' : 'false']);
-        updateTrayMenu();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('setting-changed', { key: 'auto_unlock_caps_lock', value: newVal ? 'true' : 'false' });
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: isEs ? 'Salir' : 'Quit',
-      icon: TRAY_ICONS.quit,
-      click: () => {
-        isQuitting = true;
-        app.quit();
-      }
+function trayMenuGeometry(iconBounds: any, windowW: number, windowH: number) {
+  let b = (iconBounds && typeof iconBounds.x === 'number' && (iconBounds.width || iconBounds.height))
+    ? { x: iconBounds.x, y: iconBounds.y, width: iconBounds.width || 0, height: iconBounds.height || 0 }
+    : null;
+  if (!b) {
+    let p: any = null;
+    try { p = screen.getCursorScreenPoint(); } catch (_) { p = { x: 0, y: 0 }; }
+    b = { x: p.x, y: p.y, width: 0, height: 0 };
+  }
+  const cx = b.x + b.width / 2;
+  const cy = b.y + b.height / 2;
+  let display: any;
+  try { display = screen.getDisplayNearestPoint({ x: cx, y: cy }); }
+  catch (_) { display = screen.getPrimaryDisplay(); }
+  const work = (display && display.workArea) || { x: 0, y: 0, width: windowW, height: windowH };
+
+  const gap = 4;
+  const pad = TRAY_MENU_SHADOW_PAD;
+  const cardW = windowW - 2 * pad;
+  const cardH = windowH - 2 * pad;
+
+  let cardX: number, cardY: number;
+  const dLeft = cx - work.x;
+  const dRight = (work.x + work.width) - cx;
+  const dTop = cy - work.y;
+  const dBottom = (work.y + work.height) - cy;
+
+  if (dBottom <= dLeft && dBottom <= dRight && dBottom <= dTop) {
+    cardX = cx - cardW / 2;
+    cardY = b.y - gap - cardH;
+  } else if (dTop <= dLeft && dTop <= dRight) {
+    cardX = cx - cardW / 2;
+    cardY = b.y + b.height + gap;
+  } else if (dLeft <= dRight) {
+    cardX = b.x + b.width + gap;
+    cardY = cy - cardH / 2;
+  } else {
+    cardX = b.x - gap - cardW;
+    cardY = cy - cardH / 2;
+  }
+
+  cardX = Math.min(Math.max(cardX, work.x + 4), work.x + work.width - cardW - 4);
+  cardY = Math.min(Math.max(cardY, work.y + 4), work.y + work.height - cardH - 4);
+  return { x: Math.round(cardX - pad), y: Math.round(cardY - pad), width: windowW, height: windowH };
+}
+
+function ensureTrayMenuWin() {
+  if (trayMenuWin && !trayMenuWin.isDestroyed()) return trayMenuWin;
+
+  const trayHtml = isDev
+    ? path.join(__dirname, '..', 'public', 'tray-menu.html')
+    : path.join(app.getAppPath(), 'dist', 'tray-menu.html');
+  const trayPreload = isDev
+    ? path.join(__dirname, '..', 'public', 'tray-preload.js')
+    : path.join(app.getAppPath(), 'dist', 'tray-preload.js');
+
+  trayMenuWin = new BrowserWindow({
+    width: TRAY_MENU_WIDTH + 2 * TRAY_MENU_SHADOW_PAD,
+    height: TRAY_MENU_EST_HEIGHT,
+    show: false,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: trayPreload,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     }
-  ];
+  });
+  trayMenuWin.setAlwaysOnTop(true, 'pop-up-menu');
+  trayMenuWin.loadFile(trayHtml);
+  trayMenuWin.on('blur', () => {
+    if (trayMenuHideTimer) return;
+    if (Date.now() - trayMenuLastShown < 250) return;
+    trayMenuHideTimer = setTimeout(() => {
+      trayMenuHideTimer = null;
+      hideTrayMenu();
+    }, 120);
+  });
+  trayMenuWin.on('closed', () => { trayMenuWin = null; });
+  trayMenuWin.webContents.once('did-finish-load', () => {
+    if (!trayMenuWin || trayMenuWin.isDestroyed()) return;
+    trayMenuWin.webContents.send('tray-menu-state', buildTrayMenuState());
+    trayMenuWin.webContents.send('tray-menu-show');
+  });
+  return trayMenuWin;
+}
+
+function showTrayMenu(eventBounds?: any) {
+  if (!tray) return;
+  let b = (eventBounds && typeof eventBounds.x === 'number' && (eventBounds.width || eventBounds.height))
+    ? eventBounds : null;
+  if (!b) { try { b = tray.getBounds(); } catch (_) { b = null; } }
+  if (!b || (!b.width && !b.height)) {
+    let p = null; try { p = screen.getCursorScreenPoint(); } catch (_) { p = null; }
+    b = p ? { x: p.x, y: p.y, width: 0, height: 0 } : { x: 0, y: 0, width: 0, height: 0 };
+  }
+  trayMenuAnchor = b;
+  if (trayMenuHideTimer) { clearTimeout(trayMenuHideTimer); trayMenuHideTimer = null; }
+  const w = ensureTrayMenuWin();
+  if (!w || w.isDestroyed()) return;
+  const geo = trayMenuGeometry(trayMenuAnchor, TRAY_MENU_WIDTH + 2 * TRAY_MENU_SHADOW_PAD, TRAY_MENU_EST_HEIGHT);
+  w.setBounds(geo);
+  if (!w.isVisible()) w.show();
+  w.focus();
+  trayMenuLastShown = Date.now();
+  if (!w.webContents.isLoading()) {
+    w.webContents.send('tray-menu-state', buildTrayMenuState());
+    w.webContents.send('tray-menu-show');
+  }
+}
+
+function hideTrayMenu() {
+  if (trayMenuHideTimer) { clearTimeout(trayMenuHideTimer); trayMenuHideTimer = null; }
+  if (trayMenuWin && !trayMenuWin.isDestroyed() && trayMenuWin.isVisible()) {
+    trayMenuWin.hide();
+  }
 }
 
 function updateTrayMenu() {
-  if (!tray || tray.isDestroyed()) return;
-  try {
-    const contextMenu = Menu.buildFromTemplate(getTrayMenuTemplate());
-    tray.setContextMenu(contextMenu);
-  } catch (err) {
-    console.error('Failed to update tray menu:', err);
+  if (!tray) return;
+  tray.setToolTip(`CyberNotes v${app.getVersion()}`);
+  if (trayMenuWin && !trayMenuWin.isDestroyed() && !trayMenuWin.webContents.isLoading()) {
+    trayMenuWin.webContents.send('tray-menu-state', buildTrayMenuState());
   }
 }
 
 function createTray() {
   try {
     tray = new Tray(trayIconPath);
-    updateTrayMenu();
     tray.setToolTip(`CyberNotes v${app.getVersion()}`);
 
     tray.on('click', () => {
-      if (mainWindow?.isVisible()) {
+      hideTrayMenu();
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (mainWindow.isVisible()) {
         if (hasPasswordHash()) {
           mainWindow.webContents.send('session:shield-enable');
         }
@@ -504,10 +548,52 @@ function createTray() {
         restoreWindow();
       }
     });
+
+    tray.on('right-click', (_event, bounds) => {
+      showTrayMenu(bounds);
+    });
   } catch (err) {
     console.error('Failed to create tray:', err);
   }
 }
+
+ipcMain.on('tray-menu-action', (_event, action) => {
+  hideTrayMenu();
+  switch (action) {
+    case 'toggle':
+      if (isWindowShown()) {
+        if (hasPasswordHash()) {
+          mainWindow?.webContents.send('session:shield-enable');
+        }
+        mainWindow?.hide();
+      } else {
+        restoreWindow();
+      }
+      break;
+    case 'settings':
+      restoreWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-settings');
+      break;
+    case 'about':
+      restoreWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-about');
+      break;
+    case 'quit':
+      isQuitting = true;
+      app.quit();
+      break;
+  }
+});
+
+ipcMain.on('tray-menu-hide', () => hideTrayMenu());
+ipcMain.on('tray-menu-ready', (_event, rect) => {
+  if (!trayMenuWin || trayMenuWin.isDestroyed() || !rect) return;
+  const pad = TRAY_MENU_SHADOW_PAD;
+  const targetW = Math.round((rect.width || TRAY_MENU_WIDTH) + 2 * pad);
+  const targetH = Math.round((rect.height || (TRAY_MENU_EST_HEIGHT - 2 * pad)) + 2 * pad);
+  const geo = trayMenuGeometry(trayMenuAnchor, targetW, targetH);
+  trayMenuWin.setBounds(geo);
+});
 
 function createWindow() {
   // Recuperar estado de ventana guardado

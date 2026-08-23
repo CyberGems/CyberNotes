@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react';
 import {
   X, Github, RefreshCw, Download, CheckCircle2,
-  CircleDot, Tag, ClipboardCopy, Check,
+  CircleDot, Tag, ClipboardCopy, Check, Globe,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import Tooltip from './Tooltip';
@@ -253,6 +253,17 @@ export default function AboutModal({ language, onClose }: Props) {
             </button>
           </Tooltip>
           <div className="about-footer-links">
+            <Tooltip label={t.websiteTooltip} placement="top">
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ width: 28, height: 28 }}
+                onClick={() => window.cyberNotesAPI.openExternal('https://cybergems.org')}
+                aria-label={t.websiteTooltip}
+              >
+                <Globe size={14} />
+              </button>
+            </Tooltip>
             <Tooltip label={t.githubTooltip} placement="top">
               <button
                 type="button"
