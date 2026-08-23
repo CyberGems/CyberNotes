@@ -1,7 +1,7 @@
 import { BrowserWindow as j, ipcMain as a, app as c, shell as W, session as G, nativeImage as F, net as le, clipboard as ce, dialog as q, Tray as ue, Menu as de } from "electron";
 import f from "path";
 import p from "fs";
-import V from "os";
+import J from "os";
 import { fileURLToPath as Z } from "url";
 import { createRequire as ee } from "module";
 import { exec as te, spawn as fe } from "child_process";
@@ -265,7 +265,7 @@ function _e() {
       checked: e,
       click: (i) => {
         const l = i.checked;
-        g("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["auto_unlock_caps_lock", l ? "true" : "false"]), J(), t && !t.isDestroyed() && t.webContents.send("setting-changed", { key: "auto_unlock_caps_lock", value: l ? "true" : "false" });
+        g("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["auto_unlock_caps_lock", l ? "true" : "false"]), V(), t && !t.isDestroyed() && t.webContents.send("setting-changed", { key: "auto_unlock_caps_lock", value: l ? "true" : "false" });
       }
     },
     { type: "separator" },
@@ -277,7 +277,7 @@ function _e() {
     }
   ];
 }
-function J() {
+function V() {
   if (!(!m || m.isDestroyed()))
     try {
       const s = de.buildFromTemplate(_e());
@@ -288,7 +288,7 @@ function J() {
 }
 function ke() {
   try {
-    m = new ue(O), J(), m.setToolTip("CyberNotes"), m.on("click", () => {
+    m = new ue(O), V(), m.setToolTip(`CyberNotes v${c.getVersion()}`), m.on("click", () => {
       t != null && t.isVisible() ? (b() && t.webContents.send("session:shield-enable"), t.hide()) : k();
     });
   } catch (s) {
@@ -436,8 +436,8 @@ a.handle("app:getVersions", () => ({
   node: process.versions.node,
   platform: process.platform,
   arch: process.arch,
-  osRelease: V.release(),
-  osType: V.type()
+  osRelease: J.release(),
+  osType: J.type()
 }));
 a.handle("shell:openExternal", (s, e) => typeof e == "string" && /^https?:\/\//i.test(e) ? W.openExternal(e) : !1);
 a.handle("auth:hasPassword", () => !!u("SELECT value FROM settings WHERE key = ?", ["password_hash"]));
@@ -468,7 +468,7 @@ a.handle("settings:getMany", (s, e) => {
   }
   return n;
 });
-a.handle("settings:set", (s, e, n) => (g("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [e, n]), (e === "auto_unlock_caps_lock" || e === "language") && J(), e === "caps_lock_sound_scope" && (n === "global" ? ae() : ie()), e === "auto_check_updates" && he(n === "true"), !0));
+a.handle("settings:set", (s, e, n) => (g("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [e, n]), (e === "auto_unlock_caps_lock" || e === "language") && V(), e === "caps_lock_sound_scope" && (n === "global" ? ae() : ie()), e === "auto_check_updates" && he(n === "true"), !0));
 const B = ["--hidden"];
 function ve() {
   if (c.getLoginItemSettings({ args: [...B] }).openAtLogin) return !0;

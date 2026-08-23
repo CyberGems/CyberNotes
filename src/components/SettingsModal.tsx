@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Monitor, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -79,6 +79,9 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+  const [hasSavedChanges, setHasSavedChanges] = useState(false);
+  const isInitialMount = useRef(true);
+
   // Diálogo personalizado (reemplaza alert/confirm nativos)
   const [dialog, setDialog] = useState<DialogOptions | null>(null);
   const dialogResolver = useRef<((accepted: boolean) => void) | null>(null);
@@ -109,6 +112,20 @@ export default function SettingsModal({
   }, []);
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    setHasSavedChanges(true);
+  }, [
+    language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
+    autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+    autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
+    capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
+    closeToTray, minimizeToTray, autoStart
+  ]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -120,7 +137,7 @@ export default function SettingsModal({
     { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <SlidersHorizontal size={13} /> },
     { id: 'appearance', label: language === 'es' ? 'Apariencia' : 'Appearance', icon: <Palette size={13} /> },
     { id: 'security', label: language === 'es' ? 'Seguridad' : 'Security', icon: <Shield size={13} /> },
-    { id: 'maintenance', label: language === 'es' ? 'Mantenimiento' : 'Maintenance', icon: <FolderOpen size={13} /> },
+    { id: 'maintenance', label: language === 'es' ? 'Respaldo y Datos' : 'Backup & Data', icon: <Database size={13} /> },
   ];
 
   const handleToggleTray = async (val: boolean) => {
@@ -173,6 +190,7 @@ export default function SettingsModal({
 
       await window.cyberNotesAPI.setPassword(newPwd);
       setPwdMessage(language === 'es' ? '✓ Contraseña guardada correctamente' : '✓ Password saved successfully');
+      setHasSavedChanges(true);
       setPwdError(false);
       setCurrentPwd('');
       setNewPwd('');
@@ -202,6 +220,7 @@ export default function SettingsModal({
     }
     await window.cyberNotesAPI.removePassword();
     setPwdMessage(language === 'es' ? '✓ Contraseña eliminada' : '✓ Password removed');
+    setHasSavedChanges(true);
     setPwdError(false);
     setCurrentPwd('');
   };
@@ -236,6 +255,12 @@ export default function SettingsModal({
               ))}
             </div>
             <div className="settings-nav-footer">
+              {hasSavedChanges && (
+                <div className="config-autosave-pill" aria-live="polite">
+                  <span className="config-autosave-dot" aria-hidden="true" />
+                  <span>{language === 'es' ? 'Guardado' : 'Saved'}</span>
+                </div>
+              )}
               <button type="button" className="settings-nav-close" onClick={onClose}>
                 {language === 'es' ? 'Cerrar' : 'Close'}
               </button>
@@ -879,69 +904,153 @@ export default function SettingsModal({
             </>
           )}
 
-          {/* ── MAINTENANCE ── */}
+          {/* ── RESPALDO Y DATOS / BACKUP & DATA ── */}
           {tab === 'maintenance' && (
-            <div className="settings-card">
-              <h3>
-                {language === 'es' ? 'Herramientas y Datos' : 'Tools & Data'}
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => window.cyberNotesAPI.openDevTools()}
-                  style={{ gap: 8, fontSize: 13 }}
-                >
-                  <Monitor size={15} />
-                  {language === 'es' ? 'Abrir consola' : 'Open console'}
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => window.cyberNotesAPI.openDataFolder()}
-                  style={{ gap: 8, fontSize: 13 }}
-                >
-                  <FolderOpen size={15} />
-                  {language === 'es' ? 'Carpeta de datos' : 'Data folder'}
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  onClick={async () => {
-                    const ok = await window.cyberNotesAPI.exportData();
-                    if (ok) await showDialog({
-                      variant: 'success',
-                      title: language === 'es' ? 'Exportación completada' : 'Export complete',
-                      message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
-                    });
-                  }}
-                  style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))' }}
-                >
-                  <Download size={15} />
-                  {language === 'es' ? 'Exportar Backup (JSON)' : 'Export Backup (JSON)'}
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  style={{ gap: 8, fontSize: 13, color: 'var(--warning)' }}
-                  onClick={async () => {
-                    const proceed = await showDialog({
-                      variant: 'warning',
-                      confirm: true,
-                      title: language === 'es' ? 'Importar backup' : 'Import backup',
-                      message: language === 'es' ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?' : 'Importing a backup will merge data with current notes. Do you want to continue?',
-                    });
-                    if (!proceed) return;
-                    const ok = await window.cyberNotesAPI.importData();
-                    if (ok) {
-                      await showDialog({
-                        variant: 'success',
-                        title: language === 'es' ? 'Importación completada' : 'Import complete',
-                        message: language === 'es' ? 'Datos importados correctamente. La aplicación se recargará.' : 'Data successfully imported. The application will reload.',
-                      });
-                      window.location.reload();
-                    }
-                  }}
-                >
-                  <Upload size={15} />
-                  {language === 'es' ? 'Importar Backup' : 'Import Backup'}
-                </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Card 1: Copias de seguridad (Exportar / Importar) */}
+              <div className="settings-card">
+                <h3>
+                  {language === 'es' ? 'Copias de Seguridad' : 'Backups'}
+                </h3>
+                <p className="setting-desc" style={{ marginBottom: 16 }}>
+                  {language === 'es'
+                    ? 'Exporta o restaura todas tus notas, carpetas y configuraciones en formato JSON estándar.'
+                    : 'Export or restore all your notes, folders, and settings in standard JSON format.'}
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Export Item */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                      <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {language === 'es' ? 'Exportar copia de seguridad' : 'Export backup'}
+                      </span>
+                      <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
+                        {language === 'es'
+                          ? 'Genera un archivo JSON descargable con todo el contenido actual.'
+                          : 'Create a downloadable JSON file with all current content.'}
+                      </span>
+                    </div>
+                    <button
+                      className="btn btn-ghost"
+                      onClick={async () => {
+                        const ok = await window.cyberNotesAPI.exportData();
+                        if (ok) await showDialog({
+                          variant: 'success',
+                          title: language === 'es' ? 'Exportación completada' : 'Export complete',
+                          message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
+                        });
+                      }}
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px' }}
+                    >
+                      <Download size={15} />
+                      {language === 'es' ? 'Exportar (JSON)' : 'Export (JSON)'}
+                    </button>
+                  </div>
+
+                  {/* Import Item */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                      <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {language === 'es' ? 'Importar copia de seguridad' : 'Import backup'}
+                      </span>
+                      <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
+                        {language === 'es'
+                          ? 'Combina notas y carpetas desde un archivo JSON previo.'
+                          : 'Merge notes and folders from a previous JSON file.'}
+                      </span>
+                    </div>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)' }}
+                      onClick={async () => {
+                        const proceed = await showDialog({
+                          variant: 'warning',
+                          confirm: true,
+                          title: language === 'es' ? 'Importar backup' : 'Import backup',
+                          message: language === 'es'
+                            ? 'Importar un backup mezclará los datos con los actuales. ¿Deseas continuar?'
+                            : 'Importing a backup will merge data with current notes. Do you want to continue?',
+                        });
+                        if (!proceed) return;
+                        const ok = await window.cyberNotesAPI.importData();
+                        if (ok) {
+                          await showDialog({
+                            variant: 'success',
+                            title: language === 'es' ? 'Importación completada' : 'Import complete',
+                            message: language === 'es'
+                              ? 'Datos importados correctamente. La aplicación se recargará.'
+                              : 'Data successfully imported. The application will reload.',
+                          });
+                          window.location.reload();
+                        }
+                      }}
+                    >
+                      <Upload size={15} />
+                      {language === 'es' ? 'Importar' : 'Import'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Almacenamiento Local */}
+              <div className="settings-card">
+                <h3>
+                  {language === 'es' ? 'Almacenamiento Local' : 'Local Storage'}
+                </h3>
+                <p className="setting-desc" style={{ marginBottom: 16 }}>
+                  {language === 'es'
+                    ? 'CyberNotes almacena toda tu información localmente en tu equipo sin sincronización en la nube.'
+                    : 'CyberNotes stores all your information locally on your computer with no cloud syncing.'}
+                </p>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                    <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {language === 'es' ? 'Carpeta de datos de la aplicación' : 'Application data folder'}
+                    </span>
+                    <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
+                      {language === 'es'
+                        ? 'Accede directamente a los archivos de base de datos SQLite y directorio de imágenes locales.'
+                        : 'Directly access SQLite database files and local images directory.'}
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => window.cyberNotesAPI.openDataFolder()}
+                    style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px' }}
+                  >
+                    <FolderOpen size={15} />
+                    {language === 'es' ? 'Abrir carpeta' : 'Open folder'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -37,7 +37,7 @@ interface Props {
 const FOLDER_ICONS = [
   'folder', 'file-text', 'briefcase', 'home',
   'zap', 'lightbulb', 'palette', 'book',
-  'microscope', 'target', 'heart', 'star',
+  'microscope', 'target', 'heart', 'tag',
   'archive', 'inbox', 'code', 'users',
   'rocket', 'bookmark', 'wrench', 'layers',
 ];

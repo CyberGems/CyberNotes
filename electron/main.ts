@@ -422,7 +422,7 @@ function createTray() {
   try {
     tray = new Tray(iconPath);
     updateTrayMenu();
-    tray.setToolTip('CyberNotes');
+    tray.setToolTip(`CyberNotes v${app.getVersion()}`);
 
     tray.on('click', () => {
       if (mainWindow?.isVisible()) {

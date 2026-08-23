@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react';
 import {
-  X, Github, Folder, RefreshCw, Download, CheckCircle2,
+  X, Github, RefreshCw, Download, CheckCircle2,
   CircleDot, Tag, ClipboardCopy, Check,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
@@ -227,15 +227,6 @@ export default function AboutModal({ language, onClose }: Props) {
                   <span>{t.checkUpdates}</span>
                 </button>
               )}
-
-              <button
-                type="button"
-                className="btn btn-ghost about-action-btn"
-                onClick={() => window.cyberNotesAPI.openDataFolder()}
-              >
-                <Folder size={14} />
-                <span>{t.openFolder}</span>
-              </button>
 
               <button
                 type="button"

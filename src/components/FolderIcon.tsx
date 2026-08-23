@@ -1,6 +1,6 @@
 import {
   Folder, FileText, Briefcase, Home, Zap, Lightbulb,
-  Palette, Book, Microscope, Target, Heart, Star,
+  Palette, Book, Microscope, Target, Heart, Star, Tag,
   Archive, Inbox, Code, Users, Rocket, Bookmark, Wrench, Layers
 } from 'lucide-react';
 
@@ -22,6 +22,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
   'microscope': Microscope,
   'target': Target,
   'heart': Heart,
+  'tag': Tag,
   'star': Star,
   'archive': Archive,
   'inbox': Inbox,

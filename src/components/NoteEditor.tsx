@@ -475,7 +475,6 @@ export default function NoteEditor({
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const linkInputMenu = useInputContextMenu(language);
   const [editLinkData, setEditLinkData] = useState<{ href: string } | null>(null);
-  const [hoveredLink, setHoveredLink] = useState<string | null>(null);
   const [lineInfo, setLineInfo] = useState({ line: 1, col: 1, total: 1 });
   const [textMetrics, setTextMetrics] = useState({ words: 0, chars: 0, readingTime: 0 });
   const [localTitle, setLocalTitle] = useState(note?.title || '');
@@ -851,6 +850,31 @@ export default function NoteEditor({
     editorProps: {
       attributes: {
         spellcheck: 'true',
+      },
+      handleDOMEvents: {
+        mousedown: (_view, event) => {
+          if (event.button === 2) {
+            const { from, to } = _view.state.selection;
+            if (from !== to) {
+              // Prevenir que el click derecho colapse la selección de texto existente
+              lastContextMenuTargetRef.current = 'editor';
+              lastContextMenuTimeRef.current = Date.now();
+              event.preventDefault();
+              return true;
+            }
+          }
+          return false;
+        },
+        contextmenu: (_view, _event) => {
+          const { from, to } = _view.state.selection;
+          if (from !== to) {
+            // Si ya hay texto seleccionado, preservar la selección activa al hacer click derecho lejos
+            lastContextMenuTargetRef.current = 'editor';
+            lastContextMenuTimeRef.current = Date.now();
+            return true;
+          }
+          return false;
+        },
       },
       handleKeyDown: (_view, event) => {
         // Tab = sangría / espacios; evita saltar el foco a otros controles de la UI
@@ -1828,6 +1852,16 @@ export default function NoteEditor({
         <div 
           className={showLineGutter ? 'show-line-numbers' : ''}
           style={{ position: 'relative', cursor: 'text', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}
+          onMouseDown={(e) => {
+            if (e.button === 2 && editor) {
+              const { from, to } = editor.state.selection;
+              if (from !== to) {
+                lastContextMenuTargetRef.current = 'editor';
+                lastContextMenuTimeRef.current = Date.now();
+                e.preventDefault();
+              }
+            }
+          }}
           onContextMenu={() => {
             lastContextMenuTargetRef.current = 'editor';
             lastContextMenuTimeRef.current = Date.now();
@@ -1837,15 +1871,6 @@ export default function NoteEditor({
               editor.commands.focus('end');
             }
           }}
-          onMouseMove={e => {
-            const aTag = (e.target as HTMLElement).closest('a');
-            if (aTag && aTag.href) {
-              if (aTag.href !== hoveredLink) setHoveredLink(aTag.href);
-            } else {
-              if (hoveredLink) setHoveredLink(null);
-            }
-          }}
-          onMouseLeave={() => setHoveredLink(null)}
         >
           {isRaw ? (
             <textarea
@@ -1859,37 +1884,6 @@ export default function NoteEditor({
             />
           ) : (
             editor && <EditorContent editor={editor} style={{ minHeight: '100%', width: '100%', flex: '1 0 auto' }} />
-          )}
-
-          {/* Browser-like Link Hover Preview */}
-          {hoveredLink && (
-            <motion.div
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                background: '#1a1a1a', // Gris oscuro
-                color: '#cccccc', // Gris claro
-                padding: '3px 8px',
-                fontSize: 11.5,
-                borderTopRightRadius: 6,
-                maxWidth: '85%',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                pointerEvents: 'none',
-                zIndex: 50,
-                borderTop: '1px solid #333',
-                borderRight: '1px solid #333',
-                boxShadow: '0 -2px 10px rgba(0,0,0,0.3)',
-              }}
-            >
-              {hoveredLink}
-            </motion.div>
           )}
         </div>
 

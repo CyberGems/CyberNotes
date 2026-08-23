@@ -28,6 +28,7 @@ dist
 dist-electron
 release
 icons
+artifacts
 scratch
 *.db
 *.db-journal
