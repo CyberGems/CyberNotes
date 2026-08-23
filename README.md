@@ -5,7 +5,7 @@
 <h1 align="center">CyberNotes 🚀</h1>
 
 <p align="center">
-  <a href="https://github.com/CyberGems/CyberNotes"><img src="https://img.shields.io/badge/version-1.7.0-blue.svg" alt="Version" /></a>
+  <a href="https://github.com/CyberGems/CyberNotes"><img src="https://img.shields.io/badge/version-1.8.0-blue.svg" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green.svg" alt="License" /></a>
   <a href="https://github.com/CyberGems/CyberNotes/releases"><img src="https://img.shields.io/badge/platform-Windows-0078d4.svg" alt="Platform" /></a>
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-35-47848f.svg" alt="Electron" /></a>
