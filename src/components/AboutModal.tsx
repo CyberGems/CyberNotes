@@ -237,6 +237,11 @@ export default function AboutModal({ language, onClose }: Props) {
                 <div className={`custom-switch ${autoUpdate ? 'active' : ''}`} />
                 <span>{t.autoUpdates}</span>
               </label>
+              {(t as any).autoUpdatesHint && (
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, marginTop: 2, padding: '0 4px' }}>
+                  {(t as any).autoUpdatesHint}
+                </div>
+              )}
             </div>
           </div>
         </div>

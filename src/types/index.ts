@@ -87,8 +87,9 @@ declare global {
       checkForUpdates: () => Promise<{ ok: boolean; version?: string; error?: string }>;
       downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;
       installUpdate: () => Promise<void>;
+      cancelAutoInstall: () => Promise<boolean>;
       onUpdateStatus: (callback: (status: {
-        state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+        state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'installing' | 'error';
         version?: string;
         percent?: number;
         message?: string;

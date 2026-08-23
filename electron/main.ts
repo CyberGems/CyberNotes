@@ -5,7 +5,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
-import { initUpdater, setAutoUpdate } from './updater';
+import { initUpdater, setAutoUpdate, setCanInstallChecker } from './updater';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -1279,6 +1279,7 @@ if (!gotTheLock) {
 
     // Auto-check for updates on startup (default on when unset)
     const autoCheck = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_check_updates']);
+    setCanInstallChecker(() => !hasUnsavedChanges);
     initUpdater(autoCheck ? autoCheck.value === 'true' : true);
 
     app.on('activate', () => {

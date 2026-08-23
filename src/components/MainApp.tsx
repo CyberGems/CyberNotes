@@ -10,6 +10,7 @@ import AboutModal from './AboutModal';
 import ConfirmDialog from './ConfirmDialog';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb } from '../utils/notes';
+import UpdaterBanner from './UpdaterBanner';
 
 // Mapeo de emojis antiguos a nombres de iconos nuevos
 const EMOJI_TO_ICON_MAP: Record<string, string> = {
@@ -1315,6 +1316,8 @@ export default function MainApp({
           </div>
         )}
       </AnimatePresence>
+
+      <UpdaterBanner language={language} />
 
       {/* Status Bar (Hover Link) */}
       <AnimatePresence>
