@@ -79,7 +79,9 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
-  const [toggleHotkeyEnabled, setToggleHotkeyEnabled] = useState(true);
+  const [toggleHotkey, setToggleHotkey] = useState('Alt+Shift+N');
+  const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
+  const hotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const initialSnapshotRef = useRef<string | null>(null);
@@ -111,16 +113,22 @@ export default function SettingsModal({
       setMinimizeToTray(mtt);
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
-      const hotkeyVal = await window.cyberNotesAPI.getSetting('toggle_hotkey_enabled');
-      const isHotkey = hotkeyVal ? hotkeyVal !== 'false' : true;
-      setToggleHotkeyEnabled(isHotkey);
+      const hkVal = await window.cyberNotesAPI.getSetting('toggle_hotkey');
+      const legacyHk = await window.cyberNotesAPI.getSetting('toggle_hotkey_enabled');
+      let currentHk = 'Alt+Shift+N';
+      if (hkVal !== null) {
+        currentHk = hkVal === 'disabled' ? '' : hkVal;
+      } else if (legacyHk === 'false') {
+        currentHk = '';
+      }
+      setToggleHotkey(currentHk);
 
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
         autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
         capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
-        closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkeyEnabled: isHotkey
+        closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk
       });
       setLoaded(true);
     };
@@ -134,7 +142,7 @@ export default function SettingsModal({
       autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
       capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
-      closeToTray, minimizeToTray, autoStart, toggleHotkeyEnabled
+      closeToTray, minimizeToTray, autoStart, toggleHotkey
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
       setHasSavedChanges(true);
@@ -145,8 +153,19 @@ export default function SettingsModal({
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
     capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
-    closeToTray, minimizeToTray, autoStart, toggleHotkeyEnabled
+    closeToTray, minimizeToTray, autoStart, toggleHotkey
   ]);
+
+  useEffect(() => {
+    if (!isCapturingHotkey) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (hotkeyInputRef.current && !hotkeyInputRef.current.contains(e.target as Node)) {
+        setIsCapturingHotkey(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isCapturingHotkey]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -178,9 +197,51 @@ export default function SettingsModal({
     await window.cyberNotesAPI.setAutoStart(val);
   };
 
-  const handleToggleHotkey = async (val: boolean) => {
-    setToggleHotkeyEnabled(val);
-    await window.cyberNotesAPI.setSetting('toggle_hotkey_enabled', val ? 'true' : 'false');
+  const handleSetHotkey = async (val: string) => {
+    setToggleHotkey(val);
+    await window.cyberNotesAPI.setSetting('toggle_hotkey', val.trim() || 'disabled');
+    await window.cyberNotesAPI.setSetting('toggle_hotkey_enabled', val.trim() ? 'true' : 'false');
+  };
+
+  const handleClearHotkey = async () => {
+    setToggleHotkey('');
+    setIsCapturingHotkey(false);
+    await window.cyberNotesAPI.setSetting('toggle_hotkey', 'disabled');
+    await window.cyberNotesAPI.setSetting('toggle_hotkey_enabled', 'false');
+  };
+
+  const handleHotkeyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isCapturingHotkey) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.key === 'Escape') {
+      setIsCapturingHotkey(false);
+      return;
+    }
+
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      handleClearHotkey();
+      return;
+    }
+
+    const modKeys = ['Control', 'Alt', 'Shift', 'Meta', 'OS'];
+    if (modKeys.includes(e.key)) return;
+
+    const mods: string[] = [];
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey) mods.push('Shift');
+    if (e.metaKey) mods.push('Meta');
+
+    let key = e.key;
+    if (key.length === 1) key = key.toUpperCase();
+    else if (key.startsWith('Arrow')) key = key.replace('Arrow', '');
+
+    const parts = mods.concat(key);
+    const acc = parts.join('+');
+    handleSetHotkey(acc);
+    setIsCapturingHotkey(false);
   };
 
   const handleSetPassword = async () => {
@@ -396,22 +457,77 @@ export default function SettingsModal({
                     <div className={`custom-switch ${autoStart ? 'active' : ''}`} />
                   </label>
 
-                  <label style={{ 
+                  <div style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'space-between',
+                    gap: 16,
                     padding: '12px 16px',
                     background: 'var(--bg-surface)',
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)',
-                    cursor: 'pointer'
-                  }} onClick={() => handleToggleHotkey(!toggleHotkeyEnabled)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Atajo global de ventana (Alt+Shift+N)' : 'Global window shortcut (Alt+Shift+N)'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Permite mostrar u ocultar CyberNotes desde cualquier aplicación con el teclado' : 'Show or hide CyberNotes from anywhere with the keyboard'}</span>
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Atajo global de ventana' : 'Global window shortcut'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es'
+                          ? 'Atajo global para mostrar/ocultar CyberNotes. Clic para asignar, Esc para cancelar.'
+                          : 'Global shortcut to show/hide CyberNotes. Click to set, Esc to cancel.'}
+                      </span>
                     </div>
-                    <div className={`custom-switch ${toggleHotkeyEnabled ? 'active' : ''}`} />
-                  </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <input
+                        ref={hotkeyInputRef}
+                        type="text"
+                        readOnly
+                        value={isCapturingHotkey ? '' : (toggleHotkey || '')}
+                        placeholder={
+                          isCapturingHotkey
+                            ? (language === 'es' ? 'Pulsa las teclas…' : 'Press keys…')
+                            : (toggleHotkey ? toggleHotkey : (language === 'es' ? 'Desactivado' : 'Disabled'))
+                        }
+                        onClick={() => setIsCapturingHotkey(true)}
+                        onKeyDown={handleHotkeyKeyDown}
+                        style={{
+                          background: 'var(--bg-app)',
+                          color: toggleHotkey ? 'var(--accent-light)' : 'var(--text-muted)',
+                          border: isCapturingHotkey ? '1px solid var(--accent)' : '1px solid var(--border)',
+                          padding: '6px 10px',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          minWidth: 120,
+                          maxWidth: 160,
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          letterSpacing: '0.04em',
+                          outline: 'none',
+                          boxShadow: isCapturingHotkey ? '0 0 12px var(--accent-glow)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handleClearHotkey}
+                        title={language === 'es' ? 'Limpiar atajo' : 'Clear shortcut'}
+                        style={{
+                          fontSize: 11.5,
+                          padding: '6px 10px',
+                          color: 'var(--text-muted)',
+                          background: 'var(--bg-app)',
+                          border: '1px solid var(--border)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                      >
+                        {language === 'es' ? 'Limpiar' : 'Clear'}
+                      </button>
+                    </div>
+                  </div>
 
                   <label style={{ 
                     display: 'flex', 

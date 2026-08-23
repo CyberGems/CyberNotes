@@ -379,9 +379,22 @@ function isWindowShown(): boolean {
   return !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible());
 }
 
-function isToggleHotkeyEnabled(): boolean {
-  const row = queryGet('SELECT value FROM settings WHERE key = ?', ['toggle_hotkey_enabled']);
-  return row ? row.value !== 'false' : true;
+const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
+
+function resolveToggleHotkey(value?: string | null): string {
+  if (value === 'disabled') return '';
+  const s = value == null ? '' : String(value).trim();
+  return s || DEFAULT_TOGGLE_HOTKEY;
+}
+
+function getActiveToggleHotkey(): string {
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', ['toggle_hotkey']);
+  if (!row) {
+    const legacy = queryGet('SELECT value FROM settings WHERE key = ?', ['toggle_hotkey_enabled']);
+    if (legacy && legacy.value === 'false') return '';
+    return DEFAULT_TOGGLE_HOTKEY;
+  }
+  return resolveToggleHotkey(row.value);
 }
 
 function buildTrayMenuState() {
@@ -389,7 +402,7 @@ function buildTrayMenuState() {
   const lang = langVal?.value || 'en';
   const isEs = lang === 'es';
   const visible = isWindowShown();
-  const hotkeyEnabled = isToggleHotkeyEnabled();
+  const activeHotkey = getActiveToggleHotkey();
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
@@ -398,15 +411,16 @@ function buildTrayMenuState() {
     settingsLabel: isEs ? 'Configuración' : 'Settings',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Quit',
-    shortcut: hotkeyEnabled ? 'Alt+Shift+N' : '',
+    shortcut: activeHotkey,
   };
 }
 
 function registerToggleHotkey() {
   try {
     globalShortcut.unregisterAll();
-    if (!isToggleHotkeyEnabled()) return;
-    globalShortcut.register('Alt+Shift+N', () => {
+    const acc = getActiveToggleHotkey();
+    if (!acc) return;
+    globalShortcut.register(acc, () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       if (isWindowShown()) {
         if (hasPasswordHash()) {
@@ -418,7 +432,7 @@ function registerToggleHotkey() {
       }
     });
   } catch (err) {
-    console.error('Failed to register global hotkey Alt+Shift+N:', err);
+    console.error('Failed to register global hotkey:', err);
   }
 }
 

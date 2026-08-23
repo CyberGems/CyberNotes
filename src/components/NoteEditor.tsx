@@ -1537,14 +1537,18 @@ export default function NoteEditor({
                       background: 'var(--accent-dim)',
                       color: 'var(--accent-light)',
                       cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 11,
-                      animation: 'cyber-border-pulse 3s ease-in-out infinite',
-                      whiteSpace: 'nowrap',
-                      marginRight: 4,
-                      flexShrink: 0,
+                      transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
                     }}
-                    whileHover={{ scale: 1.05 }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'var(--accent)';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.borderColor = 'var(--accent-light)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'var(--accent-dim)';
+                      e.currentTarget.style.color = 'var(--accent-light)';
+                      e.currentTarget.style.borderColor = 'var(--accent)';
+                    }}
                     whileTap={{ scale: 0.95 }}
                     onMouseDown={(e) => e.preventDefault()}
                   >
