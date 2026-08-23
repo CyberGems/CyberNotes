@@ -211,24 +211,15 @@ export default function LockScreen({
       >
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 64,
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <img
-              src="icon.png"
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 18,
-                boxShadow: '0 0 24px var(--accent-glow)',
-              }}
-              alt="Logo"
-            />
-          </div>
+          <img
+            src="icon.png"
+            style={{
+              width: 64,
+              height: 64,
+              display: 'block',
+            }}
+            alt="Logo"
+          />
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: -0.5, margin: 0 }}>
               CyberNotes

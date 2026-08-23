@@ -13,17 +13,20 @@ const require = createRequire(import.meta.url);
 // ─── Detectar si estamos en dev o producción ───────────────────────────────
 const isDev = !app.isPackaged;
 
-// Icon path resolution
+// Icon path resolution (window icon)
 let iconPath = path.join(__dirname, '..', 'public', 'icon.png');
 if (!isDev) {
-  // En producción, buscamos en el dist dentro del asar o carpeta app
   iconPath = path.join(app.getAppPath(), 'dist', 'icon.png');
 }
-
-// Fallback por seguridad (si no existe el png, usar el .ico o nada)
 if (!fs.existsSync(iconPath)) {
   const fallbackIcon = path.join(isDev ? path.join(__dirname, '..', 'public') : path.join(app.getAppPath(), 'dist'), 'icon.ico');
   if (fs.existsSync(fallbackIcon)) iconPath = fallbackIcon;
+}
+
+// Tray icon path (uses .ico for native multi-res crisp rendering on Windows)
+let trayIconPath = path.join(isDev ? path.join(__dirname, '..', 'public') : path.join(app.getAppPath(), 'dist'), 'icon.ico');
+if (!fs.existsSync(trayIconPath)) {
+  trayIconPath = iconPath;
 }
 
 // ─── bcrypt (pure JS, no nativo) ──────────────────────────────────────────
@@ -420,7 +423,7 @@ function updateTrayMenu() {
 
 function createTray() {
   try {
-    tray = new Tray(iconPath);
+    tray = new Tray(trayIconPath);
     updateTrayMenu();
     tray.setToolTip(`CyberNotes v${app.getVersion()}`);
 

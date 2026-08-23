@@ -619,130 +619,20 @@ export default function Sidebar({
           );
         })}
 
-        {/* Nueva carpeta inline */}
-        {showNewFolder && (
-          <div style={{
-            padding: '10px',
-            background: 'var(--bg-surface)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border)',
-            marginTop: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-          }}>
-            <input
-              ref={newFolderInputRef}
-              type="text"
-              value={newFolderName}
-              onChange={e => setNewFolderName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
-              placeholder={t.sidebar.folderName}
-              className="input"
-              onContextMenu={inputMenu.onContextMenu}
-              style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
-            />
-
-            {/* Iconos - 2 filas de 10 (reutilizables entre carpetas) */}
-            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {language === 'es' ? 'Selecciona un icono' : 'Select an icon'}
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
-              {FOLDER_ICONS.map(icon => (
-                <button
-                  key={icon}
-                  type="button"
-                  onClick={() => setNewFolderIcon(icon)}
-                  style={{
-                    border: newFolderIcon === icon ? '2px solid var(--accent)' : '1px solid var(--border)',
-                    background: 'var(--bg-input)',
-                    borderRadius: 6,
-                    padding: '6px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: 1,
-                    aspectRatio: '1',
-                  }}
-                >
-                  <FolderIcon name={icon} color={newFolderIcon === icon ? 'var(--accent)' : '#ffffff'} size={16} />
-                </button>
-              ))}
-            </div>
-
-            {/* Colores - 2 filas de 10 */}
-            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {language === 'es' ? 'Asigna un color único de carpeta' : 'Assign a unique folder color'}
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
-              {FOLDER_COLORS.map(c => {
-                const { usedColors } = getAvailableColors();
-                const isUsed = usedColors.has(c);
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => !isUsed ? setNewFolderColor(c) : null}
-                    disabled={isUsed}
-                    style={{
-                      width: 24,
-                      height: 24,
-                      padding: 0,
-                      borderRadius: '50%',
-                      background: c,
-                      border: newFolderColor === c ? '3px solid white' : '2px solid transparent',
-                      cursor: isUsed ? 'not-allowed' : 'pointer',
-                      boxShadow: newFolderColor === c ? `0 0 8px ${c}` : 'none',
-                      boxSizing: 'border-box',
-                      flexShrink: 0,
-                      opacity: isUsed ? 0.4 : 1,
-                      position: 'relative',
-                    }}
-                    title={isUsed ? language === 'es' ? 'Color en uso' : 'Color in use' : ''}
-                  >
-                    {isUsed && (
-                      <span style={{
-                        position: 'absolute',
-                        top: -5,
-                        right: -5,
-                        width: 12,
-                        height: 12,
-                        background: '#ef4444',
-                        borderRadius: '50%',
-                        fontSize: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                      }}>✓</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn btn-primary" onClick={handleCreateFolder} style={{ flex: 1, fontSize: 'calc(12px * var(--ui-scale))', padding: '6px' }}>
-                {t.sidebar.create}
-              </button>
-              <button className="btn btn-ghost" onClick={() => setShowNewFolder(false)} style={{ flex: 1, fontSize: 'calc(12px * var(--ui-scale))', padding: '6px' }}>
-                {t.general.cancel}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!showNewFolder && (
-          <button
-            className="btn btn-ghost"
-            onClick={() => setShowNewFolder(true)}
-            style={{ width: '100%', justifyContent: 'flex-start', marginTop: 4, fontSize: 'calc(12px * var(--ui-scale))', gap: 8, padding: '7px 10px' }}
-          >
-            <Plus size={14} />
-            {t.sidebar.newFolder}
-          </button>
-        )}
+        <button
+          className="btn btn-ghost"
+          onClick={() => {
+            setNewFolderName('');
+            setNewFolderIcon('folder');
+            const { available } = getAvailableColors();
+            setNewFolderColor(available[0] || '#7c3aed');
+            setShowNewFolder(true);
+          }}
+          style={{ width: '100%', justifyContent: 'flex-start', marginTop: 4, fontSize: 'calc(12px * var(--ui-scale))', gap: 8, padding: '7px 10px' }}
+        >
+          <Plus size={14} />
+          {t.sidebar.newFolder}
+        </button>
       </div>
 
       {/* Bottom actions */}
@@ -1015,7 +905,134 @@ export default function Sidebar({
         document.body
       )}
 
-      {/* Edit folder modal */}
+      {/* Modal Nueva carpeta */}
+      {showNewFolder && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.7)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999,
+        }} onClick={() => setShowNewFolder(false)}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 28,
+              width: 540,
+              maxWidth: 'calc(100vw - 32px)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow)',
+            }}
+          >
+            <h3 style={{ fontSize: 'calc(16px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+              {t.sidebar.newFolder}
+            </h3>
+
+            <input
+              ref={newFolderInputRef}
+              type="text"
+              value={newFolderName}
+              onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
+              placeholder={t.sidebar.folderName}
+              className="input"
+              autoFocus
+              onContextMenu={inputMenu.onContextMenu}
+            />
+
+            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {language === 'es' ? 'Selecciona un icono' : 'Select an icon'}
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
+              {FOLDER_ICONS.map(icon => {
+                const isSelected = newFolderIcon === icon;
+                return (
+                  <button
+                    key={icon}
+                    type="button"
+                    onClick={() => setNewFolderIcon(icon)}
+                    style={{
+                      border: isSelected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: 'var(--bg-input)',
+                      borderRadius: 6,
+                      padding: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      aspectRatio: '1',
+                    }}
+                  >
+                    <FolderIcon name={icon} color={isSelected ? 'var(--accent)' : '#ffffff'} size={16} />
+                  </button>
+                );
+              })}
+            </div>
+
+            <label style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {language === 'es' ? 'Asigna un color único de carpeta' : 'Assign a unique folder color'}
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
+              {FOLDER_COLORS.map(c => {
+                const { usedColors } = getAvailableColors();
+                const isUsed = usedColors.has(c);
+                const isSelected = newFolderColor === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => !isUsed || isSelected ? setNewFolderColor(c) : null}
+                    disabled={isUsed && !isSelected}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      padding: 0,
+                      borderRadius: '50%',
+                      background: c,
+                      border: isSelected ? '3px solid white' : '2px solid transparent',
+                      cursor: isUsed && !isSelected ? 'not-allowed' : 'pointer',
+                      boxShadow: isSelected ? `0 0 8px ${c}` : 'none',
+                      boxSizing: 'border-box',
+                      flexShrink: 0,
+                      opacity: isUsed && !isSelected ? 0.4 : 1,
+                      position: 'relative',
+                    }}
+                    title={isUsed && !isSelected ? (language === 'es' ? 'Color en uso' : 'Color in use') : ''}
+                  >
+                    {isUsed && !isSelected && (
+                      <span style={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -5,
+                        width: 12,
+                        height: 12,
+                        background: '#ef4444',
+                        borderRadius: '50%',
+                        fontSize: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                      }}>✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button className="btn btn-primary" onClick={handleCreateFolder} style={{ flex: 1 }}>{t.sidebar.create}</button>
+              <button className="btn btn-ghost" onClick={() => setShowNewFolder(false)} style={{ flex: 1 }}>{t.general.cancel}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Editar carpeta */}
       {editingFolder && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.7)',

@@ -158,23 +158,14 @@ export default function AboutModal({ language, onClose }: Props) {
         </div>
 
         <div className="modal-body about-modal-body" style={{ textAlign: 'center', padding: '0 28px 20px', overflowY: 'auto' }}>
-          <div style={{ position: 'relative', width: 72, height: 72, margin: '0 auto 16px' }}>
-            <div style={{
-              position: 'absolute', inset: -4,
-              background: 'var(--accent-dim)',
-              borderRadius: '50%',
-              filter: 'blur(12px)',
-            }} />
+          <div style={{ margin: '0 auto 16px', display: 'flex', justifyContent: 'center' }}>
             <img
               src="icon.png"
               alt="CyberNotes"
               style={{
-                position: 'relative',
                 width: 72,
                 height: 72,
-                borderRadius: 18,
-                border: '1px solid var(--accent)',
-                boxShadow: '0 0 18px var(--accent-glow)',
+                display: 'block',
               }}
             />
           </div>
