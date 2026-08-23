@@ -1,15 +1,21 @@
-# CyberNotes 🚀
+<p align="center">
+  <img src="public/icon.png" width="128" height="128" alt="CyberNotes" />
+</p>
 
-[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/CyberGems/CyberNotes)
-[![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://github.com/CyberGems/CyberNotes/releases)
-[![Electron](https://img.shields.io/badge/Electron-35-47848f.svg)](https://www.electronjs.org/)
+<h1 align="center">CyberNotes 🚀</h1>
 
-**CyberNotes** is a premium, secure, and privacy-focused note-taking application designed for the modern user. Built with Electron, React, and SQL.js, it delivers a high-performance experience with a stunning "Cyber" aesthetic — all while keeping your data entirely on your machine.
+<p align="center">
+  <a href="https://github.com/CyberGems/CyberNotes"><img src="https://img.shields.io/badge/version-1.7.0-blue.svg" alt="Version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green.svg" alt="License" /></a>
+  <a href="https://github.com/CyberGems/CyberNotes/releases"><img src="https://img.shields.io/badge/platform-Windows-0078d4.svg" alt="Platform" /></a>
+  <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-35-47848f.svg" alt="Electron" /></a>
+</p>
 
-🌐 [Official Website](https://cybergems.org/)
-
-![CyberNotes UI](public/icon.png)
+<p align="center">
+  <strong>Premium, secure and privacy-focused note-taking</strong> — high-performance Electron + React + SQL.js with a stunning Cyber aesthetic. Your data stays 100% local.
+  <br />
+  🌐 <a href="https://cybergems.org/">cybergems.org</a> · <a href="https://github.com/CyberGems/CyberNotes/issues">Report Bug</a> · <a href="https://github.com/CyberGems/CyberNotes/releases">Releases</a>
+</p>
 
 ## 📋 Table of Contents
 
@@ -28,37 +34,34 @@
 ## ✨ Key Features
 
 ### 🔒 Privacy First
-- Local-only database powered by SQL.js — your notes never leave your device.
-- Optional master password protection with bcrypt encryption.
-- Automatic inactivity lock to secure your data when you step away.
+- Local-only SQL.js (SQLite WASM) — notes never leave your device.
+- Optional master password (bcrypt) with inactivity auto-lock and privacy shield.
 
 ### ✍️ Rich Text Editing
-Advanced editor based on TipTap with support for:
-- Markdown-style shortcuts for fast formatting.
-- Image integration (saved locally in your user profile).
-- Code blocks, highlights, and link previews.
-- **Optional Line Counter Gutter** for a professional developer-like writing experience.
+- TipTap / ProseMirror: markdown shortcuts, headings, lists, code blocks, highlights, links, blockquotes.
+- Images saved locally (`userData/images`) with thumbnail previews.
+- Autosave toggle, manual Save, draft protection (confirm on close/navigation).
+- Line gutter, line/column counter, word/char count + read time, minimap, global Caps Lock auto-off with countdown.
 
 ### 📁 Organization
-- Intuitive folder system with customizable icons and colors.
-- Quick note search and filtering.
+- Folders with icons + unique colors, Favorites & Unfiled views.
+- Multi-tabs, drag & drop between folders, pin/unpin.
+- Instant search (title/preview/content), recent notes (edited/opened/created) with history.
 
-### 🎨 Advanced Customization
-- Dynamic UI scaling to fit any display.
-- Glassmorphism effects with adjustable blur intensity.
-- Custom background images with configurable opacity.
-- Multiple curated themes (Cyber Dark, Cyber Purple, and more).
-- Color intensity controls for fine-tuned theming.
+### 🎨 Customization
+- 6 themes + color intensity, UI scale, glass blur & overlay opacity, custom background image.
+- Tab width (normal/wide), minimap toggle, density controls — all persisted locally.
 
 ### 🖥️ Desktop Ready
-- System tray integration for background operation.
-- Auto-start with Windows support.
-- Single-instance locking to prevent duplicate processes.
-- Display-aware window sanitization for perfect placement on any monitor setup.
-- Built-in auto-updater powered by `electron-updater`.
+- Native window (custom title bar), system tray with crisp DPI-aware icon, custom tray menu.
+- Minimize/close to tray, launch at startup (hidden), single-instance lock, global hotkey `Alt+Shift+N`.
+- Display-aware window restore, unsaved-changes guard, offline-first.
+
+### 🔄 Unattended Updates
+- `electron-updater` via GitHub Releases: background check on launch + every 6h, progress bar, auto-download and auto-restart (deferred if unsaved changes, cancellable via “Later”). Original NSIS installer stays interactive.
 
 ### 🌐 Multilingual
-- Full bilingual interface available in **English** and **Español**.
+- Full **English / Español** UI with persisted preference.
 
 ## 🛠️ Tech Stack
 
@@ -114,13 +117,12 @@ Advanced editor based on TipTap with support for:
 
 ## 📦 Distribution
 
-The application is packaged using `electron-builder`. Installers for Windows can be found in the `release/` directory after running the build command.
+Packaged with `electron-builder`. After `npm run build:electron`, artifacts land in `release/`:
 
-Two distribution formats are available:
-- **NSIS Installer** — Standard Windows setup with installation wizard.
-- **Portable** — No installation required; run from any folder.
+- **NSIS Installer** (`CyberNotes_Setup_${version}.exe`) — interactive wizard (`oneClick: false`), custom install dir, desktop shortcut, `perMachine` support. Original installer is never touched by updates.
+- **Portable** (`CyberNotes_Portable_${version}.exe`) — zero-install, run from any folder.
 
-Releases are published automatically via [electron-updater](https://www.electron.build/configuration/publish) to GitHub Releases.
+Updates are delivered via `electron-updater` (GitHub provider `CyberGems/CyberNotes`). NSIS updates run silently (`/S`) with a global progress banner and auto-restart; portable builds require manual download.
 
 ## 🤝 Contributing
 
@@ -145,7 +147,7 @@ The master password is hashed with bcrypt and cannot be recovered. You would nee
 Currently, only Windows is officially supported. The application is built with Electron, so support for macOS and Linux may be added in the future.
 
 **How do I update the application?**
-CyberNotes includes a built-in auto-updater. When a new release is available, you'll be prompted to download and install it from the About section.
+Auto-updates are **unattended** when enabled (Settings → About → *Actualizaciones automáticas*): the app checks on launch and every 6h, downloads in background with a progress bar, then shows *“Update ready — Restarting in 8s”* (you can hit **Restart now** or **Later**; if you have unsaved changes it waits until quit). You can also trigger a manual check from the About dialog at any time.
 
 ## 📄 License
 
