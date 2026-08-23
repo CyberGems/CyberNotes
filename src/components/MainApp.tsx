@@ -930,6 +930,7 @@ export default function MainApp({
                   ? { id: 'favorites', name: TRANSLATIONS[language].sidebar.favorites, icon: 'star', color: '#f59e0b' } as Folder
                 : (folders.find(f => f.id === selectedFolderId) ?? null)}
               searchQuery={searchQuery}
+              uiScale={uiScale}
             />
             <div 
               onMouseDown={startDragNoteList}

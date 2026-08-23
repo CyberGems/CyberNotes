@@ -142,6 +142,12 @@ async function initDatabase() {
   // Rellenar miniaturas de notas existentes (una sola vez / solo filas vacías)
   backfillNoteThumbs();
 
+  // Si es una instalación nueva sin notas, crear nota de bienvenida
+  const noteCountRow = queryGet('SELECT count(*) as count FROM notes');
+  if (!noteCountRow || noteCountRow.count === 0) {
+    seedInitialWelcomeNote();
+  }
+
   // Guardar schema inicial
   saveDbToDisk();
 
@@ -149,6 +155,31 @@ async function initDatabase() {
   if (!fs.existsSync(imagesPath)) {
     fs.mkdirSync(imagesPath, { recursive: true });
   }
+}
+
+function seedInitialWelcomeNote() {
+  const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
+  const sysLocale = app.getLocale() || '';
+  const isEs = langVal?.value === 'es' || (!langVal && sysLocale.toLowerCase().startsWith('es'));
+
+  const now = new Date().toISOString();
+  const noteId = 'welcome-note';
+  const title = isEs ? '👋 ¡Bienvenido a CyberNotes!' : '👋 Welcome to CyberNotes!';
+  
+  const content = isEs
+    ? `<h1>👋 ¡Bienvenido a CyberNotes!</h1><p><strong>CyberNotes</strong> es tu espacio de notas rápido, moderno y con estética cyberpunk. Todo lo que escribes se almacena localmente en tu equipo con total privacidad.</p><h2>✨ Características principales</h2><ul><li><strong>📁 Carpetas y Colores:</strong> Organiza tus notas en carpetas personalizadas con iconos y colores vibrantes.</li><li><strong>⭐ Favoritos y Pestañas:</strong> Marca tus notas más importantes y trabaja en múltiples documentos simultáneamente.</li><li><strong>⚡ Atajo global de ventana:</strong> Muestra u oculta CyberNotes desde cualquier aplicación con el atajo de teclado personalizable (por defecto <code>Alt+Shift+N</code>).</li><li><strong>🗺️ Minimapa de navegación:</strong> Visualiza la estructura completa de tu documento para desplazarte ágilmente.</li><li><strong>🔒 Seguridad y Bloqueo:</strong> Protege tus notas con contraseña y bloqueo automático por inactividad.</li><li><strong>⇪ Auto-desbloqueo de Mayúsculas:</strong> Sistema inteligente que desactiva el Bloq Mayús tras inactividad para evitar errores de tipeo.</li></ul><h2>💡 Consejos de inicio rápido</h2><ul><li>Usa <code>Ctrl + N</code> para crear una nueva nota al instante.</li><li>Haz clic derecho en cualquier parte del editor para acceder a opciones de formato, enlaces e imágenes.</li><li>Ajusta la escala de la interfaz o la densidad de la lista desde los controles de la barra inferior.</li></ul><blockquote><p><em>"Tus ideas, notas y código organizados a la velocidad de la luz."</em> — CyberGems Suite</p></blockquote>`
+    : `<h1>👋 Welcome to CyberNotes!</h1><p><strong>CyberNotes</strong> is your fast, modern, cyberpunk-styled note-taking app. Everything you write is stored locally on your machine with complete privacy.</p><h2>✨ Key Features</h2><ul><li><strong>📁 Folders &amp; Colors:</strong> Organize your notes into custom folders with vibrant icons and colors.</li><li><strong>⭐ Favorites &amp; Multi-Tabs:</strong> Pin important notes and work with multiple open documents at once.</li><li><strong>⚡ Global Window Shortcut:</strong> Quickly summon or hide CyberNotes from any app with customizable hotkeys (default: <code>Alt+Shift+N</code>).</li><li><strong>🗺️ Document Minimap:</strong> View a real-time overview of your document to navigate long notes seamlessly.</li><li><strong>🔒 Privacy &amp; Lock:</strong> Protect your notes with password encryption and inactivity auto-lock.</li><li><strong>⇪ Auto-Unlock Caps Lock:</strong> Intelligent system that releases Caps Lock after typing inactivity to prevent unintended uppercase text.</li></ul><h2>💡 Quick Tips</h2><ul><li>Press <code>Ctrl + N</code> to create a new note instantly.</li><li>Right-click anywhere in the editor to access rich formatting, links, and image controls.</li><li>Adjust list density and UI scaling from the bottom status bar controls.</li></ul><blockquote><p><em>"Your thoughts, notes, and code organized at the speed of light."</em> — CyberGems Suite</p></blockquote>`;
+
+  const preview = isEs
+    ? 'CyberNotes es tu espacio de notas rápido, moderno y con estética cyberpunk. Todo lo que escribes se almacena localmente en tu equipo con total privacidad.'
+    : 'CyberNotes is your fast, modern, cyberpunk-styled note-taking app. Everything you write is stored locally on your machine with complete privacy.';
+
+  runQuery(
+    `INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [noteId, null, title, content, preview, '', 1, now, now]
+  );
+  runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['open_note_ids', JSON.stringify([noteId])]);
+  runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['last_note_id', noteId]);
 }
 
 /** Extrae la primera imagen del content (HTML o JSON TipTap) en el main process. */

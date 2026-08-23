@@ -2577,43 +2577,65 @@ export default function NoteEditor({
             }}
           />
 
-          {/* Formato de texto enriquecido: no aplica al título (input de texto plano). */}
-          {contextMenu.target !== 'title' && (
-            <>
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+            {/* Formato de texto enriquecido: no aplica al título (input de texto plano). */}
+          {contextMenu.target !== 'title' && (() => {
+            const canClearFormatting = (() => {
+              if (!editor) return false;
+              const { from, to, empty } = editor.state.selection;
+              if (empty) return false;
 
-              <MenuBtn
-                icon={<Bold size={13} />}
-                label={language === 'es' ? 'Negrita' : 'Bold'}
-                enabled
-                extraStyle={{ fontWeight: 'bold' }}
-                onAction={() => { editor.chain().focus().toggleBold().run(); }}
-              />
-              <MenuBtn
-                icon={<Italic size={13} />}
-                label={language === 'es' ? 'Cursiva' : 'Italic'}
-                enabled
-                extraStyle={{ fontStyle: 'italic' }}
-                onAction={() => { editor.chain().focus().toggleItalic().run(); }}
-              />
-              <MenuBtn
-                icon={<UnderlineIcon size={13} />}
-                label={language === 'es' ? 'Subrayado' : 'Underline'}
-                enabled
-                extraStyle={{ textDecoration: 'underline' }}
-                onAction={() => { editor.chain().focus().toggleUnderline().run(); }}
-              />
+              let hasFormatting = false;
+              editor.state.doc.nodesBetween(from, to, (node) => {
+                if (hasFormatting) return false;
+                if (node.marks && node.marks.length > 0) {
+                  hasFormatting = true;
+                  return false;
+                }
+                if (node.isBlock && node.type.name !== 'paragraph' && node.type.name !== 'doc') {
+                  hasFormatting = true;
+                  return false;
+                }
+              });
+              return hasFormatting;
+            })();
 
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+            return (
+              <>
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-              <MenuBtn
-                icon={<RemoveFormatting size={13} />}
-                label={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
-                enabled
-                onAction={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); }}
-              />
-            </>
-          )}
+                <MenuBtn
+                  icon={<Bold size={13} />}
+                  label={language === 'es' ? 'Negrita' : 'Bold'}
+                  enabled
+                  extraStyle={{ fontWeight: 'bold' }}
+                  onAction={() => { editor.chain().focus().toggleBold().run(); }}
+                />
+                <MenuBtn
+                  icon={<Italic size={13} />}
+                  label={language === 'es' ? 'Cursiva' : 'Italic'}
+                  enabled
+                  extraStyle={{ fontStyle: 'italic' }}
+                  onAction={() => { editor.chain().focus().toggleItalic().run(); }}
+                />
+                <MenuBtn
+                  icon={<UnderlineIcon size={13} />}
+                  label={language === 'es' ? 'Subrayado' : 'Underline'}
+                  enabled
+                  extraStyle={{ textDecoration: 'underline' }}
+                  onAction={() => { editor.chain().focus().toggleUnderline().run(); }}
+                />
+
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+
+                <MenuBtn
+                  icon={<RemoveFormatting size={13} />}
+                  label={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}
+                  enabled={canClearFormatting}
+                  onAction={() => { editor.chain().focus().clearNodes().unsetAllMarks().run(); }}
+                />
+              </>
+            );
+          })()}
               </>
             );
           })()}

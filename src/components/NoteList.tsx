@@ -21,6 +21,7 @@ interface Props {
   onRenameNote: (id: string, title: string) => void;
   selectedFolder: Folder | null;
   searchQuery: string;
+  uiScale?: number;
 }
 
 function formatDate(iso: string, language: Language): string {
@@ -54,7 +55,7 @@ const OVERSCAN = 8;
 
 export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
-  onDeleteNote, onTogglePin, onMoveNote, onRenameNote, selectedFolder, searchQuery,
+  onDeleteNote, onTogglePin, onMoveNote, onRenameNote, selectedFolder, searchQuery, uiScale = 1,
 }: Props) {
   const t = TRANSLATIONS[language];
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'alpha' | 'alpha-desc'>('updated');
@@ -109,7 +110,7 @@ export default function NoteList({
     });
   }, [initialNotes, sortBy]);
 
-  const rowHeight = viewMode === 'compact' ? ROW_COMPACT : ROW_NORMAL;
+  const rowHeight = Math.round((viewMode === 'compact' ? ROW_COMPACT : ROW_NORMAL) * (uiScale || 1));
   const totalHeight = sortedNotes.length * rowHeight;
 
   // Virtualización: solo montar filas visibles
@@ -329,7 +330,7 @@ export default function NoteList({
                           style={{
                             height: rowHeight,
                             boxSizing: 'border-box',
-                            padding: viewMode === 'compact' ? '3px 0' : '4px 0',
+                            padding: viewMode === 'compact' ? 'calc(3px * var(--ui-scale)) 0' : 'calc(4px * var(--ui-scale)) 0',
                           }}
                         >
                           <NoteItem
@@ -667,8 +668,8 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       style={{
         height: '100%',
         boxSizing: 'border-box',
-        padding: viewMode === 'compact' ? '5px 14px' : '10px 14px',
-        margin: '0 12px',
+        padding: viewMode === 'compact' ? 'calc(5px * var(--ui-scale)) calc(14px * var(--ui-scale))' : 'calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale))',
+        margin: '0 calc(12px * var(--ui-scale))',
         borderRadius: 'var(--radius-md)',
         background: isSelected || isContextActive ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
         cursor: 'pointer',
@@ -715,9 +716,8 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
-              lineHeight: 1.45,
+              lineHeight: 1.35,
               margin: 0,
-              maxHeight: '2.9em',
               paddingRight: firstImage ? 0 : 28,
             }}>
               {note.preview || (language === 'es' ? 'Sin contenido' : 'No content')}
@@ -754,7 +754,8 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginTop: viewMode === 'compact' ? 3 : 8,
+        marginTop: 'auto',
+        paddingTop: 'calc(4px * var(--ui-scale))',
         gap: 8,
         flexShrink: 0,
       }}>
