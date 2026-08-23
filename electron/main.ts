@@ -367,6 +367,36 @@ function restoreWindow() {
   mainWindow.focus();
 }
 
+function createMenuIcon(svg: string) {
+  try {
+    return nativeImage.createFromDataURL('data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64')).resize({ width: 16, height: 16 });
+  } catch {
+    return undefined;
+  }
+}
+
+const TRAY_ICONS = {
+  get app() {
+    try {
+      return nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16, quality: 'best' });
+    } catch {
+      return undefined;
+    }
+  },
+  get window() {
+    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="8"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="6" y1="4" x2="6" y2="8"/></svg>');
+  },
+  get settings() {
+    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>');
+  },
+  get about() {
+    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>');
+  },
+  get quit() {
+    return createMenuIcon('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>');
+  }
+};
+
 function getTrayMenuTemplate(): any[] {
   const capsLockVal = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_unlock_caps_lock']);
   const isCapsUnlockEnabled = capsLockVal?.value === 'true';
@@ -374,25 +404,59 @@ function getTrayMenuTemplate(): any[] {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const lang = langVal?.value || 'en';
   const isEs = lang === 'es';
+  const isShown = mainWindow?.isVisible();
 
   return [
-    { label: `CyberNotes  ·  v${app.getVersion()}`, enabled: false },
+    {
+      label: `CyberNotes v${app.getVersion()}`,
+      icon: TRAY_ICONS.app,
+      click: () => {
+        restoreWindow();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('open-about');
+        }
+      }
+    },
     { type: 'separator' },
-    { label: isEs ? 'Abrir CyberNotes' : 'Open CyberNotes', click: restoreWindow },
-    { 
-      label: isEs ? 'Configuración' : 'Settings', 
+    {
+      label: isShown ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
+      icon: TRAY_ICONS.window,
+      click: () => {
+        if (mainWindow?.isVisible()) {
+          if (hasPasswordHash()) {
+            mainWindow.webContents.send('session:shield-enable');
+          }
+          mainWindow.hide();
+        } else {
+          restoreWindow();
+        }
+      }
+    },
+    {
+      label: isEs ? 'Configuración' : 'Settings',
+      icon: TRAY_ICONS.settings,
       click: () => {
         restoreWindow();
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('open-settings');
         }
-      } 
+      }
+    },
+    {
+      label: isEs ? 'Acerca de CyberNotes' : 'About CyberNotes',
+      icon: TRAY_ICONS.about,
+      click: () => {
+        restoreWindow();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('open-about');
+        }
+      }
     },
     { type: 'separator' },
-    { 
-      label: isEs ? 'Desactivar CapsLock por inactividad' : 'Disable Caps Lock on inactivity', 
-      type: 'checkbox', 
-      checked: isCapsUnlockEnabled, 
+    {
+      label: isEs ? 'Desactivar CapsLock por inactividad' : 'Disable Caps Lock on inactivity',
+      type: 'checkbox',
+      checked: isCapsUnlockEnabled,
       click: (menuItem: any) => {
         const newVal = menuItem.checked;
         runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auto_unlock_caps_lock', newVal ? 'true' : 'false']);
@@ -400,13 +464,16 @@ function getTrayMenuTemplate(): any[] {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('setting-changed', { key: 'auto_unlock_caps_lock', value: newVal ? 'true' : 'false' });
         }
-      } 
+      }
     },
     { type: 'separator' },
-    { label: isEs ? 'Salir' : 'Quit', click: () => {
+    {
+      label: isEs ? 'Salir' : 'Quit',
+      icon: TRAY_ICONS.quit,
+      click: () => {
         isQuitting = true;
         app.quit();
-      } 
+      }
     }
   ];
 }
@@ -510,7 +577,10 @@ function createWindow() {
   mainWindow.on('close', () => saveWindowState(true));
   mainWindow.on('maximize', () => saveWindowState(true));
   mainWindow.on('unmaximize', () => saveWindowState(true));
-  mainWindow.on('hide', () => saveWindowState(true));
+  mainWindow.on('hide', () => {
+    saveWindowState(true);
+    updateTrayMenu();
+  });
 
   // Manejar minimizar (Bandeja de sistema)
   mainWindow.on('minimize', () => {
@@ -537,6 +607,7 @@ function createWindow() {
       sessionLocked = true;
       mainWindow?.webContents.send('session:force-lock');
     }
+    updateTrayMenu();
   });
 
   // Manejar cierre (Bandeja de sistema)

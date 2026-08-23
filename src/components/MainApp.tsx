@@ -156,6 +156,10 @@ export default function MainApp({
       setShowSettings(true);
     });
 
+    const unregisterOpenAbout = window.cyberNotesAPI.onOpenAbout(() => {
+      setShowAbout(true);
+    });
+
     const unregisterUnsavedExit = window.cyberNotesAPI.onConfirmUnsavedExit(() => {
       setShowUnsavedExitDialog(true);
     });
@@ -170,6 +174,7 @@ export default function MainApp({
       if (unregisterContext) unregisterContext();
       if (unregisterSettingChanged) unregisterSettingChanged();
       if (unregisterOpenSettings) unregisterOpenSettings();
+      if (unregisterOpenAbout) unregisterOpenAbout();
       if (unregisterUnsavedExit) unregisterUnsavedExit();
     };
   }, []);

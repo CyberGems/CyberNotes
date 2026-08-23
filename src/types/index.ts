@@ -109,6 +109,7 @@ declare global {
       onSettingChanged: (callback: (data: { key: string, value: string }) => void) => () => void;
       onGlobalCapsLockChanged: (callback: (active: boolean) => void) => () => void;
       onOpenSettings: (callback: () => void) => () => void;
+      onOpenAbout: (callback: () => void) => () => void;
       onConfirmUnsavedExit: (callback: () => void) => () => void;
       respondUnsavedExit: (discard: boolean) => Promise<void>;
       // Spellcheck

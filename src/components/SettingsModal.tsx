@@ -80,7 +80,8 @@ export default function SettingsModal({
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
-  const isInitialMount = useRef(true);
+  const [loaded, setLoaded] = useState(false);
+  const initialSnapshotRef = useRef<string | null>(null);
 
   // Diálogo personalizado (reemplaza alert/confirm nativos)
   const [dialog, setDialog] = useState<DialogOptions | null>(null);
@@ -102,22 +103,40 @@ export default function SettingsModal({
   useEffect(() => {
     const loadSettings = async () => {
       const val = await window.cyberNotesAPI.getSetting('close_to_tray');
-      setCloseToTray(val === 'true');
+      const ctt = val === 'true';
+      setCloseToTray(ctt);
       const minVal = await window.cyberNotesAPI.getSetting('minimize_to_tray');
-      setMinimizeToTray(minVal === 'true');
+      const mtt = minVal === 'true';
+      setMinimizeToTray(mtt);
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
+
+      initialSnapshotRef.current = JSON.stringify({
+        language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
+        autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+        autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
+        capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
+        closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart
+      });
+      setLoaded(true);
     };
     loadSettings();
   }, []);
 
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
+    if (!loaded || !initialSnapshotRef.current) return;
+    const currentSnapshot = JSON.stringify({
+      language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
+      autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+      autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
+      capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
+      closeToTray, minimizeToTray, autoStart
+    });
+    if (currentSnapshot !== initialSnapshotRef.current) {
+      setHasSavedChanges(true);
     }
-    setHasSavedChanges(true);
   }, [
+    loaded,
     language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
