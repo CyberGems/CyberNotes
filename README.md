@@ -1,6 +1,6 @@
 # CyberNotes 🚀
 
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/CyberGems/CyberNotes)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/CyberGems/CyberNotes)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](https://github.com/CyberGems/CyberNotes/releases)
 [![Electron](https://img.shields.io/badge/Electron-35-47848f.svg)](https://www.electronjs.org/)
