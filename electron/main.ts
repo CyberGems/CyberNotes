@@ -289,7 +289,7 @@ function startIdleLockWatcher(): void {
     if (!hasPasswordHash()) return;
     if (!idleExceeded()) return;
     requestRendererLock();
-  }, 15_000);
+  }, 5_000);
 }
 let hasUnsavedChanges = false;
 let capsLockWorker: any = null;
@@ -346,56 +346,22 @@ function stopCapsLockWorker() {
 function restoreWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  const finishShow = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    const maxVal = queryGet('SELECT value FROM settings WHERE key = ?', ['is_maximized']);
-    if (maxVal?.value === 'true') mainWindow.maximize();
-    mainWindow.show();
-    mainWindow.setOpacity(1);
-    mainWindow.focus();
-  };
-
-  // Privacy gate: never reveal note content if the session must be locked.
-  // Opacity 0 avoids flashing a stale compositor frame of MainApp from tray.
-  if (shouldLockBeforeShow()) {
+  const mustLock = shouldLockBeforeShow();
+  if (mustLock) {
     sessionLocked = true;
-    mainWindow.setOpacity(0);
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
     mainWindow.webContents.send('session:force-lock');
-
-    let settled = false;
-    const reveal = () => {
-      if (settled || !mainWindow || mainWindow.isDestroyed()) return;
-      settled = true;
-      // One paint tick so LockScreen replaces any stale buffer before becoming visible.
-      setTimeout(() => {
-        if (!mainWindow || mainWindow.isDestroyed()) return;
-        mainWindow.setOpacity(1);
-        mainWindow.focus();
-      }, 48);
-    };
-
-    const onLocked = () => {
-      clearTimeout(retryTimer);
-      clearTimeout(failsafeTimer);
-      reveal();
-    };
-    ipcMain.once('session:locked', onLocked);
-    const retryTimer = setTimeout(() => {
-      if (settled || !mainWindow || mainWindow.isDestroyed()) return;
-      mainWindow.webContents.send('session:force-lock');
-    }, 200);
-    // Last resort: still reveal (opacity was 0 the whole time; LockScreen should be up).
-    const failsafeTimer = setTimeout(() => {
-      ipcMain.removeListener('session:locked', onLocked);
-      reveal();
-    }, 900);
-    return;
+  } else {
+    mainWindow.webContents.send('session:shield-disable');
   }
 
-  finishShow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  const maxVal = queryGet('SELECT value FROM settings WHERE key = ?', ['is_maximized']);
+  if (maxVal?.value === 'true') {
+    mainWindow.maximize();
+  }
+  mainWindow.show();
+  mainWindow.setOpacity(1);
+  mainWindow.focus();
 }
 
 function getTrayMenuTemplate(): any[] {
@@ -460,6 +426,9 @@ function createTray() {
 
     tray.on('click', () => {
       if (mainWindow?.isVisible()) {
+        if (hasPasswordHash()) {
+          mainWindow.webContents.send('session:shield-enable');
+        }
         mainWindow.hide();
       } else {
         restoreWindow();
@@ -542,9 +511,28 @@ function createWindow() {
 
   // Manejar minimizar (Bandeja de sistema)
   mainWindow.on('minimize', () => {
+    if (hasPasswordHash()) {
+      mainWindow?.webContents.send('session:shield-enable');
+    }
     const minimizeToTray = queryGet('SELECT value FROM settings WHERE key = ?', ['minimize_to_tray']);
     if (minimizeToTray?.value === 'true') {
       mainWindow?.hide();
+    }
+  });
+
+  mainWindow.on('restore', () => {
+    if (shouldLockBeforeShow()) {
+      sessionLocked = true;
+      mainWindow?.webContents.send('session:force-lock');
+    } else {
+      mainWindow?.webContents.send('session:shield-disable');
+    }
+  });
+
+  mainWindow.on('show', () => {
+    if (shouldLockBeforeShow()) {
+      sessionLocked = true;
+      mainWindow?.webContents.send('session:force-lock');
     }
   });
 
@@ -553,6 +541,9 @@ function createWindow() {
     const closeToTray = queryGet('SELECT value FROM settings WHERE key = ?', ['close_to_tray']);
     if (closeToTray?.value === 'true' && !isQuitting) {
       event.preventDefault();
+      if (hasPasswordHash()) {
+        mainWindow?.webContents.send('session:shield-enable');
+      }
       mainWindow?.hide();
       return false;
     }
@@ -621,6 +612,9 @@ function createWindow() {
 
 // -- Ventana --
 ipcMain.handle('window-minimize', () => {
+  if (hasPasswordHash()) {
+    mainWindow?.webContents.send('session:shield-enable');
+  }
   const minimizeToTray = queryGet('SELECT value FROM settings WHERE key = ?', ['minimize_to_tray']);
   if (minimizeToTray?.value === 'true') {
     mainWindow?.hide();
@@ -746,6 +740,11 @@ ipcMain.on('session:locked', () => {
 ipcMain.handle('auth:setPassword', async (_e: any, password: string) => {
   const hash = await bcrypt.hash(password, 10);
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hash]);
+  sessionLocked = false;
+  lastActivityAt = Date.now();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('setting-changed', { key: 'password_hash', value: 'set' });
+  }
   return true;
 });
 
@@ -758,6 +757,10 @@ ipcMain.handle('auth:verifyPassword', async (_e: any, password: string) => {
 ipcMain.handle('auth:removePassword', () => {
   runQuery('DELETE FROM settings WHERE key = ?', ['password_hash']);
   sessionLocked = false;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('setting-changed', { key: 'password_hash', value: 'removed' });
+    mainWindow.webContents.send('session:shield-disable');
+  }
   return true;
 });
 

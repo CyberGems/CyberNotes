@@ -369,7 +369,6 @@ export default function Sidebar({
               display: 'inline-flex',
               alignItems: 'center',
               pointerEvents: 'none',
-              color: selectedFolderId === 'favorites' && !searchQuery ? '#f59e0b' : '#f59e0b',
             }}
           >
             <Star
@@ -422,7 +421,7 @@ export default function Sidebar({
             border: isNoteDragging
               ? activeDropTargetId === 'floating'
                 ? '1px solid var(--accent)'
-                : '1px dashed rgba(6, 182, 212, 0.4)'
+                : '1px dashed var(--accent)'
               : '1px solid transparent',
             background: activeDropTargetId === 'floating'
               ? 'var(--accent-dim)'
@@ -464,7 +463,7 @@ export default function Sidebar({
             variants={{
               hover: { scale: 1.2, y: [0, -2, 2, 0], transition: { type: 'spring', stiffness: 300, damping: 10 } }
             }}
-            style={{ display: 'inline-flex', alignItems: 'center', pointerEvents: 'none', color: '#06b6d4' }}
+            style={{ display: 'inline-flex', alignItems: 'center', pointerEvents: 'none' }}
           >
             <Cloud size={15} />
           </motion.span>

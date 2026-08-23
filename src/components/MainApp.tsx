@@ -40,9 +40,21 @@ interface Props {
   colorIntensity: number;
   onIntensityChange: (v: number) => void;
   onLock: () => void;
+  autoLockMinutes: number;
+  onAutoLockChange: (v: number) => void;
 }
 
-export default function MainApp({ language, onLanguageChange, currentTheme, onThemeChange, colorIntensity, onIntensityChange, onLock }: Props) {
+export default function MainApp({
+  language,
+  onLanguageChange,
+  currentTheme,
+  onThemeChange,
+  colorIntensity,
+  onIntensityChange,
+  onLock,
+  autoLockMinutes,
+  onAutoLockChange,
+}: Props) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
@@ -80,7 +92,6 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     misspelledWord?: string;
   } | null>(null);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
-  const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [rememberLastNote, setRememberLastNote] = useState(false);
   const [showLineCounter, setShowLineCounter] = useState(false);
   const [showLineGutter, setShowLineGutter] = useState(true);
@@ -95,7 +106,6 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   const [showWordCounter, setShowWordCounter] = useState(false);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadedRef = useRef(false);
   const contentCacheRef = useRef<Record<string, string>>({});
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,37 +174,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     };
   }, []);
 
-  // Lógica de Auto-bloqueo (throttle de actividad: no resetear en cada mousemove)
-  // lastActivity also syncs to main so tray restore can lock on wall-clock even if
-  // Chromium froze this setTimeout while the window was hidden.
-  useEffect(() => {
-    if (autoLockMinutes <= 0) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      return;
-    }
 
-    let lastReset = 0;
-    const resetTimer = () => {
-      const now = Date.now();
-      if (now - lastReset < 1000) return;
-      lastReset = now;
-      window.cyberNotesAPI.reportActivity();
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        onLock();
-      }, autoLockMinutes * 60 * 1000);
-    };
-
-    const events = ['mousedown', 'mousemove', 'keydown', 'wheel', 'touchstart'];
-    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
-
-    resetTimer();
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      events.forEach(e => window.removeEventListener(e, resetTimer));
-    };
-  }, [autoLockMinutes, onLock]);
 
   // Detector de links vía mousemove (throttled con rAF)
   useEffect(() => {
@@ -272,7 +252,6 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
     if (s.bg_image) setBgImage(s.bg_image);
     if (s.glass_blur) setGlassBlur(parseFloat(s.glass_blur));
     if (s.bg_opacity) setBgOpacity(parseFloat(s.bg_opacity));
-    if (s.auto_lock_minutes) setAutoLockMinutes(parseInt(s.auto_lock_minutes));
 
     const isRemember = s.remember_last_note === 'true';
     setRememberLastNote(isRemember);
@@ -712,8 +691,7 @@ export default function MainApp({ language, onLanguageChange, currentTheme, onTh
   };
 
   const handleAutoLockChange = async (v: number) => {
-    setAutoLockMinutes(v);
-    await window.cyberNotesAPI.setSetting('auto_lock_minutes', v.toString());
+    onAutoLockChange(v);
   };
 
   const handleRememberLastNoteChange = async (v: boolean) => {

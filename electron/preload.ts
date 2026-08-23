@@ -57,6 +57,16 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     ipcRenderer.on('session:force-lock', listener);
     return () => ipcRenderer.removeListener('session:force-lock', listener);
   },
+  onShieldEnable: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('session:shield-enable', listener);
+    return () => ipcRenderer.removeListener('session:shield-enable', listener);
+  },
+  onShieldDisable: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('session:shield-disable', listener);
+    return () => ipcRenderer.removeListener('session:shield-disable', listener);
+  },
 
   // -- Auth --
   hasPassword: () => ipcRenderer.invoke('auth:hasPassword'),

@@ -57,6 +57,8 @@ declare global {
       setSessionLocked: (locked: boolean) => Promise<boolean>;
       ackSessionLocked: () => void;
       onForceLock: (callback: () => void) => () => void;
+      onShieldEnable: (callback: () => void) => () => void;
+      onShieldDisable: (callback: () => void) => () => void;
       // Settings
       getSetting: (key: string) => Promise<string | null>;
       getSettings: (keys: string[]) => Promise<Record<string, string | null>>;

@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon from './FolderIcon';
@@ -314,8 +314,8 @@ export default function NoteList({
                   justifyContent: 'center', flex: 1, minHeight: 200, gap: 12, color: 'var(--text-muted)',
                 }}>
                   {searchQuery
-                    ? <><Search size={32} opacity={0.4} /><span style={{ fontSize: 13 }}>{language === 'es' ? 'No se encontraron resultados' : 'No results found'}</span></>
-                    : <><span style={{ fontSize: 32, opacity: 0.3 }}>📝</span><span style={{ fontSize: 13 }}>{t.noteList.noNotes}</span></>
+                    ? <><Search size={32} strokeWidth={1.5} style={{ opacity: 0.4 }} /><span style={{ fontSize: 13 }}>{language === 'es' ? 'No se encontraron resultados' : 'No results found'}</span></>
+                    : <><FileText size={34} strokeWidth={1.4} style={{ opacity: 0.32, color: 'var(--text-muted)' }} /><span style={{ fontSize: 13 }}>{t.noteList.noNotes}</span></>
                   }
                 </div>
               ) : (
