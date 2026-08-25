@@ -151,6 +151,14 @@ Currently, only Windows is officially supported. The application is built with E
 **How do I update the application?**
 Auto-updates are **unattended** when enabled (Settings → About → *Actualizaciones automáticas*): the app checks on launch and every 6h, downloads in background with a progress bar, then shows *“Update ready — Restarting in 8s”* (you can hit **Restart now** or **Later**; if you have unsaved changes it waits until quit). You can also trigger a manual check from the About dialog at any time.
 
+## ❤️ Donate
+
+**CyberNotes** is a personal open-source project within the **CyberGems** suite. I've spent thousands of hours building and refining it — both for my own use and to share premium-quality software with the world for free.
+
+If you'd like to support this work, a donation would mean a lot. Thank you! 🙏
+
+[![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-0070BA?style=for-the-badge&logo=paypal)](https://paypal.me/CyberGems)
+
 ## 📄 License
 
 This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
