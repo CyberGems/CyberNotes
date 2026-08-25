@@ -17,6 +17,8 @@
   🌐 <a href="https://cybergems.org/">cybergems.org</a> · <a href="https://github.com/CyberGems/CyberNotes/issues">Report Bug</a> · <a href="https://github.com/CyberGems/CyberNotes/releases">Releases</a>
 </p>
 
+*Free and open source (GPLv3) — no ads, no tracking, and no data collection. Just enjoy it.*
+
 ## 📋 Table of Contents
 
 - [Key Features](#-key-features)
