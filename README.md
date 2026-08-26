@@ -12,6 +12,15 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/CyberGems/CyberNotes/releases/latest">
+    <img src="https://img.shields.io/badge/⚡_Download_Latest_Release-(Windows_64--bit)-00F2FF?style=for-the-badge&logo=windows&logoColor=000000" alt="Download Latest Release" />
+  </a>
+  <a href="https://github.com/CyberGems/CyberNotes/releases">
+    <img src="https://img.shields.io/badge/All_Releases-Changelog-18181B?style=for-the-badge&logo=github&logoColor=white" alt="All Releases" />
+  </a>
+</p>
+
+<p align="center">
   <strong>Premium, secure and privacy-focused note-taking</strong> — high-performance Electron + React + SQL.js with a stunning Cyber aesthetic. Your data stays 100% local.
   <br />
   🌐 <a href="https://cybergems.org/">cybergems.org</a> · <a href="https://github.com/CyberGems/CyberNotes/issues">Report Bug</a> · <a href="https://github.com/CyberGems/CyberNotes/releases">Releases</a>
