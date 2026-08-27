@@ -2,13 +2,10 @@
   <img src="public/icon.png" width="128" height="128" alt="CyberNotes" />
 </p>
 
-<h1 align="center">CyberNotes 🚀</h1>
+<h1 align="center">CyberNotes — Secure Note-Taking</h1>
 
 <p align="center">
-  <a href="https://github.com/CyberGems/CyberNotes"><img src="https://img.shields.io/badge/version-1.8.0-blue.svg" alt="Version" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green.svg" alt="License" /></a>
-  <a href="https://github.com/CyberGems/CyberNotes/releases"><img src="https://img.shields.io/badge/platform-Windows-0078d4.svg" alt="Platform" /></a>
-  <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-35-47848f.svg" alt="Electron" /></a>
+  <strong>Premium, privacy-focused note-taking</strong> — high-performance Electron + React + SQL.js with a stunning Cyber aesthetic. Your data stays 100% local.
 </p>
 
 <p align="center">
@@ -21,144 +18,201 @@
 </p>
 
 <p align="center">
-  <strong>Premium, secure and privacy-focused note-taking</strong> — high-performance Electron + React + SQL.js with a stunning Cyber aesthetic. Your data stays 100% local.
-  <br />
-  🌐 <a href="https://cybergems.org/">cybergems.org</a> · <a href="https://github.com/CyberGems/CyberNotes/issues">Report Bug</a> · <a href="https://github.com/CyberGems/CyberNotes/releases">Releases</a>
+  <img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License" />
+  <img src="https://img.shields.io/badge/platform-Windows-0078D4.svg?logo=windows&logoColor=white" alt="Platform" />
+  <img src="https://img.shields.io/badge/version-1.8.0-00F0FF.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/Electron-35-512BD4.svg?logo=electron&logoColor=white" alt="Electron" />
 </p>
+
+A modern, privacy-focused desktop note-taking application with a cyberpunk aesthetic. Built with **Electron + React + TypeScript**, it stores all data locally using **SQL.js (SQLite WASM)** — your notes never leave your device.
 
 *Free and open source (GPLv3) — no ads, no tracking, and no data collection. Just enjoy it.*
 
-## 📋 Table of Contents
+---
 
-- [Key Features](#-key-features)
-- [Tech Stack](#️-tech-stack)
-- [Getting Started](#-getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Available Scripts](#available-scripts)
-- [Distribution](#-distribution)
-- [Contributing](#-contributing)
-- [FAQ](#-faq)
-- [License](#-license)
-- [Support](#-support)
+## 🔒 Why CyberNotes?
+
+Most note apps either sync your data to the cloud (privacy risk) or are too basic to be useful. CyberNotes gives you **the best of both worlds**: rich editing, powerful organization, and rock-solid security — all 100% offline.
+
+| Need | Solution |
+|---|---|
+| Keep notes private | Local-only SQL.js — no cloud, no accounts, no tracking |
+| Rich editing without bloat | TipTap editor with markdown shortcuts, images, code blocks |
+| Stay organized | Folders with icons & colors, favorites, multi-tabs, drag & drop |
+| Protect sensitive notes | Master password (bcrypt) with auto-lock and privacy shield |
+| Work efficiently | Autosave, session restore, global hotkey, system tray |
+| Make it yours | 6 themes, custom backgrounds, glass effects, UI scaling |
+
+---
 
 ## ✨ Key Features
 
-### 🔒 Privacy First
-- Local-only SQL.js (SQLite WASM) — notes never leave your device.
-- Optional master password (bcrypt) with inactivity auto-lock and privacy shield.
-
 ### ✍️ Rich Text Editing
-- TipTap / ProseMirror: markdown shortcuts, headings, lists, code blocks, highlights, links, blockquotes.
-- Images saved locally (`userData/images`) with thumbnail previews.
-- Autosave toggle, manual Save, draft protection (confirm on close/navigation).
-- Line gutter, line/column counter, word/char count + read time, minimap, global Caps Lock auto-off with countdown.
+- **TipTap Editor** — bold, italic, underline, strikethrough, headings (H1–H3), bullet/ordered lists, code blocks, blockquotes, horizontal rules, text highlighting
+- **Links & Images** — auto-link detection, image insertion with size and alignment controls, local thumbnail previews
+- **Markdown Shortcuts** — type `##`, `>`, `-`, `` ``` `` for instant formatting
+- **Document Tools** — line/column counter, word/character count, reading time, document minimap, line numbers
+- **Save Options** — autosave as you type, manual save with draft protection, confirm on close/navigation
 
 ### 📁 Organization
-- Folders with icons + unique colors, Favorites & Unfiled views.
-- Multi-tabs, drag & drop between folders, pin/unpin.
-- Instant search (title/preview/content), recent notes (edited/opened/created) with history.
+- **Folders** — custom names, 20 icon options, 20 unique colors (enforced uniqueness)
+- **Multi-Tab Interface** — work with multiple notes simultaneously
+- **Favorites & Pinning** — pin important notes for quick access
+- **Drag & Drop** — move notes between folders effortlessly
+- **Instant Search** — full-text search across titles, previews, and content
+- **Recent Notes** — track edited, opened, and created notes with history
+- **Session Restoration** — remember open tabs and active note between sessions
+
+### 🔐 Security
+- **Master Password** — bcrypt-hashed password protection with lock screen
+- **Auto-Lock** — configurable inactivity timeout (1 min to 24 hours)
+- **Privacy Shield** — screen shield when app is hidden or minimized
+- **Caps Lock Manager** — auto-off after inactivity with visual countdown and sound notifications (5 synthesized presets)
 
 ### 🎨 Customization
-- 6 themes + color intensity, UI scale, glass blur & overlay opacity, custom background image.
-- Tab width (normal/wide), minimap toggle, density controls — all persisted locally.
+- **6 Visual Themes** — Cyber Dark, Midnight, Forest, Cyber Neon, Light, Graphite
+- **Color Intensity** — adjustable 0–100% for colorful themes
+- **Custom Background** — set your own wallpaper image
+- **Glass Effects** — configurable blur intensity (0–40px) and overlay opacity (0–95%)
+- **UI Scaling** — adjust interface size to your preference
+- **Tab Width** — normal or wide, minimap toggle, density controls
 
-### 🖥️ Desktop Ready
-- Native window (custom title bar), system tray with crisp DPI-aware icon, custom tray menu.
-- Minimize/close to tray, launch at startup (hidden), single-instance lock, global hotkey `Alt+Shift+N`.
-- Display-aware window restore, unsaved-changes guard, offline-first.
+### 🖥️ Desktop Integration
+- **System Tray** — minimize/close to tray, custom DPI-aware tray menu
+- **Global Hotkey** — show/hide with customizable shortcut (default: `Alt+Shift+N`)
+- **Auto-Start** — launch minimized with Windows
+- **Single Instance** — second launches focus the existing window
+- **Spell Check** — bilingual (English/Spanish) with right-click suggestions
+- **Context Menu** — formatting, spell suggestions, link/image controls
 
-### 🔄 Unattended Updates
-- `electron-updater` via GitHub Releases: background check on launch + every 6h, progress bar, auto-download and auto-restart (deferred if unsaved changes, cancellable via “Later”). Original NSIS installer stays interactive.
+### 🔄 Updates & Data
+- **Auto-Updates** — background check on launch + every 6h, progress bar, auto-download and restart
+- **Export** — Markdown, HTML (styled), or full JSON backup
+- **Import** — restore from JSON backup (with automatic safety backup)
+- **Bilingual UI** — full English / Español with instant switching
 
-### 🌐 Multilingual
-- Full **English / Español** UI with persisted preference.
+---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Architecture
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19, TypeScript, Vite |
-| **Editor** | TipTap (ProseMirror) |
-| **Animations** | Motion (formerly Framer Motion) |
-| **Storage** | SQL.js (SQLite WASM) |
-| **Security** | bcryptjs |
-| **Desktop** | Electron 35 |
-| **Icons** | Lucide React |
+- **Platform:** Windows 10 / 11
+- **Framework:** Electron 35 + React 19 + TypeScript
+- **Editor:** TipTap (ProseMirror)
+- **Storage:** SQL.js (SQLite compiled to WebAssembly)
+- **Security:** bcryptjs password hashing
+- **Animations:** Motion (Framer Motion)
+
+```
+cyber-notes/
+├── electron/
+│   ├── main.ts           Electron main process (window, tray, IPC handlers)
+│   ├── preload.ts        Context bridge (secure API exposure)
+│   └── updater.ts        Auto-update logic
+├── src/
+│   ├── components/
+│   │   ├── MainApp.tsx        Main application layout
+│   │   ├── TitleBar.tsx       Custom title bar with menu
+│   │   ├── Sidebar.tsx        Folder navigation
+│   │   ├── NoteList.tsx       Note list panel
+│   │   ├── NoteEditor.tsx     TipTap editor wrapper
+│   │   ├── SettingsModal.tsx  Settings panel
+│   │   ├── LockScreen.tsx     Password lock screen
+│   │   └── AboutModal.tsx     About dialog
+│  ├── types/             TypeScript interfaces
+│  ├── utils/             Utility functions
+│  ├── hooks/             Custom React hooks
+│  ├── themes.ts          Theme definitions
+│  └── languages.ts       i18n translations
+└── package.json
+```
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (Latest LTS recommended — v18+)
+- [Node.js](https://nodejs.org/) v18+ (LTS recommended)
 - npm or yarn
 
-### Installation
+### Development
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/CyberGems/CyberNotes.git
-   cd CyberNotes
-   ```
+```bash
+git clone https://github.com/CyberGems/CyberNotes.git
+cd CyberNotes
+npm install
+npm run dev
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+### Build for Production
 
-3. Run in development mode:
-   ```bash
-   npm run dev
-   ```
-
-4. Build the production installer:
-   ```bash
-   npm run build:electron
-   ```
+```bash
+npm run build:electron
+```
 
 ### Available Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start the Vite development server with hot reload. |
-| `npm run build` | Compile TypeScript and build the production bundle. |
-| `npm run build:electron` | Full build: TypeScript → Vite → electron-builder installer. |
-| `npm run preview` | Preview the production build locally. |
-| `npm run lint` | Run TypeScript type-checking without emitting files. |
+| `npm run dev` | Start Vite development server with hot reload |
+| `npm run build` | Compile TypeScript and build production bundle |
+| `npm run build:electron` | Full build: TypeScript → Vite → electron-builder installer |
+| `npm run preview` | Preview the production build locally |
+| `npm run lint` | Run TypeScript type-checking without emitting files |
 
-## 📦 Distribution
+### Distribution
 
-Packaged with `electron-builder`. After `npm run build:electron`, artifacts land in `release/`:
+Artifacts land in `release/`:
 
-- **NSIS Installer** (`CyberNotes_Setup_${version}.exe`) — interactive wizard (`oneClick: false`), custom install dir, desktop shortcut, `perMachine` support. Original installer is never touched by updates.
-- **Portable** (`CyberNotes_Portable_${version}.exe`) — zero-install, run from any folder.
+| Artifact | Description |
+|---|---|
+| `CyberNotes_Setup_1.8.0.exe` | NSIS installer (interactive wizard, custom install dir) |
+| `CyberNotes_Portable_1.8.0.exe` | Portable build (zero-install) |
 
-Updates are delivered via `electron-updater` (GitHub provider `CyberGems/CyberNotes`). NSIS updates run silently (`/S`) with a global progress banner and auto-restart; portable builds require manual download.
+---
 
-## 🤝 Contributing
+## ⌨️ Keyboard Shortcuts
 
-Contributions are welcome! Here's how to get started:
+| Key | Action |
+|---|---|
+| `Alt+Shift+N` | Toggle window visibility (customizable) |
+| `Ctrl+N` | Create new note |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
+| `Tab` | Insert tab / indent |
+| `Shift+Tab` | Remove indent |
 
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature`.
-3. Commit your changes with clear commit messages.
-4. Push to your branch and open a Pull Request.
+---
 
-Please ensure your code passes type-checking (`npm run lint`) before submitting.
+## ❓ Frequently Asked Questions
 
-## ❓ FAQ
+### Is my data synced to the cloud?
 
-**Is my data synced to the cloud?**
-No. CyberNotes stores everything locally using SQL.js. Your notes never leave your device unless you explicitly back them up.
+No. CyberNotes stores everything locally using SQL.js (SQLite WASM). Your notes never leave your device unless you explicitly export or back them up.
 
-**What happens if I forget my master password?**
+### What happens if I forget my master password?
+
 The master password is hashed with bcrypt and cannot be recovered. You would need to reset the database, which would result in data loss. Choose a password you won't forget.
 
-**Does CyberNotes support other operating systems?**
-Currently, only Windows is officially supported. The application is built with Electron, so support for macOS and Linux may be added in the future.
+### Does CyberNotes support other operating systems?
 
-**How do I update the application?**
-Auto-updates are **unattended** when enabled (Settings → About → *Actualizaciones automáticas*): the app checks on launch and every 6h, downloads in background with a progress bar, then shows *“Update ready — Restarting in 8s”* (you can hit **Restart now** or **Later**; if you have unsaved changes it waits until quit). You can also trigger a manual check from the About dialog at any time.
+Currently, Windows is officially supported. The application is built with Electron, so support for macOS and Linux may be added in the future.
+
+### How do updates work?
+
+Auto-updates are **unattended** when enabled (Settings → About → *Actualizaciones automáticas*): the app checks on launch and every 6h, downloads in background with a progress bar, then shows *"Update ready — Restarting in 8s"* (you can hit **Restart now** or **Later**; if you have unsaved changes it waits until quit). You can also trigger a manual check from the About dialog at any time.
+
+### Where is my data stored?
+
+All data is stored locally:
+
+```
+%APPDATA%/CyberNotes/cybernotes.db
+```
+
+Images are stored in `%APPDATA%/CyberNotes/images/`.
+
+---
 
 ## ❤️ Donate
 
@@ -184,37 +238,14 @@ If you'd like to support this work, a donation would mean a lot. Thank you! 🙏
 
 </details>
 
-## 📄 License
-
-This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
-
-```
-CyberNotes — A premium, secure, and privacy-focused note-taking application.
-Copyright (C) 2025 CyberGems
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-```
-
-## 💬 Support
-
-- **Official Website:** [cybergems.org](https://cybergems.org/)
-- **Bug Reports & Feature Requests:** [Open an issue](https://github.com/CyberGems/CyberNotes/issues)
-- **Source Code:** [github.com/CyberGems/CyberNotes](https://github.com/CyberGems/CyberNotes)
-
 ---
 
-*Built with ❤️ by [CyberGems](https://github.com/CyberGems)*
+## 📄 License
+
+CyberNotes is distributed under the terms of the GNU General Public License v3.0. See [LICENSE](LICENSE) for the full license text.
+
+Copyright (C) 2026 CyberGems
+
 ---
 
 <div align="center" style="background:#0D0F17; border:1px solid rgba(0,255,255,0.12); border-radius:12px; padding:28px 20px; margin-top:32px;">
@@ -224,4 +255,3 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 Made by [**CyberGems**](https://cybergems.org)
 
 </div>
-
