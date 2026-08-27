@@ -215,3 +215,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ---
 
 *Built with ❤️ by [CyberGems](https://github.com/CyberGems)*
+---
+
+<div align="center" style="background:#0D0F17; border:1px solid rgba(0,255,255,0.12); border-radius:12px; padding:28px 20px; margin-top:32px;">
+
+### Thanks for using CyberNotes! 🎉
+
+Made by [**CyberGems**](https://cybergems.org)
+
+</div>
+
