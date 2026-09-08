@@ -170,6 +170,15 @@ Artifacts land in `release/`:
 | `CyberNotes_Setup_1.8.0.exe` | NSIS installer (interactive wizard, custom install dir) |
 | `CyberNotes_Portable_1.8.0.exe` | Portable build (zero-install) |
 
+### 🛡️ Windows SmartScreen
+
+Windows may show a SmartScreen warning the first time you run the CyberNotes installer — this is expected until Windows builds enough reputation for the file. The same can appear when launching the portable build.
+
+To continue:
+
+1. Click **More info**.
+2. Click **Run anyway**.
+
 ---
 
 ## ⌨️ Keyboard Shortcuts
