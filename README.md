@@ -20,7 +20,7 @@
   <a href="https://github.com/CyberGems/CyberNotes/wiki"><img src="https://img.shields.io/badge/%F0%9F%93%96_Wiki-Documentation-222222?style=flat-square&logo=github&logoColor=white" alt="Wiki" height="24" /></a>
 </p>
 
-A modern, privacy-focused desktop note-taking application with a cyberpunk aesthetic. Built with **Electron + React + TypeScript**, it stores all data locally using **SQL.js (SQLite WASM)** — your notes never leave your device.
+A modern, privacy-focused desktop note-taking application with a modern neon aesthetic. Built with **Electron + React + TypeScript**, it stores all data locally using **SQL.js (SQLite WASM)** — your notes never leave your device.
 
 *Free and open source (GPLv3) — no ads, no tracking, and no data collection. Just enjoy it.*
 
