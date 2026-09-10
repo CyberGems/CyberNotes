@@ -189,36 +189,6 @@ To continue:
 
 ---
 
-## ❓ Frequently Asked Questions
-
-### Is my data synced to the cloud?
-
-No. CyberNotes stores everything locally using SQL.js (SQLite WASM). Your notes never leave your device unless you explicitly export or back them up.
-
-### What happens if I forget my master password?
-
-The master password is hashed with bcrypt and cannot be recovered. You would need to reset the database, which would result in data loss. Choose a password you won't forget.
-
-### Does CyberNotes support other operating systems?
-
-Currently, Windows is officially supported. The application is built with Electron, so support for macOS and Linux may be added in the future.
-
-### How do updates work?
-
-Auto-updates are **unattended** when enabled (Settings → About → *Actualizaciones automáticas*): the app checks on launch and every 6h, downloads in background with a progress bar, then shows *"Update ready — Restarting in 8s"* (you can hit **Restart now** or **Later**; if you have unsaved changes it waits until quit). You can also trigger a manual check from the About dialog at any time.
-
-### Where is my data stored?
-
-All data is stored locally:
-
-```
-%APPDATA%/CyberNotes/cybernotes.db
-```
-
-Images are stored in `%APPDATA%/CyberNotes/images/`.
-
----
-
 ## ❤️ Donate
 
 **CyberNotes** is one of the projects in [CyberGems](https://github.com/CyberGems#-all-apps--repositories), a personal set of daily-use tools for Windows. I've spent countless hours building and refining it for my own use, and it will continue to be maintained by me. I recently decided to share the entire suite with the world, completely free and open-source.
@@ -263,6 +233,10 @@ If you're enjoying CyberNotes, I'd be truly grateful for your support! You can s
 CyberNotes is distributed under the terms of the GNU General Public License v3.0. See [LICENSE](LICENSE) for the full license text.
 
 Copyright (C) 2026 CyberGems
+
+## ❓ FAQ
+
+For frequently asked questions, troubleshooting guides, and detailed configuration instructions, visit the [FAQ](https://github.com/CyberGems/CyberNotes/wiki/FAQ) or the [online documentation](https://cybergems.org/docs/cybernotes/FAQ).
 
 ---
 
