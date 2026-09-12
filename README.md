@@ -2,10 +2,10 @@
   <img src="public/icon.png" width="128" height="128" alt="CyberNotes" />
 </p>
 
-<h1 align="center">CyberNotes — Secure Note-Taking</h1>
+<h1 align="center">CyberNotes: Secure Note-Taking</h1>
 
 <p align="center">
-  <strong>Premium, privacy-focused note-taking</strong> — high-performance Electron + React + SQL.js with a stunning Cyber aesthetic. Your data stays 100% local.
+  <strong>Premium, privacy-focused note-taking</strong>: high-performance Electron + React + SQL.js with a stunning Cyber aesthetic. Your data stays 100% local.
 </p>
 
 <p align="center">
@@ -20,15 +20,15 @@
   <a href="https://github.com/CyberGems/CyberNotes/wiki"><img src="https://img.shields.io/badge/%F0%9F%93%96_Wiki-Documentation-222222?style=flat-square&logo=github&logoColor=white" alt="Wiki" height="24" /></a>
 </p>
 
-A modern, privacy-focused desktop note-taking application with a modern neon aesthetic. Built with **Electron + React + TypeScript**, it stores all data locally using **SQL.js (SQLite WASM)** — your notes never leave your device.
+A modern, privacy-focused desktop note-taking application with a modern neon aesthetic. Built with **Electron + React + TypeScript**, it stores all data locally using **SQL.js (SQLite WASM)**: your notes never leave your device.
 
-*Free and open source (GPLv3) — no ads, no tracking, and no data collection. Just enjoy it.*
+*Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
 
 ---
 
 ## 🔒 Why CyberNotes?
 
-Most note apps either sync your data to the cloud (privacy risk) or are too basic to be useful. CyberNotes gives you **the best of both worlds**: rich editing, powerful organization, and rock-solid security — all 100% offline.
+Most note apps either sync your data to the cloud (privacy risk) or are too basic to be useful. CyberNotes gives you **the best of both worlds**: rich editing, powerful organization, and rock-solid security, all 100% offline.
 
 | Need | Solution |
 |---|---|
@@ -167,7 +167,7 @@ Artifacts land in `release/`:
 
 ### 🛡️ Windows SmartScreen
 
-Windows may show a SmartScreen warning the first time you run the CyberNotes installer — this is an unsigned hobby app, so Windows hasn't built reputation for the file yet. This is expected; the source is public so you can inspect exactly what it does. The same can appear when launching the portable build.
+Windows may show a SmartScreen warning the first time you run the CyberNotes installer: this is an unsigned hobby app, so Windows hasn't built reputation for the file yet. This is expected; the source is public so you can inspect exactly what it does. The same can appear when launching the portable build.
 
 To continue:
 
@@ -250,12 +250,12 @@ Made by [**CyberGems**](https://cybergems.org)
 
 </div>
 <p align="center">
-  <a href="https://twitter.com/intent/tweet?text=CyberNotes%20%E2%80%94%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_X-1DA1F2?style=for-the-badge&logo=x&logoColor=white" alt="Share on X" /></a>
+  <a href="https://twitter.com/intent/tweet?text=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_X-1DA1F2?style=for-the-badge&logo=x&logoColor=white" alt="Share on X" /></a>
   &nbsp;<a href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_Facebook-1877F2?style=for-the-badge&logo=facebook&logoColor=white" alt="Share on Facebook" /></a>
-  &nbsp;<a href="https://www.reddit.com/submit?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&title=CyberNotes%20%E2%80%94%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Share on Reddit" /></a>
-  &nbsp;<a href="https://t.me/share/url?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&text=CyberNotes%20%E2%80%94%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Share on Telegram" /></a>
+  &nbsp;<a href="https://www.reddit.com/submit?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&title=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Share on Reddit" /></a>
+  &nbsp;<a href="https://t.me/share/url?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&text=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Share on Telegram" /></a>
   &nbsp;<a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="Share on LinkedIn" /></a>
-  &nbsp;<a href="mailto:?subject=CyberNotes%20%E2%80%94%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&body=CyberNotes%20%E2%80%94%20free%20%26%20open-source%20desktop%20tool%20for%20Windows%20https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_by_Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Share by Email" /></a>
+  &nbsp;<a href="mailto:?subject=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&body=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows%20https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_by_Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Share by Email" /></a>
 </p>
 
 ---
@@ -269,7 +269,7 @@ More free, open-source, privacy-first apps from [**CyberGems**](https://github.c
 | 🕐&nbsp;[**CyberClock**](https://github.com/CyberGems/CyberClock#readme) | Desktop clock with analog & digital display, calendar, timer, stopwatch and relaxation module. |
 | 📢&nbsp;[**CyberFeeds**](https://github.com/CyberGems/CyberFeeds#readme) | High-performance, local-first RSS and Atom reader built for speed, privacy and clean reading. |
 | 🚀&nbsp;[**CyberLauncher**](https://github.com/CyberGems/CyberLauncher#readme) | Windows application launcher with hot corners, scheduler, system monitor and integrated terminal. |
-| 💻&nbsp;[**CyberManager**](https://github.com/CyberGems/CyberManager#readme) | Lightweight, high-performance task manager, virtualized and NT-native — a powerful Task Manager alternative. |
+| 💻&nbsp;[**CyberManager**](https://github.com/CyberGems/CyberManager#readme) | Lightweight, high-performance task manager, virtualized and NT-native, a powerful Task Manager alternative. |
 | ⚡&nbsp;[**CyberPaste**](https://github.com/CyberGems/CyberPaste#readme) | Privacy-first clipboard manager for text, code, images, HTML and files. |
 | 📸&nbsp;[**CyberSnap**](https://github.com/CyberGems/CyberSnap#readme) | Screen capture and annotation suite with vector tools, high-speed OCR, screen recording and color picker. |
 | ⭐&nbsp;[**CyberTray**](https://github.com/CyberGems/CyberTray#readme) | High-performance tray launcher with hotspots, system monitoring, process manager and PIN-protected file vault. |
