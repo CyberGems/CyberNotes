@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
+import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -44,6 +45,8 @@ interface Props {
   onOpenTrayPin?: (isAutomatic?: boolean) => void;
   tabsWidthMode: 'normal' | 'wide';
   onTabsWidthModeChange: (v: 'normal' | 'wide') => void;
+  editorFont?: EditorFontId;
+  onEditorFontChange?: (font: EditorFontId) => void;
   showMinimap: boolean;
   onShowMinimapChange: (v: boolean) => void;
   showWordCounter: boolean;
@@ -68,6 +71,7 @@ export default function SettingsModal({
   capsLockSoundScope, onCapsLockSoundScopeChange,
   onClose, onLock, onOpenAbout, onOpenTrayPin,
   tabsWidthMode, onTabsWidthModeChange,
+  editorFont = 'inter', onEditorFontChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
   initialTab = 'general',
@@ -144,7 +148,7 @@ export default function SettingsModal({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
         autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-        capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
+        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
         closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk
       });
       setLoaded(true);
@@ -158,7 +162,7 @@ export default function SettingsModal({
       language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
       autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-      capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
+      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
       closeToTray, minimizeToTray, autoStart, toggleHotkey
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
@@ -169,7 +173,7 @@ export default function SettingsModal({
     language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-    capsLockSound, capsLockSoundScope, tabsWidthMode, showMinimap, showWordCounter,
+    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
     closeToTray, minimizeToTray, autoStart, toggleHotkey
   ]);
 
@@ -1031,6 +1035,82 @@ export default function SettingsModal({
                     </div>
                   </div>
                 </div>
+            </div>
+
+            <div className="settings-card">
+              <h3>
+                {language === 'es' ? 'Tipografía del Editor' : 'Editor Typography'}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {EDITOR_FONTS.map(font => {
+                  const isCurrent = (editorFont || 'inter') === font.id;
+                  const fontName = language === 'es' ? font.nameEs : font.nameEn;
+                  const categoryLabel = language === 'es' ? font.categoryLabelEs : font.categoryLabelEn;
+                  const description = language === 'es' ? font.descriptionEs : font.descriptionEn;
+
+                  return (
+                    <button
+                      key={font.id}
+                      type="button"
+                      onClick={() => onEditorFontChange?.(font.id)}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border)',
+                        background: isCurrent ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                        textAlign: 'left',
+                        transition: 'all var(--transition)',
+                        boxShadow: isCurrent ? '0 0 12px var(--accent-glow)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {fontName}
+                          </span>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: 4,
+                            background: isCurrent ? 'var(--accent)' : 'rgba(255, 255, 255, 0.08)',
+                            color: isCurrent ? 'var(--text-on-accent)' : 'var(--text-muted)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                          }}>
+                            {categoryLabel}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 11, color: isCurrent ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                          {isCurrent ? (language === 'es' ? '● Activa' : '● Active') : (language === 'es' ? 'Elegir' : 'Select')}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontFamily: font.family,
+                          fontSize: 14,
+                          color: isCurrent ? 'var(--accent-light)' : 'var(--text-secondary)',
+                          background: 'rgba(0, 0, 0, 0.25)',
+                          padding: '6px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                        }}
+                      >
+                        {font.sample}
+                      </div>
+
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                        {description}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             </>
           )}

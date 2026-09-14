@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeId } from './types';
 import { applyThemeVars } from './themes';
+import { applyEditorFont } from './fonts';
 import { Language } from './languages';
 import LockScreen from './components/LockScreen';
 import MainApp from './components/MainApp';
@@ -49,7 +50,7 @@ export default function App() {
         const s = await window.cyberNotesAPI.getSettings([
           'theme', 'colorIntensity', 'language',
           'bg_image', 'glass_blur', 'bg_opacity',
-          'auto_lock_minutes',
+          'auto_lock_minutes', 'editor_font',
         ]);
         
         let t = s.theme ? (s.theme as ThemeId) : 'cyber-dark';
@@ -62,6 +63,7 @@ export default function App() {
         setLanguage(l);
         setAutoLockMinutes(Number.isFinite(autoLock) ? autoLock : 0);
         applyThemeVars(t, i);
+        applyEditorFont(s.editor_font || 'inter');
         if (s.bg_image) setBgImage(s.bg_image);
         if (s.glass_blur) setGlassBlur(parseFloat(s.glass_blur));
         if (s.bg_opacity) setBgOpacity(parseFloat(s.bg_opacity));

@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { Folder, Note, ThemeId } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
+import { EditorFontId, applyEditorFont, DEFAULT_EDITOR_FONT } from '../fonts';
 import TitleBar from './TitleBar';
 import Sidebar from './Sidebar';
 import NoteList from './NoteList';
@@ -109,6 +110,7 @@ export default function MainApp({
   const [capsLockSound, setCapsLockSound] = useState('cyber-beep');
   const [capsLockSoundScope, setCapsLockSoundScope] = useState('app');
   const [tabsWidthMode, setTabsWidthMode] = useState<'normal' | 'wide'>('normal');
+  const [editorFont, setEditorFont] = useState<EditorFontId>(DEFAULT_EDITOR_FONT);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showWordCounter, setShowWordCounter] = useState(false);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
@@ -270,6 +272,7 @@ export default function MainApp({
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
       'show_word_counter', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
+      'editor_font',
     ]);
 
     if (s.ui_scale) setUiScale(parseFloat(s.ui_scale));
@@ -292,6 +295,10 @@ export default function MainApp({
     setCapsLockSound(s.caps_lock_sound || 'cyber-beep');
     setCapsLockSoundScope(s.caps_lock_sound_scope || 'app');
     if (s.tabs_width_mode) setTabsWidthMode(s.tabs_width_mode as 'normal' | 'wide');
+    if (s.editor_font) {
+      setEditorFont(s.editor_font as EditorFontId);
+      applyEditorFont(s.editor_font);
+    }
     if (s.show_minimap) setShowMinimap(s.show_minimap === 'true');
     setShowWordCounter(s.show_word_counter === 'true');
     if (s.recent_cleared_at) setRecentClearedAt(parseInt(s.recent_cleared_at));
@@ -793,6 +800,12 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('tabs_width_mode', mode);
   };
 
+  const handleEditorFontChange = async (fontId: EditorFontId) => {
+    setEditorFont(fontId);
+    applyEditorFont(fontId);
+    await window.cyberNotesAPI.setSetting('editor_font', fontId);
+  };
+
   const handleShowMinimapChange = async (v: boolean) => {
     setShowMinimap(v);
     await window.cyberNotesAPI.setSetting('show_minimap', v.toString());
@@ -1116,6 +1129,8 @@ export default function MainApp({
           }}
           tabsWidthMode={tabsWidthMode}
           onTabsWidthModeChange={handleTabsWidthModeChange}
+          editorFont={editorFont}
+          onEditorFontChange={handleEditorFontChange}
           showMinimap={showMinimap}
           onShowMinimapChange={handleShowMinimapChange}
           showWordCounter={showWordCounter}
