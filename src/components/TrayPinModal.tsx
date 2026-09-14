@@ -40,14 +40,14 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
   }, [dontShowAgain, isAutomatic]);
 
   const handleClose = () => {
-    if (dontShowAgain) {
+    if (isAutomatic && dontShowAgain) {
       dismissTrayPinReminder();
     }
     onClose();
   };
 
   const handleOpenSettings = async () => {
-    if (dontShowAgain) {
+    if (isAutomatic && dontShowAgain) {
       dismissTrayPinReminder();
     }
     setErrorMsg(null);
@@ -217,43 +217,45 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
             </div>
           </div>
 
-          {/* Don't show again checkbox */}
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 9,
-              cursor: 'pointer',
-              userSelect: 'none',
-              marginTop: 4,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={dontShowAgain}
-              onChange={e => setDontShowAgain(e.target.checked)}
-              style={{ display: 'none' }}
-            />
-            <div
+          {/* Don't show again checkbox (only shown when triggered automatically) */}
+          {isAutomatic && (
+            <label
               style={{
-                width: 17,
-                height: 17,
-                borderRadius: 4,
-                border: `1.5px solid ${dontShowAgain ? 'var(--accent)' : 'var(--border)'}`,
-                background: dontShowAgain ? 'var(--accent)' : 'transparent',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.15s',
-                flexShrink: 0,
+                gap: 9,
+                cursor: 'pointer',
+                userSelect: 'none',
+                marginTop: 4,
               }}
             >
-              {dontShowAgain && <Check size={12} style={{ color: 'var(--bg-app)', strokeWidth: 3 }} />}
-            </div>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              {isEs ? 'No volver a mostrar este recordatorio' : "Don't show this reminder again"}
-            </span>
-          </label>
+              <input
+                type="checkbox"
+                checked={dontShowAgain}
+                onChange={e => setDontShowAgain(e.target.checked)}
+                style={{ display: 'none' }}
+              />
+              <div
+                style={{
+                  width: 17,
+                  height: 17,
+                  borderRadius: 4,
+                  border: `1.5px solid ${dontShowAgain ? 'var(--accent)' : 'var(--border)'}`,
+                  background: dontShowAgain ? 'var(--accent)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                {dontShowAgain && <Check size={12} style={{ color: 'var(--bg-app)', strokeWidth: 3 }} />}
+              </div>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {isEs ? 'No volver a mostrar este recordatorio' : "Don't show this reminder again"}
+              </span>
+            </label>
+          )}
 
           {errorMsg && (
             <div

@@ -540,7 +540,7 @@ function buildTrayMenuState() {
         ? (isEs ? 'Cambiar contraseña...' : 'Change password...')
         : (isEs ? 'Configurar contraseña...' : 'Set password...'),
       pinLabel: isEs ? 'Mantener visible en la bandeja del sistema' : 'Keep visible in the system tray',
-      docsLabel: isEs ? 'Ayuda' : 'Help',
+      docsLabel: isEs ? 'Documentación / Wiki' : 'Documentation / Wiki',
       faqLabel: isEs ? 'Preguntas frecuentes' : 'FAQ',
       changelogLabel: isEs ? 'Registro de cambios' : 'Changelog',
       websiteLabel: isEs ? 'Sitio web' : 'Website',

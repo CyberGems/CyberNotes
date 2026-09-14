@@ -79,6 +79,7 @@ export default function MainApp({
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'security' | 'maintenance'>('general');
   const [showAbout, setShowAbout] = useState(false);
   const [showTrayPin, setShowTrayPin] = useState(false);
+  const [isTrayPinAutomatic, setIsTrayPinAutomatic] = useState(false);
   const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
@@ -172,6 +173,7 @@ export default function MainApp({
     });
 
     const unregisterOpenTrayPin = window.cyberNotesAPI.onOpenTrayPin?.(() => {
+      setIsTrayPinAutomatic(false);
       setShowTrayPin(true);
     });
 
@@ -854,7 +856,10 @@ export default function MainApp({
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
         onOpenAbout={() => setShowAbout(true)}
-        onOpenTrayPin={() => setShowTrayPin(true)}
+        onOpenTrayPin={() => {
+          setIsTrayPinAutomatic(false);
+          setShowTrayPin(true);
+        }}
         onSelectNote={(id) => {
           setSelectedNoteId(id);
           const note = allNotes.find(n => n.id === id);
@@ -1035,7 +1040,10 @@ export default function MainApp({
           onCapsLockSoundScopeChange={handleCapsLockSoundScopeChange}
           onClose={() => setShowSettings(false)}
           onLock={onLock}
-          onOpenTrayPin={() => setShowTrayPin(true)}
+          onOpenTrayPin={(isAuto) => {
+            setIsTrayPinAutomatic(!!isAuto);
+            setShowTrayPin(true);
+          }}
           tabsWidthMode={tabsWidthMode}
           onTabsWidthModeChange={handleTabsWidthModeChange}
           showMinimap={showMinimap}
@@ -1056,6 +1064,7 @@ export default function MainApp({
         <TrayPinModal
           language={language}
           onClose={() => setShowTrayPin(false)}
+          isAutomatic={isTrayPinAutomatic}
         />
       )}
 

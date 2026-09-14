@@ -41,7 +41,7 @@ interface Props {
   onCapsLockSoundScopeChange: (v: string) => void;
   onClose: () => void;
   onLock: () => void;
-  onOpenTrayPin?: () => void;
+  onOpenTrayPin?: (isAutomatic?: boolean) => void;
   tabsWidthMode: 'normal' | 'wide';
   onTabsWidthModeChange: (v: 'normal' | 'wide') => void;
   showMinimap: boolean;
@@ -199,7 +199,7 @@ export default function SettingsModal({
     setCloseToTray(val);
     await window.cyberNotesAPI.setSetting('close_to_tray', val.toString());
     if (val && !isTrayPinReminderDismissed()) {
-      onOpenTrayPin?.();
+      onOpenTrayPin?.(true);
     }
   };
 
@@ -207,7 +207,7 @@ export default function SettingsModal({
     setMinimizeToTray(val);
     await window.cyberNotesAPI.setSetting('minimize_to_tray', val.toString());
     if (val && !isTrayPinReminderDismissed()) {
-      onOpenTrayPin?.();
+      onOpenTrayPin?.(true);
     }
   };
 
@@ -476,7 +476,7 @@ export default function SettingsModal({
                     <button
                       type="button"
                       className="btn btn-ghost"
-                      onClick={() => onOpenTrayPin?.()}
+                      onClick={() => onOpenTrayPin?.(false)}
                       style={{
                         padding: '9px 14px',
                         fontSize: 12,

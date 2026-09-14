@@ -7,7 +7,7 @@ const ICONS = {
   lock: '<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
   quit: '<svg viewBox="0 0 24 24"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 3v9"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.2 9a3 3 0 1 1 5.6 1c0 2-2.8 2.3-2.8 4"/><path d="M12 18h.01"/></svg>',
-  key: '<svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5L11 9l-1.5-1.5L8 9a5 5 0 1 0 7.07 7.07l6.93-6.93V2z"/></svg>',
+  key: '<svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 2.5 2.5"/><path d="m18.5 4.5 2 2"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H11v18H5.5A2.5 2.5 0 0 0 3 22.5z"/><path d="M21 4.5A2.5 2.5 0 0 0 18.5 2H13v18h5.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1"/></svg>',
@@ -137,11 +137,10 @@ function renderMainView() {
 function renderHelpView() {
   const help = currentState.help || {};
   groupEl.replaceChildren(
-    makeItem({ localAction: 'back', icon: 'back', label: help.backLabel || 'Back' }),
     makeItem({ action: 'help-pin', icon: 'pin', label: help.pinLabel || 'Mantener visible en la bandeja del sistema' }),
     makeItem({ action: 'help-set-password', icon: 'key', label: help.setPasswordLabel || 'Set password...' }),
     makeSeparator(),
-    makeItem({ action: 'help-docs', icon: 'book', label: help.docsLabel || 'Help' }),
+    makeItem({ action: 'help-docs', icon: 'book', label: help.docsLabel || (help.label === 'Ayuda' ? 'Documentación / Wiki' : 'Documentation / Wiki') }),
     makeItem({ action: 'help-faq', icon: 'help', label: help.faqLabel || 'FAQ' }),
     makeItem({ action: 'help-changelog', icon: 'tag', label: help.changelogLabel || 'Changelog' }),
     makeItem({ action: 'help-website', icon: 'globe', label: help.websiteLabel || 'Website' }),
