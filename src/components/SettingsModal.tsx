@@ -186,11 +186,36 @@ export default function SettingsModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (dialog) return;
+      if (isCapturingHotkey) return;
+
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        const target = e.target as HTMLElement | null;
+        const isTextInput = target && (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+        );
+        if (isTextInput) return;
+
+        // If focus is specifically on an explicit action button (.btn), let Enter trigger that button
+        if (target && target.tagName === 'BUTTON' && target.classList.contains('btn')) {
+          return;
+        }
+
+        e.preventDefault();
+        onClose();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, isCapturingHotkey, dialog]);
 
   const navItems: { id: Tab; label: string; icon: ReactNode }[] = [
     { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <SlidersHorizontal size={13} /> },
