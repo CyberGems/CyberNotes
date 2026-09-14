@@ -151,27 +151,57 @@ export default function TitleBar({
         WebkitAppRegion: 'drag',
       } as any}
     >
-      {/* Logo + título */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, pointerEvents: 'none' }}>
-        <div style={{
-          width: 22,
-          height: 22,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <img src="icon.png" style={{ width: 22, height: 22, borderRadius: 4 }} alt="Logo" />
-        </div>
-        <span style={{
-          fontSize: 'calc(13px * var(--ui-scale))',
-          fontWeight: 600,
-          color: 'var(--text-secondary)',
-          letterSpacing: 0.3,
-        }}>
-          CyberNotes
-        </span>
-      </div>
+      {/* Logo + título (clickable -> About) */}
+      <Tooltip placement="bottom" label={language === 'es' ? 'Acerca de CyberNotes' : 'About CyberNotes'}>
+        <button
+          onClick={onOpenAbout}
+          data-no-drag="true"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+            background: 'transparent',
+            border: 'none',
+            padding: '3px 8px 3px 4px',
+            borderRadius: 'var(--radius-sm)',
+            cursor: 'pointer',
+            WebkitAppRegion: 'no-drag',
+            transition: 'background 0.15s ease, opacity 0.15s ease',
+          } as any}
+          className="titlebar-branding-btn"
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.05)';
+            const titleSpan = e.currentTarget.querySelector('.branding-text') as HTMLElement | null;
+            if (titleSpan) titleSpan.style.color = 'var(--text-primary)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+            const titleSpan = e.currentTarget.querySelector('.branding-text') as HTMLElement | null;
+            if (titleSpan) titleSpan.style.color = 'var(--text-secondary)';
+          }}
+        >
+          <div style={{
+            width: 22,
+            height: 22,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <img src="icon.png" style={{ width: 22, height: 22, borderRadius: 4 }} alt="Logo" />
+          </div>
+          <span className="branding-text" style={{
+            fontSize: 'calc(13px * var(--ui-scale))',
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+            letterSpacing: 0.3,
+            transition: 'color 0.15s ease',
+          }}>
+            CyberNotes
+          </span>
+        </button>
+      </Tooltip>
 
       {/* Indicador Caps Lock — siempre visible, dinámico */}
       <div
