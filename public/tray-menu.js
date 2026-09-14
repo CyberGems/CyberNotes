@@ -4,6 +4,7 @@ const ICONS = {
   window: '<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="8"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="6" y1="4" x2="6" y2="8"/></svg>',
   settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   about: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+  lock: '<svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="8 7 3 12 8 17"/><line x1="3" y1="12" x2="15" y2="12"/></svg>',
   quit: '<svg viewBox="0 0 24 24"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 3v9"/></svg>'
 };
 
@@ -47,11 +48,21 @@ function makeItem(def) {
 
 function applyState(state) {
   headEl.innerHTML = '<img class="head-icon" src="icon.png" alt="" /><span>' + (state.head || ('CyberNotes v' + (state.version || ''))) + '</span>';
-  groupEl.replaceChildren(
-    makeItem({ action: 'toggle', icon: 'window', label: state.showLabel, shortcut: state.shortcut || '' }),
+  
+  const items = [
+    makeItem({ action: 'toggle', icon: 'window', label: state.showLabel, shortcut: state.shortcut || '' })
+  ];
+
+  if (state.canLock) {
+    items.push(makeItem({ action: 'lock', icon: 'lock', label: state.lockLabel }));
+  }
+
+  items.push(
     makeItem({ action: 'settings', icon: 'settings', label: state.settingsLabel }),
     makeItem({ action: 'about', icon: 'about', label: state.aboutLabel })
   );
+
+  groupEl.replaceChildren(...items);
   exitGroupEl.replaceChildren(
     makeItem({ action: 'quit', icon: 'quit', label: state.exitLabel, danger: true })
   );

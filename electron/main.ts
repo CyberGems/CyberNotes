@@ -457,14 +457,17 @@ function buildTrayMenuState() {
   const isEs = lang === 'es';
   const visible = isWindowShown();
   const activeHotkey = getActiveToggleHotkey();
+  const canLock = hasPasswordHash() && !sessionLocked;
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
     visible,
+    canLock,
     showLabel: visible ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
+    lockLabel: isEs ? 'Cerrar sesión' : 'Sign out',
     settingsLabel: isEs ? 'Configuración' : 'Settings',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
-    exitLabel: isEs ? 'Salir' : 'Quit',
+    exitLabel: isEs ? 'Salir' : 'Exit',
     shortcut: activeHotkey,
   };
 }
@@ -664,6 +667,11 @@ ipcMain.on('tray-menu-action', (_event, action) => {
       } else {
         restoreWindow();
       }
+      break;
+    case 'lock':
+      requestRendererLock();
+      restoreWindow();
+      updateTrayMenu();
       break;
     case 'settings':
       restoreWindow();
@@ -1113,11 +1121,13 @@ ipcMain.handle('session:activity', () => {
 ipcMain.handle('session:set-locked', (_e: any, locked: boolean) => {
   sessionLocked = !!locked;
   if (!locked) lastActivityAt = Date.now();
+  updateTrayMenu();
   return true;
 });
 
 ipcMain.on('session:locked', () => {
   sessionLocked = true;
+  updateTrayMenu();
 });
 
 ipcMain.handle('auth:setPassword', async (_e: any, password: string) => {
@@ -1128,6 +1138,7 @@ ipcMain.handle('auth:setPassword', async (_e: any, password: string) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('setting-changed', { key: 'password_hash', value: 'set' });
   }
+  updateTrayMenu();
   return true;
 });
 
@@ -1144,6 +1155,7 @@ ipcMain.handle('auth:removePassword', () => {
     mainWindow.webContents.send('setting-changed', { key: 'password_hash', value: 'removed' });
     mainWindow.webContents.send('session:shield-disable');
   }
+  updateTrayMenu();
   return true;
 });
 
