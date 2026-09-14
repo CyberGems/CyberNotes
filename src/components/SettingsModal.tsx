@@ -6,7 +6,6 @@ import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Uploa
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
-import { isTrayPinReminderDismissed } from './TrayPinModal';
 
 interface Props {
   language: Language;
@@ -198,17 +197,11 @@ export default function SettingsModal({
   const handleToggleTray = async (val: boolean) => {
     setCloseToTray(val);
     await window.cyberNotesAPI.setSetting('close_to_tray', val.toString());
-    if (val && !isTrayPinReminderDismissed()) {
-      onOpenTrayPin?.(true);
-    }
   };
 
   const handleToggleMinimizeToTray = async (val: boolean) => {
     setMinimizeToTray(val);
     await window.cyberNotesAPI.setSetting('minimize_to_tray', val.toString());
-    if (val && !isTrayPinReminderDismissed()) {
-      onOpenTrayPin?.(true);
-    }
   };
 
   const handleToggleAutoStart = async (val: boolean) => {
