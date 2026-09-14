@@ -1183,3 +1183,76 @@ body:has(.has-bg),
   flex-direction: column;
 }
 
+/* ─── Cyber Border Shine (Traveling border beam inspired by CyberSnap) ─── */
+@property --cyber-beam-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes cyber-border-beam {
+  0% {
+    --cyber-beam-angle: 0deg;
+  }
+  100% {
+    --cyber-beam-angle: 360deg;
+  }
+}
+
+.cyber-save-shine,
+.cyber-shine-pill {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Traveling luminous beam: sharp white-hot core with accent shoulders */
+.cyber-save-shine::before,
+.cyber-shine-pill::before {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--cyber-beam-angle, 0deg),
+    transparent 0deg,
+    transparent 65deg,
+    var(--accent) 115deg,
+    #ffffff 150deg,
+    var(--accent-light, var(--accent)) 185deg,
+    transparent 235deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: cyber-border-beam 3.2s linear infinite;
+  z-index: 2;
+}
+
+/* Traveling soft ambient glow along the rounded perimeter */
+.cyber-save-shine::after,
+.cyber-shine-pill::after {
+  content: '';
+  position: absolute;
+  inset: -2.5px;
+  border-radius: inherit;
+  padding: 2.5px;
+  background: conic-gradient(
+    from var(--cyber-beam-angle, 0deg),
+    transparent 0deg,
+    transparent 75deg,
+    var(--accent-glow, rgba(0, 240, 255, 0.45)) 150deg,
+    transparent 225deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  filter: blur(4px);
+  animation: cyber-border-beam 3.2s linear infinite;
+  z-index: 1;
+}
+

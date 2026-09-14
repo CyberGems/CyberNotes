@@ -642,22 +642,21 @@ export default function NoteList({
               let el = listRef.current;
               if (el) el.scrollBy({ top: el.clientHeight * 0.7, behavior: 'smooth' });
             }}
+            className="cyber-shine-pill"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               padding: '6px 16px',
               borderRadius: 8,
-              border: isHovering ? '1px solid var(--accent)' : '1px solid rgba(255, 255, 255, 0.16)',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
               background: 'var(--bg-surface)',
               color: isHovering ? 'var(--accent-light)' : 'var(--text-secondary)',
               cursor: 'pointer',
               fontWeight: 600,
               fontSize: 12,
               whiteSpace: 'nowrap',
-              animation: isHovering ? 'cyber-pill-pulse 3s ease-in-out infinite' : 'none',
-              boxShadow: isHovering ? '0 0 1px var(--accent-glow)' : 'none',
-              transition: 'border-color 0.2s, color 0.2s, box-shadow 0.2s',
+              transition: 'color 0.2s, background 0.2s',
             }}
             onMouseDown={(e) => e.preventDefault()}
           >
@@ -665,26 +664,6 @@ export default function NoteList({
           </button>
         </div>
       </div>
-
-      <style>{`
-        @keyframes cyber-pill-pulse {
-          0%, 100% {
-            border-color: var(--accent);
-            box-shadow: 0 0 2px rgba(0, 240, 255, 0.06), inset 0 0 1px rgba(0, 240, 255, 0.03);
-            filter: brightness(1);
-          }
-          33% {
-            border-color: #ff007f;
-            box-shadow: 0 0 2px rgba(255, 0, 127, 0.05), inset 0 0 1px rgba(255, 0, 127, 0.03);
-            filter: brightness(1.02);
-          }
-          66% {
-            border-color: #00f0ff;
-            box-shadow: 0 0 2px rgba(0, 240, 255, 0.05), inset 0 0 1px rgba(0, 240, 255, 0.03);
-            filter: brightness(1.02);
-          }
-        }
-      `}</style>
 
       {/* Menú Contextual */}
       {contextMenu && createPortal(

@@ -1559,34 +1559,36 @@ export default function NoteEditor({
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     whiteSpace: 'nowrap',
+                    padding: '2px 3px',
                   }}
                 >
                   <motion.button
                     onClick={handleManualSave}
+                    className="cyber-save-shine"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 5,
-                      padding: '6px 10px',
+                      padding: '6px 11px',
                       minHeight: 32,
                       borderRadius: 6,
-                      border: '1px solid var(--accent)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
                       background: 'var(--accent-dim)',
                       color: 'var(--accent-light)',
                       cursor: 'pointer',
-                      transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      transition: 'background 0.15s ease, color 0.15s ease',
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.background = 'var(--accent)';
                       e.currentTarget.style.color = '#ffffff';
-                      e.currentTarget.style.borderColor = 'var(--accent-light)';
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.background = 'var(--accent-dim)';
                       e.currentTarget.style.color = 'var(--accent-light)';
-                      e.currentTarget.style.borderColor = 'var(--accent)';
                     }}
                     whileTap={{ scale: 0.95 }}
                     onMouseDown={(e) => e.preventDefault()}
