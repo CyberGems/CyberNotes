@@ -122,6 +122,13 @@ export default function TitleBar({
   return (
     <div
       className="glass-effect titlebar-glass"
+      onDoubleClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('button, input, textarea, select, [data-no-drag], .btn-icon, .menu-item')) {
+          return;
+        }
+        window.cyberNotesAPI.windowMaximizeToggle();
+      }}
       style={{
         height: 'var(--titlebar-height)',
         background: 'var(--bg-sidebar)',
@@ -131,11 +138,12 @@ export default function TitleBar({
         justifyContent: 'space-between',
         padding: '0 12px 0 16px',
         flexShrink: 0,
+        userSelect: 'none',
         WebkitAppRegion: 'drag',
       } as any}
     >
       {/* Logo + título */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, pointerEvents: 'none' }}>
         <div style={{
           width: 22,
           height: 22,
@@ -165,7 +173,8 @@ export default function TitleBar({
           justifyContent: 'center',
           minWidth: 0,
           padding: '0 12px',
-          WebkitAppRegion: 'no-drag',
+          height: '100%',
+          WebkitAppRegion: 'drag',
         } as any}
       >
         {(() => {
@@ -193,7 +202,9 @@ export default function TitleBar({
           return (
             <Tooltip placement="bottom" label={tooltip}>
               <div
+                data-no-drag
                 style={{
+                  WebkitAppRegion: 'no-drag',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
@@ -208,7 +219,7 @@ export default function TitleBar({
                   cursor: 'default',
                   transition: 'background 0.2s, border-color 0.2s, color 0.2s',
                   ...chipStyle,
-                }}
+                } as any}
               >
                 <span style={{ fontSize: 13, lineHeight: 1, opacity: capsOn ? 1 : 0.7, fontWeight: 700 }} aria-hidden>⇪</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -258,7 +269,7 @@ export default function TitleBar({
                         width: `${Math.max(4, Math.min(100, (timeLeft / autoUnlockCapsLockTimeout) * 100))}%`,
                         background: '#ef4444',
                         borderRadius: 2,
-                        transition: 'width 0.35s linear',
+                        transition: 'width 1s linear',
                       }}
                     />
                   </span>
@@ -271,6 +282,7 @@ export default function TitleBar({
 
       {/* Controles de ventana */}
       <div
+        data-no-drag
         style={{ display: 'flex', alignItems: 'center', gap: 0, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
         {/* Burger Menu */}

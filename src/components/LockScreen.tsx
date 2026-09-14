@@ -103,6 +103,7 @@ export default function LockScreen({
     justifyContent: 'flex-end',
     padding: '0 10px',
     zIndex: 10,
+    userSelect: 'none',
     WebkitAppRegion: 'drag',
   } as CSSProperties;
 
@@ -157,8 +158,15 @@ export default function LockScreen({
       }} />
 
       {/* Title bar: drag region + window controls */}
-      <div style={titleBarStyle}>
-        <div style={noDragStyle}>
+      <div
+        style={titleBarStyle}
+        onDoubleClick={(e) => {
+          if (!(e.target as HTMLElement).closest('button, [data-no-drag]')) {
+            window.cyberNotesAPI.windowMaximizeToggle();
+          }
+        }}
+      >
+        <div data-no-drag style={noDragStyle}>
           <Tooltip placement="bottom" label={t.lockScreen.minimize}>
             <button
               type="button"

@@ -690,28 +690,116 @@ ipcMain.on('tray-menu-ready', (_event, rect) => {
   trayMenuWin.setBounds(geo);
 });
 
+function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+  center: boolean;
+} {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const primaryWorkArea = primaryDisplay.workArea;
+
+  const defaultWidth = Math.min(1100, Math.max(900, Math.round(primaryWorkArea.width * 0.75)));
+  const defaultHeight = Math.min(700, Math.max(600, Math.round(primaryWorkArea.height * 0.75)));
+
+  let parsed: any = null;
+  if (savedBoundsJson) {
+    try {
+      parsed = JSON.parse(savedBoundsJson);
+    } catch (_) {}
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return {
+      width: defaultWidth,
+      height: defaultHeight,
+      x: undefined,
+      y: undefined,
+      center: true,
+    };
+  }
+
+  let width = typeof parsed.width === 'number' && parsed.width >= 500 ? parsed.width : defaultWidth;
+  let height = typeof parsed.height === 'number' && parsed.height >= 400 ? parsed.height : defaultHeight;
+  let x = typeof parsed.x === 'number' ? parsed.x : undefined;
+  let y = typeof parsed.y === 'number' ? parsed.y : undefined;
+
+  const allDisplays = screen.getAllDisplays();
+
+  let matchingDisplay: Electron.Display | undefined;
+  if (x !== undefined && y !== undefined) {
+    matchingDisplay = allDisplays.find((d) => {
+      const wa = d.workArea;
+      return (
+        x! + 150 > wa.x &&
+        x! < wa.x + wa.width &&
+        y! + 40 > wa.y &&
+        y! < wa.y + wa.height
+      );
+    });
+  }
+
+  if (!matchingDisplay) {
+    width = Math.min(width, primaryWorkArea.width);
+    height = Math.min(height, primaryWorkArea.height);
+    return {
+      width,
+      height,
+      x: undefined,
+      y: undefined,
+      center: true,
+    };
+  }
+
+  const wa = matchingDisplay.workArea;
+
+  // A restored (non-maximized) window must not equal or exceed screen dimensions
+  if (width >= wa.width) {
+    width = Math.min(defaultWidth, Math.round(wa.width * 0.85));
+  }
+  if (height >= wa.height) {
+    height = Math.min(defaultHeight, Math.round(wa.height * 0.85));
+  }
+
+  // Ensure window is fully accessible within display workArea
+  if (x !== undefined && y !== undefined) {
+    if (x + width > wa.x + wa.width) {
+      x = wa.x + wa.width - width;
+    }
+    if (x < wa.x) {
+      x = wa.x;
+    }
+    if (y + height > wa.y + wa.height) {
+      y = wa.y + wa.height - height;
+    }
+    if (y < wa.y) {
+      y = wa.y;
+    }
+  }
+
+  return {
+    width,
+    height,
+    x,
+    y,
+    center: x === undefined || y === undefined,
+  };
+}
+
 function createWindow() {
-  // Recuperar estado de ventana guardado
+  // Recuperar estado de ventana guardado con validación de pantalla
   const boundsJson = queryGet('SELECT value FROM settings WHERE key = ?', ['window_bounds']);
   const isMaximizedVal = queryGet('SELECT value FROM settings WHERE key = ?', ['is_maximized']);
 
-  let bounds = { width: 1100, height: 700, x: undefined as number | undefined, y: undefined as number | undefined };
-
-  if (boundsJson) {
-    try {
-      const savedBounds = JSON.parse(boundsJson.value);
-      if (savedBounds.width > 400 && savedBounds.height > 400) {
-        bounds = savedBounds;
-      }
-    } catch (e) {}
-  }
+  const winBounds = getValidWindowBounds(boundsJson?.value);
 
   mainWindow = new BrowserWindow({
-    width: bounds.width,
-    height: bounds.height,
-    x: bounds.x,
-    y: bounds.y,
-    center: !bounds.x,
+    width: winBounds.width,
+    height: winBounds.height,
+    x: winBounds.x,
+    y: winBounds.y,
+    center: winBounds.center,
     minWidth: 900,
     minHeight: 600,
     frame: false,
@@ -735,11 +823,25 @@ function createWindow() {
     const doSave = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       const isMax = mainWindow.isMaximized();
-      runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false']);
+      const isMin = mainWindow.isMinimized();
+      const isFull = mainWindow.isFullScreen();
 
-      const b = mainWindow.getBounds();
-      if (b.width > 100 && b.height > 100) {
-        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify(b)]);
+      if (!isMin) {
+        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false'], { flushNow: immediate });
+      }
+
+      if (!isMax && !isMin && !isFull) {
+        const b = mainWindow.getBounds();
+        if (b.width >= 500 && b.height >= 400) {
+          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify(b)], { flushNow: immediate });
+        }
+      } else {
+        try {
+          const nb = mainWindow.getNormalBounds();
+          if (nb && nb.width >= 500 && nb.height >= 400) {
+            runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify(nb)], { flushNow: immediate });
+          }
+        } catch (_) {}
       }
     };
 
@@ -750,7 +852,7 @@ function createWindow() {
       return;
     }
     if (windowStateTimer) clearTimeout(windowStateTimer);
-    windowStateTimer = setTimeout(doSave, 500);
+    windowStateTimer = setTimeout(doSave, 300);
   };
 
   mainWindow.on('resize', () => saveWindowState(false));
@@ -884,8 +986,25 @@ ipcMain.handle('window-minimize', () => {
   }
 });
 ipcMain.handle('window-maximize-toggle', () => {
-  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
-  else mainWindow?.maximize();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+    const b = mainWindow.getBounds();
+    const currentDisplay = screen.getDisplayMatching(b);
+    const wa = currentDisplay.workArea;
+    if (b.width >= wa.width || b.height >= wa.height) {
+      const targetW = Math.min(1100, Math.round(wa.width * 0.85));
+      const targetH = Math.min(700, Math.round(wa.height * 0.85));
+      mainWindow.setBounds({
+        width: targetW,
+        height: targetH,
+        x: Math.round(wa.x + (wa.width - targetW) / 2),
+        y: Math.round(wa.y + (wa.height - targetH) / 2),
+      });
+    }
+  } else {
+    mainWindow.maximize();
+  }
 });
 ipcMain.handle('window:is-maximized', () => {
   return !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized());
