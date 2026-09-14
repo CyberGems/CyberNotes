@@ -4,6 +4,7 @@ import { applyThemeVars } from './themes';
 import { Language } from './languages';
 import LockScreen from './components/LockScreen';
 import MainApp from './components/MainApp';
+import AppLoader from './components/AppLoader';
 
 type AppView = 'loading' | 'lock' | 'app';
 
@@ -212,19 +213,7 @@ export default function App() {
   }, []);
 
   if (view === 'loading') {
-    return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-app)',
-      }}>
-        <div style={{ color: 'var(--accent)', fontSize: 28, fontWeight: 700, letterSpacing: -1 }}>
-          CyberNotes
-        </div>
-      </div>
-    );
+    return <AppLoader language={language} />;
   }
 
   if (view === 'lock') {
@@ -253,23 +242,7 @@ export default function App() {
         onAutoLockChange={handleAutoLockChange}
       />
       {privacyShield && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999999,
-            background: 'var(--bg-app, #0d0d14)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            userSelect: 'none',
-            pointerEvents: 'all',
-          }}
-        >
-          <div style={{ color: 'var(--accent, #6366f1)', fontSize: 28, fontWeight: 700, letterSpacing: -1 }}>
-            CyberNotes
-          </div>
-        </div>
+        <AppLoader isShield={true} language={language} />
       )}
     </>
   );

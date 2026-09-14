@@ -4,14 +4,99 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="CyberNotes — Tu app de notas personal, segura y organizada." />
+    <meta name="description" content="CyberNotes: Tu app de notas personal, segura y organizada." />
     <title>CyberNotes</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #08090e;
+        color: #f8fafc;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        overflow: hidden;
+      }
+      @keyframes initSpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      @keyframes initPulse {
+        0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px rgba(99, 102, 241, 0.4)); }
+        50% { transform: scale(1.04); filter: drop-shadow(0 0 24px rgba(99, 102, 241, 0.7)); }
+      }
+      @keyframes initRunner {
+        0% { left: -40%; width: 30%; }
+        50% { left: 30%; width: 50%; }
+        100% { left: 100%; width: 30%; }
+      }
+      .pre-loader-container {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at 50% 45%, rgba(99, 102, 241, 0.12) 0%, rgba(13, 14, 24, 0.96) 55%, #08090e 100%);
+        user-select: none;
+      }
+      .pre-loader-ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.06);
+        border-top-color: #6366f1;
+        border-right-color: rgba(99, 102, 241, 0.35);
+        animation: initSpin 1.8s linear infinite;
+      }
+      .pre-loader-icon {
+        width: 52px;
+        height: 52px;
+        animation: initPulse 2.6s ease-in-out infinite;
+      }
+      .pre-loader-title {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #ffffff 40%, #c7d2fe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-top: 20px;
+        margin-bottom: 18px;
+      }
+      .pre-loader-bar {
+        width: 140px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        position: relative;
+      }
+      .pre-loader-runner {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, #6366f1, #818cf8, transparent);
+        box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+        border-radius: 999px;
+        animation: initRunner 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="pre-loader-container">
+        <div style="position: relative; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center;">
+          <div class="pre-loader-ring"></div>
+          <img src="icon.png" class="pre-loader-icon" alt="CyberNotes" />
+        </div>
+        <div class="pre-loader-title">CyberNotes</div>
+        <div class="pre-loader-bar">
+          <div class="pre-loader-runner"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
