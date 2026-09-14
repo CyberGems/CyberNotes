@@ -725,6 +725,11 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('show_line_counter', v.toString());
   };
 
+  const handleShowLineGutterChange = async (v: boolean) => {
+    setShowLineGutter(v);
+    await window.cyberNotesAPI.setSetting('show_line_gutter', v.toString());
+  };
+
   const handleAutosaveEnabledChange = async (val: boolean) => {
     setAutosaveEnabled(val);
     await window.cyberNotesAPI.setSetting('autosave_enabled', val.toString());
@@ -856,11 +861,11 @@ export default function MainApp({
         autoUnlockCapsLockTimeout={autoUnlockCapsLockTimeout}
         capsStatus={capsStatus}
         showMinimap={showMinimap}
-        onShowMinimapChange={(v) => { setShowMinimap(v); window.cyberNotesAPI.setSetting('show_minimap', v.toString()); }}
+        onShowMinimapChange={handleShowMinimapChange}
         showLineCounter={showLineCounter}
         onShowLineCounterChange={handleShowLineCounterChange}
         showLineGutter={showLineGutter}
-        onShowLineGutterChange={(v: boolean) => { setShowLineGutter(v); window.cyberNotesAPI.setSetting('show_line_gutter', v.toString()); }}
+        onShowLineGutterChange={handleShowLineGutterChange}
         showWordCounter={showWordCounter}
         onShowWordCounterChange={(v) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
         rememberLastNote={rememberLastNote}
@@ -978,6 +983,7 @@ export default function MainApp({
           showMinimap={showMinimap}
           onShowMinimapChange={handleShowMinimapChange}
           showLineGutter={showLineGutter}
+          onShowLineGutterChange={handleShowLineGutterChange}
           showWordCounter={showWordCounter}
         />
       </div>
@@ -1003,7 +1009,7 @@ export default function MainApp({
           showLineCounter={showLineCounter}
           onShowLineCounterChange={handleShowLineCounterChange}
           showLineGutter={showLineGutter}
-          onShowLineGutterChange={(v: boolean) => { setShowLineGutter(v); window.cyberNotesAPI.setSetting('show_line_gutter', v.toString()); }}
+          onShowLineGutterChange={handleShowLineGutterChange}
           autosaveEnabled={autosaveEnabled}
           onAutosaveEnabledChange={handleAutosaveEnabledChange}
           autoUnlockCapsLock={autoUnlockCapsLock}

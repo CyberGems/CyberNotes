@@ -35,6 +35,7 @@ interface Props {
   onToggleLayout: () => void;
   showLineCounter?: boolean;
   showLineGutter?: boolean;
+  onShowLineGutterChange?: (v: boolean) => void;
   showWordCounter?: boolean;
   autosaveEnabled?: boolean;
   autoUnlockCapsLock?: boolean;
@@ -168,6 +169,7 @@ export default function NoteEditor({
   onToggleLayout, 
   showLineCounter, 
   showLineGutter = true,
+  onShowLineGutterChange,
   showWordCounter = false,
   autosaveEnabled = true,
   autoUnlockCapsLock = false,
@@ -213,6 +215,7 @@ export default function NoteEditor({
   const [minimapScale, setMinimapScale] = useState(0.075);
   const minimapScaleRef = useRef(0.075);
   const [minimapMenu, setMinimapMenu] = useState<{ x: number; y: number } | null>(null);
+  const [gutterMenu, setGutterMenu] = useState<{ x: number; y: number } | null>(null);
   const MINIMAP_WIDTH = 96;
 
   // Cerrar el menú contextual del minimapa al hacer click en cualquier sitio
@@ -226,6 +229,33 @@ export default function NoteEditor({
       window.removeEventListener('contextmenu', close);
     };
   }, [minimapMenu]);
+
+  // Cerrar el menú contextual de la barra de líneas al hacer click en cualquier sitio
+  useEffect(() => {
+    if (!gutterMenu) return;
+    const close = () => setGutterMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+    };
+  }, [gutterMenu]);
+
+  const openGutterMenu = (clientX: number, clientY: number) => {
+    const MENU_WIDTH = 180;
+    const MENU_HEIGHT = 48;
+    const margin = 10;
+    let x = clientX;
+    let y = clientY;
+    if (x + MENU_WIDTH + margin > window.innerWidth) {
+      x = window.innerWidth - MENU_WIDTH - margin;
+    }
+    if (y + MENU_HEIGHT + margin > window.innerHeight) {
+      y = window.innerHeight - MENU_HEIGHT - margin;
+    }
+    setGutterMenu({ x: Math.max(margin, x), y: Math.max(margin, y) });
+  };
 
   // Actualizar indicador vía DOM directo (sin React → sin re-renders en scroll)
   const updateMinimapIndicator = useCallback(() => {
@@ -1461,6 +1491,15 @@ export default function NoteEditor({
               ref={titleInputRef}
               value={localTitle}
               onChange={e => updateTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                  editor?.commands.focus('start');
+                } else if (e.key === 'Escape') {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
               onContextMenu={(e) => {
                 lastContextMenuTargetRef.current = 'title';
                 lastContextMenuTimeRef.current = Date.now();
@@ -1883,9 +1922,10 @@ export default function NoteEditor({
                 zIndex: 2,
                 cursor: 'default',
               }}
-              onContextMenu={() => {
-                lastContextMenuTargetRef.current = 'editor';
-                lastContextMenuTimeRef.current = Date.now();
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openGutterMenu(e.clientX, e.clientY);
               }}
             />
           </Tooltip>
@@ -1895,6 +1935,13 @@ export default function NoteEditor({
           className={showLineGutter ? 'show-line-numbers' : ''}
           style={{ position: 'relative', cursor: 'text', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}
           onMouseDown={(e) => {
+            if (showLineGutter && e.button === 2) {
+              const rect = scrollContainerRef.current?.getBoundingClientRect();
+              if (rect && e.clientX >= rect.left && e.clientX <= rect.left + 50) {
+                e.stopPropagation();
+                return;
+              }
+            }
             if (e.button === 2 && editor) {
               const { from, to } = editor.state.selection;
               if (from !== to) {
@@ -1904,7 +1951,16 @@ export default function NoteEditor({
               }
             }
           }}
-          onContextMenu={() => {
+          onContextMenu={(e) => {
+            if (showLineGutter) {
+              const rect = scrollContainerRef.current?.getBoundingClientRect();
+              if (rect && e.clientX >= rect.left && e.clientX <= rect.left + 50) {
+                e.preventDefault();
+                e.stopPropagation();
+                openGutterMenu(e.clientX, e.clientY);
+                return;
+              }
+            }
             lastContextMenuTargetRef.current = 'editor';
             lastContextMenuTimeRef.current = Date.now();
           }}
@@ -2126,6 +2182,54 @@ export default function NoteEditor({
               {showMinimap
                 ? (language === 'es' ? 'Ocultar minimapa' : 'Hide minimap')
                 : (language === 'es' ? 'Mostrar minimapa' : 'Show minimap')}
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {gutterMenu && createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 100000 }}
+            onMouseDown={(e) => { e.preventDefault(); setGutterMenu(null); }}
+          />
+          <div
+            className="glass-effect"
+            style={{
+              position: 'fixed',
+              left: gutterMenu.x,
+              top: gutterMenu.y,
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: 6,
+              zIndex: 100001,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              minWidth: 170,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          >
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onShowLineGutterChange?.(false);
+                setGutterMenu(null);
+              }}
+              style={{
+                textAlign: 'left', padding: '6px 10px', fontSize: 13,
+                background: 'transparent', border: 'none', borderRadius: 4,
+                color: 'var(--text-primary)', cursor: 'pointer',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              {language === 'es' ? 'Ocultar barra de líneas' : 'Hide line numbers'}
             </button>
           </div>
         </>,
