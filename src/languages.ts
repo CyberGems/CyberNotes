@@ -187,7 +187,7 @@ export const TRANSLATIONS = {
       savePassword: 'Guardar contraseña',
       removePassword: 'Quitar',
       removeConfirm: '¿Eliminar la contraseña de acceso? La app quedará sin protección.',
-      lockAppNow: 'Bloquear app ahora',
+      lockAppNow: 'Bloquear ahora',
       autoLockTitle: 'Auto-bloqueo por inactividad',
       autoLockDesc: 'La aplicación se bloqueará automáticamente si no detecta actividad del ratón o teclado durante el tiempo seleccionado.',
       autoLockOptions: {
@@ -408,7 +408,7 @@ export const TRANSLATIONS = {
       savePassword: 'Save password',
       removePassword: 'Remove',
       removeConfirm: 'Remove access password? The app will have no protection.',
-      lockAppNow: 'Lock app now',
+      lockAppNow: 'Lock now',
       autoLockTitle: 'Auto-lock on inactivity',
       autoLockDesc: 'The application will lock automatically if no mouse or keyboard activity is detected for the selected duration.',
       autoLockOptions: {

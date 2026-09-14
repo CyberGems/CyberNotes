@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -337,12 +337,23 @@ export default function SettingsModal({
         aria-modal="true"
         aria-label={language === 'es' ? 'Ajustes' : 'Settings'}
       >
+        <div className="settings-header">
+          <div className="settings-header-title">
+            <Settings size={15} />
+            <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
+          </div>
+          <button
+            type="button"
+            className="settings-header-close"
+            onClick={onClose}
+            title={language === 'es' ? 'Cerrar' : 'Close'}
+            aria-label={language === 'es' ? 'Cerrar' : 'Close'}
+          >
+            <X size={15} />
+          </button>
+        </div>
         <div className="settings-layout">
           <aside className="settings-nav">
-            <div className="settings-nav-title">
-              <Settings size={14} />
-              <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
-            </div>
             <div className="settings-nav-items">
               {navItems.map(item => (
                 <button
@@ -1049,7 +1060,7 @@ export default function SettingsModal({
                     style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))', justifyContent: 'flex-start', width: '100%' }}
                   >
                     <Lock size={14} />
-                    {language === 'es' ? 'Bloquear app ahora' : 'Lock app now'}
+                    {language === 'es' ? 'Bloquear ahora' : 'Lock now'}
                   </button>
                 </>
               )}

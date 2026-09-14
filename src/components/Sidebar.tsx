@@ -667,7 +667,7 @@ export default function Sidebar({
           <Settings size={14} />
           {t.settings.title.replace('⚙️ ', '')}
         </button>
-        <Tooltip placement="top" label={language === 'es' ? 'Bloquear app' : 'Lock app'}>
+        <Tooltip placement="top" label={language === 'es' ? 'Bloquear' : 'Lock'}>
         <button
           className="btn btn-ghost"
           onClick={onLock}

@@ -774,6 +774,49 @@ body:has(.has-bg),
 .panel.settings-panel {
   width: min(640px, 100%);
 }
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 10px 16px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-app) 78%, var(--bg-modal));
+  flex-shrink: 0;
+  user-select: none;
+}
+.settings-header-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.settings-header-title svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.settings-header-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.settings-header-close:hover {
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
 .settings-layout {
   flex: 1;
   min-height: 0;
@@ -786,24 +829,7 @@ body:has(.has-bg),
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-app) 72%, var(--bg-modal));
-  padding: 14px 10px 12px;
-}
-.settings-nav-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 8px 14px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-primary);
-  user-select: none;
-  cursor: default;
-}
-.settings-nav-title svg {
-  color: var(--accent);
-  flex-shrink: 0;
+  padding: 12px 10px;
 }
 .settings-nav-items {
   display: flex;

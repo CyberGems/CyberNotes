@@ -474,7 +474,7 @@ export default function TitleBar({
                 onClick={() => { setMenuOpen(false); onLock?.(); }}
               >
                 <Lock size={14} style={{ opacity: 0.8 }} />
-                <span>{t('Bloquear app', 'Lock app')}</span>
+                <span>{t('Bloquear', 'Lock')}</span>
               </button>
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
