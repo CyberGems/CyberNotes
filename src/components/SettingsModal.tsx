@@ -840,44 +840,71 @@ export default function SettingsModal({
                   {language === 'es' ? 'Tema visual' : 'Visual Theme'}
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {THEMES.map(theme => (
-                    <button
-                      key={theme.id}
-                      onClick={() => onThemeChange(theme.id as ThemeId)}
-                      style={{
-                        padding: '14px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        border: currentTheme === theme.id ? `2px solid var(--accent)` : '1px solid var(--border)',
-                        background: currentTheme === theme.id ? 'var(--accent-dim)' : 'var(--bg-surface)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        transition: 'all var(--transition)',
-                        boxShadow: currentTheme === theme.id ? '0 0 12px var(--accent-glow)' : 'none',
-                      }}
-                    >
-                      <div style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
-                        background: getPreviewColor(theme.id, currentTheme === theme.id ? colorIntensity : 50),
-                        flexShrink: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 16,
-                      }}>
-                        {theme.emoji}
-                      </div>
-                      <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{theme.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {currentTheme === theme.id ? (language === 'es' ? '● Activo' : '● Active') : (language === 'es' ? 'Click para activar' : 'Click to activate')}
+                  {THEMES.map(theme => {
+                    const isCurrent = currentTheme === theme.id;
+                    const ledColor = getPreviewColor(theme.id, isCurrent ? colorIntensity : 65);
+                    const themeName = language === 'es' ? (theme.nameEs || theme.name) : (theme.nameEn || theme.name);
+
+                    return (
+                      <button
+                        key={theme.id}
+                        onClick={() => onThemeChange(theme.id as ThemeId)}
+                        style={{
+                          padding: '13px 16px',
+                          borderRadius: 'var(--radius-md)',
+                          border: isCurrent ? `2px solid var(--accent)` : '1px solid var(--border)',
+                          background: isCurrent ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          transition: 'all var(--transition)',
+                          boxShadow: isCurrent ? '0 0 14px var(--accent-glow)' : 'none',
+                        }}
+                      >
+                        {/* Hardware LED socket */}
+                        <div style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: '50%',
+                          background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.5))',
+                          border: isCurrent ? `1.5px solid ${ledColor}88` : '1px solid rgba(255, 255, 255, 0.12)',
+                          boxShadow: isCurrent
+                            ? `0 0 12px ${ledColor}40, inset 0 2px 4px rgba(0, 0, 0, 0.7)`
+                            : 'inset 0 2px 4px rgba(0, 0, 0, 0.6)',
+                          flexShrink: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          {/* Noticeably large illuminated LED diode (16px vs 8px in tabs) */}
+                          <span
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              background: `radial-gradient(circle at 35% 35%, #ffffff 0%, ${ledColor} 46%, rgba(0, 0, 0, 0.6) 100%)`,
+                              boxShadow: isCurrent
+                                ? `0 0 16px ${ledColor}, 0 0 6px ${ledColor}, inset 0 1px 2px rgba(255, 255, 255, 0.95)`
+                                : `0 0 8px ${ledColor}aa, inset 0 1px 1.5px rgba(255, 255, 255, 0.65)`,
+                              border: '1px solid rgba(255, 255, 255, 0.3)',
+                              display: 'inline-block',
+                              flexShrink: 0,
+                              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                            }}
+                          />
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                        <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {themeName}
+                          </div>
+                          <div style={{ fontSize: 11, color: isCurrent ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                            {isCurrent ? (language === 'es' ? '● Activo' : '● Active') : (language === 'es' ? 'Click para activar' : 'Click to activate')}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
             </div>
 

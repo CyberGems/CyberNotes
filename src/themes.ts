@@ -1,6 +1,8 @@
 export interface ThemeColors {
   id: string;
   name: string;
+  nameEs?: string;
+  nameEn?: string;
   emoji: string;
   preview: string;
   vars: Record<string, string>;
@@ -9,7 +11,9 @@ export interface ThemeColors {
 export const THEMES: ThemeColors[] = [
   {
     id: 'cyber-dark',
-    name: 'Cyber Dark',
+    name: 'CyberNotes',
+    nameEs: 'CyberNotes',
+    nameEn: 'CyberNotes',
     emoji: '🌌',
     preview: '#7a6a9a',
     vars: {
@@ -45,7 +49,9 @@ export const THEMES: ThemeColors[] = [
   },
   {
     id: 'midnight',
-    name: 'Midnight',
+    name: 'Cian Medianoche',
+    nameEs: 'Cian Medianoche',
+    nameEn: 'Midnight Cyan',
     emoji: '🌃',
     preview: '#5a8a98',
     vars: {
@@ -81,7 +87,9 @@ export const THEMES: ThemeColors[] = [
   },
   {
     id: 'forest',
-    name: 'Forest',
+    name: 'Verde Bosque',
+    nameEs: 'Verde Bosque',
+    nameEn: 'Forest Green',
     emoji: '🌿',
     preview: '#5a6d5a',
     vars: {
@@ -117,7 +125,9 @@ export const THEMES: ThemeColors[] = [
   },
   {
     id: 'neon',
-    name: 'Cyber Neon',
+    name: 'Magenta Neón',
+    nameEs: 'Magenta Neón',
+    nameEn: 'Neon Magenta',
     emoji: '🎆',
     preview: '#8a7a8a',
     vars: {
@@ -153,7 +163,9 @@ export const THEMES: ThemeColors[] = [
   },
   {
     id: 'light',
-    name: 'Light',
+    name: 'Blanco Claro',
+    nameEs: 'Blanco Claro',
+    nameEn: 'Pure Light',
     emoji: '☀️',
     preview: '#6a60a0',
     vars: {
@@ -189,7 +201,9 @@ export const THEMES: ThemeColors[] = [
   },
   {
     id: 'graphite',
-    name: 'Graphite',
+    name: 'Gris Grafito',
+    nameEs: 'Gris Grafito',
+    nameEn: 'Graphite Gray',
     emoji: '📽️',
     preview: '#9ca3af',
     vars: {

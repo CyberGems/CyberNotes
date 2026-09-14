@@ -1012,6 +1012,20 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
   const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
   const t = TRANSLATIONS[language];
 
+  const prevFolderIdRef = useRef(note.folder_id);
+  const [highlightSweep, setHighlightSweep] = useState(false);
+
+  useEffect(() => {
+    if (prevFolderIdRef.current !== note.folder_id) {
+      prevFolderIdRef.current = note.folder_id;
+      if (note.folder_id) {
+        setHighlightSweep(true);
+        const timer = setTimeout(() => setHighlightSweep(false), 900);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [note.folder_id]);
+
   return (
     <div
       onClick={onClick}
@@ -1126,29 +1140,33 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         <span>{formatDate(note.updated_at, language)}</span>
         {folder && (
           <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '2px 8px',
-            borderRadius: 12,
-            fontSize: '9px',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            color: 'var(--text-secondary)',
-            border: folder.color ? `1px solid ${folder.color}44` : '1px solid var(--border)',
-            background: folder.color ? `${folder.color}14` : 'var(--bg-surface)',
-            boxShadow: 'none',
-            textShadow: 'none',
-            maxWidth: 120,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            transition: 'all 0.2s ease',
-          }}
+          <span
+            className={highlightSweep ? 'folder-badge-animating' : ''}
+            style={{
+              position: 'relative',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '2px 8px',
+              borderRadius: 12,
+              fontSize: '9px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              color: 'var(--text-secondary)',
+              border: folder.color ? `1px solid ${folder.color}44` : '1px solid var(--border)',
+              background: folder.color ? `${folder.color}14` : 'var(--bg-surface)',
+              boxShadow: highlightSweep ? `0 0 12px ${folder.color || 'var(--accent)'}` : 'none',
+              textShadow: 'none',
+              maxWidth: 120,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              transition: 'all 0.25s ease',
+            }}
           >
+            {highlightSweep && <span className="folder-badge-shine" />}
             <FolderIcon name={folder.icon} color={folder.color} size={12} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'relative', zIndex: 1 }}>
               {folder.name}
             </span>
           </span>
