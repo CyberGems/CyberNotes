@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon from './FolderIcon';
@@ -46,6 +46,59 @@ function formatDate(iso: string, language: Language): string {
   }
 }
 
+export interface NoteGroup {
+  key: string;
+  label: string;
+  isPinnedGroup?: boolean;
+  notes: Note[];
+}
+
+function getDateGroupKeyAndLabel(
+  dateIso: string,
+  now: Date,
+  startOfToday: Date,
+  startOfYesterday: Date,
+  startOf7Days: Date,
+  startOf30Days: Date,
+  language: Language
+): { key: string; label: string } {
+  const d = new Date(dateIso);
+  const isEn = language === 'en';
+  if (isNaN(d.getTime())) {
+    return { key: 'other', label: isEn ? 'Other' : 'Otras' };
+  }
+
+  if (d >= startOfToday) {
+    return { key: 'today', label: isEn ? 'Today' : 'Hoy' };
+  }
+  if (d >= startOfYesterday) {
+    return { key: 'yesterday', label: isEn ? 'Yesterday' : 'Ayer' };
+  }
+  if (d >= startOf7Days) {
+    return { key: 'prev7', label: isEn ? 'Previous 7 Days' : 'Últimos 7 días' };
+  }
+  if (d >= startOf30Days) {
+    return { key: 'prev30', label: isEn ? 'Previous 30 Days' : 'Últimos 30 días' };
+  }
+
+  const locale = isEn ? 'en-US' : 'es-ES';
+  if (d.getFullYear() === now.getFullYear()) {
+    const monthStr = d.toLocaleDateString(locale, { month: 'long' });
+    const capitalizedMonth = monthStr.charAt(0).toUpperCase() + monthStr.slice(1);
+    return {
+      key: `month_${d.getFullYear()}_${d.getMonth()}`,
+      label: capitalizedMonth,
+    };
+  }
+
+  const monthYearStr = d.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  const capitalizedMonthYear = monthYearStr.charAt(0).toUpperCase() + monthYearStr.slice(1);
+  return {
+    key: `year_${d.getFullYear()}_${d.getMonth()}`,
+    label: capitalizedMonthYear,
+  };
+}
+
 type ViewMode = 'normal' | 'compact';
 
 /** Altura de slot virtual = card + márgenes verticales del diseño original. */
@@ -77,14 +130,39 @@ export default function NoteList({
     return m;
   }, [folders]);
 
-  // Cargar la densidad de la lista guardada (default: vista completa / 'normal')
+  const [groupByDate, setGroupByDate] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Cargar la densidad de la lista guardada y preferencia de agrupación por fecha
   useEffect(() => {
     let active = true;
     window.cyberNotesAPI?.getSetting('note_list_view_mode').then(v => {
       if (active && (v === 'compact' || v === 'normal')) setViewMode(v);
     });
+    window.cyberNotesAPI?.getSetting('note_list_group_by_date').then(v => {
+      if (active && (v === 'false' || v === '0')) setGroupByDate(false);
+    });
     return () => { active = false; };
   }, []);
+
+  // Alterna y persiste la agrupación por fecha
+  const handleToggleGroupByDate = () => {
+    const next = !groupByDate;
+    setGroupByDate(next);
+    window.cyberNotesAPI?.setSetting('note_list_group_by_date', next ? 'true' : 'false');
+  };
+
+  const toggleGroupCollapse = (groupKey: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
 
   // Alterna y persiste la densidad elegida
   const handleToggleViewMode = () => {
@@ -109,6 +187,83 @@ export default function NoteList({
       return b.title.localeCompare(a.title);
     });
   }, [initialNotes, sortBy]);
+
+  const isGroupingActive = groupByDate && (sortBy === 'updated' || sortBy === 'created');
+
+  const noteGroups = useMemo<NoteGroup[]>(() => {
+    if (!isGroupingActive) return [];
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const startOf30Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+
+    const isEn = language === 'en';
+    const pinnedNotes: Note[] = [];
+    const unpinnedNotes: Note[] = [];
+
+    for (const note of sortedNotes) {
+      if (note.pinned) {
+        pinnedNotes.push(note);
+      } else {
+        unpinnedNotes.push(note);
+      }
+    }
+
+    const groups: NoteGroup[] = [];
+
+    if (pinnedNotes.length > 0) {
+      groups.push({
+        key: 'pinned',
+        label: isEn ? 'Pinned' : 'Fijadas',
+        isPinnedGroup: true,
+        notes: pinnedNotes,
+      });
+    }
+
+    const groupMap = new Map<string, NoteGroup>();
+
+    for (const note of unpinnedNotes) {
+      const dateIso = sortBy === 'created' ? note.created_at : note.updated_at;
+      const { key, label } = getDateGroupKeyAndLabel(
+        dateIso,
+        now,
+        startOfToday,
+        startOfYesterday,
+        startOf7Days,
+        startOf30Days,
+        language
+      );
+
+      let group = groupMap.get(key);
+      if (!group) {
+        group = { key, label, notes: [] };
+        groupMap.set(key, group);
+        groups.push(group);
+      }
+      group.notes.push(note);
+    }
+
+    return groups;
+  }, [sortedNotes, isGroupingActive, sortBy, language]);
+
+  // Si la nota seleccionada está en un grupo colapsado, expandirlo automáticamente
+  useEffect(() => {
+    if (!selectedNoteId || !isGroupingActive) return;
+    for (const g of noteGroups) {
+      if (g.notes.some(n => n.id === selectedNoteId)) {
+        if (collapsedGroups.has(g.key)) {
+          setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            next.delete(g.key);
+            return next;
+          });
+        }
+        break;
+      }
+    }
+  }, [selectedNoteId, isGroupingActive, noteGroups]);
 
   const rowHeight = Math.round((viewMode === 'compact' ? ROW_COMPACT : ROW_NORMAL) * (uiScale || 1));
   const totalHeight = sortedNotes.length * rowHeight;
@@ -248,7 +403,7 @@ export default function NoteList({
                   <div style={{
                     position: 'absolute', top: '100%', left: 0, marginTop: 4,
                     background: 'var(--bg-modal)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)', padding: 4, zIndex: 101, width: 140,
+                    borderRadius: 'var(--radius-sm)', padding: 4, zIndex: 101, minWidth: 165, width: 'max-content',
                     boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                   }}>
                     {[
@@ -270,6 +425,43 @@ export default function NoteList({
                         {opt.label}
                       </button>
                     ))}
+                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                    <button
+                      onClick={() => {
+                        handleToggleGroupByDate();
+                        setShowSortMenu(false);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '6px 10px',
+                        textAlign: 'left',
+                        fontSize: 'calc(11.5px * var(--ui-scale))',
+                        background: 'transparent',
+                        color: groupByDate ? 'var(--accent-light)' : 'var(--text-secondary)',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                      }}
+                    >
+                      <span>{language === 'es' ? 'Agrupar por fecha' : 'Group by date'}</span>
+                      <span style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        border: `1.5px solid ${groupByDate ? 'var(--accent)' : 'var(--border)'}`,
+                        background: groupByDate ? 'var(--accent)' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {groupByDate && <Check size={10} style={{ color: 'var(--bg-app)', strokeWidth: 3 }} />}
+                      </span>
+                    </button>
                   </div>
                 </>
               )}
@@ -318,6 +510,69 @@ export default function NoteList({
                     ? <><Search size={32} strokeWidth={1.5} style={{ opacity: 0.4 }} /><span style={{ fontSize: 13 }}>{language === 'es' ? 'No se encontraron resultados' : 'No results found'}</span></>
                     : <><FileText size={34} strokeWidth={1.4} style={{ opacity: 0.32, color: 'var(--text-muted)' }} /><span style={{ fontSize: 13 }}>{t.noteList.noNotes}</span></>
                   }
+                </div>
+              ) : isGroupingActive ? (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {noteGroups.map(group => {
+                    const isCollapsed = collapsedGroups.has(group.key);
+                    return (
+                      <div key={group.key} className="note-group">
+                        <div
+                          className="note-group-header"
+                          onClick={() => toggleGroupCollapse(group.key)}
+                          title={isCollapsed
+                            ? (language === 'es' ? 'Desplegar sección' : 'Expand section')
+                            : (language === 'es' ? 'Plegar sección' : 'Collapse section')}
+                        >
+                          <span
+                            className="note-group-chevron"
+                            style={{
+                              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+                            }}
+                          >
+                            <ChevronRight size={12} />
+                          </span>
+                          <span className="note-group-title">
+                            {group.isPinnedGroup && (
+                              <Star size={11} style={{ fill: 'currentColor', opacity: 0.85 }} />
+                            )}
+                            {group.label}
+                          </span>
+                          <span className="note-group-line" />
+                          <span className="note-group-badge">{group.notes.length}</span>
+                        </div>
+                        {!isCollapsed && (
+                          <div className="note-group-items">
+                            {group.notes.map(note => {
+                              const folder = note.folder_id ? (folderMap.get(note.folder_id) ?? null) : null;
+                              return (
+                                <div
+                                  key={note.id}
+                                  style={{
+                                    height: rowHeight,
+                                    boxSizing: 'border-box',
+                                    padding: viewMode === 'compact' ? 'calc(3px * var(--ui-scale)) 0' : 'calc(4px * var(--ui-scale)) 0',
+                                  }}
+                                >
+                                  <NoteItem
+                                    language={language}
+                                    note={note}
+                                    folder={folder}
+                                    viewMode={viewMode}
+                                    isSelected={selectedNoteId === note.id}
+                                    isContextActive={contextMenu?.note.id === note.id}
+                                    onClick={() => onSelectNote(note.id)}
+                                    onDelete={() => setNoteToDelete(note)}
+                                    onContextMenu={(e) => handleContextMenu(e, note)}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div style={{ height: totalHeight, position: 'relative' }}>

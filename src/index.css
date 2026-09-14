@@ -1092,3 +1092,94 @@ body:has(.has-bg),
     transform: translateY(0);
   }
 }
+
+/* ── Grupos de notas por fecha en NoteList ── */
+.note-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.note-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px 6px;
+  background: var(--bg-notelist, rgba(16, 18, 27, 0.95));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  user-select: none;
+  font-size: calc(11px * var(--ui-scale, 1));
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.note-group-header:hover {
+  color: var(--text-primary);
+}
+
+.note-group-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease;
+}
+
+.note-group-header:hover .note-group-chevron {
+  color: var(--accent);
+}
+
+.note-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.note-group-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.note-group-header:hover .note-group-line {
+  opacity: 0.9;
+  background: var(--border-hover, var(--border));
+}
+
+.note-group-badge {
+  flex-shrink: 0;
+  font-size: calc(10px * var(--ui-scale, 1));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.15s ease;
+}
+
+.note-group-header:hover .note-group-badge {
+  color: var(--accent-light);
+  border-color: var(--accent);
+  background: var(--accent-dim, rgba(0, 240, 255, 0.08));
+}
+
+.note-group-items {
+  display: flex;
+  flex-direction: column;
+}
+
