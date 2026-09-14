@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, LogOut, FileText, Info, Minimize2, Power } from 'lucide-react';
+import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 
@@ -473,8 +473,8 @@ export default function TitleBar({
                 className="menu-item"
                 onClick={() => { setMenuOpen(false); onLock?.(); }}
               >
-                <LogOut size={14} style={{ opacity: 0.7, transform: 'scaleX(-1)' }} />
-                <span>{t('Cerrar sesión', 'Sign out')}</span>
+                <Lock size={14} style={{ opacity: 0.8 }} />
+                <span>{t('Bloquear app', 'Lock app')}</span>
               </button>
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />

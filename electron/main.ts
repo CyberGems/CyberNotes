@@ -528,7 +528,7 @@ function buildTrayMenuState() {
     visible,
     canLock,
     showLabel: visible ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
-    lockLabel: isEs ? 'Cerrar sesión' : 'Sign out',
+    lockLabel: isEs ? 'Bloquear app' : 'Lock app',
     settingsLabel: isEs ? 'Configuración' : 'Settings',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Exit',
