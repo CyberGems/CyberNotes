@@ -3,7 +3,7 @@ import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -55,6 +55,63 @@ interface Props {
 }
 
 type Tab = 'general' | 'appearance' | 'security' | 'maintenance';
+
+type SettingsIconTone = 'accent' | 'warning' | 'danger' | 'success';
+
+function SettingsIcon({
+  icon,
+  tone = 'accent',
+  variant = 'row',
+}: {
+  icon: ReactNode;
+  tone?: SettingsIconTone;
+  variant?: 'row' | 'heading';
+}) {
+  return (
+    <span
+      className={`settings-icon settings-icon-${variant} settings-icon-${tone}`}
+      aria-hidden="true"
+    >
+      {icon}
+    </span>
+  );
+}
+
+function SettingsHeading({
+  icon,
+  tone = 'accent',
+  children,
+}: {
+  icon: ReactNode;
+  tone?: SettingsIconTone;
+  children: ReactNode;
+}) {
+  return (
+    <h3 className="settings-section-heading">
+      <SettingsIcon icon={icon} tone={tone} variant="heading" />
+      <span>{children}</span>
+    </h3>
+  );
+}
+
+function SettingsOptionCopy({
+  icon,
+  tone = 'accent',
+  children,
+}: {
+  icon: ReactNode;
+  tone?: SettingsIconTone;
+  children: ReactNode;
+}) {
+  return (
+    <div className="settings-option-copy">
+      <SettingsIcon icon={icon} tone={tone} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsModal({ 
   language, onLanguageChange,
@@ -423,9 +480,9 @@ export default function SettingsModal({
           {/* ── GENERAL ── */}
           {tab === 'general' && (
             <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<SlidersHorizontal />}>
                   {language === 'es' ? 'Preferencias' : 'Preferences'}
-                </h3>
+                </SettingsHeading>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {/* Language Selector Dropdown */}
                   <div style={{
@@ -438,14 +495,14 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     gap: 12
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                    <SettingsOptionCopy icon={<Languages />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                         {language === 'es' ? 'Idioma de la interfaz' : 'Interface Language'}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {language === 'es' ? 'Selecciona tu idioma preferido para toda la aplicación' : 'Select your preferred language for the application UI'}
                       </span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
                       <Languages size={15} style={{ color: 'var(--accent)', opacity: 0.8 }} />
                       <select 
@@ -478,10 +535,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => handleToggleTray(!closeToTray)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SettingsOptionCopy icon={<Archive />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Cerrar a la bandeja de sistema' : 'Close to system tray'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Al presionar X, la app se mantendrá activa en la bandeja' : 'Pressing X keeps the app active in the system tray'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${closeToTray ? 'active' : ''}`} />
                   </label>
 
@@ -495,10 +552,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => handleToggleMinimizeToTray(!minimizeToTray)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SettingsOptionCopy icon={<Minus />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Minimizar a la bandeja de sistema' : 'Minimize to system tray'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Al minimizar, ocultar la app de la barra de tareas' : 'Minimizing hides the app from the taskbar'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${minimizeToTray ? 'active' : ''}`} />
                   </label>
 
@@ -532,10 +589,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => handleToggleAutoStart(!autoStart)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SettingsOptionCopy icon={<Power />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Iniciar con Windows (minimizado)' : 'Start with Windows (minimized)'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'La app se abrirá en la bandeja al arrancar el equipo' : 'The app starts minimized to tray on system boot'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${autoStart ? 'active' : ''}`} />
                   </label>
 
@@ -549,7 +606,7 @@ export default function SettingsModal({
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                    <SettingsOptionCopy icon={<Keyboard />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                         {language === 'es' ? 'Atajo global de ventana' : 'Global window shortcut'}
                       </span>
@@ -558,7 +615,7 @@ export default function SettingsModal({
                           ? 'Atajo global para mostrar/ocultar CyberNotes. Clic para asignar, Esc para cancelar.'
                           : 'Global shortcut to show/hide CyberNotes. Click to set, Esc to cancel.'}
                       </span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <input
                         ref={hotkeyInputRef}
@@ -621,10 +678,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => onRememberLastNoteChange(!rememberLastNote)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SettingsOptionCopy icon={<Rows3 />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Restaurar sesión de pestañas' : 'Restore latest tabs session'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'La app se reabrirá con todas tus pestañas y la nota activa de la sesión anterior' : 'The app reopens with all your tabs and active note from the last session'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${rememberLastNote ? 'active' : ''}`} />
                   </label>
 
@@ -638,10 +695,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     gap: 16,
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                    <SettingsOptionCopy icon={<PanelLeft />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Ancho de pestañas' : 'Tab Width'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Elige el tamaño horizontal de las pestañas en el editor' : 'Choose the horizontal size of tabs in the editor'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <select 
                       value={tabsWidthMode}
                       onChange={(e) => onTabsWidthModeChange(e.target.value as 'normal' | 'wide')}
@@ -663,10 +720,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => onShowLineCounterChange(!showLineCounter)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SettingsOptionCopy icon={<Rows3 />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Mostrar contador de líneas' : 'Show line counter'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra la línea y columna actual en el editor' : 'Display current line and column in the editor'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${showLineCounter ? 'active' : ''}`} />
                   </label>
 
@@ -680,10 +737,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => onShowLineGutterChange(!showLineGutter)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SettingsOptionCopy icon={<Hash />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Líneas numeradas (gutter)' : 'Line numbers (gutter)'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra la numeración de líneas al costado izquierdo del editor' : 'Show line numbers on the left side of the editor'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${showLineGutter ? 'active' : ''}`} />
                   </label>
 
@@ -697,10 +754,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => onShowMinimapChange(!showMinimap)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>🗺️ {language === 'es' ? 'Minimapa' : 'Minimap'}</span>
+                    <SettingsOptionCopy icon={<Map />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Minimapa' : 'Minimap'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra un minimapa del documento para navegación rápida' : 'Show a document minimap for quick navigation'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${showMinimap ? 'active' : ''}`} />
                   </label>
 
@@ -714,10 +771,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => onShowWordCounterChange(!showWordCounter)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}># {language === 'es' ? 'Contador de palabras' : 'Word counter'}</span>
+                    <SettingsOptionCopy icon={<Hash />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Contador de palabras' : 'Word counter'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra palabras, caracteres y tiempo de lectura en la barra de estado' : 'Show words, characters and reading time in the status bar'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
                   </label>
 
@@ -733,10 +790,10 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     cursor: 'pointer'
                   }} onClick={() => onAutosaveEnabledChange(!autosaveEnabled)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SettingsOptionCopy icon={<Save />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Autoguardado' : 'Autosave'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Guardar automáticamente al editar. Si se desactiva, usa el botón Guardar en el editor.' : 'Save changes automatically as you type. If disabled, save changes manually.'}</span>
-                    </div>
+                    </SettingsOptionCopy>
                     <div 
                       className={`custom-switch ${autosaveEnabled ? 'active' : ''}`}
                     />
@@ -758,10 +815,10 @@ export default function SettingsModal({
                       cursor: 'pointer',
                       width: '100%',
                     }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <SettingsOptionCopy icon={<Keyboard />}>
                         <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Desactivar Bloq Mayús por inactividad' : 'Auto-unlock Caps Lock on inactivity'}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Desactiva físicamente el Bloq Mayús tras un periodo ajustable de inactividad de teclado en el editor' : 'Physically turns off Caps Lock after a configurable period of keyboard inactivity in the editor'}</span>
-                      </div>
+                      </SettingsOptionCopy>
                       <div 
                         className={`custom-switch ${autoUnlockCapsLock ? 'active' : ''}`}
                         onClick={() => onAutoUnlockCapsLockChange(!autoUnlockCapsLock)}
@@ -781,7 +838,10 @@ export default function SettingsModal({
                         gap: 8,
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{language === 'es' ? 'Tiempo de inactividad' : 'Inactivity timeout'}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+                            <Clock3 size={13} aria-hidden="true" />
+                            {language === 'es' ? 'Tiempo de inactividad' : 'Inactivity timeout'}
+                          </span>
                           <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 700 }}>
                             {(() => {
                               const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
@@ -813,7 +873,10 @@ export default function SettingsModal({
 
                         {/* Sound Selection */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{language === 'es' ? 'Sonido de Bloq Mayús' : 'Caps Lock Sound'}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+                            <Volume2 size={13} aria-hidden="true" />
+                            {language === 'es' ? 'Sonido de Bloq Mayús' : 'Caps Lock Sound'}
+                          </span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <select 
@@ -841,7 +904,10 @@ export default function SettingsModal({
 
                         {/* Sound Scope Selection */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{language === 'es' ? 'Ámbito del sonido' : 'Sound Scope'}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+                            <Volume2 size={13} aria-hidden="true" />
+                            {language === 'es' ? 'Ámbito del sonido' : 'Sound Scope'}
+                          </span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <select 
@@ -865,9 +931,9 @@ export default function SettingsModal({
           {tab === 'appearance' && (
             <>
             <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<Palette />}>
                   {language === 'es' ? 'Tema visual' : 'Visual Theme'}
-                </h3>
+                </SettingsHeading>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {THEMES.map(theme => {
                     const isCurrent = currentTheme === theme.id;
@@ -938,9 +1004,9 @@ export default function SettingsModal({
             </div>
 
             <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<Droplets />}>
                   {language === 'es' ? 'Intensidad de color' : 'Color Intensity'}
-                </h3>
+                </SettingsHeading>
               <div style={{
                 opacity: isColorfulTheme(currentTheme) ? 1 : 0.4,
                 pointerEvents: isColorfulTheme(currentTheme) ? 'auto' : 'none',
@@ -971,9 +1037,9 @@ export default function SettingsModal({
             </div>
 
             <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<Image />}>
                   {language === 'es' ? 'Fondo Personalizado' : 'Custom Background'}
-                </h3>
+                </SettingsHeading>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <div style={{
@@ -1038,9 +1104,9 @@ export default function SettingsModal({
             </div>
 
             <div className="settings-card">
-              <h3>
+              <SettingsHeading icon={<Type />}>
                 {language === 'es' ? 'Tipografía del Editor' : 'Editor Typography'}
-              </h3>
+              </SettingsHeading>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {EDITOR_FONTS.map(font => {
                   const isCurrent = (editorFont || 'inter') === font.id;
@@ -1119,7 +1185,9 @@ export default function SettingsModal({
           {tab === 'security' && (
             <>
             <div className="settings-card">
-              <h3>{language === 'es' ? 'Contraseña' : 'Password'}</h3>
+              <SettingsHeading icon={<LockKeyhole />}>
+                {language === 'es' ? 'Contraseña' : 'Password'}
+              </SettingsHeading>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
                 {hasPassword
                   ? (language === 'es' 
@@ -1228,9 +1296,9 @@ export default function SettingsModal({
             </div>
 
             <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<ShieldCheck />}>
                   {language === 'es' ? 'Auto-bloqueo por inactividad' : 'Auto-lock on inactivity'}
-                </h3>
+                </SettingsHeading>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Shield size={18} /></div>
@@ -1268,9 +1336,9 @@ export default function SettingsModal({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Card 1: Copias de seguridad (Exportar / Importar) */}
               <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<Database />}>
                   {language === 'es' ? 'Copias de Seguridad' : 'Backups'}
-                </h3>
+                </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
                     ? 'Exporta o restaura todas tus notas, carpetas y configuraciones en formato JSON estándar.'
@@ -1372,9 +1440,9 @@ export default function SettingsModal({
 
               {/* Card 2: Almacenamiento Local */}
               <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<HardDrive />}>
                   {language === 'es' ? 'Almacenamiento Local' : 'Local Storage'}
-                </h3>
+                </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
                     ? 'CyberNotes almacena toda tu información localmente en tu equipo sin sincronización en la nube.'
@@ -1414,9 +1482,9 @@ export default function SettingsModal({
 
               {/* Card 3: Restablecer Ajustes de Fábrica */}
               <div className="settings-card">
-                <h3>
+                <SettingsHeading icon={<RotateCcw />} tone="danger">
                   {language === 'es' ? 'Restablecer Ajustes' : 'Reset Settings'}
-                </h3>
+                </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
                     ? 'Restaura todos los ajustes de configuración de la app a sus valores originales de fábrica sin borrar tus notas ni carpetas.'
