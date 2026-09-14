@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power } from 'lucide-react';
+import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 
@@ -9,6 +9,7 @@ interface Props {
   onLock?: () => void;
   onOpenSettings?: () => void;
   onOpenAbout?: () => void;
+  onOpenTrayPin?: () => void;
   onSelectNote?: (id: string) => void;
   onClearRecent?: () => void;
   recentNotes?: Note[];
@@ -50,6 +51,7 @@ export default function TitleBar({
   onLock,
   onOpenSettings,
   onOpenAbout,
+  onOpenTrayPin,
   onSelectNote,
   onClearRecent,
   recentNotes = [],
@@ -78,6 +80,7 @@ export default function TitleBar({
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [recentSubOpen, setRecentSubOpen] = useState(false);
+  const [helpSubOpen, setHelpSubOpen] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
 
   useEffect(() => {
@@ -87,7 +90,13 @@ export default function TitleBar({
         setMenuOpen(false);
       }
     };
-    if (menuOpen) document.addEventListener('mousedown', close);
+    if (menuOpen) {
+      document.addEventListener('mousedown', close);
+    } else {
+      setRecentSubOpen(false);
+      setHelpSubOpen(false);
+      setExitConfirm(false);
+    }
     return () => document.removeEventListener('mousedown', close);
   }, [menuOpen]);
 
@@ -455,11 +464,91 @@ export default function TitleBar({
               </button>
               <button
                 className="menu-item"
-                onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
+                onClick={() => setHelpSubOpen(!helpSubOpen)}
               >
-                <Info size={14} style={{ opacity: 0.7 }} />
-                <span>{t('Acerca de', 'About')}</span>
+                <HelpCircle size={14} style={{ opacity: 0.7 }} />
+                <span style={{ flex: 1 }}>{t('Ayuda', 'Help')}</span>
+                <span style={{
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  transform: helpSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s',
+                }}>▶</span>
               </button>
+              {helpSubOpen && (
+                <div style={{
+                  borderLeft: '2px solid var(--border)',
+                  marginLeft: 19,
+                  paddingLeft: 0,
+                }}>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Pin size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Mantener visible en la bandeja', 'Keep visible in system tray')}</span>
+                  </button>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki'); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <BookOpen size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Documentación / Wiki', 'Documentation / Wiki')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki/FAQ'); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <HelpCircle size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Preguntas frecuentes', 'Frequently Asked Questions')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/releases'); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Tag size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Historial de cambios', 'Changelog')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://cybergems.org'); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Globe size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Sitio web', 'Website')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate'); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Heart size={13} style={{ color: '#ec4899', opacity: 0.85 }} />
+                    <span>{t('Donar', 'Donate')}</span>
+                  </button>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Info size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Acerca de', 'About')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Download size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Buscar actualizaciones', 'Check for updates')}</span>
+                  </button>
+                </div>
+              )}
               {minimizeToTray && (
                 <button
                   className="menu-item"

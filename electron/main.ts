@@ -539,6 +539,7 @@ function buildTrayMenuState() {
       setPasswordLabel: hasPwd
         ? (isEs ? 'Cambiar contraseña...' : 'Change password...')
         : (isEs ? 'Configurar contraseña...' : 'Set password...'),
+      pinLabel: isEs ? 'Mantener visible en la bandeja del sistema' : 'Keep visible in the system tray',
       docsLabel: isEs ? 'Ayuda' : 'Help',
       faqLabel: isEs ? 'Preguntas frecuentes' : 'FAQ',
       changelogLabel: isEs ? 'Registro de cambios' : 'Changelog',
@@ -762,6 +763,10 @@ ipcMain.on('tray-menu-action', (_event, action) => {
     case 'help-set-password':
       restoreWindow();
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-settings', 'security');
+      break;
+    case 'help-pin':
+      restoreWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-tray-pin');
       break;
     case 'help-docs':
       shell.openExternal('https://github.com/CyberGems/CyberNotes/wiki');
@@ -1210,6 +1215,50 @@ ipcMain.handle('shell:openExternal', (_e: any, url: string) => {
     return shell.openExternal(url);
   }
   return false;
+});
+
+function resolveOpenTaskbarSettingsExe(): string | null {
+  const candidates = [
+    path.join(process.resourcesPath || '', 'open-taskbar-settings.exe'),
+    path.join(__dirname, '..', 'electron', 'open-taskbar-settings.exe'),
+    path.join(app.getAppPath(), 'electron', 'open-taskbar-settings.exe'),
+    path.join(__dirname, 'open-taskbar-settings.exe')
+  ];
+  return candidates.find((c) => {
+    try {
+      return fs.existsSync(c);
+    } catch (_) {
+      return false;
+    }
+  }) || null;
+}
+
+async function openTaskbarIconSettings(): Promise<{ success: boolean; method: 'native' | 'uri' }> {
+  const helperPath = resolveOpenTaskbarSettingsExe();
+  if (process.platform === 'win32' && helperPath) {
+    try {
+      const child = spawn(helperPath, [], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      });
+      child.once('error', (error) => {
+        console.warn('Taskbar settings helper failed; opening Windows Settings:', error.message);
+        void shell.openExternal('ms-settings:taskbar');
+      });
+      child.unref();
+      return { success: true, method: 'native' };
+    } catch (error) {
+      console.warn('Taskbar settings helper unavailable; using Windows Settings:', error);
+    }
+  }
+
+  await shell.openExternal('ms-settings:taskbar');
+  return { success: true, method: 'uri' };
+}
+
+ipcMain.handle('open-taskbar-settings', async () => {
+  return await openTaskbarIconSettings();
 });
 
 // -- Auth --

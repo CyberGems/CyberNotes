@@ -55,6 +55,10 @@
       {
         "from": "node_modules/sql.js/dist/sql-wasm.wasm",
         "to": "sql-wasm.wasm"
+      },
+      {
+        "from": "electron/open-taskbar-settings.exe",
+        "to": "open-taskbar-settings.exe"
       }
     ]
   },

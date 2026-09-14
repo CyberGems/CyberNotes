@@ -7,6 +7,7 @@ import NoteList from './NoteList';
 import NoteEditor from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
+import TrayPinModal from './TrayPinModal';
 import ConfirmDialog from './ConfirmDialog';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb } from '../utils/notes';
@@ -77,6 +78,7 @@ export default function MainApp({
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'security' | 'maintenance'>('general');
   const [showAbout, setShowAbout] = useState(false);
+  const [showTrayPin, setShowTrayPin] = useState(false);
   const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
@@ -169,6 +171,10 @@ export default function MainApp({
       setShowAbout(true);
     });
 
+    const unregisterOpenTrayPin = window.cyberNotesAPI.onOpenTrayPin?.(() => {
+      setShowTrayPin(true);
+    });
+
     const unregisterUnsavedExit = window.cyberNotesAPI.onConfirmUnsavedExit(() => {
       setShowUnsavedExitDialog(true);
     });
@@ -184,6 +190,7 @@ export default function MainApp({
       if (unregisterSettingChanged) unregisterSettingChanged();
       if (unregisterOpenSettings) unregisterOpenSettings();
       if (unregisterOpenAbout) unregisterOpenAbout();
+      if (unregisterOpenTrayPin) unregisterOpenTrayPin();
       if (unregisterUnsavedExit) unregisterUnsavedExit();
     };
   }, []);
@@ -847,6 +854,7 @@ export default function MainApp({
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
         onOpenAbout={() => setShowAbout(true)}
+        onOpenTrayPin={() => setShowTrayPin(true)}
         onSelectNote={(id) => {
           setSelectedNoteId(id);
           const note = allNotes.find(n => n.id === id);
@@ -1027,6 +1035,7 @@ export default function MainApp({
           onCapsLockSoundScopeChange={handleCapsLockSoundScopeChange}
           onClose={() => setShowSettings(false)}
           onLock={onLock}
+          onOpenTrayPin={() => setShowTrayPin(true)}
           tabsWidthMode={tabsWidthMode}
           onTabsWidthModeChange={handleTabsWidthModeChange}
           showMinimap={showMinimap}
@@ -1040,6 +1049,13 @@ export default function MainApp({
         <AboutModal
           language={language}
           onClose={() => setShowAbout(false)}
+        />
+      )}
+
+      {showTrayPin && (
+        <TrayPinModal
+          language={language}
+          onClose={() => setShowTrayPin(false)}
         />
       )}
 

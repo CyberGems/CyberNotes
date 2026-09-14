@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import { isTrayPinReminderDismissed } from './TrayPinModal';
 
 interface Props {
   language: Language;
@@ -40,6 +41,7 @@ interface Props {
   onCapsLockSoundScopeChange: (v: string) => void;
   onClose: () => void;
   onLock: () => void;
+  onOpenTrayPin?: () => void;
   tabsWidthMode: 'normal' | 'wide';
   onTabsWidthModeChange: (v: 'normal' | 'wide') => void;
   showMinimap: boolean;
@@ -64,7 +66,7 @@ export default function SettingsModal({
   autoUnlockCapsLockTimeout, onAutoUnlockCapsLockTimeoutChange,
   capsLockSound, onCapsLockSoundChange,
   capsLockSoundScope, onCapsLockSoundScopeChange,
-  onClose, onLock,
+  onClose, onLock, onOpenTrayPin,
   tabsWidthMode, onTabsWidthModeChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
@@ -196,11 +198,17 @@ export default function SettingsModal({
   const handleToggleTray = async (val: boolean) => {
     setCloseToTray(val);
     await window.cyberNotesAPI.setSetting('close_to_tray', val.toString());
+    if (val && !isTrayPinReminderDismissed()) {
+      onOpenTrayPin?.();
+    }
   };
 
   const handleToggleMinimizeToTray = async (val: boolean) => {
     setMinimizeToTray(val);
     await window.cyberNotesAPI.setSetting('minimize_to_tray', val.toString());
+    if (val && !isTrayPinReminderDismissed()) {
+      onOpenTrayPin?.();
+    }
   };
 
   const handleToggleAutoStart = async (val: boolean) => {
@@ -463,6 +471,26 @@ export default function SettingsModal({
                     </div>
                     <div className={`custom-switch ${minimizeToTray ? 'active' : ''}`} />
                   </label>
+
+                  {(closeToTray || minimizeToTray) && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => onOpenTrayPin?.()}
+                      style={{
+                        padding: '9px 14px',
+                        fontSize: 12,
+                        gap: 8,
+                        justifyContent: 'flex-start',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-surface)',
+                      }}
+                    >
+                      <Pin size={14} style={{ color: 'var(--accent)' }} />
+                      <span>{language === 'es' ? 'Mantener visible en la bandeja del sistema...' : 'Keep visible in the system tray...'}</span>
+                    </button>
+                  )}
 
                   <label style={{ 
                     display: 'flex', 

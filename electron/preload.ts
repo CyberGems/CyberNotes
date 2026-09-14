@@ -52,6 +52,12 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     ipcRenderer.on('open-about', listener);
     return () => ipcRenderer.removeListener('open-about', listener);
   },
+  openTaskbarSettings: () => ipcRenderer.invoke('open-taskbar-settings'),
+  onOpenTrayPin: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('open-tray-pin', listener);
+    return () => ipcRenderer.removeListener('open-tray-pin', listener);
+  },
   onConfirmUnsavedExit: (callback: () => void) => {
     const listener = () => callback();
     ipcRenderer.on('confirm-unsaved-exit', listener);
