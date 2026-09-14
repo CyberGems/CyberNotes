@@ -150,7 +150,9 @@ export const TRANSLATIONS = {
       later: 'Más tarde',
       installing: 'Instalando actualización…',
       available: 'Actualización disponible',
-      error: 'Error al actualizar',
+      error: 'No se pudo comprobar actualizaciones',
+      details: 'Detalles',
+      hideDetails: 'Ocultar',
     },
     about: {
       title: 'Acerca de CyberNotes',
@@ -371,7 +373,9 @@ export const TRANSLATIONS = {
       later: 'Later',
       installing: 'Installing update…',
       available: 'Update available',
-      error: 'Update error',
+      error: 'Could not check for updates',
+      details: 'Details',
+      hideDetails: 'Hide',
     },
     about: {
       title: 'About CyberNotes',

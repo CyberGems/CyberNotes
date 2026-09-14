@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Download, Rocket, X, RefreshCw } from 'lucide-react';
+import { Download, Rocket, X, RefreshCw, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 
 type Status =
@@ -13,11 +13,36 @@ type Status =
 
 const AUTO_RESTART_SEC = 8;
 
+function isNetworkOrOfflineError(msg?: string): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  if (!msg) return false;
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes('err_internet_disconnected') ||
+    lower.includes('err_connection_reset') ||
+    lower.includes('err_name_not_resolved') ||
+    lower.includes('err_network_changed') ||
+    lower.includes('err_connection_refused') ||
+    lower.includes('err_connection_timed_out') ||
+    lower.includes('err_address_unreachable') ||
+    lower.includes('enotfound') ||
+    lower.includes('econnrefused') ||
+    lower.includes('econnreset') ||
+    lower.includes('etimedout') ||
+    lower.includes('ehostunreach') ||
+    lower.includes('enetunreach') ||
+    lower.includes('fetch failed') ||
+    lower.includes('offline') ||
+    lower.includes('network')
+  );
+}
+
 export default function UpdaterBanner({ language }: { language: Language }) {
   const t = TRANSLATIONS[language].updater;
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const [countdown, setCountdown] = useState(AUTO_RESTART_SEC);
   const [dismissed, setDismissed] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -29,6 +54,9 @@ export default function UpdaterBanner({ language }: { language: Language }) {
   useEffect(() => {
     const off = window.cyberNotesAPI.onUpdateStatus((s: any) => {
       const next = s as Status;
+      if (next.state === 'error' && isNetworkOrOfflineError(next.message)) {
+        return;
+      }
       if (next.state === 'downloading' || next.state === 'downloaded' || next.state === 'installing' || next.state === 'available' || next.state === 'error') {
         setDismissed(false);
       }
@@ -214,9 +242,14 @@ export default function UpdaterBanner({ language }: { language: Language }) {
   }
 
   if (status.state === 'error') {
+    if (isNetworkOrOfflineError(status.message)) {
+      return null;
+    }
+
     return (
       <div
         role="status"
+        aria-live="polite"
         style={{
           position: 'fixed',
           bottom: 14,
@@ -224,18 +257,77 @@ export default function UpdaterBanner({ language }: { language: Language }) {
           transform: 'translateX(-50%)',
           zIndex: 9999,
           display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 12px 10px 14px',
+          flexDirection: 'column',
+          gap: 8,
+          padding: '10px 14px',
           borderRadius: 12,
-          background: 'color-mix(in srgb, var(--bg-modal) 94%, var(--danger) 6%)',
-          border: '1px solid color-mix(in srgb, var(--danger) 35%, var(--border))',
-          boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
-          maxWidth: 'min(92vw, 520px)',
+          background: 'var(--bg-modal)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 12px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.2)',
+          maxWidth: 'min(92vw, 480px)',
+          minWidth: 300,
+          backdropFilter: 'blur(12px)',
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--danger)', flex: 1 }}>{t.error}: {status.message}</span>
-        <button type="button" className="btn-icon" onClick={handleDismissError} aria-label="Cerrar"><X size={14} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--bg-surface)', border: '1px solid var(--border)', flexShrink: 0,
+          }}>
+            <Info size={14} style={{ color: 'var(--text-secondary)' }} />
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+            {t.error}
+          </span>
+          {status.message && (
+            <button
+              type="button"
+              onClick={() => setShowDetails(prev => !prev)}
+              className="btn btn-ghost"
+              style={{
+                padding: '3px 8px',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                flexShrink: 0,
+              }}
+            >
+              {showDetails ? (t.hideDetails || 'Ocultar') : (t.details || 'Detalles')}
+              {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={handleDismissError}
+            aria-label={language === 'es' ? 'Cerrar' : 'Close'}
+            style={{ width: 26, height: 26, flexShrink: 0 }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {showDetails && status.message && (
+          <div
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              background: 'rgba(0, 0, 0, 0.25)',
+              border: '1px solid var(--border)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10.5,
+              color: 'var(--text-muted)',
+              wordBreak: 'break-word',
+              maxHeight: 90,
+              overflowY: 'auto',
+              lineHeight: 1.4,
+            }}
+          >
+            {status.message}
+          </div>
+        )}
       </div>
     );
   }

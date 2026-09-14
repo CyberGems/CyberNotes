@@ -498,13 +498,6 @@ export default function TitleBar({
 
               <button
                 className="menu-item"
-                onClick={() => { setMenuOpen(false); onOpenSettings?.(); }}
-              >
-                <Settings size={14} style={{ opacity: 0.7 }} />
-                <span>{t('Ajustes', 'Settings')}</span>
-              </button>
-              <button
-                className="menu-item"
                 onClick={() => setHelpSubOpen(!helpSubOpen)}
               >
                 <HelpCircle size={14} style={{ opacity: 0.7 }} />

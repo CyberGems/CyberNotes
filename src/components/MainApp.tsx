@@ -1106,6 +1106,10 @@ export default function MainApp({
           onCapsLockSoundScopeChange={handleCapsLockSoundScopeChange}
           onClose={() => setShowSettings(false)}
           onLock={onLock}
+          onOpenAbout={() => {
+            setShowSettings(false);
+            setShowAbout(true);
+          }}
           onOpenTrayPin={(isAuto) => {
             setIsTrayPinAutomatic(!!isAuto);
             setShowTrayPin(true);

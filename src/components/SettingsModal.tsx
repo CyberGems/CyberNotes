@@ -40,6 +40,7 @@ interface Props {
   onCapsLockSoundScopeChange: (v: string) => void;
   onClose: () => void;
   onLock: () => void;
+  onOpenAbout?: () => void;
   onOpenTrayPin?: (isAutomatic?: boolean) => void;
   tabsWidthMode: 'normal' | 'wide';
   onTabsWidthModeChange: (v: 'normal' | 'wide') => void;
@@ -65,13 +66,14 @@ export default function SettingsModal({
   autoUnlockCapsLockTimeout, onAutoUnlockCapsLockTimeoutChange,
   capsLockSound, onCapsLockSoundChange,
   capsLockSoundScope, onCapsLockSoundScopeChange,
-  onClose, onLock, onOpenTrayPin,
+  onClose, onLock, onOpenAbout, onOpenTrayPin,
   tabsWidthMode, onTabsWidthModeChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
   initialTab = 'general',
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [appVersion, setAppVersion] = useState('');
   const [hasPassword, setHasPassword] = useState(false);
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
@@ -113,6 +115,9 @@ export default function SettingsModal({
 
   useEffect(() => {
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
+    window.cyberNotesAPI.getVersions?.().then(v => {
+      if (v?.app) setAppVersion(v.app);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -376,7 +381,10 @@ export default function SettingsModal({
                 </div>
               )}
               <button type="button" className="settings-nav-close" onClick={onClose}>
-                {language === 'es' ? 'Cerrar' : 'Close'}
+                <span>{language === 'es' ? 'Cerrar' : 'Close'}</span>
+                <svg className="config-close-enter" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 10.5 L7 5.2 L4.8 9 L14.6 9 L14.6 2.5 L17.4 2.5 L17.4 9 A2.8 2.8 0 0 1 14.6 11.8 L4.8 11.8 L7 15.8 Z" fill="currentColor" stroke="none" />
+                </svg>
               </button>
             </div>
           </aside>
@@ -1330,6 +1338,22 @@ export default function SettingsModal({
 
           </div>
         </div>
+        <button
+          type="button"
+          className="config-brand-footer"
+          onClick={() => {
+            onClose();
+            onOpenAbout?.();
+          }}
+          title={language === 'es' ? 'Acerca de CyberNotes' : 'About CyberNotes'}
+          aria-label={language === 'es' ? 'Acerca de CyberNotes' : 'About CyberNotes'}
+        >
+          <div className="config-brand-line">
+            <img className="config-brand-icon" src="icon.png" alt="" aria-hidden="true" draggable={false} />
+            <span>CyberNotes <span className="config-brand-version">v{appVersion || '1.8.0'}</span></span>
+          </div>
+          <span className="config-brand-copyright">© 2026 CyberGems</span>
+        </button>
       </div>
     </div>
 

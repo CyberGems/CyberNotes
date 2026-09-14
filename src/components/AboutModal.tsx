@@ -194,7 +194,7 @@ export default function AboutModal({ language, onClose }: Props) {
               <div style={{ height: 1, flex: 1, background: 'var(--accent-dim)' }} />
             </div>
 
-            <UpdateStatusLine status={status} t={t} />
+            <UpdateStatusLine status={status} t={t} language={language} />
 
             <div className="about-maintenance">
               {status.state === 'available' ? (
@@ -312,10 +312,13 @@ export default function AboutModal({ language, onClose }: Props) {
 function UpdateStatusLine({
   status,
   t,
+  language,
 }: {
   status: UpdateStatus;
   t: (typeof TRANSLATIONS)['en']['about'];
+  language: Language;
 }) {
+  const [showDetails, setShowDetails] = useState(false);
   if (status.state === 'idle') return null;
   if (status.state === 'downloading') {
     return (
@@ -330,17 +333,54 @@ function UpdateStatusLine({
     'not-available': { text: t.statuses.latest, color: 'var(--success)' },
     available: { text: t.statuses.available, color: 'var(--accent)' },
     downloaded: { text: t.statuses.downloaded, color: 'var(--success)' },
-    error: { text: t.statuses.error, color: 'var(--danger)' },
+    error: { text: t.statuses.error, color: 'var(--text-secondary)' },
   };
   const info = map[status.state];
   if (!info) return null;
 
   return (
     <div style={{ textAlign: 'center', fontSize: 12, color: info.color, marginBottom: 10 }}>
-      {info.text}
+      <div>{info.text}</div>
       {status.state === 'error' && status.message && (
-        <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)', wordBreak: 'break-word' }}>
-          {status.message}
+        <div style={{ marginTop: 6 }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setShowDetails(prev => !prev)}
+            style={{
+              padding: '2px 8px',
+              fontSize: 10.5,
+              color: 'var(--text-muted)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              margin: '0 auto',
+            }}
+          >
+            {showDetails
+              ? (language === 'es' ? 'Ocultar detalles' : 'Hide details')
+              : (language === 'es' ? 'Detalles' : 'Details')}
+          </button>
+          {showDetails && (
+            <div
+              style={{
+                marginTop: 6,
+                padding: '6px 8px',
+                borderRadius: 6,
+                background: 'rgba(0, 0, 0, 0.25)',
+                border: '1px solid var(--border)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: 'var(--text-muted)',
+                wordBreak: 'break-word',
+                maxHeight: 80,
+                overflowY: 'auto',
+                textAlign: 'left',
+              }}
+            >
+              {status.message}
+            </div>
+          )}
         </div>
       )}
     </div>

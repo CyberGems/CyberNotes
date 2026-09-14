@@ -59,6 +59,29 @@ function stopPeriodicChecks(): void {
   }
 }
 
+function isNetworkError(msg: string): boolean {
+  if (!msg) return false;
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes('err_internet_disconnected') ||
+    lower.includes('err_connection_reset') ||
+    lower.includes('err_name_not_resolved') ||
+    lower.includes('err_network_changed') ||
+    lower.includes('err_connection_refused') ||
+    lower.includes('err_connection_timed_out') ||
+    lower.includes('err_address_unreachable') ||
+    lower.includes('enotfound') ||
+    lower.includes('econnrefused') ||
+    lower.includes('econnreset') ||
+    lower.includes('etimedout') ||
+    lower.includes('ehostunreach') ||
+    lower.includes('enetunreach') ||
+    lower.includes('fetch failed') ||
+    lower.includes('offline') ||
+    lower.includes('network')
+  );
+}
+
 async function doCheckSilently(): Promise<void> {
   try {
     await autoUpdater.checkForUpdates();
@@ -83,7 +106,9 @@ export function initUpdater(autoUpdate: boolean): void {
         isDownloading = true;
         autoUpdater.downloadUpdate().catch((err) => {
           isDownloading = false;
-          broadcast({ state: 'error', message: String(err?.message || err) });
+          const errMsg = String(err?.message || err);
+          if (!manualCheck && isNetworkError(errMsg)) return;
+          broadcast({ state: 'error', message: errMsg });
         });
       }
     });
@@ -118,7 +143,12 @@ export function initUpdater(autoUpdate: boolean): void {
 
     autoUpdater.on('error', (err) => {
       isDownloading = false;
-      broadcast({ state: 'error', message: String((err as any)?.message || err) });
+      const msg = String((err as any)?.message || err);
+      // Suppress network/offline errors during silent background checks
+      if (!manualCheck && isNetworkError(msg)) {
+        return;
+      }
+      broadcast({ state: 'error', message: msg });
     });
   }
 

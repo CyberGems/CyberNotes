@@ -914,24 +914,93 @@ body:has(.has-bg),
 }
 .settings-nav-close {
   width: 100%;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 11px;
   padding: 9px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   border: 1px solid var(--border);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .settings-nav-close:hover {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-hover));
   border-color: var(--accent);
+}
+.config-close-enter {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  opacity: 0.72;
+  transition: color 0.15s, opacity 0.15s;
+}
+.settings-nav-close:hover .config-close-enter {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.config-brand-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 58px;
+  flex: 0 0 58px;
+  padding: 7px 28px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.15;
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.config-brand-footer:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.02);
+}
+.config-brand-footer:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -3px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.config-brand-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+.config-brand-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  opacity: 0.82;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.config-brand-footer:hover .config-brand-icon,
+.config-brand-footer:focus-visible .config-brand-icon {
+  opacity: 1;
+  transform: scale(1.08);
+}
+.config-brand-copyright {
+  color: var(--text-muted);
+  font-size: 10.5px;
 }
 .settings-content {
   flex: 1;
