@@ -75,6 +75,7 @@ export default function MainApp({
   const [dontAskChecked, setDontAskChecked] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'security' | 'maintenance'>('general');
   const [showAbout, setShowAbout] = useState(false);
   const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
@@ -157,7 +158,10 @@ export default function MainApp({
       if (data.key === 'close_to_tray') setCloseToTray(data.value === 'true');
     });
 
-    const unregisterOpenSettings = window.cyberNotesAPI.onOpenSettings(() => {
+    const unregisterOpenSettings = window.cyberNotesAPI.onOpenSettings((tab?: string) => {
+      if (tab === 'general' || tab === 'appearance' || tab === 'security' || tab === 'maintenance') {
+        setSettingsTab(tab);
+      }
       setShowSettings(true);
     });
 
@@ -990,6 +994,7 @@ export default function MainApp({
 
       {showSettings && (
         <SettingsModal
+          initialTab={settingsTab}
           language={language}
           onLanguageChange={onLanguageChange}
           currentTheme={currentTheme}

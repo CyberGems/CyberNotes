@@ -112,7 +112,7 @@ declare global {
       onContextMenuData: (callback: (data: any) => void) => () => void;
       onSettingChanged: (callback: (data: { key: string, value: string }) => void) => () => void;
       onGlobalCapsLockChanged: (callback: (active: boolean) => void) => () => void;
-      onOpenSettings: (callback: () => void) => () => void;
+      onOpenSettings: (callback: (tab?: string) => void) => () => void;
       onOpenAbout: (callback: () => void) => () => void;
       onConfirmUnsavedExit: (callback: () => void) => () => void;
       respondUnsavedExit: (discard: boolean) => Promise<void>;

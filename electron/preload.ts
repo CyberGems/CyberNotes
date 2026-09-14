@@ -42,8 +42,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     ipcRenderer.on('global-caps-lock-changed', listener);
     return () => ipcRenderer.removeListener('global-caps-lock-changed', listener);
   },
-  onOpenSettings: (callback: () => void) => {
-    const listener = () => callback();
+  onOpenSettings: (callback: (tab?: string) => void) => {
+    const listener = (_e: any, tab?: string) => callback(tab);
     ipcRenderer.on('open-settings', listener);
     return () => ipcRenderer.removeListener('open-settings', listener);
   },

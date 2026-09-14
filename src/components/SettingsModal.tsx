@@ -46,6 +46,7 @@ interface Props {
   onShowMinimapChange: (v: boolean) => void;
   showWordCounter: boolean;
   onShowWordCounterChange: (v: boolean) => void;
+  initialTab?: Tab;
 }
 
 type Tab = 'general' | 'appearance' | 'security' | 'maintenance';
@@ -67,8 +68,10 @@ export default function SettingsModal({
   tabsWidthMode, onTabsWidthModeChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
+  initialTab = 'general',
 }: Props) {
-  const [tab, setTab] = useState<Tab>('general');
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [hasPassword, setHasPassword] = useState(false);
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -102,6 +105,14 @@ export default function SettingsModal({
   };
 
   const inputMenu = useInputContextMenu(language);
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    window.cyberNotesAPI.hasPassword().then(setHasPassword);
+  }, []);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -278,6 +289,7 @@ export default function SettingsModal({
       }
 
       await window.cyberNotesAPI.setPassword(newPwd);
+      setHasPassword(true);
       setPwdMessage(language === 'es' ? '✓ Contraseña guardada correctamente' : '✓ Password saved successfully');
       setHasSavedChanges(true);
       setPwdError(false);
@@ -308,6 +320,7 @@ export default function SettingsModal({
       return;
     }
     await window.cyberNotesAPI.removePassword();
+    setHasPassword(false);
     setPwdMessage(language === 'es' ? '✓ Contraseña eliminada' : '✓ Password removed');
     setHasSavedChanges(true);
     setPwdError(false);
@@ -936,32 +949,38 @@ export default function SettingsModal({
             <div className="settings-card">
               <h3>{language === 'es' ? 'Contraseña' : 'Password'}</h3>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
-                {language === 'es' 
-                  ? 'La contraseña protege el acceso a la app. Deja los campos vacíos si no quieres contraseña.' 
-                  : 'The password protects access to the app. Leave fields empty if you do not want a password.'}
+                {hasPassword
+                  ? (language === 'es' 
+                      ? 'La contraseña protege el acceso a la app. Ingresa tu contraseña actual para cambiarla o quitarla.' 
+                      : 'The password protects access to the app. Enter your current password to change or remove it.')
+                  : (language === 'es' 
+                      ? 'La contraseña protege el acceso a la app. Define una contraseña para habilitar la protección.' 
+                      : 'The password protects access to the app. Set a password to enable protection.')}
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPwd ? 'text' : 'password'}
-                    value={currentPwd}
-                    onChange={e => setCurrentPwd(e.target.value)}
-                    placeholder={language === 'es' ? 'Contraseña actual (si tienes una)' : 'Current password (if you have one)'}
-                    className="input"
-                    style={{ paddingRight: 36 }}
-                    onContextMenu={inputMenu.onContextMenu}
-                  />
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    onClick={() => setShowPwd(!showPwd)}
-                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)' }}
-                    tabIndex={-1}
-                  >
-                    {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
+                {hasPassword && (
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPwd ? 'text' : 'password'}
+                      value={currentPwd}
+                      onChange={e => setCurrentPwd(e.target.value)}
+                      placeholder={language === 'es' ? 'Contraseña actual' : 'Current password'}
+                      className="input"
+                      style={{ paddingRight: 36 }}
+                      onContextMenu={inputMenu.onContextMenu}
+                    />
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={() => setShowPwd(!showPwd)}
+                      style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)' }}
+                      tabIndex={-1}
+                    >
+                      {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                )}
 
                 <input
                   type={showPwd ? 'text' : 'password'}
@@ -1006,28 +1025,34 @@ export default function SettingsModal({
                       ? (language === 'es' ? 'Guardando...' : 'Saving...') 
                       : (language === 'es' ? 'Guardar contraseña' : 'Save password')}
                   </button>
-                  <button
-                    className="btn btn-danger"
-                    onClick={handleRemovePassword}
-                    title={language === 'es' ? 'Eliminar contraseña' : 'Delete password'}
-                    style={{ gap: 6 }}
-                  >
-                    <Trash2 size={14} />
-                    {language === 'es' ? 'Quitar' : 'Remove'}
-                  </button>
+                  {hasPassword && (
+                    <button
+                      className="btn btn-danger"
+                      onClick={handleRemovePassword}
+                      title={language === 'es' ? 'Eliminar contraseña' : 'Delete password'}
+                      style={{ gap: 6 }}
+                    >
+                      <Trash2 size={14} />
+                      {language === 'es' ? 'Quitar' : 'Remove'}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
+              {hasPassword && (
+                <>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
 
-              <button
-                className="btn btn-ghost"
-                onClick={() => { onClose(); onLock(); }}
-                style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))', justifyContent: 'flex-start', width: '100%' }}
-              >
-                <Lock size={14} />
-                {language === 'es' ? 'Bloquear app ahora' : 'Lock app now'}
-              </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => { onClose(); onLock(); }}
+                    style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))', justifyContent: 'flex-start', width: '100%' }}
+                  >
+                    <Lock size={14} />
+                    {language === 'es' ? 'Bloquear app ahora' : 'Lock app now'}
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="settings-card">

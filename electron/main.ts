@@ -520,7 +520,8 @@ function buildTrayMenuState() {
   const isEs = lang === 'es';
   const visible = isWindowShown();
   const activeHotkey = getActiveToggleHotkey();
-  const canLock = hasPasswordHash() && !sessionLocked;
+  const hasPwd = hasPasswordHash();
+  const canLock = hasPwd && !sessionLocked;
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
@@ -532,6 +533,20 @@ function buildTrayMenuState() {
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Exit',
     shortcut: activeHotkey,
+    help: {
+      label: isEs ? 'Ayuda' : 'Help',
+      backLabel: isEs ? 'Volver' : 'Back',
+      setPasswordLabel: hasPwd
+        ? (isEs ? 'Cambiar contraseña...' : 'Change password...')
+        : (isEs ? 'Configurar contraseña...' : 'Set password...'),
+      docsLabel: isEs ? 'Ayuda' : 'Help',
+      faqLabel: isEs ? 'Preguntas frecuentes' : 'FAQ',
+      changelogLabel: isEs ? 'Registro de cambios' : 'Changelog',
+      websiteLabel: isEs ? 'Sitio web' : 'Website',
+      donateLabel: isEs ? 'Donar' : 'Donate',
+      aboutLabel: isEs ? 'Acerca de...' : 'About...',
+      updatesLabel: isEs ? 'Buscar actualizaciones' : 'Check for updates',
+    },
   };
 }
 
@@ -647,7 +662,7 @@ function ensureTrayMenuWin() {
   trayMenuWin.on('closed', () => { trayMenuWin = null; });
   trayMenuWin.webContents.once('did-finish-load', () => {
     if (!trayMenuWin || trayMenuWin.isDestroyed()) return;
-    trayMenuWin.webContents.send('tray-menu-state', buildTrayMenuState());
+    trayMenuWin.webContents.send('tray-menu-state', { ...buildTrayMenuState(), resetView: true });
     trayMenuWin.webContents.send('tray-menu-show');
   });
   return trayMenuWin;
@@ -672,7 +687,7 @@ function showTrayMenu(eventBounds?: any) {
   w.focus();
   trayMenuLastShown = Date.now();
   if (!w.webContents.isLoading()) {
-    w.webContents.send('tray-menu-state', buildTrayMenuState());
+    w.webContents.send('tray-menu-state', { ...buildTrayMenuState(), resetView: true });
     w.webContents.send('tray-menu-show');
   }
 }
@@ -741,6 +756,33 @@ ipcMain.on('tray-menu-action', (_event, action) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-settings');
       break;
     case 'about':
+      restoreWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-about');
+      break;
+    case 'help-set-password':
+      restoreWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-settings', 'security');
+      break;
+    case 'help-docs':
+      shell.openExternal('https://github.com/CyberGems/CyberNotes/wiki');
+      break;
+    case 'help-faq':
+      shell.openExternal('https://github.com/CyberGems/CyberNotes/wiki/FAQ');
+      break;
+    case 'help-changelog':
+      shell.openExternal('https://github.com/CyberGems/CyberNotes/releases');
+      break;
+    case 'help-website':
+      shell.openExternal('https://cybergems.org');
+      break;
+    case 'help-donate':
+      shell.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate');
+      break;
+    case 'help-about':
+      restoreWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-about');
+      break;
+    case 'help-check-updates':
       restoreWindow();
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-about');
       break;
