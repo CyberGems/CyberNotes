@@ -130,8 +130,18 @@ export default function NoteList({
     return m;
   }, [folders]);
 
+  const COLLAPSED_GROUPS_KEY = 'cybernotes_notelist_collapsed_groups';
   const [groupByDate, setGroupByDate] = useState(true);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('cybernotes_notelist_collapsed_groups');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {}
+    return new Set();
+  });
 
   // Cargar la densidad de la lista guardada y preferencia de agrupación por fecha
   useEffect(() => {
@@ -160,6 +170,9 @@ export default function NoteList({
       } else {
         next.add(groupKey);
       }
+      try {
+        localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(Array.from(next)));
+      } catch {}
       return next;
     });
   };
@@ -257,6 +270,9 @@ export default function NoteList({
           setCollapsedGroups(prev => {
             const next = new Set(prev);
             next.delete(g.key);
+            try {
+              localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(Array.from(next)));
+            } catch {}
             return next;
           });
         }
