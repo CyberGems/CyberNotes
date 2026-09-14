@@ -7,7 +7,7 @@ import NoteList from './NoteList';
 import NoteEditor from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
-import TrayPinModal from './TrayPinModal';
+import TrayPinModal, { isTrayPinReminderDismissed } from './TrayPinModal';
 import ConfirmDialog from './ConfirmDialog';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb } from '../utils/notes';
@@ -138,6 +138,14 @@ export default function MainApp({
     loadNotes(null);
     loadSettings();
 
+    // Mostrar recordatorio de anclaje en bandeja en la primera apertura (si aún no se ha descartado)
+    const firstRunTimer = setTimeout(() => {
+      if (!isTrayPinReminderDismissed()) {
+        setIsTrayPinAutomatic(true);
+        setShowTrayPin(true);
+      }
+    }, 600);
+
     // Escuchar el menú contextual desde Electron de forma global
     const unregisterContext = window.cyberNotesAPI.onContextMenuData((data: any) => {
       const mousePos = (window as any).lastMousePos || { x: data.x, y: data.y };
@@ -185,6 +193,7 @@ export default function MainApp({
     window.addEventListener('click', closeMenu);
 
     return () => {
+      clearTimeout(firstRunTimer);
       window.removeEventListener('mousedown', trackMouse, true);
       window.removeEventListener('contextmenu', trackMouse, true);
       window.removeEventListener('click', closeMenu);
