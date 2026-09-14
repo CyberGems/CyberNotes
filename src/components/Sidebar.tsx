@@ -32,6 +32,7 @@ interface Props {
   onSearch: (q: string) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
   getAvailableColors: (currentFolderId?: string) => { all: string[]; available: string[]; usedColors: Set<string> };
+  triggerNewFolderSignal?: number;
 }
 
 const FOLDER_ICONS = [
@@ -69,6 +70,7 @@ export default function Sidebar({
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
   onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
+  triggerNewFolderSignal,
 }: Props) {
   const t = TRANSLATIONS[language];
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -112,6 +114,16 @@ export default function Sidebar({
   useEffect(() => {
     if (showNewFolder) setTimeout(() => newFolderInputRef.current?.focus(), 50);
   }, [showNewFolder]);
+
+  useEffect(() => {
+    if (triggerNewFolderSignal && triggerNewFolderSignal > 0) {
+      setNewFolderName('');
+      setNewFolderIcon('folder');
+      const { available } = getAvailableColors();
+      setNewFolderColor(available[0] || '#7c3aed');
+      setShowNewFolder(true);
+    }
+  }, [triggerNewFolderSignal]);
 
   // Cerrar context menu al hacer click fuera
   useEffect(() => {
@@ -201,10 +213,11 @@ export default function Sidebar({
             pointerEvents: 'none',
           }} />
           <input
+            id="cybernotes-search-input"
             type="text"
             value={searchQuery}
             onChange={e => onSearch(e.target.value)}
-            placeholder={t.general.search}
+            placeholder={`${t.general.search} (Ctrl+F)`}
             className="input"
             onContextMenu={inputMenu.onContextMenu}
             style={{ paddingLeft: 32, paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 10px 7px 32px' }}
@@ -630,20 +643,22 @@ export default function Sidebar({
           );
         })}
 
-        <button
-          className="btn btn-ghost"
-          onClick={() => {
-            setNewFolderName('');
-            setNewFolderIcon('folder');
-            const { available } = getAvailableColors();
-            setNewFolderColor(available[0] || '#7c3aed');
-            setShowNewFolder(true);
-          }}
-          style={{ width: '100%', justifyContent: 'flex-start', marginTop: 4, fontSize: 'calc(12px * var(--ui-scale))', gap: 8, padding: '7px 10px' }}
-        >
-          <Plus size={14} />
-          {t.sidebar.newFolder}
-        </button>
+        <Tooltip placement="bottom" label={language === 'es' ? 'Nueva carpeta (Ctrl+Shift+N)' : 'New folder (Ctrl+Shift+N)'}>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              setNewFolderName('');
+              setNewFolderIcon('folder');
+              const { available } = getAvailableColors();
+              setNewFolderColor(available[0] || '#7c3aed');
+              setShowNewFolder(true);
+            }}
+            style={{ width: '100%', justifyContent: 'flex-start', marginTop: 4, fontSize: 'calc(12px * var(--ui-scale))', gap: 8, padding: '7px 10px' }}
+          >
+            <Plus size={14} />
+            {t.sidebar.newFolder}
+          </button>
+        </Tooltip>
       </div>
 
       {/* Bottom actions */}

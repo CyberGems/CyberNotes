@@ -909,34 +909,52 @@ export default function NoteEditor({
       },
       handleKeyDown: (_view, event) => {
         // Tab = sangría / espacios; evita saltar el foco a otros controles de la UI
-        if (event.key !== 'Tab') return false;
-        event.preventDefault();
+        if (event.key === 'Tab') {
+          event.preventDefault();
 
-        const { state, dispatch } = _view;
-        if (event.shiftKey) {
-          // Shift+Tab: quitar un tabulador o hasta 4 espacios antes del cursor
-          const { $from } = state.selection;
-          const before = $from.parent.textBetween(
-            Math.max(0, $from.parentOffset - 4),
-            $from.parentOffset,
-            undefined,
-            '\ufffc',
-          );
-          if (before.endsWith('\t')) {
-            dispatch(state.tr.delete($from.pos - 1, $from.pos));
+          const { state, dispatch } = _view;
+          if (event.shiftKey) {
+            // Shift+Tab: quitar un tabulador o hasta 4 espacios antes del cursor
+            const { $from } = state.selection;
+            const before = $from.parent.textBetween(
+              Math.max(0, $from.parentOffset - 4),
+              $from.parentOffset,
+              undefined,
+              '\ufffc',
+            );
+            if (before.endsWith('\t')) {
+              dispatch(state.tr.delete($from.pos - 1, $from.pos));
+              return true;
+            }
+            const spaces = before.match(/ +$/)?.[0] ?? '';
+            if (spaces.length > 0) {
+              const n = Math.min(4, spaces.length);
+              dispatch(state.tr.delete($from.pos - n, $from.pos));
+              return true;
+            }
             return true;
           }
-          const spaces = before.match(/ +$/)?.[0] ?? '';
-          if (spaces.length > 0) {
-            const n = Math.min(4, spaces.length);
-            dispatch(state.tr.delete($from.pos - n, $from.pos));
-            return true;
-          }
+
+          dispatch(state.tr.insertText('\t'));
           return true;
         }
 
-        dispatch(state.tr.insertText('\t'));
-        return true;
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+          event.preventDefault();
+          handleManualSave();
+          return true;
+        }
+
+        if (event.key === 'Escape') {
+          const listEl = document.querySelector('[data-notelist-container="true"]') as HTMLElement | null;
+          if (listEl) {
+            _view.dom.blur();
+            listEl.focus();
+            return true;
+          }
+        }
+
+        return false;
       },
     },
     content: '',
@@ -1496,8 +1514,13 @@ export default function NoteEditor({
                   e.preventDefault();
                   (e.target as HTMLInputElement).blur();
                   editor?.commands.focus('start');
+                } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                  e.preventDefault();
+                  handleManualSave();
                 } else if (e.key === 'Escape') {
                   (e.target as HTMLInputElement).blur();
+                  const listEl = document.querySelector('[data-notelist-container="true"]') as HTMLElement | null;
+                  listEl?.focus();
                 }
               }}
               onContextMenu={(e) => {
@@ -1564,38 +1587,40 @@ export default function NoteEditor({
                     padding: '2px 3px',
                   }}
                 >
-                  <motion.button
-                    onClick={handleManualSave}
-                    className="cyber-save-shine"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      padding: '6px 11px',
-                      minHeight: 32,
-                      borderRadius: 6,
-                      border: '1px solid rgba(255, 255, 255, 0.14)',
-                      background: 'var(--accent-dim)',
-                      color: 'var(--accent-light)',
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      transition: 'background 0.15s ease, color 0.15s ease',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = 'var(--accent)';
-                      e.currentTarget.style.color = '#ffffff';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = 'var(--accent-dim)';
-                      e.currentTarget.style.color = 'var(--accent-light)';
-                    }}
-                    whileTap={{ scale: 0.95 }}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <Save size={15} />
-                    <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
-                  </motion.button>
+                  <Tooltip placement="bottom" label={language === 'es' ? 'Guardar nota (Ctrl+S)' : 'Save note (Ctrl+S)'}>
+                    <motion.button
+                      onClick={handleManualSave}
+                      className="cyber-save-shine"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '6px 11px',
+                        minHeight: 32,
+                        borderRadius: 6,
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        background: 'var(--accent-dim)',
+                        color: 'var(--accent-light)',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        transition: 'background 0.15s ease, color 0.15s ease',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'var(--accent)';
+                        e.currentTarget.style.color = '#ffffff';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'var(--accent-dim)';
+                        e.currentTarget.style.color = 'var(--accent-light)';
+                      }}
+                      whileTap={{ scale: 0.95 }}
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      <Save size={15} />
+                      <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
+                    </motion.button>
+                  </Tooltip>
                   <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
                 </motion.div>
               )}

@@ -113,6 +113,7 @@ export default function MainApp({
   const [showWordCounter, setShowWordCounter] = useState(false);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
+  const [triggerNewFolderSignal, setTriggerNewFolderSignal] = useState(0);
   const isLoadedRef = useRef(false);
   const contentCacheRef = useRef<Record<string, string>>({});
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -454,7 +455,7 @@ export default function MainApp({
     }, 250);
   }, [selectedFolderId]);
 
-  const handleCreateNote = async () => {
+  const handleCreateNote = useCallback(async () => {
     const now = new Date().toISOString();
     const newNote: Note = {
       id: window.crypto.randomUUID(),
@@ -480,7 +481,7 @@ export default function MainApp({
     } catch (err) {
       console.error('[MainApp] Error creating note:', err);
     }
-  };
+  }, [selectedFolderId, language]);
 
   const handleSaveNote = useCallback(async (note: Note) => {
     const thumb = note.thumb || extractThumb(note.content);
@@ -679,6 +680,70 @@ export default function MainApp({
     await window.cyberNotesAPI.updateFolder(folder);
     setFolders(prev => prev.map(f => f.id === folder.id ? folder : f).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
   };
+
+  // Atajos globales de teclado
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // No activar si hay modales abiertos
+      if (
+        showSettings ||
+        showAbout ||
+        showTrayPin ||
+        showUnsavedExitDialog ||
+        pendingNavNoteId !== null ||
+        noteToCloseWithDraft !== null
+      ) {
+        return;
+      }
+
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+      // Ctrl+N: Nueva nota
+      if (isCtrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        handleCreateNote();
+        return;
+      }
+
+      // Ctrl+Shift+N: Nueva carpeta
+      if (isCtrlOrCmd && e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        if (layoutMode !== 3) {
+          setLayoutMode(3);
+        }
+        setTriggerNewFolderSignal(prev => prev + 1);
+        return;
+      }
+
+      // Ctrl+F: Buscar notas
+      if (isCtrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (layoutMode !== 3) {
+          setLayoutMode(3);
+        }
+        setTimeout(() => {
+          const searchInput = document.getElementById('cybernotes-search-input') as HTMLInputElement | null;
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        }, 50);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [
+    showSettings,
+    showAbout,
+    showTrayPin,
+    showUnsavedExitDialog,
+    pendingNavNoteId,
+    noteToCloseWithDraft,
+    layoutMode,
+    handleCreateNote,
+  ]);
 
   const handleDeleteFolder = async (id: string) => {
     await window.cyberNotesAPI.deleteFolder(id);
@@ -925,6 +990,7 @@ export default function MainApp({
               onSearch={handleSearch}
               getAvailableColors={getAvailableColors}
               onMoveNote={handleMoveNote}
+              triggerNewFolderSignal={triggerNewFolderSignal}
             />
             <div 
               onMouseDown={startDragSidebar}

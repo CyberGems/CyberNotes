@@ -178,14 +178,51 @@ To continue:
 
 ## ⌨️ Keyboard Shortcuts
 
+### General & App Navigation
+
 | Key | Action |
 |---|---|
-| `Alt+Shift+N` | Toggle window visibility (customizable) |
-| `Ctrl+N` | Create new note |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
-| `Tab` | Insert tab / indent |
-| `Shift+Tab` | Remove indent |
+| `Alt+Shift+N` | Toggle window visibility (global, customizable in Settings) |
+| `Ctrl+N` | Create a new note |
+| `Ctrl+Shift+N` | Create a new folder |
+| `Ctrl+F` | Focus search bar |
+
+### Note List Navigation
+
+| Key | Action |
+|---|---|
+| `↑` / `↓` | Navigate through notes in the list |
+| `Home` / `End` | Jump to the first or last note in the list |
+| `Enter` | Open and focus the selected note in the editor |
+| `Delete` | Prompt to delete the selected note |
+
+### Editor Navigation & Selection
+
+| Key | Action |
+|---|---|
+| `End` | Move cursor to the end of the current line |
+| `Ctrl+End` | Move cursor to the end of the entire note |
+| `Home` | Move cursor to the beginning of the current line |
+| `Ctrl+Home` | Move cursor to the beginning of the entire note |
+| `Shift+End` | Select text from cursor to end of line |
+| `Ctrl+Shift+End` | Select text from cursor to end of note |
+| `Shift+Home` | Select text from cursor to start of line |
+| `Ctrl+Shift+Home` | Select text from cursor to start of note |
+| `Ctrl+A` | Select all text in note |
+| `Escape` | Exit editor and return focus to the note list |
+
+### Formatting & History
+
+| Key | Action |
+|---|---|
+| `Ctrl+S` | Save note manually (when autosave is disabled) |
+| `Ctrl+B` | Bold text |
+| `Ctrl+I` | Italic text |
+| `Ctrl+U` | Underline text |
+| `Ctrl+Z` | Undo last change |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo last change |
+| `Tab` | Insert tab / increase indentation |
+| `Shift+Tab` | Decrease indentation |
 
 ---
 

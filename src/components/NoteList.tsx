@@ -281,6 +281,17 @@ export default function NoteList({
     }
   }, [selectedNoteId, isGroupingActive, noteGroups]);
 
+  const navigableNotes = useMemo(() => {
+    if (!isGroupingActive) return sortedNotes;
+    const list: Note[] = [];
+    for (const group of noteGroups) {
+      if (!collapsedGroups.has(group.key)) {
+        list.push(...group.notes);
+      }
+    }
+    return list.length > 0 ? list : sortedNotes;
+  }, [isGroupingActive, sortedNotes, noteGroups, collapsedGroups]);
+
   const rowHeight = Math.round((viewMode === 'compact' ? ROW_COMPACT : ROW_NORMAL) * (uiScale || 1));
   const totalHeight = sortedNotes.length * rowHeight;
 
@@ -323,7 +334,87 @@ export default function NoteList({
       window.removeEventListener('resize', update);
       ro.disconnect();
     };
-  }, [sortedNotes.length, rowHeight]);
+  }, [sortedNotes.length]);
+
+  const scrollNoteIntoView = useCallback((noteId: string, index: number) => {
+    if (!listRef.current) return;
+    if (isGroupingActive) {
+      requestAnimationFrame(() => {
+        const el = listRef.current?.querySelector(`[data-note-id="${noteId}"]`) as HTMLElement | null;
+        if (el) {
+          el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      });
+    } else {
+      const el = listRef.current;
+      const targetTop = index * rowHeight;
+      const currentScroll = el.scrollTop;
+      const viewportH = el.clientHeight;
+      if (targetTop < currentScroll) {
+        el.scrollTo({ top: targetTop, behavior: 'smooth' });
+      } else if (targetTop + rowHeight > currentScroll + viewportH) {
+        el.scrollTo({ top: targetTop + rowHeight - viewportH, behavior: 'smooth' });
+      }
+    }
+  }, [isGroupingActive, rowHeight]);
+
+  const handleListKeyDown = (e: React.KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (navigableNotes.length === 0) return;
+      const currentIndex = navigableNotes.findIndex(n => n.id === selectedNoteId);
+      const nextIndex = currentIndex < 0 ? 0 : Math.min(currentIndex + 1, navigableNotes.length - 1);
+      const targetNote = navigableNotes[nextIndex];
+      if (targetNote && targetNote.id !== selectedNoteId) {
+        onSelectNote(targetNote.id);
+        scrollNoteIntoView(targetNote.id, nextIndex);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (navigableNotes.length === 0) return;
+      const currentIndex = navigableNotes.findIndex(n => n.id === selectedNoteId);
+      const prevIndex = currentIndex < 0 ? 0 : Math.max(currentIndex - 1, 0);
+      const targetNote = navigableNotes[prevIndex];
+      if (targetNote && targetNote.id !== selectedNoteId) {
+        onSelectNote(targetNote.id);
+        scrollNoteIntoView(targetNote.id, prevIndex);
+      }
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      if (navigableNotes.length === 0) return;
+      const targetNote = navigableNotes[0];
+      if (targetNote) {
+        onSelectNote(targetNote.id);
+        scrollNoteIntoView(targetNote.id, 0);
+      }
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      if (navigableNotes.length === 0) return;
+      const targetNote = navigableNotes[navigableNotes.length - 1];
+      if (targetNote) {
+        onSelectNote(targetNote.id);
+        scrollNoteIntoView(targetNote.id, navigableNotes.length - 1);
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const editorEl = document.querySelector('.ProseMirror') as HTMLElement | null;
+      if (editorEl) {
+        editorEl.focus();
+      }
+    } else if (e.key === 'Delete') {
+      if (selectedNoteId) {
+        const currentNote = sortedNotes.find(n => n.id === selectedNoteId);
+        if (currentNote) {
+          e.preventDefault();
+          setNoteToDelete(currentNote);
+        }
+      }
+    }
+  };
 
   const handleContextMenu = useCallback((e: React.MouseEvent, note: Note) => {
     e.preventDefault();
@@ -507,7 +598,13 @@ export default function NoteList({
       <div className="divider" />
 
       <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-        <div ref={listRef} style={{ height: '100%', overflowY: 'auto' }}>
+        <div
+          ref={listRef}
+          data-notelist-container="true"
+          tabIndex={0}
+          onKeyDown={handleListKeyDown}
+          style={{ height: '100%', overflowY: 'auto', outline: 'none' }}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={selectedFolder?.id || 'all'}
@@ -564,6 +661,7 @@ export default function NoteList({
                               return (
                                 <div
                                   key={note.id}
+                                  data-note-id={note.id}
                                   style={{
                                     height: rowHeight,
                                     boxSizing: 'border-box',
@@ -577,7 +675,10 @@ export default function NoteList({
                                     viewMode={viewMode}
                                     isSelected={selectedNoteId === note.id}
                                     isContextActive={contextMenu?.note.id === note.id}
-                                    onClick={() => onSelectNote(note.id)}
+                                    onClick={() => {
+                                      onSelectNote(note.id);
+                                      listRef.current?.focus({ preventScroll: true });
+                                    }}
                                     onDelete={() => setNoteToDelete(note)}
                                     onContextMenu={(e) => handleContextMenu(e, note)}
                                   />
@@ -598,6 +699,7 @@ export default function NoteList({
                       return (
                         <div
                           key={note.id}
+                          data-note-id={note.id}
                           style={{
                             height: rowHeight,
                             boxSizing: 'border-box',
@@ -611,7 +713,10 @@ export default function NoteList({
                             viewMode={viewMode}
                             isSelected={selectedNoteId === note.id}
                             isContextActive={contextMenu?.note.id === note.id}
-                            onClick={() => onSelectNote(note.id)}
+                            onClick={() => {
+                              onSelectNote(note.id);
+                              listRef.current?.focus({ preventScroll: true });
+                            }}
                             onDelete={() => setNoteToDelete(note)}
                             onContextMenu={(e) => handleContextMenu(e, note)}
                           />
