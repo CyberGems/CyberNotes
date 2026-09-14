@@ -8,6 +8,7 @@ import {
   ChevronRight, Pencil, Trash2, FileText, Clock, Cloud, Star,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import { playSynthSound } from '../utils/audio';
 import FolderIcon from './FolderIcon';
 import Tooltip from './Tooltip';
 
@@ -92,22 +93,31 @@ export default function Sidebar({
 
   // Global drag listeners to activate target drop indicators
   useEffect(() => {
-    const handleDragStart = (e: DragEvent) => {
+    const handleDragStart = () => {
       setIsNoteDragging(true);
     };
     const handleDragEnd = () => {
       setIsNoteDragging(false);
       setActiveDropTargetId(null);
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleDragEnd();
+    };
 
     window.addEventListener('dragstart', handleDragStart);
     window.addEventListener('dragend', handleDragEnd);
     window.addEventListener('drop', handleDragEnd);
+    window.addEventListener('cybernotes:dragend', handleDragEnd);
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       window.removeEventListener('dragstart', handleDragStart);
       window.removeEventListener('dragend', handleDragEnd);
       window.removeEventListener('drop', handleDragEnd);
+      window.removeEventListener('cybernotes:dragend', handleDragEnd);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
@@ -237,27 +247,40 @@ export default function Sidebar({
       <div className="divider" />
 
       {/* Nav */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
+      <div
+        onDragOver={e => {
+          e.preventDefault();
+        }}
+        onDragLeave={e => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setActiveDropTargetId(null);
+          }
+        }}
+        style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}
+      >
         {/* Todas las notas */}
         <motion.button
           onClick={() => onSelectFolder(null)}
           onDragOver={e => {
             e.preventDefault();
+            e.stopPropagation();
             e.dataTransfer.dropEffect = 'move';
-            if (activeDropTargetId !== 'all') {
-              setActiveDropTargetId('all');
-            }
+            setActiveDropTargetId(prev => (prev === 'all' ? prev : 'all'));
           }}
-          onDragLeave={() => setActiveDropTargetId(null)}
+          onDragLeave={e => {
+            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+            setActiveDropTargetId(prev => (prev === 'all' ? null : prev));
+          }}
           onDrop={e => {
             e.preventDefault();
+            e.stopPropagation();
             const noteId = e.dataTransfer.getData('text/plain');
             setActiveDropTargetId(null);
             setIsNoteDragging(false);
+            window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
             if (noteId) {
-              setTimeout(() => {
-                onMoveNote(noteId, null);
-              }, 50);
+              playSynthSound('mechanical-click');
+              onMoveNote(noteId, null);
             }
           }}
           whileHover="hover"
@@ -272,28 +295,33 @@ export default function Sidebar({
             border: isNoteDragging
               ? activeDropTargetId === 'all'
                 ? '1px solid var(--accent)'
-                : '1px dashed rgba(124, 90, 237, 0.4)'
-              : '1px solid transparent',
-            background: activeDropTargetId === 'all'
+                : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
+              : selectedFolderId === null && !searchQuery
+                ? '1px solid var(--accent)'
+                : '1px solid transparent',
+            background: isNoteDragging && activeDropTargetId === 'all'
               ? 'var(--accent-dim)'
               : selectedFolderId === null && !searchQuery
                 ? 'var(--bg-active)'
                 : 'transparent',
-            color: activeDropTargetId === 'all'
+            color: isNoteDragging && activeDropTargetId === 'all'
               ? 'var(--accent-light)'
               : selectedFolderId === null && !searchQuery
                 ? 'var(--accent-light)'
                 : 'var(--text-secondary)',
             cursor: 'pointer',
             fontSize: 'calc(13px * var(--ui-scale))',
-            fontWeight: (selectedFolderId === null && !searchQuery) || activeDropTargetId === 'all' ? 600 : 400,
+            fontWeight: (selectedFolderId === null && !searchQuery) || (isNoteDragging && activeDropTargetId === 'all') ? 600 : 400,
             textAlign: 'left',
-            transition: 'all 0.12s ease-out',
+            transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
             marginBottom: 4,
             position: 'relative',
-            boxShadow: selectedFolderId === null && !searchQuery
-              ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
-              : 'none',
+            boxShadow: isNoteDragging && activeDropTargetId === 'all'
+              ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
+              : selectedFolderId === null && !searchQuery
+                ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
+                : 'none',
+            transform: isNoteDragging && activeDropTargetId === 'all' ? 'translateX(4px) scale(1.01)' : 'none',
           }}
           variants={{
             hover: {
@@ -406,21 +434,24 @@ export default function Sidebar({
           onClick={() => onSelectFolder('floating')}
           onDragOver={e => {
             e.preventDefault();
+            e.stopPropagation();
             e.dataTransfer.dropEffect = 'move';
-            if (activeDropTargetId !== 'floating') {
-              setActiveDropTargetId('floating');
-            }
+            setActiveDropTargetId(prev => (prev === 'floating' ? prev : 'floating'));
           }}
-          onDragLeave={() => setActiveDropTargetId(null)}
+          onDragLeave={e => {
+            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+            setActiveDropTargetId(prev => (prev === 'floating' ? null : prev));
+          }}
           onDrop={e => {
             e.preventDefault();
+            e.stopPropagation();
             const noteId = e.dataTransfer.getData('text/plain');
             setActiveDropTargetId(null);
             setIsNoteDragging(false);
+            window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
             if (noteId) {
-              setTimeout(() => {
-                onMoveNote(noteId, null);
-              }, 50);
+              playSynthSound('mechanical-click');
+              onMoveNote(noteId, null);
             }
           }}
           whileHover="hover"
@@ -435,28 +466,33 @@ export default function Sidebar({
             border: isNoteDragging
               ? activeDropTargetId === 'floating'
                 ? '1px solid var(--accent)'
-                : '1px dashed var(--accent)'
-              : '1px solid transparent',
-            background: activeDropTargetId === 'floating'
+                : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
+              : selectedFolderId === 'floating' && !searchQuery
+                ? '1px solid var(--accent)'
+                : '1px solid transparent',
+            background: isNoteDragging && activeDropTargetId === 'floating'
               ? 'var(--accent-dim)'
               : selectedFolderId === 'floating' && !searchQuery
                 ? 'var(--bg-active)'
                 : 'transparent',
-            color: activeDropTargetId === 'floating'
+            color: isNoteDragging && activeDropTargetId === 'floating'
               ? 'var(--accent-light)'
               : selectedFolderId === 'floating' && !searchQuery
                 ? 'var(--accent-light)'
                 : 'var(--text-secondary)',
             cursor: 'pointer',
             fontSize: 'calc(13px * var(--ui-scale))',
-            fontWeight: (selectedFolderId === 'floating' && !searchQuery) || activeDropTargetId === 'floating' ? 600 : 400,
+            fontWeight: (selectedFolderId === 'floating' && !searchQuery) || (isNoteDragging && activeDropTargetId === 'floating') ? 600 : 400,
             textAlign: 'left',
-            transition: 'all 0.12s ease-out',
+            transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
             marginBottom: 4,
             position: 'relative',
-            boxShadow: selectedFolderId === 'floating' && !searchQuery
-              ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
-              : 'none',
+            boxShadow: isNoteDragging && activeDropTargetId === 'floating'
+              ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
+              : selectedFolderId === 'floating' && !searchQuery
+                ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
+                : 'none',
+            transform: isNoteDragging && activeDropTargetId === 'floating' ? 'translateX(4px) scale(1.01)' : 'none',
           }}
           variants={{
             hover: {
@@ -517,25 +553,24 @@ export default function Sidebar({
               onContextMenu={e => handleContextMenu(e, folder)}
               onDragOver={e => {
                 e.preventDefault();
+                e.stopPropagation();
                 e.dataTransfer.dropEffect = 'move';
-                if (activeDropTargetId !== folder.id) {
-                  setActiveDropTargetId(folder.id);
-                }
+                setActiveDropTargetId(prev => (prev === folder.id ? prev : folder.id));
               }}
-              onDragLeave={() => {
-                if (activeDropTargetId === folder.id) {
-                  setActiveDropTargetId(null);
-                }
+              onDragLeave={e => {
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                setActiveDropTargetId(prev => (prev === folder.id ? null : prev));
               }}
               onDrop={e => {
                 e.preventDefault();
+                e.stopPropagation();
                 const noteId = e.dataTransfer.getData('text/plain');
                 setActiveDropTargetId(null);
                 setIsNoteDragging(false);
+                window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
                 if (noteId) {
-                  setTimeout(() => {
-                    onMoveNote(noteId, folder.id);
-                  }, 50);
+                  playSynthSound('mechanical-click');
+                  onMoveNote(noteId, folder.id);
                 }
               }}
               whileHover="hover"
@@ -549,13 +584,13 @@ export default function Sidebar({
                 borderRadius: 'var(--radius-md)',
                 border: isNoteDragging
                   ? isTarget
-                    ? `1px solid ${folder.color}`
+                    ? `1.5px solid ${folder.color}`
                     : `1px dashed ${folder.color}55`
                   : isContextActive
                     ? `1px solid ${folder.color}66`
                     : '1px solid transparent',
                 background: isTarget
-                  ? `${folder.color}22`
+                  ? `${folder.color}28`
                   : isSelected || isContextActive
                     ? 'var(--bg-active)'
                     : 'transparent',
@@ -568,16 +603,17 @@ export default function Sidebar({
                 fontSize: 'calc(13px * var(--ui-scale))',
                 fontWeight: isSelected || isTarget || isContextActive ? 600 : 400,
                 textAlign: 'left',
-                transition: 'all 0.12s ease-out',
+                transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
                 marginBottom: 4,
                 position: 'relative',
                 boxShadow: isTarget
-                  ? `0 0 12px ${folder.color}44, inset 0 0 6px ${folder.color}22`
+                  ? `0 0 18px ${folder.color}55, inset 0 0 8px ${folder.color}25`
                   : isContextActive
                     ? `0 0 16px ${folder.color}33, inset 0 0 4px ${folder.color}15, inset 0 1px 0 rgba(255,255,255,0.04)`
                     : isSelected
                       ? `0 0 14px ${folder.color}18, inset 0 0 4px ${folder.color}0a, inset 0 1px 0 rgba(255,255,255,0.01)`
                       : 'none',
+                transform: isTarget ? 'translateX(5px) scale(1.02)' : 'none',
               }}
               variants={{
                 hover: {

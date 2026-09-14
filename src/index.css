@@ -1325,3 +1325,14 @@ body:has(.has-bg),
   z-index: 1;
 }
 
+/* ─── Drag and Drop Note Styling ───────────────────────────── */
+.note-item[draggable="true"] {
+  user-select: none;
+  -webkit-user-drag: element;
+}
+.note-item.is-dragging {
+  cursor: grabbing !important;
+  box-shadow: 0 0 14px var(--accent-glow) !important;
+  border-style: dashed !important;
+}
+

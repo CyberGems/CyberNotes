@@ -1008,6 +1008,7 @@ interface NoteItemProps {
 }
 
 const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, onClick, onDelete, onContextMenu }: NoteItemProps) {
+  const [isDragging, setIsDragging] = useState(false);
   const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
   const t = TRANSLATIONS[language];
 
@@ -1017,8 +1018,14 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       onContextMenu={onContextMenu}
       draggable={true}
       onDragStart={e => {
+        setIsDragging(true);
         (e as any).dataTransfer.setData('text/plain', note.id);
+        (e as any).dataTransfer.setData('application/cybernotes-note', note.id);
         (e as any).dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => {
+        setIsDragging(false);
+        window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
       }}
       style={{
         height: '100%',
@@ -1027,16 +1034,18 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         margin: '0 calc(12px * var(--ui-scale))',
         borderRadius: 'var(--radius-md)',
         background: isSelected || isContextActive ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
-        cursor: 'pointer',
+        cursor: isDragging ? 'grabbing' : 'pointer',
         position: 'relative',
-        transition: 'background var(--transition), border-color var(--transition)',
+        transition: 'all var(--transition)',
         border: isSelected || isContextActive ? '1px solid var(--accent)' : '1px solid var(--border)',
         boxShadow: isSelected || isContextActive ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        opacity: isDragging ? 0.35 : 1,
+        transform: isDragging ? 'scale(0.97)' : 'none',
       }}
-      className="note-item"
+      className={`note-item${isDragging ? ' is-dragging' : ''}`}
       onMouseEnter={e => {
         if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
       }}
