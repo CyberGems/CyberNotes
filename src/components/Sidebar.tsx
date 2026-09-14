@@ -663,33 +663,43 @@ export default function Sidebar({
 
       {/* Bottom actions */}
       <div className="divider" />
-      <div style={{ padding: '8px', display: 'flex', gap: 4, justifyContent: 'space-between' }}>
+      <div style={{ padding: '8px', display: 'flex', gap: 6, justifyContent: 'space-between' }}>
         <Tooltip placement="top" label={language === 'es' ? 'Notas recientes' : 'Recent notes'}>
-        <button
-          ref={recentBtnRef}
-          className="btn btn-ghost"
-          onClick={(e) => { e.stopPropagation(); setShowRecent(prev => !prev); setClearConfirm(false); }}
-          style={{ padding: '7px 10px' }}
-        >
-          <Clock size={14} />
-        </button>
+          <button
+            ref={recentBtnRef}
+            className="btn btn-ghost"
+            onClick={(e) => { e.stopPropagation(); setShowRecent(prev => !prev); setClearConfirm(false); }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              fontSize: 'calc(12px * var(--ui-scale))',
+              padding: '7px 8px',
+            }}
+          >
+            <Clock size={14} />
+            <span>{language === 'es' ? 'Recientes' : 'Recent'}</span>
+          </button>
         </Tooltip>
-        <button
-          className="btn btn-ghost"
-          onClick={onOpenSettings}
-          style={{ flex: 1, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px', gap: 6 }}
-        >
-          <Settings size={14} />
-          {t.settings.title.replace('⚙️ ', '')}
-        </button>
-        <Tooltip placement="top" label={language === 'es' ? 'Bloquear' : 'Lock'}>
-        <button
-          className="btn btn-ghost"
-          onClick={onLock}
-          style={{ padding: '7px 10px' }}
-        >
-          <Lock size={14} />
-        </button>
+        <Tooltip placement="top" label={language === 'es' ? 'Bloquear aplicación' : 'Lock application'}>
+          <button
+            className="btn btn-ghost"
+            onClick={onLock}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              fontSize: 'calc(12px * var(--ui-scale))',
+              padding: '7px 8px',
+            }}
+          >
+            <Lock size={14} />
+            <span>{language === 'es' ? 'Bloquear' : 'Lock'}</span>
+          </button>
         </Tooltip>
       </div>
 

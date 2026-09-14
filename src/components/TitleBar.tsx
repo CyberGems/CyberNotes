@@ -322,8 +322,19 @@ export default function TitleBar({
       {/* Controles de ventana */}
       <div
         data-no-drag
-        style={{ display: 'flex', alignItems: 'center', gap: 0, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
+        style={{ display: 'flex', alignItems: 'center', gap: 2, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
+        {/* Settings Button */}
+        <Tooltip placement="bottom" label={t('Configuración', 'Settings')}>
+          <button
+            className="btn-icon titlebar-btn"
+            onClick={onOpenSettings}
+            style={{ width: 28, height: 28 }}
+          >
+            <Settings size={14} />
+          </button>
+        </Tooltip>
+
         {/* Burger Menu */}
         <div style={{ position: 'relative' }}>
           <Tooltip placement="bottom" label={t('Menú', 'Menu')}>
