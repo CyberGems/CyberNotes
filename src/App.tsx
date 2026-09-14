@@ -6,10 +6,17 @@ import { Language } from './languages';
 import LockScreen from './components/LockScreen';
 import MainApp from './components/MainApp';
 import AppLoader from './components/AppLoader';
+import StickyNoteApp from './components/StickyNoteApp';
 
 type AppView = 'loading' | 'lock' | 'app';
 
 export default function App() {
+  const stickyNoteId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('sticky') : null;
+
+  if (stickyNoteId) {
+    return <StickyNoteApp noteId={stickyNoteId} />;
+  }
+
   const [view, setView] = useState<AppView>('loading');
   const [theme, setTheme] = useState<ThemeId>('cyber-dark');
   const [colorIntensity, setColorIntensity] = useState(50);

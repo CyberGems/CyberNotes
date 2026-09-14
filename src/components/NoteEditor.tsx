@@ -1688,6 +1688,29 @@ export default function NoteEditor({
             </button>
             </Tooltip>
 
+            {/* Abrir como nota flotante (Sticky Note) */}
+            <Tooltip placement="bottom" label={language === 'es' ? 'Abrir como nota flotante' : 'Open as sticky note'}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (note?.id) {
+                    window.cyberNotesAPI.openStickyNote(note.id);
+                  }
+                }}
+                style={noteActionBtnStyle(false)}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'var(--bg-hover)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-muted)';
+                }}
+              >
+                <ExternalLink size={15} />
+              </button>
+            </Tooltip>
+
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
 
             {/* Grupo 2: Vistas y Edición (HTML, Columnas) */}

@@ -16,6 +16,8 @@ const ICONS = {
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>',
   pin: '<svg viewBox="0 0 24 24"><path d="M8 3h8l-1 5 3 3v2H6v-2l3-3z"/><path d="M12 13v8"/></svg>',
   back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/><path d="M9 12h11"/></svg>',
+  sticky: '<svg viewBox="0 0 24 24"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8l-5-5z"/><path d="M15 3v5h5"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
 };
 
 const api = window.trayMenu;
@@ -118,6 +120,16 @@ function renderMainView() {
   const items = [
     makeItem({ action: 'toggle', icon: 'window', label: currentState.showLabel, shortcut: currentState.shortcut || '' })
   ];
+
+  if (currentState.stickyCount > 0) {
+    items.push(
+      makeItem({ action: 'toggle-sticky', icon: 'sticky', label: currentState.toggleStickyLabel })
+    );
+  }
+
+  items.push(
+    makeItem({ action: 'new-sticky', icon: 'plus', label: currentState.newStickyLabel || 'New sticky note' })
+  );
 
   if (currentState.canLock) {
     items.push(makeItem({ action: 'lock', icon: 'lock', label: currentState.lockLabel }));

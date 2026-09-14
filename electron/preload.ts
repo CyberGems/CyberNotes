@@ -135,4 +135,35 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   },
   getVersions: () => ipcRenderer.invoke('app:getVersions'),
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+
+  // -- Sticky Notes --
+  openStickyNote: (noteId: string) => ipcRenderer.invoke('sticky:open', noteId),
+  closeStickyNote: (noteId: string) => ipcRenderer.invoke('sticky:close', noteId),
+  toggleStickyAlwaysOnTop: (noteId: string) => ipcRenderer.invoke('sticky:toggleAlwaysOnTop', noteId),
+  getStickyConfig: (noteId: string) => ipcRenderer.invoke('sticky:getConfig', noteId),
+  saveStickyConfig: (noteId: string, config: any) => ipcRenderer.invoke('sticky:saveConfig', noteId, config),
+  getOpenStickyNotes: () => ipcRenderer.invoke('sticky:getOpenList'),
+  focusMainWindowWithNote: (noteId: string) => ipcRenderer.invoke('sticky:focusMain', noteId),
+  toggleAllStickyNotes: (show?: boolean) => ipcRenderer.invoke('sticky:toggleAll', show),
+  createAndOpenStickyNote: () => ipcRenderer.invoke('sticky:createAndOpen'),
+  onNoteUpdated: (callback: (note: any) => void) => {
+    const listener = (_e: any, note: any) => callback(note);
+    ipcRenderer.on('note:updated', listener);
+    return () => ipcRenderer.removeListener('note:updated', listener);
+  },
+  onNoteDeleted: (callback: (noteId: string) => void) => {
+    const listener = (_e: any, noteId: string) => callback(noteId);
+    ipcRenderer.on('note:deleted', listener);
+    return () => ipcRenderer.removeListener('note:deleted', listener);
+  },
+  onStickyListChanged: (callback: (openIds: string[]) => void) => {
+    const listener = (_e: any, openIds: string[]) => callback(openIds);
+    ipcRenderer.on('sticky:list-changed', listener);
+    return () => ipcRenderer.removeListener('sticky:list-changed', listener);
+  },
+  onStickyFocusNote: (callback: (noteId: string) => void) => {
+    const listener = (_e: any, noteId: string) => callback(noteId);
+    ipcRenderer.on('sticky:focus-note', listener);
+    return () => ipcRenderer.removeListener('sticky:focus-note', listener);
+  },
 });

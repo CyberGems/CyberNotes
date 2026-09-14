@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, Pin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon from './FolderIcon';
@@ -120,6 +120,7 @@ export default function NoteList({
   const [renameTarget, setRenameTarget] = useState<Note | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const [openStickyIds, setOpenStickyIds] = useState<string[]>([]);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
   const listRef = useRef<HTMLDivElement>(null);
@@ -129,6 +130,20 @@ export default function NoteList({
     folders.forEach(f => m.set(f.id, f));
     return m;
   }, [folders]);
+
+  useEffect(() => {
+    let active = true;
+    window.cyberNotesAPI?.getOpenStickyNotes().then((ids) => {
+      if (active && Array.isArray(ids)) setOpenStickyIds(ids);
+    });
+    const unregister = window.cyberNotesAPI?.onStickyListChanged((ids) => {
+      if (active) setOpenStickyIds(ids);
+    });
+    return () => {
+      active = false;
+      if (unregister) unregister();
+    };
+  }, []);
 
   const COLLAPSED_GROUPS_KEY = 'cybernotes_notelist_collapsed_groups';
   const [groupByDate, setGroupByDate] = useState(true);
@@ -675,6 +690,7 @@ export default function NoteList({
                                     viewMode={viewMode}
                                     isSelected={selectedNoteId === note.id}
                                     isContextActive={contextMenu?.note.id === note.id}
+                                    isStickyOpen={openStickyIds.includes(note.id)}
                                     onClick={() => {
                                       onSelectNote(note.id);
                                       listRef.current?.focus({ preventScroll: true });
@@ -713,6 +729,7 @@ export default function NoteList({
                             viewMode={viewMode}
                             isSelected={selectedNoteId === note.id}
                             isContextActive={contextMenu?.note.id === note.id}
+                            isStickyOpen={openStickyIds.includes(note.id)}
                             onClick={() => {
                               onSelectNote(note.id);
                               listRef.current?.focus({ preventScroll: true });
@@ -799,6 +816,18 @@ export default function NoteList({
           >
             <FileText size={13} style={{ flexShrink: 0 }} />
             <span>{language === 'es' ? 'Abrir nota' : 'Open note'}</span>
+          </button>
+          <button
+            onClick={() => {
+              window.cyberNotesAPI.openStickyNote(contextMenu.note.id);
+              setContextMenu(null);
+            }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            <ExternalLink size={13} style={{ flexShrink: 0 }} />
+            <span>{language === 'es' ? 'Abrir como nota flotante' : 'Open as sticky note'}</span>
           </button>
           <button
             onClick={() => { setRenameTarget(contextMenu.note); setRenameInput(contextMenu.note.title); setContextMenu(null); }}
@@ -1002,12 +1031,13 @@ interface NoteItemProps {
   viewMode: 'normal' | 'compact';
   isSelected: boolean;
   isContextActive?: boolean;
+  isStickyOpen?: boolean;
   onClick: () => void;
   onDelete: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, onClick, onDelete, onContextMenu }: NoteItemProps) {
+const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, isStickyOpen, onClick, onDelete, onContextMenu }: NoteItemProps) {
   const [isDragging, setIsDragging] = useState(false);
   const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
   const t = TRANSLATIONS[language];
@@ -1071,6 +1101,11 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0, paddingRight: 28 }}>
             {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
+            {isStickyOpen && (
+              <Tooltip placement="bottom" label={t.noteList.stickyActive || (language === 'es' ? 'Nota flotando en el escritorio' : 'Floating on desktop')}>
+                <Pin size={12} color="var(--accent-light)" style={{ flexShrink: 0, transform: 'rotate(45deg)' }} />
+              </Tooltip>
+            )}
             <span style={{
               fontSize: 'calc(13px * var(--ui-scale))',
               fontWeight: 600,

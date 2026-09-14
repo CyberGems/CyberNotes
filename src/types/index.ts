@@ -125,6 +125,26 @@ declare global {
       // Keyboard
       unlockCapsLock: () => Promise<boolean>;
       checkCapsLock: () => Promise<boolean>;
+      // Sticky Notes
+      openStickyNote: (noteId: string) => Promise<boolean>;
+      closeStickyNote: (noteId: string) => Promise<boolean>;
+      toggleStickyAlwaysOnTop: (noteId: string) => Promise<boolean>;
+      getStickyConfig: (noteId: string) => Promise<{ color: string; opacity: number; pinned_top: boolean }>;
+      saveStickyConfig: (noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean }) => Promise<boolean>;
+      getOpenStickyNotes: () => Promise<string[]>;
+      focusMainWindowWithNote: (noteId: string) => Promise<void>;
+      toggleAllStickyNotes: (show?: boolean) => Promise<boolean>;
+      createAndOpenStickyNote: () => Promise<string>;
+      onNoteUpdated: (callback: (note: Note) => void) => () => void;
+      onNoteDeleted: (callback: (noteId: string) => void) => () => void;
+      onStickyListChanged: (callback: (openIds: string[]) => void) => () => void;
+      onStickyFocusNote: (callback: (noteId: string) => void) => () => void;
     };
   }
+}
+
+export interface StickyNoteConfig {
+  color: string;
+  opacity: number;
+  pinned_top: boolean;
 }

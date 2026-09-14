@@ -157,10 +157,26 @@ async function initDatabase() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS sticky_notes (
+      note_id     TEXT PRIMARY KEY,
+      x           INTEGER,
+      y           INTEGER,
+      width       INTEGER DEFAULT 320,
+      height      INTEGER DEFAULT 360,
+      pinned_top  INTEGER DEFAULT 1,
+      color       TEXT DEFAULT 'cyber-yellow',
+      opacity     REAL DEFAULT 1.0,
+      is_open     INTEGER DEFAULT 1
+    );
   `);
 
-  // Migración: DBs antiguas sin columna thumb
+  // Migración: DBs antiguas sin columna thumb o sticky_notes
   ensureColumn('notes', 'thumb', "TEXT DEFAULT ''");
+  ensureColumn('sticky_notes', 'pinned_top', "INTEGER DEFAULT 1");
+  ensureColumn('sticky_notes', 'color', "TEXT DEFAULT 'cyber-yellow'");
+  ensureColumn('sticky_notes', 'opacity', "REAL DEFAULT 1.0");
+  ensureColumn('sticky_notes', 'is_open', "INTEGER DEFAULT 1");
 
   // Rellenar miniaturas de notas existentes (una sola vez / solo filas vacías)
   backfillNoteThumbs();
@@ -399,6 +415,40 @@ function requestRendererLock(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('session:force-lock');
   }
+  const lockAction = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_lock_action'])?.value || 'hide';
+  if (lockAction === 'hide') {
+    stickyWindows.forEach((win) => {
+      if (!win.isDestroyed() && win.isVisible()) {
+        win.hide();
+      }
+    });
+    stickyNotesTemporarilyHidden = true;
+  } else {
+    stickyWindows.forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('session:force-lock');
+      }
+    });
+  }
+  updateTrayMenu();
+}
+
+function handleSessionUnlocked(): void {
+  sessionLocked = false;
+  if (stickyNotesTemporarilyHidden) {
+    stickyNotesTemporarilyHidden = false;
+    stickyWindows.forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.show();
+      }
+    });
+  }
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('session:shield-disable');
+    }
+  });
+  updateTrayMenu();
 }
 
 function startIdleLockWatcher(): void {
@@ -468,10 +518,10 @@ function restoreWindow() {
 
   const mustLock = shouldLockBeforeShow();
   if (mustLock) {
-    sessionLocked = true;
-    mainWindow.webContents.send('session:force-lock');
+    requestRendererLock();
   } else {
     mainWindow.webContents.send('session:shield-disable');
+    handleSessionUnlocked();
   }
 
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -482,6 +532,267 @@ function restoreWindow() {
   mainWindow.show();
   mainWindow.setOpacity(1);
   mainWindow.focus();
+}
+
+// ─── Sticky Notes Manager ──────────────────────────────────────────────────
+const stickyWindows = new Map<string, BrowserWindow>();
+let stickyNotesTemporarilyHidden = false;
+
+function notifyStickyListChanged() {
+  const openIds = Array.from(stickyWindows.keys());
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('sticky:list-changed', openIds);
+  }
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('sticky:list-changed', openIds);
+    }
+  });
+  updateTrayMenu();
+}
+
+function openStickyNote(noteId: string): boolean {
+  if (stickyWindows.has(noteId)) {
+    const existing = stickyWindows.get(noteId);
+    if (existing && !existing.isDestroyed()) {
+      if (existing.isMinimized()) existing.restore();
+      existing.show();
+      existing.focus();
+      return true;
+    }
+  }
+
+  const noteRow = queryGet('SELECT id, title FROM notes WHERE id = ?', [noteId]);
+  if (!noteRow) return false;
+
+  const row = queryGet('SELECT * FROM sticky_notes WHERE note_id = ?', [noteId]);
+  const width = (row && typeof row.width === 'number' && row.width >= 240) ? row.width : 320;
+  const height = (row && typeof row.height === 'number' && row.height >= 200) ? row.height : 360;
+  const pinnedTop = row ? row.pinned_top !== 0 : true;
+
+  let winX: number | undefined = row && typeof row.x === 'number' ? row.x : undefined;
+  let winY: number | undefined = row && typeof row.y === 'number' ? row.y : undefined;
+
+  const allDisplays = screen.getAllDisplays();
+  let validPos = false;
+  if (winX !== undefined && winY !== undefined) {
+    const matched = allDisplays.find((d) => {
+      const wa = d.workArea;
+      return (
+        winX! + 80 > wa.x &&
+        winX! < wa.x + wa.width &&
+        winY! + 40 > wa.y &&
+        winY! < wa.y + wa.height
+      );
+    });
+    if (matched) validPos = true;
+  }
+
+  if (!validPos) {
+    let cursorPos = { x: 0, y: 0 };
+    try { cursorPos = screen.getCursorScreenPoint(); } catch (_) {}
+    let targetDisplay = screen.getDisplayNearestPoint(cursorPos) || screen.getPrimaryDisplay();
+    const wa = targetDisplay.workArea;
+    const offset = (stickyWindows.size * 32) % 160;
+    winX = Math.min(Math.max(wa.x + wa.width - width - 40 - offset, wa.x + 20), wa.x + wa.width - width);
+    winY = Math.min(Math.max(wa.y + 60 + offset, wa.y + 20), wa.y + wa.height - height);
+  }
+
+  const skipTaskbarVal = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_skip_taskbar']);
+  const skipTaskbar = skipTaskbarVal ? skipTaskbarVal.value === 'true' : true;
+
+  const win = new BrowserWindow({
+    width,
+    height,
+    x: winX,
+    y: winY,
+    minWidth: 240,
+    minHeight: 200,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    alwaysOnTop: pinnedTop,
+    skipTaskbar,
+    icon: iconPath,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.mjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: false,
+    },
+    show: false,
+  });
+
+  if (pinnedTop) {
+    win.setAlwaysOnTop(true, 'floating');
+  }
+
+  stickyWindows.set(noteId, win);
+  runQuery(
+    `INSERT INTO sticky_notes (note_id, x, y, width, height, is_open)
+     VALUES (?, ?, ?, ?, ?, 1)
+     ON CONFLICT(note_id) DO UPDATE SET is_open = 1`,
+    [noteId, winX, winY, width, height]
+  );
+
+  let boundsTimer: ReturnType<typeof setTimeout> | null = null;
+  const saveBounds = () => {
+    if (win.isDestroyed()) return;
+    if (boundsTimer) clearTimeout(boundsTimer);
+    boundsTimer = setTimeout(() => {
+      if (win.isDestroyed()) return;
+      const b = win.getBounds();
+      runQuery(
+        `UPDATE sticky_notes SET x = ?, y = ?, width = ?, height = ? WHERE note_id = ?`,
+        [b.x, b.y, b.width, b.height, noteId]
+      );
+    }, 250);
+  };
+
+  win.on('resize', saveBounds);
+  win.on('move', saveBounds);
+
+  win.on('close', () => {
+    stickyWindows.delete(noteId);
+    runQuery('UPDATE sticky_notes SET is_open = 0 WHERE note_id = ?', [noteId]);
+    notifyStickyListChanged();
+    updateTrayMenu();
+  });
+
+  if (isDev) {
+    win.loadURL(`http://localhost:5173/?sticky=${encodeURIComponent(noteId)}`);
+  } else {
+    win.loadFile(path.join(__dirname, '../dist/index.html'), {
+      search: `sticky=${encodeURIComponent(noteId)}`
+    });
+  }
+
+  win.once('ready-to-show', () => {
+    if (shouldLockBeforeShow()) {
+      const lockAction = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_lock_action'])?.value || 'hide';
+      if (lockAction === 'hide') {
+        win.hide();
+        notifyStickyListChanged();
+        updateTrayMenu();
+        return;
+      }
+    }
+    win.show();
+    notifyStickyListChanged();
+    updateTrayMenu();
+  });
+
+  return true;
+}
+
+function closeStickyNote(noteId: string): boolean {
+  const win = stickyWindows.get(noteId);
+  if (win && !win.isDestroyed()) {
+    win.close();
+    return true;
+  }
+  return false;
+}
+
+function toggleStickyAlwaysOnTop(noteId: string): boolean {
+  const win = stickyWindows.get(noteId);
+  if (!win || win.isDestroyed()) return false;
+  const nextVal = !win.isAlwaysOnTop();
+  win.setAlwaysOnTop(nextVal, nextVal ? 'floating' : 'normal');
+  runQuery('UPDATE sticky_notes SET pinned_top = ? WHERE note_id = ?', [nextVal ? 1 : 0, noteId]);
+  return nextVal;
+}
+
+function getStickyConfig(noteId: string) {
+  const row = queryGet('SELECT color, opacity, pinned_top FROM sticky_notes WHERE note_id = ?', [noteId]);
+  return {
+    color: row?.color || 'cyber-yellow',
+    opacity: typeof row?.opacity === 'number' ? row.opacity : 1.0,
+    pinned_top: row ? row.pinned_top !== 0 : true,
+  };
+}
+
+function saveStickyConfig(noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean }) {
+  const current = getStickyConfig(noteId);
+  const color = config.color !== undefined ? config.color : current.color;
+  const opacity = config.opacity !== undefined ? config.opacity : current.opacity;
+  const pinnedTop = config.pinned_top !== undefined ? (config.pinned_top ? 1 : 0) : (current.pinned_top ? 1 : 0);
+
+  runQuery(
+    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open)
+     VALUES (?, ?, ?, ?, 1)
+     ON CONFLICT(note_id) DO UPDATE SET color = excluded.color, opacity = excluded.opacity, pinned_top = excluded.pinned_top`,
+    [noteId, color, opacity, pinnedTop]
+  );
+
+  const win = stickyWindows.get(noteId);
+  if (win && !win.isDestroyed()) {
+    if (config.pinned_top !== undefined) {
+      win.setAlwaysOnTop(config.pinned_top, config.pinned_top ? 'floating' : 'normal');
+    }
+    win.webContents.send('sticky:config-updated', { color, opacity, pinned_top: pinnedTop !== 0 });
+  }
+  return true;
+}
+
+function toggleAllStickyNotes(forceShow?: boolean): boolean {
+  if (stickyWindows.size === 0) return false;
+  let anyVisible = false;
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed() && win.isVisible()) anyVisible = true;
+  });
+
+  const shouldShow = forceShow !== undefined ? forceShow : !anyVisible;
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      if (shouldShow) {
+        if (win.isMinimized()) win.restore();
+        win.show();
+      } else {
+        win.hide();
+      }
+    }
+  });
+  updateTrayMenu();
+  return shouldShow;
+}
+
+function createAndOpenStickyNote(): string {
+  const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
+  const isEs = langVal?.value === 'es';
+  const newId = uuidv4();
+  const now = new Date().toISOString();
+  const defaultTitle = isEs ? 'Nota adhesiva' : 'Sticky note';
+
+  runQuery(
+    'INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [newId, null, defaultTitle, '', '', '', 0, now, now]
+  );
+
+  openStickyNote(newId);
+
+  const newNote = {
+    id: newId,
+    folder_id: null,
+    title: defaultTitle,
+    preview: '',
+    thumb: '',
+    pinned: 0,
+    created_at: now,
+    updated_at: now,
+  };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('note:updated', newNote);
+  }
+
+  return newId;
+}
+
+function focusMainWindowWithNote(noteId: string): void {
+  restoreWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('sticky:focus-note', noteId);
+  }
 }
 
 const TRAY_MENU_SHADOW_PAD = 26;
@@ -522,12 +833,25 @@ function buildTrayMenuState() {
   const activeHotkey = getActiveToggleHotkey();
   const hasPwd = hasPasswordHash();
   const canLock = hasPwd && !sessionLocked;
+
+  const stickyCount = stickyWindows.size;
+  let anyStickyVisible = false;
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed() && win.isVisible()) anyStickyVisible = true;
+  });
+
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
     visible,
     canLock,
+    stickyCount,
+    anyStickyVisible,
     showLabel: visible ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
+    newStickyLabel: isEs ? 'Nueva nota adhesiva' : 'New sticky note',
+    toggleStickyLabel: anyStickyVisible
+      ? (isEs ? 'Ocultar notas adhesivas' : 'Mostrar notas adhesivas')
+      : (isEs ? 'Mostrar notas adhesivas' : 'Ocultar notas adhesivas'),
     lockLabel: isEs ? 'Bloquear' : 'Lock',
     settingsLabel: isEs ? 'Configuración' : 'Settings',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
@@ -791,6 +1115,12 @@ ipcMain.on('tray-menu-action', (_event, action) => {
       restoreWindow();
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-about');
       break;
+    case 'toggle-sticky':
+      toggleAllStickyNotes();
+      break;
+    case 'new-sticky':
+      createAndOpenStickyNote();
+      break;
     case 'quit':
       isQuitting = true;
       app.quit();
@@ -1038,8 +1368,8 @@ function createWindow() {
       return false;
     }
     
-    // Destruir tray si la ventana se cierra completamente para evitar crash
-    if (tray && !tray.isDestroyed()) {
+    // Destruir tray si la ventana se cierra completamente y no hay notas flotantes abiertas
+    if (stickyWindows.size === 0 && tray && !tray.isDestroyed()) {
       tray.destroy();
       tray = null;
     }
@@ -1460,13 +1790,48 @@ ipcMain.handle('notes:save', (_e: any, note: any) => {
       [note.id, note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.created_at, note.updated_at]
     );
   }
+
+  // Sincronización en tiempo real
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents !== _e.sender) {
+    mainWindow.webContents.send('note:updated', note);
+  }
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed() && win.webContents !== _e.sender) {
+      win.webContents.send('note:updated', note);
+    }
+  });
   return note;
 });
 
 ipcMain.handle('notes:delete', (_e: any, id: string) => {
   runQuery('DELETE FROM notes WHERE id = ?', [id]);
+  runQuery('DELETE FROM sticky_notes WHERE note_id = ?', [id]);
+  const sw = stickyWindows.get(id);
+  if (sw && !sw.isDestroyed()) {
+    sw.close();
+  }
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents !== _e.sender) {
+    mainWindow.webContents.send('note:deleted', id);
+  }
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed() && win.webContents !== _e.sender) {
+      win.webContents.send('note:deleted', id);
+    }
+  });
+  notifyStickyListChanged();
   return true;
 });
+
+// -- Sticky Notes IPC --
+ipcMain.handle('sticky:open', (_e: any, noteId: string) => openStickyNote(noteId));
+ipcMain.handle('sticky:close', (_e: any, noteId: string) => closeStickyNote(noteId));
+ipcMain.handle('sticky:toggleAlwaysOnTop', (_e: any, noteId: string) => toggleStickyAlwaysOnTop(noteId));
+ipcMain.handle('sticky:getConfig', (_e: any, noteId: string) => getStickyConfig(noteId));
+ipcMain.handle('sticky:saveConfig', (_e: any, noteId: string, config: any) => saveStickyConfig(noteId, config));
+ipcMain.handle('sticky:getOpenList', () => Array.from(stickyWindows.keys()));
+ipcMain.handle('sticky:focusMain', (_e: any, noteId: string) => focusMainWindowWithNote(noteId));
+ipcMain.handle('sticky:toggleAll', (_e: any, show?: boolean) => toggleAllStickyNotes(show));
+ipcMain.handle('sticky:createAndOpen', () => createAndOpenStickyNote());
 
 ipcMain.handle('notes:search', (_e: any, query: string) => {
   const q = `%${query}%`;
@@ -1590,6 +1955,20 @@ if (!gotTheLock) {
     setCanInstallChecker(() => !hasUnsavedChanges);
     initUpdater(autoCheck ? autoCheck.value === 'true' : true);
 
+    // Restaurar notas flotantes al iniciar si está habilitado (por defecto sí)
+    const restoreSticky = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_restore_on_startup']);
+    if (!restoreSticky || restoreSticky.value === 'true') {
+      const openStickies = queryAll('SELECT note_id FROM sticky_notes WHERE is_open = 1');
+      for (const row of openStickies) {
+        const noteExists = queryGet('SELECT id FROM notes WHERE id = ?', [row.note_id]);
+        if (noteExists) {
+          openStickyNote(row.note_id);
+        } else {
+          runQuery('DELETE FROM sticky_notes WHERE note_id = ?', [row.note_id]);
+        }
+      }
+    }
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
       else restoreWindow();
@@ -1598,7 +1977,7 @@ if (!gotTheLock) {
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
-      if (!tray) app.quit();
+      if (!tray && stickyWindows.size === 0) app.quit();
     }
   });
 

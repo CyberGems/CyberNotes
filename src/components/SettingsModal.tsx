@@ -3,7 +3,7 @@ import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -147,11 +147,29 @@ export default function SettingsModal({
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [toggleHotkey, setToggleHotkey] = useState('Alt+Shift+N');
+  const [stickyRestoreOnStartup, setStickyRestoreOnStartup] = useState(true);
+  const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
+  const [stickyLockAction, setStickyLockAction] = useState<'hide' | 'shield'>('hide');
   const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
   const hotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const initialSnapshotRef = useRef<string | null>(null);
+
+  const handleToggleStickyRestore = async (val: boolean) => {
+    setStickyRestoreOnStartup(val);
+    await window.cyberNotesAPI.setSetting('sticky_restore_on_startup', val ? 'true' : 'false');
+  };
+
+  const handleToggleStickySkipTaskbar = async (val: boolean) => {
+    setStickySkipTaskbar(val);
+    await window.cyberNotesAPI.setSetting('sticky_skip_taskbar', val ? 'true' : 'false');
+  };
+
+  const handleChangeStickyLockAction = async (val: 'hide' | 'shield') => {
+    setStickyLockAction(val);
+    await window.cyberNotesAPI.setSetting('sticky_lock_action', val);
+  };
 
   // Diálogo personalizado (reemplaza alert/confirm nativos)
   const [dialog, setDialog] = useState<DialogOptions | null>(null);
@@ -201,12 +219,22 @@ export default function SettingsModal({
       }
       setToggleHotkey(currentHk);
 
+      const sStickyRestore = await window.cyberNotesAPI.getSetting('sticky_restore_on_startup');
+      setStickyRestoreOnStartup(sStickyRestore !== 'false');
+      const sStickySkip = await window.cyberNotesAPI.getSetting('sticky_skip_taskbar');
+      setStickySkipTaskbar(sStickySkip !== 'false');
+      const sStickyLock = await window.cyberNotesAPI.getSetting('sticky_lock_action');
+      setStickyLockAction((sStickyLock as any) || 'hide');
+
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
         autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
         capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
-        closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk
+        closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk,
+        stickyRestoreOnStartup: sStickyRestore !== 'false',
+        stickySkipTaskbar: sStickySkip !== 'false',
+        stickyLockAction: (sStickyLock as any) || 'hide'
       });
       setLoaded(true);
     };
@@ -220,7 +248,8 @@ export default function SettingsModal({
       autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
       capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
-      closeToTray, minimizeToTray, autoStart, toggleHotkey
+      closeToTray, minimizeToTray, autoStart, toggleHotkey,
+      stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
       setHasSavedChanges(true);
@@ -231,7 +260,8 @@ export default function SettingsModal({
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
     capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
-    closeToTray, minimizeToTray, autoStart, toggleHotkey
+    closeToTray, minimizeToTray, autoStart, toggleHotkey,
+    stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
   ]);
 
   useEffect(() => {
@@ -595,6 +625,77 @@ export default function SettingsModal({
                     </SettingsOptionCopy>
                     <div className={`custom-switch ${autoStart ? 'active' : ''}`} />
                   </label>
+
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
+                  }} onClick={() => handleToggleStickyRestore(!stickyRestoreOnStartup)}>
+                    <SettingsOptionCopy icon={<StickyNote />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore sticky notes on startup'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es' ? 'Vuelve a abrir en el escritorio las notas flotantes que estaban activas al cerrar' : 'Reopens active desktop sticky notes when CyberNotes starts'}
+                      </span>
+                    </SettingsOptionCopy>
+                    <div className={`custom-switch ${stickyRestoreOnStartup ? 'active' : ''}`} />
+                  </label>
+
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
+                  }} onClick={() => handleToggleStickySkipTaskbar(!stickySkipTaskbar)}>
+                    <SettingsOptionCopy icon={<StickyNote />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Notas flotantes en modo widget' : 'Sticky notes as desktop widgets'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es' ? 'Oculta las notas flotantes de la barra de tareas para no saturarla' : 'Hides sticky notes from the taskbar to avoid cluttering it'}
+                      </span>
+                    </SettingsOptionCopy>
+                    <div className={`custom-switch ${stickySkipTaskbar ? 'active' : ''}`} />
+                  </label>
+
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    gap: 16,
+                  }}>
+                    <SettingsOptionCopy icon={<StickyNote />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Bloqueo de notas flotantes' : 'Sticky notes session lock action'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es' ? 'Acción al bloquear la sesión de CyberNotes con contraseña' : 'Action taken when CyberNotes is password-locked'}
+                      </span>
+                    </SettingsOptionCopy>
+                    <select 
+                      value={stickyLockAction}
+                      onChange={(e) => handleChangeStickyLockAction(e.target.value as 'hide' | 'shield')}
+                      className="input"
+                      style={{ fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer', minWidth: 160, padding: '6px 8px' }}
+                    >
+                      <option value="hide">{language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked'}</option>
+                      <option value="shield">{language === 'es' ? 'Escudo de privacidad' : 'Privacy shield'}</option>
+                    </select>
+                  </div>
 
                   <div style={{ 
                     display: 'flex', 

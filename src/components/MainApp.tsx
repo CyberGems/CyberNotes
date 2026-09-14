@@ -184,6 +184,34 @@ export default function MainApp({
       setShowUnsavedExitDialog(true);
     });
 
+    const unregisterNoteUpdated = window.cyberNotesAPI.onNoteUpdated?.((updatedNote) => {
+      const meta = toNoteMeta(updatedNote);
+      setAllNotes(prev => {
+        const exists = prev.some(n => n.id === updatedNote.id);
+        if (exists) return prev.map(n => n.id === updatedNote.id ? { ...n, ...meta } : n);
+        return [updatedNote, ...prev];
+      });
+      setNotes(prev => {
+        const exists = prev.some(n => n.id === updatedNote.id);
+        if (exists) return prev.map(n => n.id === updatedNote.id ? { ...n, ...meta } : n);
+        return [updatedNote, ...prev];
+      });
+      setSelectedNote(prev => (prev && prev.id === updatedNote.id ? updatedNote : prev));
+    });
+
+    const unregisterNoteDeleted = window.cyberNotesAPI.onNoteDeleted?.((deletedId) => {
+      setAllNotes(prev => prev.filter(n => n.id !== deletedId));
+      setNotes(prev => prev.filter(n => n.id !== deletedId));
+      setOpenNoteIds(prev => prev.filter(id => id !== deletedId));
+      setSelectedNote(prev => (prev && prev.id === deletedId ? null : prev));
+      setSelectedNoteId(prev => (prev === deletedId ? null : prev));
+    });
+
+    const unregisterStickyFocus = window.cyberNotesAPI.onStickyFocusNote?.((targetNoteId) => {
+      setSelectedNoteId(targetNoteId);
+      setOpenNoteIds(prev => prev.includes(targetNoteId) ? prev : [...prev, targetNoteId]);
+    });
+
     const closeMenu = () => setContextMenu(null);
     window.addEventListener('click', closeMenu);
 
@@ -197,6 +225,9 @@ export default function MainApp({
       if (unregisterOpenAbout) unregisterOpenAbout();
       if (unregisterOpenTrayPin) unregisterOpenTrayPin();
       if (unregisterUnsavedExit) unregisterUnsavedExit();
+      if (unregisterNoteUpdated) unregisterNoteUpdated();
+      if (unregisterNoteDeleted) unregisterNoteDeleted();
+      if (unregisterStickyFocus) unregisterStickyFocus();
     };
   }, []);
 
