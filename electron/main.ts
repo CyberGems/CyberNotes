@@ -619,10 +619,13 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     if (validPos) targetDisplay = matched;
   }
 
-  if (!targetDisplay) {
-    if (centerOnMainWindow && mainWindow && !mainWindow.isDestroyed()) {
-      targetDisplay = screen.getDisplayMatching(mainWindow.getBounds());
-    } else if (savedDisplay) {
+  if (centerOnMainWindow && mainWindow && !mainWindow.isDestroyed()) {
+    // Explicit opens from CyberNotes should be rehomed to the app's monitor,
+    // even when an older saved position was valid on another display.
+    targetDisplay = screen.getDisplayMatching(mainWindow.getBounds());
+    validPos = false;
+  } else if (!targetDisplay) {
+    if (savedDisplay) {
       targetDisplay = savedDisplay;
     } else {
       let cursorPos = { x: 0, y: 0 };
@@ -2026,7 +2029,15 @@ ipcMain.handle('sticky:saveConfig', (_e: any, noteId: string, config: any) => sa
 ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number) => {
   const win = stickyWindows.get(noteId);
   if (!win || win.isDestroyed() || !Number.isFinite(x) || !Number.isFinite(y)) return;
-  win.setPosition(Math.round(x), Math.round(y), false);
+  // Keep the dimensions owned by the native window. Reapplying them here
+  // avoids Chromium/Electron changing the transparent window size mid-drag.
+  const current = win.getBounds();
+  win.setBounds({
+    x: Math.round(x),
+    y: Math.round(y),
+    width: current.width,
+    height: current.height,
+  }, false);
 });
 ipcMain.handle('sticky:getOpenList', () => Array.from(stickyWindows.keys()));
 ipcMain.handle('sticky:focusMain', (_e: any, noteId: string) => focusMainWindowWithNote(noteId));
