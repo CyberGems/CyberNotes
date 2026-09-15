@@ -1129,6 +1129,22 @@ body:has(.sticky-note-window),
   cursor: grabbing !important;
 }
 
+/* Sticky notes keep the editor's writing surface roomy and close to the chrome. */
+.sticky-note-window .ProseMirror {
+  min-height: 100%;
+  padding: 8px 4px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.sticky-note-window .ProseMirror p {
+  margin-bottom: 0.45em;
+}
+.sticky-note-footer .sticky-note-button {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 5px !important;
+}
+
 /* Small, consistent feedback for every interactive control in a sticky note. */
 .sticky-note-window .sticky-note-button {
   will-change: transform, filter, box-shadow;

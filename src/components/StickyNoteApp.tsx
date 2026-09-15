@@ -24,6 +24,8 @@ import {
   List,
   ListOrdered,
   Code,
+  Undo2,
+  Redo2,
   Trash2,
   Eye,
   Lock,
@@ -434,6 +436,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
   const handleEditorBodyMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!editor) return;
+    if (e.button === 2) return;
     const target = e.target as HTMLElement;
     if (target.closest('.ProseMirror')) return;
 
@@ -441,6 +444,15 @@ export default function StickyNoteApp({ noteId }: Props) {
     // de una posición válida del contenido.
     e.preventDefault();
     editor.chain().focus('end').run();
+  };
+
+  const handleEditorMouseDownCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editor || e.button !== 2) return;
+    const { from, to } = editor.state.selection;
+    if (from !== to) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   };
 
   // Close menus on outside click
@@ -803,10 +815,11 @@ export default function StickyNoteApp({ noteId }: Props) {
       {/* ── Editor Body ── */}
       <div
         onMouseDown={handleEditorBodyMouseDown}
+        onMouseDownCapture={handleEditorMouseDownCapture}
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '12px 14px',
+          padding: '10px 10px',
           userSelect: 'text',
           fontSize: 13.5,
           lineHeight: 1.55,
@@ -820,8 +833,9 @@ export default function StickyNoteApp({ noteId }: Props) {
       {/* ── Mini Toolbar Inferior ── */}
       {editor && (
         <div
+          className="sticky-note-footer"
           style={{
-            height: 32,
+            height: 34,
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
@@ -833,6 +847,45 @@ export default function StickyNoteApp({ noteId }: Props) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Tooltip label={t.editor.stickyUndo} placement="top">
+              <button
+                className="sticky-note-button"
+                type="button"
+                onClick={() => editor.chain().focus().undo().run()}
+                disabled={!editor.can().undo()}
+                aria-label={t.editor.stickyUndo}
+                style={{
+                  background: 'transparent',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: 4,
+                  cursor: editor.can().undo() ? 'pointer' : 'default',
+                }}
+              >
+                <Undo2 size={12} />
+              </button>
+            </Tooltip>
+            <Tooltip label={t.editor.stickyRedo} placement="top">
+              <button
+                className="sticky-note-button"
+                type="button"
+                onClick={() => editor.chain().focus().redo().run()}
+                disabled={!editor.can().redo()}
+                aria-label={t.editor.stickyRedo}
+                style={{
+                  background: 'transparent',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: 4,
+                  cursor: editor.can().redo() ? 'pointer' : 'default',
+                }}
+              >
+                <Redo2 size={12} />
+              </button>
+            </Tooltip>
+            <div style={{ width: 1, height: 15, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <button
               className="sticky-note-button"
               type="button"

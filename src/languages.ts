@@ -60,6 +60,8 @@ export const TRANSLATIONS = {
       stickyClose: 'Cerrar nota flotante',
       stickyColor: 'Color de la nota',
       stickyOpacity: 'Opacidad',
+      stickyUndo: 'Deshacer',
+      stickyRedo: 'Rehacer',
       stickyColors: {
         yellow: 'Amarillo Ciber',
         cyan: 'Cian Neón',
@@ -314,6 +316,8 @@ export const TRANSLATIONS = {
       stickyClose: 'Close sticky note',
       stickyColor: 'Note color',
       stickyOpacity: 'Opacity',
+      stickyUndo: 'Undo',
+      stickyRedo: 'Redo',
       stickyColors: {
         yellow: 'Cyber Yellow',
         cyan: 'Neon Cyan',
