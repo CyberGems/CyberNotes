@@ -40,7 +40,10 @@ export type StickyColorId =
   | 'matrix-green'
   | 'midnight-purple'
   | 'cyber-pink'
-  | 'graphite';
+  | 'graphite'
+  | 'electric-blue'
+  | 'cyber-orange'
+  | 'acid-lime';
 
 interface StickyColorMeta {
   id: StickyColorId;
@@ -107,9 +110,42 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     border: 'rgba(255, 255, 255, 0.14)',
     headerBg: 'rgba(24, 24, 32, 0.98)',
   },
+  'electric-blue': {
+    id: 'electric-blue',
+    nameKey: 'blue',
+    accent: '#3b82f6',
+    accentGlow: 'rgba(59, 130, 246, 0.4)',
+    bgDark: 'rgba(10, 18, 38, 0.94)',
+    border: 'rgba(59, 130, 246, 0.35)',
+    headerBg: 'rgba(14, 26, 54, 0.98)',
+  },
+  'cyber-orange': {
+    id: 'cyber-orange',
+    nameKey: 'orange',
+    accent: '#f97316',
+    accentGlow: 'rgba(249, 115, 22, 0.4)',
+    bgDark: 'rgba(36, 18, 10, 0.94)',
+    border: 'rgba(249, 115, 22, 0.35)',
+    headerBg: 'rgba(52, 24, 12, 0.98)',
+  },
+  'acid-lime': {
+    id: 'acid-lime',
+    nameKey: 'lime',
+    accent: '#a3e635',
+    accentGlow: 'rgba(163, 230, 53, 0.4)',
+    bgDark: 'rgba(20, 30, 10, 0.94)',
+    border: 'rgba(163, 230, 53, 0.35)',
+    headerBg: 'rgba(28, 42, 12, 0.98)',
+  },
 };
 
-const OPACITY_OPTIONS = [1.0, 0.9, 0.8, 0.7];
+const OPACITY_OPTIONS = [1.0, 0.9, 0.8, 0.7, 0.55];
+
+const rgbaWithAlpha = (color: string, alpha: number) => {
+  const match = color.match(/^rgba?\(\s*([^,]+),\s*([^,]+),\s*([^,]+)(?:,\s*[^)]+)?\)$/);
+  if (!match) return color;
+  return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
+};
 
 export default function StickyNoteApp({ noteId }: Props) {
   const [note, setNote] = useState<Note | null>(null);
@@ -121,6 +157,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showOpacityPicker, setShowOpacityPicker] = useState(false);
+  const [hoveredColor, setHoveredColor] = useState<StickyColorId | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -132,7 +169,10 @@ export default function StickyNoteApp({ noteId }: Props) {
   noteRef.current = note;
 
   const t = TRANSLATIONS[language];
-  const colorMeta = STICKY_COLORS[color] || STICKY_COLORS['cyber-yellow'];
+  const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
+  const surfaceAlpha = opacity * 0.94;
+  const headerAlpha = opacity * 0.98;
+  const glassBlur = Math.round(6 + (1 - opacity) * 22);
 
   // TipTap editor
   const editor = useEditor({
@@ -310,6 +350,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
   const handleSelectColor = async (colorId: StickyColorId) => {
     setColor(colorId);
+    setHoveredColor(null);
     setShowColorPicker(false);
     await window.cyberNotesAPI.saveStickyConfig(noteId, { color: colorId });
   };
@@ -395,6 +436,7 @@ export default function StickyNoteApp({ noteId }: Props) {
     const handleClick = () => {
       setShowColorPicker(false);
       setShowOpacityPicker(false);
+      setHoveredColor(null);
     };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
@@ -427,15 +469,16 @@ export default function StickyNoteApp({ noteId }: Props) {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        background: colorMeta.bgDark,
+        background: rgbaWithAlpha(colorMeta.bgDark, surfaceAlpha),
         color: '#f8fafc',
         borderRadius: 12,
         border: `1px solid ${colorMeta.border}`,
         boxShadow: `0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px ${colorMeta.accentGlow}`,
         overflow: 'hidden',
         position: 'relative',
-        opacity: opacity,
-        transition: 'opacity 0.2s ease, border-color 0.25s ease',
+        backdropFilter: `blur(${glassBlur}px) saturate(135%)`,
+        WebkitBackdropFilter: `blur(${glassBlur}px) saturate(135%)`,
+        transition: 'background 0.2s ease, backdrop-filter 0.2s ease, border-color 0.25s ease',
         userSelect: 'none',
       }}
     >
@@ -448,7 +491,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 8px',
-          background: colorMeta.headerBg,
+          background: rgbaWithAlpha(colorMeta.headerBg, headerAlpha),
           borderBottom: `1px solid ${colorMeta.border}`,
           WebkitAppRegion: 'drag',
           gap: 6,
@@ -583,7 +626,9 @@ export default function StickyNoteApp({ noteId }: Props) {
                   display: 'flex',
                   gap: 6,
                   boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  transition: 'background 0.2s ease, border-color 0.2s ease',
                 }}
+                onMouseLeave={() => setHoveredColor(null)}
               >
                 {(Object.keys(STICKY_COLORS) as StickyColorId[]).map((cid) => {
                   const meta = STICKY_COLORS[cid];
@@ -593,6 +638,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                       key={cid}
                       type="button"
                       onClick={() => handleSelectColor(cid)}
+                      onMouseEnter={() => setHoveredColor(cid)}
                       aria-label={t.editor.stickyColors[meta.nameKey]}
                       aria-pressed={isSelected}
                       style={{
