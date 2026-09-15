@@ -26,6 +26,11 @@ import {
   Code,
   Undo2,
   Redo2,
+  Plus,
+  Scissors,
+  Copy,
+  Clipboard,
+  CheckSquare,
   Trash2,
   Eye,
   Lock,
@@ -157,6 +162,8 @@ const rgbaWithAlpha = (color: string, alpha: number) => {
   return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
 };
 
+type StickyContextAction = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll';
+
 export default function StickyNoteApp({ noteId }: Props) {
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
@@ -172,6 +179,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorContentRef = useRef<string>('');
@@ -375,6 +383,65 @@ export default function StickyNoteApp({ noteId }: Props) {
     await window.cyberNotesAPI.saveStickyConfig(noteId, { opacity: val });
   };
 
+  const handleCreateStickyNote = async () => {
+    await window.cyberNotesAPI.createAndOpenStickyNote();
+  };
+
+  const handleStickyContextAction = async (action: StickyContextAction) => {
+    if (!editor) return;
+
+    try {
+      switch (action) {
+        case 'undo':
+          editor.chain().focus().undo().run();
+          break;
+        case 'redo':
+          editor.chain().focus().redo().run();
+          break;
+        case 'copy': {
+          const { from, to } = editor.state.selection;
+          if (from === to) break;
+          const selectedText = editor.state.doc.textBetween(from, to, '\n');
+          try {
+            await navigator.clipboard.writeText(selectedText);
+          } catch {
+            editor.chain().focus().run();
+            document.execCommand('copy');
+          }
+          break;
+        }
+        case 'cut': {
+          const { from, to } = editor.state.selection;
+          if (from === to) break;
+          const selectedText = editor.state.doc.textBetween(from, to, '\n');
+          try {
+            await navigator.clipboard.writeText(selectedText);
+            editor.chain().focus().deleteSelection().run();
+          } catch {
+            editor.chain().focus().run();
+            document.execCommand('cut');
+          }
+          break;
+        }
+        case 'paste': {
+          try {
+            const text = await navigator.clipboard.readText();
+            if (text) editor.chain().focus().insertContent(text).run();
+          } catch {
+            editor.chain().focus().run();
+            document.execCommand('paste');
+          }
+          break;
+        }
+        case 'selectAll':
+          editor.chain().focus().selectAll().run();
+          break;
+      }
+    } finally {
+      setContextMenu(null);
+    }
+  };
+
   const handleOpenInCyberNotes = async () => {
     await window.cyberNotesAPI.focusMainWindowWithNote(noteId);
   };
@@ -446,6 +513,20 @@ export default function StickyNoteApp({ noteId }: Props) {
     editor.chain().focus('end').run();
   };
 
+  const handleEditorContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editor) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const margin = 8;
+    const menuWidth = 184;
+    const menuHeight = 214;
+    setContextMenu({
+      x: Math.min(e.clientX, Math.max(margin, window.innerWidth - menuWidth - margin)),
+      y: Math.min(e.clientY, Math.max(margin, window.innerHeight - menuHeight - margin)),
+    });
+  };
+
   const handleEditorMouseDownCapture = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!editor || e.button !== 2) return;
     const { from, to } = editor.state.selection;
@@ -462,10 +543,21 @@ export default function StickyNoteApp({ noteId }: Props) {
       setShowOpacityPicker(false);
       setHoveredColor(null);
       setHoveredOpacity(null);
+      setContextMenu(null);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null);
     };
     window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
+
+  const hasEditorSelection = editor ? !editor.state.selection.empty : false;
+  const hasEditorContent = editor ? editor.state.doc.content.size > 0 : false;
 
   if (loading) {
     return (
@@ -481,6 +573,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           color: colorMeta.accent,
           borderRadius: 12,
           border: `1px solid ${colorMeta.border}`,
+          clipPath: 'inset(0 round 12px)',
         }}
       >
         <span style={{ fontSize: 13, letterSpacing: '0.05em' }}>{t.general.loading}</span>
@@ -502,6 +595,8 @@ export default function StickyNoteApp({ noteId }: Props) {
         border: `1px solid ${colorMeta.border}`,
         boxShadow: `inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.025), 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px ${colorMeta.accentGlow}`,
         overflow: 'hidden',
+        clipPath: 'inset(0 round 12px)',
+        isolation: 'isolate',
         position: 'relative',
         backdropFilter: `blur(${glassBlur}px) saturate(135%)`,
         WebkitBackdropFilter: `blur(${glassBlur}px) saturate(135%)`,
@@ -585,6 +680,29 @@ export default function StickyNoteApp({ noteId }: Props) {
             flexShrink: 0,
           } as any}
         >
+          {/* New sticky note */}
+          <Tooltip label={t.editor.stickyNew} placement="bottom">
+            <button
+              className="sticky-note-button"
+              type="button"
+              onClick={handleCreateStickyNote}
+              aria-label={t.editor.stickyNew}
+              style={{
+                background: 'transparent',
+                color: 'rgba(255, 255, 255, 0.6)',
+                border: 'none',
+                borderRadius: 4,
+                padding: '4px 6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Plus size={14} />
+            </button>
+          </Tooltip>
+
           {/* Always on top toggle */}
           <Tooltip
             label={
@@ -816,6 +934,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       <div
         onMouseDown={handleEditorBodyMouseDown}
         onMouseDownCapture={handleEditorMouseDownCapture}
+        onContextMenu={handleEditorContextMenu}
         style={{
           flex: 1,
           overflowY: 'auto',
@@ -829,6 +948,81 @@ export default function StickyNoteApp({ noteId }: Props) {
       >
         <EditorContent editor={editor} style={{ minHeight: '100%' }} />
       </div>
+
+      {contextMenu && editor && (
+        <div
+          className="sticky-context-menu"
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!editor.can().undo()}
+            onMouseDown={() => { void handleStickyContextAction('undo'); }}
+          >
+            <Undo2 size={13} />
+            <span>{t.editor.stickyUndo}</span>
+            <kbd>Ctrl+Z</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!editor.can().redo()}
+            onMouseDown={() => { void handleStickyContextAction('redo'); }}
+          >
+            <Redo2 size={13} />
+            <span>{t.editor.stickyRedo}</span>
+            <kbd>Ctrl+Y</kbd>
+          </button>
+          <div className="sticky-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!hasEditorSelection}
+            onMouseDown={() => { void handleStickyContextAction('cut'); }}
+          >
+            <Scissors size={13} />
+            <span>{t.editor.stickyCut}</span>
+            <kbd>Ctrl+X</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!hasEditorSelection}
+            onMouseDown={() => { void handleStickyContextAction('copy'); }}
+          >
+            <Copy size={13} />
+            <span>{t.editor.stickyCopy}</span>
+            <kbd>Ctrl+C</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onMouseDown={() => { void handleStickyContextAction('paste'); }}
+          >
+            <Clipboard size={13} />
+            <span>{t.editor.stickyPaste}</span>
+            <kbd>Ctrl+V</kbd>
+          </button>
+          <div className="sticky-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!hasEditorContent}
+            onMouseDown={() => { void handleStickyContextAction('selectAll'); }}
+          >
+            <CheckSquare size={13} />
+            <span>{t.editor.stickySelectAll}</span>
+            <kbd>Ctrl+A</kbd>
+          </button>
+        </div>
+      )}
 
       {/* ── Mini Toolbar Inferior ── */}
       {editor && (
