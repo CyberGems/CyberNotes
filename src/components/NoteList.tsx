@@ -941,7 +941,8 @@ export default function NoteList({
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                   >
-                    {f.icon} <span className="truncate">{f.name}</span>
+                    <FolderIcon name={f.icon} color={f.color} size={13} />
+                    <span className="truncate">{f.name}</span>
                   </button>
                 ))}
               </div>
