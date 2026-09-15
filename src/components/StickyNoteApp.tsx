@@ -445,6 +445,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   if (loading) {
     return (
       <div
+        className="sticky-note-window"
         style={{
           width: '100vw',
           height: '100vh',
@@ -464,6 +465,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
   return (
     <div
+      className="sticky-note-window"
       style={{
         width: '100vw',
         height: '100vh',
@@ -473,7 +475,7 @@ export default function StickyNoteApp({ noteId }: Props) {
         color: '#f8fafc',
         borderRadius: 12,
         border: `1px solid ${colorMeta.border}`,
-        boxShadow: `0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px ${colorMeta.accentGlow}`,
+        boxShadow: `inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.025), 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px ${colorMeta.accentGlow}`,
         overflow: 'hidden',
         position: 'relative',
         backdropFilter: `blur(${glassBlur}px) saturate(135%)`,
@@ -493,6 +495,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           padding: '0 8px',
           background: rgbaWithAlpha(colorMeta.headerBg, headerAlpha),
           borderBottom: `1px solid ${colorMeta.border}`,
+          transition: 'background 0.2s ease, border-color 0.25s ease',
           WebkitAppRegion: 'drag',
           gap: 6,
         } as any}
@@ -567,6 +570,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             placement="bottom"
           >
             <button
+              className="sticky-note-button"
               onClick={handleTogglePin}
               style={{
                 background: isAlwaysOnTop ? colorMeta.accentGlow : 'transparent',
@@ -589,6 +593,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           <div style={{ position: 'relative' }}>
             <Tooltip label={t.editor.stickyColor} placement="bottom">
               <button
+                className="sticky-note-button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowColorPicker(!showColorPicker);
@@ -633,8 +638,10 @@ export default function StickyNoteApp({ noteId }: Props) {
                 {(Object.keys(STICKY_COLORS) as StickyColorId[]).map((cid) => {
                   const meta = STICKY_COLORS[cid];
                   const isSelected = color === cid;
+                  const isHovered = hoveredColor === cid;
                   return (
                     <button
+                      className="sticky-note-button"
                       key={cid}
                       type="button"
                       onClick={() => handleSelectColor(cid)}
@@ -647,11 +654,13 @@ export default function StickyNoteApp({ noteId }: Props) {
                         borderRadius: '50%',
                         background: meta.accent,
                         border: isSelected ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.2)',
-                        boxShadow: isSelected ? `0 0 10px ${meta.accent}` : 'none',
+                        boxShadow: isSelected || isHovered ? `0 0 10px ${meta.accent}` : 'none',
                         cursor: 'pointer',
                         padding: 0,
-                        transition: 'transform 0.15s ease',
-                        transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.16s ease, box-shadow 0.16s ease',
+                        transform: isSelected
+                          ? isHovered ? 'scale(1.2)' : 'scale(1.15)'
+                          : isHovered ? 'scale(1.08)' : 'scale(1)',
                       }}
                     />
                   );
@@ -664,6 +673,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           <div style={{ position: 'relative' }}>
             <Tooltip label={t.editor.stickyOpacity} placement="bottom">
               <button
+                className="sticky-note-button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowOpacityPicker(!showOpacityPicker);
@@ -707,6 +717,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               >
                 {OPACITY_OPTIONS.map((op) => (
                   <button
+                    className="sticky-note-button"
                     key={op}
                     onClick={() => handleSelectOpacity(op)}
                     style={{
@@ -731,6 +742,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           {/* Open in CyberNotes */}
           <Tooltip label={t.editor.stickyDockMain} placement="bottom">
             <button
+              className="sticky-note-button"
               onClick={handleOpenInCyberNotes}
               style={{
                 background: 'transparent',
@@ -751,6 +763,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           {/* Close Sticky Note */}
           <Tooltip label={t.editor.stickyClose} placement="bottom">
             <button
+              className="sticky-note-button"
               onClick={handleClose}
               style={{
                 background: 'transparent',
@@ -804,6 +817,7 @@ export default function StickyNoteApp({ noteId }: Props) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleBold().run()}
               style={{
@@ -818,6 +832,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               <Bold size={12} />
             </button>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleItalic().run()}
               style={{
@@ -832,6 +847,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               <Italic size={12} />
             </button>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleUnderline().run()}
               style={{
@@ -846,6 +862,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               <UnderlineIcon size={12} />
             </button>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleStrike().run()}
               style={{
@@ -860,6 +877,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               <Strikethrough size={12} />
             </button>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleHighlight().run()}
               style={{
@@ -875,6 +893,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             </button>
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleBulletList().run()}
               style={{
@@ -889,6 +908,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               <List size={12} />
             </button>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
               style={{
@@ -903,6 +923,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               <ListOrdered size={12} />
             </button>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}
               style={{
@@ -923,6 +944,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               {saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
             </span>
             <button
+              className="sticky-note-button"
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
               style={{
@@ -961,14 +983,14 @@ export default function StickyNoteApp({ noteId }: Props) {
           <span style={{ fontSize: 13, fontWeight: 600 }}>{t.noteList.deleteConfirm}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
-              className="btn btn-ghost"
+              className="btn btn-ghost sticky-note-button"
               onClick={() => setShowDeleteConfirm(false)}
               style={{ fontSize: 12, padding: '4px 10px' }}
             >
               {t.general.cancel}
             </button>
             <button
-              className="btn btn-danger"
+              className="btn btn-danger sticky-note-button"
               onClick={handleDeleteNote}
               style={{ fontSize: 12, padding: '4px 10px' }}
             >
@@ -1015,7 +1037,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             {language === 'es' ? 'CyberNotes Bloqueado' : 'CyberNotes Locked'}
           </span>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary sticky-note-button"
             onClick={handleOpenInCyberNotes}
             style={{ fontSize: 12, padding: '6px 14px', gap: 6 }}
           >

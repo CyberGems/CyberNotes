@@ -67,6 +67,13 @@ body:has(.has-bg),
   background: transparent !important;
 }
 
+/* Sticky notes use the transparent BrowserWindow surface for real translucency. */
+html:has(.sticky-note-window),
+body:has(.sticky-note-window),
+#root:has(.sticky-note-window) {
+  background: transparent !important;
+}
+
 .app-bg-layer {
   position: fixed;
   inset: 0;
@@ -1120,6 +1127,30 @@ body:has(.has-bg),
 }
 .sticky-drag-grip:active {
   cursor: grabbing !important;
+}
+
+/* Small, consistent feedback for every interactive control in a sticky note. */
+.sticky-note-window .sticky-note-button {
+  will-change: transform, filter, box-shadow;
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.16s ease,
+              box-shadow 0.16s ease,
+              color 0.16s ease,
+              background-color 0.16s ease;
+}
+.sticky-note-window .sticky-note-button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.04);
+  filter: brightness(1.18);
+  box-shadow: 0 0 10px color-mix(in srgb, currentColor 28%, transparent);
+}
+.sticky-note-window .sticky-note-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.93);
+  filter: brightness(0.98);
+  transition-duration: 0.07s;
+}
+.sticky-note-window .sticky-note-button:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
 }
 
 /* ─── Centered modal (About, etc.) ───────────────────────── */
