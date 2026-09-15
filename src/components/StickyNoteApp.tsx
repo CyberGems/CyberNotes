@@ -572,9 +572,12 @@ export default function StickyNoteApp({ noteId }: Props) {
           background: colorMeta.bgDark,
           color: colorMeta.accent,
           borderRadius: 12,
-          border: `1px solid ${colorMeta.border}`,
+          border: 'none',
+          '--sticky-border': colorMeta.border,
           clipPath: 'inset(0 round 12px)',
-        }}
+          isolation: 'isolate',
+          position: 'relative',
+        } as any}
       >
         <span style={{ fontSize: 13, letterSpacing: '0.05em' }}>{t.general.loading}</span>
       </div>
@@ -592,7 +595,8 @@ export default function StickyNoteApp({ noteId }: Props) {
         background: rgbaWithAlpha(colorMeta.bgDark, surfaceAlpha),
         color: '#f8fafc',
         borderRadius: 12,
-        border: `1px solid ${colorMeta.border}`,
+        border: 'none',
+        '--sticky-border': colorMeta.border,
         boxShadow: `inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.025), 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px ${colorMeta.accentGlow}`,
         overflow: 'hidden',
         clipPath: 'inset(0 round 12px)',
@@ -602,7 +606,7 @@ export default function StickyNoteApp({ noteId }: Props) {
         WebkitBackdropFilter: `blur(${glassBlur}px) saturate(135%)`,
         transition: 'background 0.2s ease, backdrop-filter 0.2s ease, border-color 0.25s ease',
         userSelect: 'none',
-      }}
+      } as any}
     >
       {/* ── Barra de Título / Arrastre (Sticky Header) ── */}
       <div
@@ -614,6 +618,8 @@ export default function StickyNoteApp({ noteId }: Props) {
           justifyContent: 'space-between',
           padding: '0 8px',
           background: rgbaWithAlpha(colorMeta.headerBg, headerAlpha),
+          borderTopLeftRadius: 12,
+          borderTopRightRadius: 12,
           borderBottom: `1px solid ${colorMeta.border}`,
           transition: 'background 0.2s ease, border-color 0.25s ease',
           WebkitAppRegion: 'drag',
@@ -1036,6 +1042,8 @@ export default function StickyNoteApp({ noteId }: Props) {
             justifyContent: 'space-between',
             padding: '0 8px',
             background: 'rgba(10, 10, 16, 0.45)',
+            borderBottomLeftRadius: 12,
+            borderBottomRightRadius: 12,
             borderTop: `1px solid rgba(255, 255, 255, 0.07)`,
             gap: 4,
           }}

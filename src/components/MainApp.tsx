@@ -538,6 +538,15 @@ export default function MainApp({
   }, [selectedFolderId]);
 
   const handleCreateNote = useCallback(async () => {
+    if (selectedFolderId === 'sticky') {
+      try {
+        await window.cyberNotesAPI.createAndOpenStickyNote();
+      } catch (err) {
+        console.error('[MainApp] Error creating sticky note:', err);
+      }
+      return;
+    }
+
     const now = new Date().toISOString();
     const newNote: Note = {
       id: window.crypto.randomUUID(),

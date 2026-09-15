@@ -1144,6 +1144,26 @@ body:has(.sticky-note-window),
   min-height: 24px;
   padding: 5px !important;
 }
+.sticky-note-footer > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+.sticky-note-footer > div:first-child::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.sticky-note-footer > div:first-child > * {
+  flex-shrink: 0;
+}
+.sticky-note-footer > div:last-child {
+  flex: 0 0 auto;
+  min-width: max-content;
+  margin-left: 4px;
+}
 
 .sticky-context-menu {
   position: absolute;
@@ -1231,6 +1251,24 @@ body:has(.sticky-note-window),
 .sticky-note-window .sticky-note-button:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: 2px;
+}
+.sticky-note-window .sticky-note-button:disabled {
+  opacity: 0.28;
+  filter: saturate(0.15);
+  box-shadow: none;
+  cursor: default !important;
+}
+
+/* Paint the rounded outline in its own layer so resizing cannot expose corner artifacts. */
+.sticky-note-window::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  box-sizing: border-box;
+  border: 1px solid var(--sticky-border, rgba(255, 255, 255, 0.14));
+  border-radius: 12px;
+  pointer-events: none;
 }
 
 /* ─── Centered modal (About, etc.) ───────────────────────── */

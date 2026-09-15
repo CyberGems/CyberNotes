@@ -111,6 +111,9 @@ export default function NoteList({
   onDeleteNote, onTogglePin, onMoveNote, onRenameNote, selectedFolder, searchQuery, uiScale = 1,
 }: Props) {
   const t = TRANSLATIONS[language];
+  const isStickyFolder = selectedFolder?.id === 'sticky';
+  const createNoteLabel = isStickyFolder ? t.editor.stickyNew : (language === 'es' ? 'Nueva nota' : 'New note');
+  const createNoteTooltip = isStickyFolder ? t.editor.stickyNew : (language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)');
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'alpha' | 'alpha-desc'>('updated');
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -490,14 +493,14 @@ export default function NoteList({
             )}
             {getHeaderTitle()}
           </h2>
-          <Tooltip placement="bottom" label={language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)'}>
+          <Tooltip placement="bottom" label={createNoteTooltip}>
           <button
             className="new-note-btn"
             onClick={onCreateNote}
             style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
           >
             <Plus size={14} />
-            {language === 'es' ? 'Nueva nota' : 'New note'}
+            {createNoteLabel}
           </button>
           </Tooltip>
         </div>

@@ -673,15 +673,10 @@ function openStickyNote(noteId: string): boolean {
     updateTrayMenu();
   });
 
-  if (isDev) {
-    win.loadURL(`http://localhost:5173/?sticky=${encodeURIComponent(noteId)}`);
-  } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'), {
-      search: `sticky=${encodeURIComponent(noteId)}`
-    });
-  }
-
-  win.once('ready-to-show', () => {
+  let stickyWindowRevealed = false;
+  const revealStickyWindow = () => {
+    if (stickyWindowRevealed || win.isDestroyed()) return;
+    stickyWindowRevealed = true;
     if (shouldLockBeforeShow()) {
       if (getStickyLockAction() === 'hide') {
         stickyNotesHiddenByLock.add(noteId);
@@ -697,7 +692,20 @@ function openStickyNote(noteId: string): boolean {
     win.show();
     notifyStickyListChanged();
     updateTrayMenu();
-  });
+  };
+
+  // Reveal as soon as the document is available. ready-to-show can wait for
+  // the renderer's first fully painted frame, which makes creation feel slow.
+  win.webContents.once('dom-ready', revealStickyWindow);
+  win.once('ready-to-show', revealStickyWindow);
+
+  if (isDev) {
+    win.loadURL(`http://localhost:5173/?sticky=${encodeURIComponent(noteId)}`);
+  } else {
+    win.loadFile(path.join(__dirname, '../dist/index.html'), {
+      search: `sticky=${encodeURIComponent(noteId)}`
+    });
+  }
 
   return true;
 }
