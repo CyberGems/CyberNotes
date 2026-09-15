@@ -27,6 +27,7 @@ import {
   Trash2,
   Eye,
   Lock,
+  GripVertical,
 } from 'lucide-react';
 
 interface Props {
@@ -43,7 +44,7 @@ export type StickyColorId =
 
 interface StickyColorMeta {
   id: StickyColorId;
-  nameKey: string;
+  nameKey: keyof typeof TRANSLATIONS.es.editor.stickyColors;
   accent: string;
   accentGlow: string;
   bgDark: string;
@@ -74,7 +75,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     id: 'matrix-green',
     nameKey: 'green',
     accent: '#10b981',
-    accentGlow: 'rgba(168, 85, 247, 0.4)',
+    accentGlow: 'rgba(16, 185, 129, 0.4)',
     bgDark: 'rgba(10, 28, 18, 0.94)',
     border: 'rgba(16, 185, 129, 0.35)',
     headerBg: 'rgba(12, 36, 22, 0.98)',
@@ -120,7 +121,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showOpacityPicker, setShowOpacityPicker] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -271,7 +272,7 @@ export default function StickyNoteApp({ noteId }: Props) {
         setSaveStatus('saved');
       } catch (err) {
         console.error('Failed to save sticky note:', err);
-        setSaveStatus('saved');
+        setSaveStatus('error');
       }
     },
     [title, t.noteList.unnamedNote]
@@ -388,8 +389,26 @@ export default function StickyNoteApp({ noteId }: Props) {
           gap: 6,
         } as any}
       >
-        {/* Indicador de color y Título */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+        {/* Grip y título */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, WebkitAppRegion: 'drag' } as any}>
+          <span
+            aria-hidden="true"
+            className="sticky-drag-grip"
+            style={{
+              width: 14,
+              height: 24,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              color: 'rgba(255, 255, 255, 0.32)',
+              cursor: 'grab',
+              WebkitAppRegion: 'drag',
+              transition: 'color 0.15s ease, opacity 0.15s ease',
+            } as any}
+          >
+            <GripVertical size={12} strokeWidth={2} />
+          </span>
           <span
             style={{
               width: 8,
@@ -507,7 +526,10 @@ export default function StickyNoteApp({ noteId }: Props) {
                   return (
                     <button
                       key={cid}
+                      type="button"
                       onClick={() => handleSelectColor(cid)}
+                      aria-label={t.editor.stickyColors[meta.nameKey]}
+                      aria-pressed={isSelected}
                       style={{
                         width: 20,
                         height: 20,
@@ -786,7 +808,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.35)', fontWeight: 500 }}>
-              {saveStatus === 'saving' ? t.editor.saving : t.editor.saved}
+              {saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
             </span>
             <button
               type="button"
