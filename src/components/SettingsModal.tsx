@@ -56,6 +56,11 @@ interface Props {
 
 type Tab = 'general' | 'appearance' | 'security' | 'maintenance';
 
+const DISMISSIBLE_CONFIRMATION_KEYS = [
+  'confirm_move_note_to_trash_dismissed',
+  'confirm_leave_note_dismissed',
+] as const;
+
 type SettingsIconTone = 'accent' | 'warning' | 'danger' | 'success';
 
 function SettingsIcon({
@@ -150,6 +155,7 @@ export default function SettingsModal({
   const [stickyRestoreOnStartup, setStickyRestoreOnStartup] = useState(true);
   const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
   const [stickyLockAction, setStickyLockAction] = useState<'hide' | 'shield'>('hide');
+  const [dismissedConfirmationCount, setDismissedConfirmationCount] = useState(0);
   const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
   const hotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
@@ -169,6 +175,12 @@ export default function SettingsModal({
   const handleChangeStickyLockAction = async (val: 'hide' | 'shield') => {
     setStickyLockAction(val);
     await window.cyberNotesAPI.setSetting('sticky_lock_action', val);
+  };
+
+  const handleRestoreDismissedConfirmations = async () => {
+    await Promise.all(DISMISSIBLE_CONFIRMATION_KEYS.map((key) => window.cyberNotesAPI.setSetting(key, 'false')));
+    setDismissedConfirmationCount(0);
+    setHasSavedChanges(true);
   };
 
   // Diálogo personalizado (reemplaza alert/confirm nativos)
@@ -225,6 +237,10 @@ export default function SettingsModal({
       setStickySkipTaskbar(sStickySkip !== 'false');
       const sStickyLock = await window.cyberNotesAPI.getSetting('sticky_lock_action');
       setStickyLockAction((sStickyLock as any) || 'hide');
+      const dismissedConfirmations = await window.cyberNotesAPI.getSettings([...DISMISSIBLE_CONFIRMATION_KEYS]);
+      setDismissedConfirmationCount(
+        DISMISSIBLE_CONFIRMATION_KEYS.filter((key) => dismissedConfirmations[key] === 'true').length
+      );
 
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
@@ -695,6 +711,43 @@ export default function SettingsModal({
                       <option value="hide">{language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked'}</option>
                       <option value="shield">{language === 'es' ? 'Escudo de privacidad' : 'Privacy shield'}</option>
                     </select>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <SettingsOptionCopy icon={<ShieldCheck />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Avisos omitidos' : 'Dismissed warnings'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es'
+                          ? 'Vuelve a mostrar las confirmaciones que marcaste como no mostrar más'
+                          : 'Show again the confirmations you chose not to display'}
+                      </span>
+                    </SettingsOptionCopy>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={handleRestoreDismissedConfirmations}
+                      disabled={dismissedConfirmationCount === 0}
+                      style={{
+                        gap: 7,
+                        fontSize: 'calc(12px * var(--ui-scale))',
+                        flexShrink: 0,
+                        padding: '7px 11px',
+                      }}
+                    >
+                      <RotateCcw size={14} />
+                      {language === 'es' ? 'Restaurar avisos' : 'Restore warnings'}
+                    </button>
                   </div>
 
                   <div style={{ 

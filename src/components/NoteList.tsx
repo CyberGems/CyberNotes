@@ -130,6 +130,8 @@ export default function NoteList({
   const [renameTarget, setRenameTarget] = useState<Note | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const [skipMoveToTrashConfirmation, setSkipMoveToTrashConfirmation] = useState(false);
+  const [dontAskMoveToTrash, setDontAskMoveToTrash] = useState(false);
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
   const [openStickyIds, setOpenStickyIds] = useState<string[]>([]);
   const [scrollTop, setScrollTop] = useState(0);
@@ -149,6 +151,22 @@ export default function NoteList({
     });
     const unregister = window.cyberNotesAPI?.onStickyListChanged((ids) => {
       if (active) setOpenStickyIds(ids);
+    });
+    return () => {
+      active = false;
+      if (unregister) unregister();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    window.cyberNotesAPI?.getSetting('confirm_move_note_to_trash_dismissed').then((value) => {
+      if (active) setSkipMoveToTrashConfirmation(value === 'true');
+    });
+    const unregister = window.cyberNotesAPI?.onSettingChanged((data) => {
+      if (data.key === 'confirm_move_note_to_trash_dismissed') {
+        setSkipMoveToTrashConfirmation(data.value === 'true');
+      }
     });
     return () => {
       active = false;
@@ -384,6 +402,15 @@ export default function NoteList({
     }
   }, [isGroupingActive, rowHeight]);
 
+  const requestDeleteNote = useCallback((note: Note) => {
+    if (!isTrashFolder && skipMoveToTrashConfirmation) {
+      void onDeleteNote(note.id);
+      return;
+    }
+    setDontAskMoveToTrash(false);
+    setNoteToDelete(note);
+  }, [isTrashFolder, onDeleteNote, skipMoveToTrashConfirmation]);
+
   const handleListKeyDown = (e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
@@ -436,7 +463,7 @@ export default function NoteList({
         const currentNote = sortedNotes.find(n => n.id === selectedNoteId);
         if (currentNote) {
           e.preventDefault();
-          setNoteToDelete(currentNote);
+          requestDeleteNote(currentNote);
         }
       }
     }
@@ -749,7 +776,7 @@ export default function NoteList({
                                       onSelectNote(note.id);
                                       listRef.current?.focus({ preventScroll: true });
                                     }}
-                                    onDelete={() => setNoteToDelete(note)}
+                                    onDelete={() => requestDeleteNote(note)}
                                     onContextMenu={(e) => handleContextMenu(e, note)}
                                   />
                                 </div>
@@ -789,7 +816,7 @@ export default function NoteList({
                               onSelectNote(note.id);
                               listRef.current?.focus({ preventScroll: true });
                             }}
-                            onDelete={() => setNoteToDelete(note)}
+                            onDelete={() => requestDeleteNote(note)}
                             onContextMenu={(e) => handleContextMenu(e, note)}
                           />
                         </div>
@@ -952,7 +979,7 @@ export default function NoteList({
           <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
           <button
             onClick={() => {
-              setNoteToDelete(contextMenu.note);
+              requestDeleteNote(contextMenu.note);
               setContextMenu(null);
             }}
             style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, color: 'var(--text-primary)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
@@ -1059,6 +1086,26 @@ export default function NoteList({
               "{noteToDelete.title || t.noteList.unnamedNote}"
             </div>
 
+            {!isTrashFolder && (
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                userSelect: 'none',
+                fontSize: 'calc(12px * var(--ui-scale))',
+                color: 'var(--text-muted)',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={dontAskMoveToTrash}
+                  onChange={e => setDontAskMoveToTrash(e.target.checked)}
+                  style={{ accentColor: 'var(--accent)', width: 15, height: 15, cursor: 'pointer' }}
+                />
+                {language === 'es' ? 'No volver a mostrar este aviso' : 'Do not show this warning again'}
+              </label>
+            )}
+
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
               <button 
                 className="btn btn-ghost" 
@@ -1069,7 +1116,11 @@ export default function NoteList({
               </button>
               <button 
                 className="btn btn-danger" 
-                onClick={() => {
+                onClick={async () => {
+                  if (!isTrashFolder && dontAskMoveToTrash) {
+                    setSkipMoveToTrashConfirmation(true);
+                    await window.cyberNotesAPI.setSetting('confirm_move_note_to_trash_dismissed', 'true');
+                  }
                   if (isTrashFolder) onPurgeNote(noteToDelete.id);
                   else onDeleteNote(noteToDelete.id);
                   setNoteToDelete(null);

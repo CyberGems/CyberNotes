@@ -577,7 +577,7 @@ function notifyStickyListChanged() {
   updateTrayMenu();
 }
 
-function openStickyNote(noteId: string): boolean {
+function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   if (stickyWindows.has(noteId)) {
     const existing = stickyWindows.get(noteId);
     if (existing && !existing.isDestroyed()) {
@@ -619,13 +619,28 @@ function openStickyNote(noteId: string): boolean {
   }
 
   if (!validPos) {
-    let cursorPos = { x: 0, y: 0 };
-    try { cursorPos = screen.getCursorScreenPoint(); } catch (_) {}
-    let targetDisplay = screen.getDisplayNearestPoint(cursorPos) || screen.getPrimaryDisplay();
+    let targetDisplay: Electron.Display;
+    if (centerOnMainWindow && mainWindow && !mainWindow.isDestroyed()) {
+      const mainBounds = mainWindow.getBounds();
+      const mainCenter = {
+        x: mainBounds.x + mainBounds.width / 2,
+        y: mainBounds.y + mainBounds.height / 2,
+      };
+      targetDisplay = screen.getDisplayNearestPoint(mainCenter) || screen.getPrimaryDisplay();
+    } else {
+      let cursorPos = { x: 0, y: 0 };
+      try { cursorPos = screen.getCursorScreenPoint(); } catch (_) {}
+      targetDisplay = screen.getDisplayNearestPoint(cursorPos) || screen.getPrimaryDisplay();
+    }
     const wa = targetDisplay.workArea;
-    const offset = (stickyWindows.size * 32) % 160;
-    winX = Math.min(Math.max(wa.x + wa.width - width - 40 - offset, wa.x + 20), wa.x + wa.width - width);
-    winY = Math.min(Math.max(wa.y + 60 + offset, wa.y + 20), wa.y + wa.height - height);
+    if (centerOnMainWindow) {
+      winX = Math.round(wa.x + (wa.width - width) / 2);
+      winY = Math.round(wa.y + (wa.height - height) / 2);
+    } else {
+      const offset = (stickyWindows.size * 32) % 160;
+      winX = Math.min(Math.max(wa.x + wa.width - width - 40 - offset, wa.x + 20), wa.x + wa.width - width);
+      winY = Math.min(Math.max(wa.y + 60 + offset, wa.y + 20), wa.y + wa.height - height);
+    }
   }
 
   const skipTaskbarVal = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_skip_taskbar']);
@@ -803,7 +818,7 @@ function toggleAllStickyNotes(forceShow?: boolean): boolean {
   return shouldShow;
 }
 
-function createAndOpenStickyNote(): string {
+function createAndOpenStickyNote(centerOnMainWindow = false): string {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const isEs = langVal?.value === 'es';
   const newId = uuidv4();
@@ -815,7 +830,7 @@ function createAndOpenStickyNote(): string {
     [newId, null, defaultTitle, '', '', '', 0, now, now]
   );
 
-  openStickyNote(newId);
+  openStickyNote(newId, centerOnMainWindow);
 
   const newNote = {
     id: newId,
@@ -1724,6 +1739,12 @@ ipcMain.handle('settings:reset', () => {
 
 ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
+  const openWindows = [mainWindow, ...stickyWindows.values()];
+  openWindows.forEach((win) => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('setting-changed', { key, value });
+    }
+  });
   if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled') {
     if (key === 'toggle_hotkey_enabled') {
       registerToggleHotkey();
@@ -1987,7 +2008,7 @@ ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number, width?
 ipcMain.handle('sticky:getOpenList', () => Array.from(stickyWindows.keys()));
 ipcMain.handle('sticky:focusMain', (_e: any, noteId: string) => focusMainWindowWithNote(noteId));
 ipcMain.handle('sticky:toggleAll', (_e: any, show?: boolean) => toggleAllStickyNotes(show));
-ipcMain.handle('sticky:createAndOpen', () => createAndOpenStickyNote());
+ipcMain.handle('sticky:createAndOpen', (event) => createAndOpenStickyNote(event.sender === mainWindow?.webContents));
 
 ipcMain.handle('notes:search', (_e: any, query: string) => {
   const q = `%${query}%`;

@@ -169,6 +169,9 @@ export default function MainApp({
       if (data.key === 'auto_unlock_caps_lock') {
         setAutoUnlockCapsLock(data.value === 'true');
       }
+      if (data.key === 'confirm_leave_note_dismissed') {
+        setConfirmLeaveDismissed(data.value === 'true');
+      }
       if (data.key === 'minimize_to_tray') setMinimizeToTray(data.value === 'true');
       if (data.key === 'close_to_tray') setCloseToTray(data.value === 'true');
     });
