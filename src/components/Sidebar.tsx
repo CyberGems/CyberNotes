@@ -5,7 +5,7 @@ import { Folder, Note } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import {
   Plus, FolderOpen, Settings, Lock, Search, X,
-  ChevronRight, Pencil, Trash2, FileText, Clock, Cloud, Star, StickyNote as StickyNoteIcon,
+  ChevronRight, Pencil, Trash2, FileText, Clock, Cloud, Star, AppWindow,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { playSynthSound } from '../utils/audio';
@@ -482,7 +482,7 @@ export default function Sidebar({
             }}
             style={{ display: 'inline-flex', alignItems: 'center', pointerEvents: 'none' }}
           >
-            <StickyNoteIcon size={15} />
+            <AppWindow size={15} />
           </motion.span>
           <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.stickyNotes}</span>
           <span style={{

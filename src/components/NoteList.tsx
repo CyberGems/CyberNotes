@@ -183,11 +183,12 @@ export default function NoteList({
     };
   }, []);
 
-  const COLLAPSED_GROUPS_KEY = 'cybernotes_notelist_collapsed_groups';
+  const COLLAPSED_GROUPS_STORAGE_KEY = 'cybernotes_notelist_collapsed_groups';
+  const COLLAPSED_GROUPS_SETTING_KEY = 'note_list_collapsed_groups';
   const [groupByDate, setGroupByDate] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('cybernotes_notelist_collapsed_groups');
+      const saved = localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set(parsed);
@@ -196,23 +197,66 @@ export default function NoteList({
     return new Set();
   });
 
-  // Cargar la densidad de la lista guardada y preferencia de agrupación por fecha
+  const persistCollapsedGroups = useCallback((groups: Set<string>) => {
+    const serialized = JSON.stringify(Array.from(groups));
+    void window.cyberNotesAPI?.setSetting(COLLAPSED_GROUPS_SETTING_KEY, serialized);
+    try {
+      // Keep the old local value as a fallback for existing profiles.
+      localStorage.setItem(COLLAPSED_GROUPS_STORAGE_KEY, serialized);
+    } catch {}
+  }, []);
+
+  // Cargar preferencias de lista y migrar el estado local anterior a settings.
   useEffect(() => {
     let active = true;
-    window.cyberNotesAPI?.getSetting('note_list_view_mode').then(v => {
-      if (active && (v === 'compact' || v === 'normal')) setViewMode(v);
-    });
-    window.cyberNotesAPI?.getSetting('note_list_group_by_date').then(v => {
-      if (active && (v === 'false' || v === '0')) setGroupByDate(false);
-    });
+    const loadListPreferences = async () => {
+      const settings = await window.cyberNotesAPI.getSettings([
+        'note_list_view_mode',
+        'note_list_group_by_date',
+        COLLAPSED_GROUPS_SETTING_KEY,
+      ]);
+      if (!active) return;
+
+      const viewModeValue = settings.note_list_view_mode;
+      if (viewModeValue === 'compact' || viewModeValue === 'normal') {
+        setViewMode(viewModeValue);
+      }
+
+      const groupByDateValue = settings.note_list_group_by_date;
+      if (groupByDateValue !== null) {
+        setGroupByDate(groupByDateValue !== 'false' && groupByDateValue !== '0');
+      }
+
+      if (settings[COLLAPSED_GROUPS_SETTING_KEY]) {
+        try {
+          const parsed = JSON.parse(settings[COLLAPSED_GROUPS_SETTING_KEY] as string);
+          if (Array.isArray(parsed)) setCollapsedGroups(new Set(parsed));
+        } catch {
+          // Ignore malformed preference data and retain the current fallback.
+        }
+      } else {
+        try {
+          const legacy = localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY);
+          if (legacy) {
+            const parsed = JSON.parse(legacy);
+            if (Array.isArray(parsed)) {
+              const migrated = new Set<string>(parsed);
+              setCollapsedGroups(migrated);
+              persistCollapsedGroups(migrated);
+            }
+          }
+        } catch {}
+      }
+    };
+    void loadListPreferences();
     return () => { active = false; };
-  }, []);
+  }, [persistCollapsedGroups]);
 
   // Alterna y persiste la agrupación por fecha
   const handleToggleGroupByDate = () => {
     const next = !groupByDate;
     setGroupByDate(next);
-    window.cyberNotesAPI?.setSetting('note_list_group_by_date', next ? 'true' : 'false');
+    void window.cyberNotesAPI?.setSetting('note_list_group_by_date', next ? 'true' : 'false');
   };
 
   const toggleGroupCollapse = (groupKey: string) => {
@@ -223,9 +267,7 @@ export default function NoteList({
       } else {
         next.add(groupKey);
       }
-      try {
-        localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(Array.from(next)));
-      } catch {}
+      persistCollapsedGroups(next);
       return next;
     });
   };
@@ -323,16 +365,14 @@ export default function NoteList({
           setCollapsedGroups(prev => {
             const next = new Set(prev);
             next.delete(g.key);
-            try {
-              localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(Array.from(next)));
-            } catch {}
+            persistCollapsedGroups(next);
             return next;
           });
         }
         break;
       }
     }
-  }, [selectedNoteId, isGroupingActive, noteGroups]);
+  }, [selectedNoteId, isGroupingActive, noteGroups, persistCollapsedGroups]);
 
   const navigableNotes = useMemo(() => {
     if (!isGroupingActive) return sortedNotes;

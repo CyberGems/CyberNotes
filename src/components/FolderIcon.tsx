@@ -2,7 +2,7 @@ import {
   Folder, FileText, Briefcase, Home, Zap, Lightbulb,
   Palette, Book, Microscope, Target, Heart, Star, Tag,
   Archive, Inbox, Code, Users, Rocket, Bookmark, Wrench, Layers,
-  StickyNote as StickyNoteIcon, Trash2
+  StickyNote as StickyNoteIcon, Trash2, AppWindow
 } from 'lucide-react';
 
 interface Props {
@@ -34,6 +34,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
   'wrench': Wrench,
   'layers': Layers,
   'sticky-note': StickyNoteIcon,
+  'app-window': AppWindow,
   'trash-2': Trash2,
 };
 

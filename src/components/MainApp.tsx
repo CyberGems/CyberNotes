@@ -1213,7 +1213,7 @@ export default function MainApp({
               onMoveNote={handleMoveNote}
               onRenameNote={handleRenameNote}
               selectedFolder={selectedFolderId === 'sticky'
-                ? { id: 'sticky', name: TRANSLATIONS[language].sidebar.stickyNotes, icon: 'sticky-note', color: '#f59e0b' } as Folder
+                ? { id: 'sticky', name: TRANSLATIONS[language].sidebar.stickyNotes, icon: 'app-window', color: '#f59e0b' } as Folder
                 : selectedFolderId === 'floating'
                 ? { id: 'floating', name: TRANSLATIONS[language].sidebar.floatingNotes, icon: '☁️', color: '#06b6d4' } as Folder
                 : selectedFolderId === 'favorites'

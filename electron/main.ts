@@ -545,6 +545,10 @@ function restoreWindow() {
 // ─── Sticky Notes Manager ──────────────────────────────────────────────────
 const stickyWindows = new Map<string, BrowserWindow>();
 const stickyNotesHiddenByLock = new Set<string>();
+const STICKY_DEFAULT_WIDTH = 320;
+const STICKY_DEFAULT_HEIGHT = 360;
+const STICKY_MAX_WIDTH = 720;
+const STICKY_MAX_HEIGHT = 640;
 
 function lockStickyWindows(): void {
   if (getStickyLockAction() === 'hide') {
@@ -596,8 +600,8 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   if (!noteRow) return false;
 
   const row = queryGet('SELECT * FROM sticky_notes WHERE note_id = ?', [noteId]);
-  let width = (row && typeof row.width === 'number' && row.width >= 240) ? row.width : 320;
-  let height = (row && typeof row.height === 'number' && row.height >= 200) ? row.height : 360;
+  let width = (row && typeof row.width === 'number' && row.width >= 240) ? row.width : STICKY_DEFAULT_WIDTH;
+  let height = (row && typeof row.height === 'number' && row.height >= 200) ? row.height : STICKY_DEFAULT_HEIGHT;
   const pinnedTop = row ? row.pinned_top !== 0 : true;
 
   let winX: number | undefined = row && typeof row.x === 'number' ? row.x : undefined;
@@ -636,8 +640,12 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
 
   const wa = targetDisplay.workArea;
   // Keep corrupted or stale bounds from expanding across the virtual desktop.
-  width = Math.min(width, Math.max(240, wa.width - 32));
-  height = Math.min(height, Math.max(200, wa.height - 32));
+  // The native maximum also prevents a later manual resize from turning a
+  // sticky note into a full-screen window.
+  const maxWidth = Math.min(STICKY_MAX_WIDTH, Math.max(240, wa.width - 32));
+  const maxHeight = Math.min(STICKY_MAX_HEIGHT, Math.max(200, wa.height - 32));
+  width = Math.min(width, maxWidth);
+  height = Math.min(height, maxHeight);
 
   const maxX = wa.x + wa.width - width - 16;
   const maxY = wa.y + wa.height - height - 16;
@@ -668,6 +676,8 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     y: winY,
     minWidth: 240,
     minHeight: 200,
+    maxWidth,
+    maxHeight,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
