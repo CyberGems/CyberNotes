@@ -402,7 +402,6 @@ export default function StickyNoteApp({ noteId }: Props) {
               justifyContent: 'center',
               flexShrink: 0,
               color: 'rgba(255, 255, 255, 0.32)',
-              cursor: 'grab',
               WebkitAppRegion: 'drag',
               transition: 'color 0.15s ease, opacity 0.15s ease',
             } as any}

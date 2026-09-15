@@ -1110,9 +1110,14 @@ body:has(.has-bg),
 }
 .sticky-drag-grip {
   opacity: 0.72;
+  cursor: default;
 }
 .sticky-drag-grip:hover {
   opacity: 1;
+  cursor: grab;
+}
+.sticky-drag-grip:active {
+  cursor: grabbing;
 }
 
 /* ─── Centered modal (About, etc.) ───────────────────────── */
