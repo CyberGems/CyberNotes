@@ -483,7 +483,7 @@ export default function NoteList({
         gap: 16,
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
           <h2 style={{
             fontSize: 'calc(14px * var(--ui-scale))',
             fontWeight: 600,
@@ -491,7 +491,9 @@ export default function NoteList({
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            maxWidth: 160,
+            maxWidth: 'none',
+            flex: '1 1 auto',
+            minWidth: 0,
             display: 'flex',
             alignItems: 'center',
             gap: 6,
@@ -532,8 +534,13 @@ export default function NoteList({
             <Tooltip placement="bottom" label={createNoteTooltip}>
               <button
                 className="new-note-btn"
+                type="button"
                 onClick={onCreateNote}
-                style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
+                style={{
+                  fontSize: 'calc(12px * var(--ui-scale))',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
               >
                 <Plus size={14} />
                 {createNoteLabel}

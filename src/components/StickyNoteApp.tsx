@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
+import { EditorView } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
+import TiptapImage from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Note, ThemeId } from '../types';
@@ -163,6 +165,84 @@ const rgbaWithAlpha = (color: string, alpha: number) => {
   return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
 };
 
+const MAX_STICKY_IMAGE_DIMENSION = 1400;
+const MAX_STICKY_IMAGE_INPUT_BYTES = 20_000_000;
+const MAX_STICKY_IMAGE_BYTES = 1_500_000;
+
+class StickyImageTooLargeError extends Error {}
+
+function estimateDataUrlBytes(dataUrl: string): number {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+async function optimizeStickyImage(blob: Blob): Promise<string> {
+  if (!blob.type.startsWith('image/')) {
+    throw new Error('Unsupported image type');
+  }
+  if (blob.size > MAX_STICKY_IMAGE_INPUT_BYTES) {
+    throw new StickyImageTooLargeError('Input image is too large to process');
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new window.Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('Unable to decode image'));
+      element.src = objectUrl;
+    });
+
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    if (!sourceWidth || !sourceHeight) throw new Error('Image has no dimensions');
+
+    let width = Math.max(1, Math.round(sourceWidth * Math.min(1, MAX_STICKY_IMAGE_DIMENSION / sourceWidth, MAX_STICKY_IMAGE_DIMENSION / sourceHeight)));
+    let height = Math.max(1, Math.round(sourceHeight * (width / sourceWidth)));
+    const outputType = blob.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    let quality = 0.86;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas is unavailable');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      canvas.width = width;
+      canvas.height = height;
+      context.clearRect(0, 0, width, height);
+      if (outputType === 'image/jpeg') {
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+      }
+      context.drawImage(image, 0, 0, width, height);
+
+      const dataUrl = canvas.toDataURL(outputType, quality);
+      if (estimateDataUrlBytes(dataUrl) <= MAX_STICKY_IMAGE_BYTES) return dataUrl;
+
+      if (outputType !== 'image/png' && quality > 0.5) {
+        quality = Math.max(0.5, quality - 0.12);
+      } else {
+        width = Math.max(1, Math.floor(width * 0.8));
+        height = Math.max(1, Math.floor(height * 0.8));
+      }
+    }
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  throw new StickyImageTooLargeError('Image exceeds the sticky note size limit');
+}
+
+function insertStickyImage(view: EditorView, dataUrl: string): boolean {
+  const imageType = view.state.schema.nodes.image;
+  if (!imageType) return false;
+  const imageNode = imageType.create({ src: dataUrl });
+  view.focus();
+  view.dispatch(view.state.tr.replaceSelectionWith(imageNode).scrollIntoView());
+  return true;
+}
+
 type StickyContextAction = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll';
 
 /** Carga el documento inicial sin crear una falsa entrada en Undo/Redo. */
@@ -191,8 +271,10 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [pasteNotice, setPasteNotice] = useState<'too-large' | 'failed' | null>(null);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pasteNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorContentRef = useRef<string>('');
   const noteRef = useRef<Note | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
@@ -205,12 +287,22 @@ export default function StickyNoteApp({ noteId }: Props) {
   const headerAlpha = 0.36 + previewOpacity * 0.64;
   const glassBlur = Math.round(6 + (1 - previewOpacity) * 18);
 
+  const showPasteNotice = useCallback((notice: 'too-large' | 'failed') => {
+    setPasteNotice(notice);
+    if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
+    pasteNoticeTimerRef.current = setTimeout(() => {
+      setPasteNotice(null);
+      pasteNoticeTimerRef.current = null;
+    }, 3200);
+  }, []);
+
   // TipTap editor
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
       }),
+      TiptapImage.configure({ allowBase64: true, inline: false }),
       Underline,
       Highlight.configure({ multicolor: false }),
       Link.configure({ openOnClick: false }),
@@ -218,6 +310,28 @@ export default function StickyNoteApp({ noteId }: Props) {
         placeholder: t.editor.placeholderBody,
       }),
     ],
+    editorProps: {
+      attributes: {
+        spellcheck: 'true',
+      },
+      handlePaste: (view, event) => {
+        const imageItem = Array.from(event.clipboardData?.items || [])
+          .find(item => item.kind === 'file' && item.type.startsWith('image/'));
+        const imageFile = imageItem?.getAsFile();
+        if (!imageFile) return false;
+
+        event.preventDefault();
+        void optimizeStickyImage(imageFile)
+          .then(dataUrl => {
+            if (!view.isDestroyed) insertStickyImage(view, dataUrl);
+          })
+          .catch(error => {
+            if (error instanceof StickyImageTooLargeError) showPasteNotice('too-large');
+            else showPasteNotice('failed');
+          });
+        return true;
+      },
+    },
     content: '',
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML();
@@ -289,6 +403,7 @@ export default function StickyNoteApp({ noteId }: Props) {
     return () => {
       dragCleanupRef.current?.();
       dragCleanupRef.current = null;
+      if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
     };
   }, []);
 
@@ -436,11 +551,30 @@ export default function StickyNoteApp({ noteId }: Props) {
         }
         case 'paste': {
           try {
-            const text = await navigator.clipboard.readText();
-            if (text) editor.chain().focus().insertContent(text).run();
-          } catch {
-            editor.chain().focus().run();
-            document.execCommand('paste');
+            let imageFound = false;
+            if (navigator.clipboard.read) {
+              const clipboardItems = await navigator.clipboard.read();
+              for (const item of clipboardItems) {
+                const imageType = item.types.find(type => type.startsWith('image/'));
+                if (!imageType) continue;
+                imageFound = true;
+                const imageBlob = await item.getType(imageType);
+                const dataUrl = await optimizeStickyImage(imageBlob);
+                editor.chain().focus().setImage({ src: dataUrl }).run();
+                break;
+              }
+            }
+            if (!imageFound) {
+              const text = await navigator.clipboard.readText();
+              if (text) editor.chain().focus().insertContent(text).run();
+            }
+          } catch (error) {
+            if (error instanceof StickyImageTooLargeError) {
+              showPasteNotice('too-large');
+            } else {
+              editor.chain().focus().run();
+              if (!document.execCommand('paste')) showPasteNotice('failed');
+            }
           }
           break;
         }
@@ -575,9 +709,8 @@ export default function StickyNoteApp({ noteId }: Props) {
       <div
         className="sticky-note-window"
         style={{
-          width: 'calc(100vw - 2px)',
-          height: 'calc(100vh - 2px)',
-          margin: 1,
+          width: '100vw',
+          height: '100vh',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -600,9 +733,8 @@ export default function StickyNoteApp({ noteId }: Props) {
     <div
       className="sticky-note-window"
       style={{
-        width: 'calc(100vw - 2px)',
-        height: 'calc(100vh - 2px)',
-        margin: 1,
+        width: '100vw',
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         background: rgbaWithAlpha(colorMeta.bgDark, surfaceAlpha),
@@ -610,7 +742,7 @@ export default function StickyNoteApp({ noteId }: Props) {
         borderRadius: 11,
         border: 'none',
         '--sticky-border': colorMeta.border,
-        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.025)',
+        boxShadow: 'inset 0 0 24px rgba(255, 255, 255, 0.025)',
         overflow: 'hidden',
         clipPath: 'inset(0 round 11px)',
         transform: 'translateZ(0)',
@@ -1042,6 +1174,30 @@ export default function StickyNoteApp({ noteId }: Props) {
             <span>{t.editor.stickySelectAll}</span>
             <kbd>Ctrl+A</kbd>
           </button>
+        </div>
+      )}
+
+      {pasteNotice && (
+        <div
+          role="status"
+          style={{
+            position: 'absolute',
+            left: 10,
+            right: 10,
+            bottom: 42,
+            zIndex: 105,
+            padding: '7px 10px',
+            borderRadius: 6,
+            border: `1px solid ${colorMeta.border}`,
+            background: 'rgba(10, 10, 16, 0.92)',
+            color: '#f8fafc',
+            fontSize: 11,
+            textAlign: 'center',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.32)',
+            pointerEvents: 'none',
+          }}
+        >
+          {pasteNotice === 'too-large' ? t.editor.stickyImageTooLarge : t.editor.stickyImagePasteError}
         </div>
       )}
 

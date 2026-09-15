@@ -1139,6 +1139,17 @@ body:has(.sticky-note-window),
 .sticky-note-window .ProseMirror p {
   margin-bottom: 0.45em;
 }
+.sticky-note-window .ProseMirror img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 360px;
+  height: auto;
+  object-fit: contain;
+  margin: 8px auto;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+}
 .sticky-note-footer .sticky-note-button {
   min-width: 24px;
   min-height: 24px;
@@ -1263,11 +1274,11 @@ body:has(.sticky-note-window),
 .sticky-note-window::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 1px;
   z-index: 300;
   box-sizing: border-box;
   border: 1px solid var(--sticky-border, rgba(255, 255, 255, 0.14));
-  border-radius: 11px;
+  border-radius: 10px;
   pointer-events: none;
 }
 

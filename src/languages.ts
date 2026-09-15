@@ -77,7 +77,9 @@ export const TRANSLATIONS = {
       stickyRedo: 'Rehacer',
       stickyCut: 'Cortar',
       stickyCopy: 'Copiar',
-      stickyPaste: 'Pegar',
+      stickyPaste: 'Pegar texto o imagen',
+      stickyImageTooLarge: 'La imagen supera el límite de 1.5 MB tras optimizarla.',
+      stickyImagePasteError: 'No se pudo pegar la imagen.',
       stickySelectAll: 'Seleccionar todo',
       stickyColors: {
         yellow: 'Amarillo Ciber',
@@ -350,7 +352,9 @@ export const TRANSLATIONS = {
       stickyRedo: 'Redo',
       stickyCut: 'Cut',
       stickyCopy: 'Copy',
-      stickyPaste: 'Paste',
+      stickyPaste: 'Paste text or image',
+      stickyImageTooLarge: 'The image exceeds the 1.5 MB limit after optimization.',
+      stickyImagePasteError: 'The image could not be pasted.',
       stickySelectAll: 'Select all',
       stickyColors: {
         yellow: 'Cyber Yellow',
