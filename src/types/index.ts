@@ -21,6 +21,7 @@ export interface Note {
   pinned: number; // 0 | 1
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export type ThemeId = 'cyber-dark' | 'midnight' | 'forest' | 'light' | 'graphite' | 'neon';
@@ -73,7 +74,7 @@ declare global {
       getFolders: () => Promise<Folder[]>;
       createFolder: (folder: Folder) => Promise<Folder>;
       updateFolder: (folder: Partial<Folder> & { id: string }) => Promise<boolean>;
-      deleteFolder: (id: string) => Promise<boolean>;
+      deleteFolder: (id: string) => Promise<number>;
       // Notes
       getAllNotes: () => Promise<Note[]>;
       getNotesByFolder: (folderId: string | null) => Promise<Note[]>;
@@ -81,6 +82,13 @@ declare global {
       saveNote: (note: Note) => Promise<Note>;
       deleteNote: (id: string) => Promise<boolean>;
       searchNotes: (query: string) => Promise<Note[]>;
+      getTrashNotes: () => Promise<Note[]>;
+      searchTrashNotes: (query: string) => Promise<Note[]>;
+      getTrashCount: () => Promise<number>;
+      restoreNote: (id: string) => Promise<Note | null>;
+      restoreAllTrash: () => Promise<Note[]>;
+      purgeNote: (id: string) => Promise<boolean>;
+      emptyTrash: () => Promise<number>;
       // Import / Export
       exportData: () => Promise<boolean>;
       importData: () => Promise<boolean>;

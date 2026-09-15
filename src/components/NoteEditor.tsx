@@ -27,6 +27,7 @@ import {
 interface Props {
   language: Language;
   note: Note | null;
+  readOnly?: boolean;
   /** Cargando content de otra nota: no mostrar bienvenida; overlay / preloader. */
   isNoteLoading?: boolean;
   onSave: (note: Note) => void;
@@ -162,6 +163,7 @@ const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProp
 export default function NoteEditor({ 
   language,
   note,
+  readOnly = false,
   isNoteLoading = false,
   onSave, 
   onCreateNote, 
@@ -849,6 +851,7 @@ export default function NoteEditor({
   (window as any).__currentLanguage = language;
 
   const editor = useEditor({
+    editable: !readOnly,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -1012,6 +1015,10 @@ export default function NoteEditor({
       }
     },
   });
+
+  useEffect(() => {
+    editor?.setEditable(!readOnly);
+  }, [editor, readOnly]);
 
   // Sincronizar editorRef después de que useEditor lo haya inicializado
   editorRef.current = editor;
@@ -1508,6 +1515,8 @@ export default function NoteEditor({
             <input
               ref={titleInputRef}
               value={localTitle}
+              readOnly={readOnly}
+              aria-readonly={readOnly}
               onChange={e => updateTitle(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {

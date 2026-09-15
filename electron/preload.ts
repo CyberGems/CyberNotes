@@ -116,6 +116,13 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   saveNote: (note: any) => ipcRenderer.invoke('notes:save', note),
   deleteNote: (id: string) => ipcRenderer.invoke('notes:delete', id),
   searchNotes: (query: string) => ipcRenderer.invoke('notes:search', query),
+  getTrashNotes: () => ipcRenderer.invoke('notes:getTrash'),
+  searchTrashNotes: (query: string) => ipcRenderer.invoke('notes:searchTrash', query),
+  getTrashCount: () => ipcRenderer.invoke('notes:getTrashCount'),
+  restoreNote: (id: string) => ipcRenderer.invoke('notes:restore', id),
+  restoreAllTrash: () => ipcRenderer.invoke('notes:restoreAll'),
+  purgeNote: (id: string) => ipcRenderer.invoke('notes:purge', id),
+  emptyTrash: () => ipcRenderer.invoke('notes:emptyTrash'),
 
   // -- Images --
   selectAndSaveImage: () => ipcRenderer.invoke('images:selectAndSave'),

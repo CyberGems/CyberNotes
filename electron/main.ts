@@ -68,7 +68,8 @@ let db: any = null;
 let SQL: any = null;
 
 /** Columnas ligeras para listados (sin content HTML completo). */
-const NOTE_META_COLS = 'id, folder_id, title, preview, thumb, pinned, created_at, updated_at';
+const NOTE_META_COLS = 'id, folder_id, title, preview, thumb, pinned, created_at, updated_at, deleted_at';
+const TRASH_RETENTION_DAYS = 30;
 
 const DB_FLUSH_MS = 1500;
 let dbDirty = false;
@@ -155,7 +156,8 @@ async function initDatabase() {
       thumb      TEXT DEFAULT '',
       pinned     INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS sticky_notes (
@@ -171,12 +173,14 @@ async function initDatabase() {
     );
   `);
 
-  // Migración: DBs antiguas sin columna thumb o sticky_notes
+  // Migración: DBs antiguas sin columnas nuevas o sticky_notes
   ensureColumn('notes', 'thumb', "TEXT DEFAULT ''");
+  ensureColumn('notes', 'deleted_at', 'TEXT');
   ensureColumn('sticky_notes', 'pinned_top', "INTEGER DEFAULT 1");
   ensureColumn('sticky_notes', 'color', "TEXT DEFAULT 'cyber-yellow'");
   ensureColumn('sticky_notes', 'opacity', "REAL DEFAULT 0.9");
   ensureColumn('sticky_notes', 'is_open', "INTEGER DEFAULT 1");
+  purgeOldTrash();
 
   // Rellenar miniaturas de notas existentes (una sola vez / solo filas vacías)
   backfillNoteThumbs();
@@ -379,6 +383,19 @@ function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>, opts?: { flu
   }
 }
 
+function purgeOldTrash(): void {
+  const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const expired = queryAll('SELECT id FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?', [cutoff]);
+  if (expired.length === 0) return;
+
+  const ops = expired.flatMap((row: any) => [
+    { sql: 'DELETE FROM sticky_notes WHERE note_id = ?', params: [row.id] },
+    { sql: 'DELETE FROM notes WHERE id = ? AND deleted_at IS NOT NULL', params: [row.id] },
+  ]);
+  runQueryBatch(ops);
+  console.log(`[CyberNotes] Purged ${expired.length} expired trash note(s)`);
+}
+
 // ─── Ventana y Tray ────────────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -575,7 +592,7 @@ function openStickyNote(noteId: string): boolean {
     }
   }
 
-  const noteRow = queryGet('SELECT id, title FROM notes WHERE id = ?', [noteId]);
+  const noteRow = queryGet('SELECT id, title FROM notes WHERE id = ? AND deleted_at IS NULL', [noteId]);
   if (!noteRow) return false;
 
   const row = queryGet('SELECT * FROM sticky_notes WHERE note_id = ?', [noteId]);
@@ -1785,30 +1802,45 @@ ipcMain.handle('folders:update', (_e: any, folder: any) => {
 });
 
 ipcMain.handle('folders:delete', (_e: any, id: string) => {
+  const deletedAt = new Date().toISOString();
+  const affected = queryAll('SELECT id FROM notes WHERE folder_id = ? AND deleted_at IS NULL', [id]);
   runQueryBatch([
-    { sql: 'DELETE FROM notes WHERE folder_id = ?', params: [id] },
+    { sql: 'UPDATE notes SET folder_id = NULL, deleted_at = ? WHERE folder_id = ? AND deleted_at IS NULL', params: [deletedAt, id] },
+    { sql: 'UPDATE sticky_notes SET is_open = 0 WHERE note_id IN (SELECT id FROM notes WHERE folder_id IS NULL AND deleted_at = ?)', params: [deletedAt] },
     { sql: 'DELETE FROM folders WHERE id = ?', params: [id] },
   ]);
-  return true;
+  affected.forEach((note) => {
+    const sw = stickyWindows.get(note.id);
+    if (sw && !sw.isDestroyed()) sw.close();
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents !== _e.sender) {
+      mainWindow.webContents.send('note:deleted', note.id);
+    }
+    stickyWindows.forEach((win) => {
+      if (!win.isDestroyed() && win.webContents !== _e.sender) {
+        win.webContents.send('note:deleted', note.id);
+      }
+    });
+  });
+  return affected.length;
 });
 
 // -- Notes --
 // Listados sin `content` (HTML TipTap puede ser muy grande).
 ipcMain.handle('notes:getAll', () => {
-  return queryAll(`SELECT ${NOTE_META_COLS} FROM notes ORDER BY pinned DESC, updated_at DESC`);
+  return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC`);
 });
 
 ipcMain.handle('notes:getByFolder', (_e: any, folderId: string | null) => {
   if (folderId === 'floating') {
-    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE folder_id IS NULL OR folder_id = "" ORDER BY pinned DESC, updated_at DESC`);
+    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NULL AND (folder_id IS NULL OR folder_id = "") ORDER BY pinned DESC, updated_at DESC`);
   }
   if (folderId === 'favorites') {
-    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE pinned = 1 ORDER BY updated_at DESC`);
+    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NULL AND pinned = 1 ORDER BY updated_at DESC`);
   }
   if (!folderId) {
-    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes ORDER BY pinned DESC, updated_at DESC`);
+    return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC`);
   }
-  return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE folder_id = ? ORDER BY pinned DESC, updated_at DESC`, [folderId]);
+  return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NULL AND folder_id = ? ORDER BY pinned DESC, updated_at DESC`, [folderId]);
 });
 
 ipcMain.handle('notes:getById', (_e: any, id: string) => {
@@ -1817,7 +1849,8 @@ ipcMain.handle('notes:getById', (_e: any, id: string) => {
 
 ipcMain.handle('notes:save', (_e: any, note: any) => {
   const thumb = typeof note.thumb === 'string' ? note.thumb : '';
-  const exists = queryGet('SELECT id FROM notes WHERE id = ?', [note.id]);
+  const exists = queryGet('SELECT id, deleted_at FROM notes WHERE id = ?', [note.id]);
+  if (exists?.deleted_at) return note;
   if (exists) {
     runQuery(
       'UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, thumb = ?, pinned = ?, updated_at = ? WHERE id = ?',
@@ -1843,8 +1876,13 @@ ipcMain.handle('notes:save', (_e: any, note: any) => {
 });
 
 ipcMain.handle('notes:delete', (_e: any, id: string) => {
-  runQuery('DELETE FROM notes WHERE id = ?', [id]);
-  runQuery('DELETE FROM sticky_notes WHERE note_id = ?', [id]);
+  const deletedAt = new Date().toISOString();
+  const active = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (!active) return false;
+  runQueryBatch([
+    { sql: 'UPDATE notes SET deleted_at = ? WHERE id = ?', params: [deletedAt, id] },
+    { sql: 'UPDATE sticky_notes SET is_open = 0 WHERE note_id = ?', params: [id] },
+  ]);
   const sw = stickyWindows.get(id);
   if (sw && !sw.isDestroyed()) {
     sw.close();
@@ -1859,6 +1897,72 @@ ipcMain.handle('notes:delete', (_e: any, id: string) => {
   });
   notifyStickyListChanged();
   return true;
+});
+
+ipcMain.handle('notes:getTrash', () => {
+  return queryAll(`SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC`);
+});
+
+ipcMain.handle('notes:searchTrash', (_e: any, query: string) => {
+  const q = `%${query}%`;
+  const contentClause = !query || query.trim().length < 2 ? '' : ' OR content LIKE ?';
+  const params = contentClause ? [q, q, q] : [q, q];
+  return queryAll(
+    `SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NOT NULL AND (title LIKE ? OR preview LIKE ?${contentClause}) ORDER BY deleted_at DESC`,
+    params
+  );
+});
+
+ipcMain.handle('notes:getTrashCount', () => {
+  const row = queryGet('SELECT COUNT(*) as count FROM notes WHERE deleted_at IS NOT NULL');
+  return Number(row?.count || 0);
+});
+
+ipcMain.handle('notes:restore', (_e: any, id: string) => {
+  const trashed = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NOT NULL', [id]);
+  if (!trashed) return null;
+  runQuery('UPDATE notes SET deleted_at = NULL WHERE id = ?', [id]);
+  const restored = queryGet('SELECT * FROM notes WHERE id = ?', [id]);
+  if (restored) {
+    mainWindow?.webContents.send('note:updated', restored);
+    stickyWindows.forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('note:updated', restored);
+    });
+  }
+  return restored;
+});
+
+ipcMain.handle('notes:restoreAll', () => {
+  const trashed = queryAll('SELECT * FROM notes WHERE deleted_at IS NOT NULL');
+  if (trashed.length === 0) return [];
+  runQuery('UPDATE notes SET deleted_at = NULL WHERE deleted_at IS NOT NULL');
+  trashed.forEach((restored) => {
+    restored.deleted_at = null;
+    mainWindow?.webContents.send('note:updated', restored);
+    stickyWindows.forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('note:updated', restored);
+    });
+  });
+  return trashed;
+});
+
+ipcMain.handle('notes:purge', (_e: any, id: string) => {
+  const trashed = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NOT NULL', [id]);
+  if (!trashed) return false;
+  runQueryBatch([
+    { sql: 'DELETE FROM sticky_notes WHERE note_id = ?', params: [id] },
+    { sql: 'DELETE FROM notes WHERE id = ? AND deleted_at IS NOT NULL', params: [id] },
+  ]);
+  return true;
+});
+
+ipcMain.handle('notes:emptyTrash', () => {
+  const row = queryGet('SELECT COUNT(*) as count FROM notes WHERE deleted_at IS NOT NULL');
+  runQueryBatch([
+    { sql: 'DELETE FROM sticky_notes WHERE note_id IN (SELECT id FROM notes WHERE deleted_at IS NOT NULL)' },
+    { sql: 'DELETE FROM notes WHERE deleted_at IS NOT NULL' },
+  ]);
+  return Number(row?.count || 0);
 });
 
 // -- Sticky Notes IPC --
@@ -1890,12 +1994,12 @@ ipcMain.handle('notes:search', (_e: any, query: string) => {
   // title + preview primero (rápido). content solo si la query tiene ≥2 chars.
   if (!query || query.trim().length < 2) {
     return queryAll(
-      `SELECT ${NOTE_META_COLS} FROM notes WHERE title LIKE ? OR preview LIKE ? ORDER BY pinned DESC, updated_at DESC`,
+      `SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR preview LIKE ?) ORDER BY pinned DESC, updated_at DESC`,
       [q, q]
     );
   }
   return queryAll(
-    `SELECT ${NOTE_META_COLS} FROM notes WHERE title LIKE ? OR preview LIKE ? OR content LIKE ? ORDER BY pinned DESC, updated_at DESC`,
+    `SELECT ${NOTE_META_COLS} FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR preview LIKE ? OR content LIKE ?) ORDER BY pinned DESC, updated_at DESC`,
     [q, q, q]
   );
 });
@@ -1962,8 +2066,8 @@ ipcMain.handle('data:import', async () => {
     }
     for (const n of data.notes) {
       ops.push({
-        sql: 'INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        params: [n.id, n.folder_id, n.title, n.content, n.preview, n.thumb || '', n.pinned, n.created_at, n.updated_at],
+        sql: 'INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        params: [n.id, n.folder_id, n.title, n.content, n.preview, n.thumb || '', n.pinned, n.created_at, n.updated_at, n.deleted_at || null],
       });
     }
     runQueryBatch(ops, { flushNow: true });
@@ -2012,7 +2116,7 @@ if (!gotTheLock) {
     if (!restoreSticky || restoreSticky.value === 'true') {
       const openStickies = queryAll('SELECT note_id FROM sticky_notes WHERE is_open = 1');
       for (const row of openStickies) {
-        const noteExists = queryGet('SELECT id FROM notes WHERE id = ?', [row.note_id]);
+        const noteExists = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NULL', [row.note_id]);
         if (noteExists) {
           openStickyNote(row.note_id);
         } else {

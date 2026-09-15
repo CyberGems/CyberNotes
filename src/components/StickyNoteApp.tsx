@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
+import { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
@@ -164,6 +165,16 @@ const rgbaWithAlpha = (color: string, alpha: number) => {
 
 type StickyContextAction = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll';
 
+/** Carga el documento inicial sin crear una falsa entrada en Undo/Redo. */
+function loadStickyEditorContent(editor: Editor, raw: string) {
+  editor.chain().setMeta('addToHistory', false).setContent(raw || '', false).run();
+  const fresh = EditorState.create({
+    doc: editor.state.doc,
+    plugins: editor.state.plugins,
+  });
+  editor.view.updateState(fresh);
+}
+
 export default function StickyNoteApp({ noteId }: Props) {
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,7 +267,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             setTitle(fetched.title);
             editorContentRef.current = fetched.content;
             if (editor) {
-              editor.commands.setContent(fetched.content || '', false);
+              loadStickyEditorContent(editor, fetched.content || '');
             }
           }
           setLoading(false);
@@ -287,7 +298,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       if (updated.id === noteId) {
         setTitle((prev) => (prev !== updated.title ? updated.title : prev));
         if (editor && editor.getHTML() !== updated.content) {
-          editor.commands.setContent(updated.content || '', false);
+          loadStickyEditorContent(editor, updated.content || '');
           editorContentRef.current = updated.content;
         }
         setNote(updated);
@@ -564,17 +575,18 @@ export default function StickyNoteApp({ noteId }: Props) {
       <div
         className="sticky-note-window"
         style={{
-          width: '100vw',
-          height: '100vh',
+          width: 'calc(100vw - 2px)',
+          height: 'calc(100vh - 2px)',
+          margin: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           background: colorMeta.bgDark,
           color: colorMeta.accent,
-          borderRadius: 12,
+          borderRadius: 11,
           border: 'none',
           '--sticky-border': colorMeta.border,
-          clipPath: 'inset(0 round 12px)',
+          clipPath: 'inset(0 round 11px)',
           isolation: 'isolate',
           position: 'relative',
         } as any}
@@ -588,18 +600,21 @@ export default function StickyNoteApp({ noteId }: Props) {
     <div
       className="sticky-note-window"
       style={{
-        width: '100vw',
-        height: '100vh',
+        width: 'calc(100vw - 2px)',
+        height: 'calc(100vh - 2px)',
+        margin: 1,
         display: 'flex',
         flexDirection: 'column',
         background: rgbaWithAlpha(colorMeta.bgDark, surfaceAlpha),
         color: '#f8fafc',
-        borderRadius: 12,
+        borderRadius: 11,
         border: 'none',
         '--sticky-border': colorMeta.border,
-        boxShadow: `inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.025), 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 16px ${colorMeta.accentGlow}`,
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.025)',
         overflow: 'hidden',
-        clipPath: 'inset(0 round 12px)',
+        clipPath: 'inset(0 round 11px)',
+        transform: 'translateZ(0)',
+        willChange: 'transform',
         isolation: 'isolate',
         position: 'relative',
         backdropFilter: `blur(${glassBlur}px) saturate(135%)`,
@@ -618,8 +633,8 @@ export default function StickyNoteApp({ noteId }: Props) {
           justifyContent: 'space-between',
           padding: '0 8px',
           background: rgbaWithAlpha(colorMeta.headerBg, headerAlpha),
-          borderTopLeftRadius: 12,
-          borderTopRightRadius: 12,
+          borderTopLeftRadius: 11,
+          borderTopRightRadius: 11,
           borderBottom: `1px solid ${colorMeta.border}`,
           transition: 'background 0.2s ease, border-color 0.25s ease',
           WebkitAppRegion: 'drag',
@@ -1042,8 +1057,8 @@ export default function StickyNoteApp({ noteId }: Props) {
             justifyContent: 'space-between',
             padding: '0 8px',
             background: 'rgba(10, 10, 16, 0.45)',
-            borderBottomLeftRadius: 12,
-            borderBottomRightRadius: 12,
+            borderBottomLeftRadius: 11,
+            borderBottomRightRadius: 11,
             borderTop: `1px solid rgba(255, 255, 255, 0.07)`,
             gap: 4,
           }}

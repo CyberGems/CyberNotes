@@ -1267,7 +1267,7 @@ body:has(.sticky-note-window),
   z-index: 300;
   box-sizing: border-box;
   border: 1px solid var(--sticky-border, rgba(255, 255, 255, 0.14));
-  border-radius: 12px;
+  border-radius: 11px;
   pointer-events: none;
 }
 

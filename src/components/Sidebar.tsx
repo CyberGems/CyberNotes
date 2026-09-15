@@ -17,6 +17,7 @@ interface Props {
   folders: Folder[];
   selectedFolderId: string | null;
   noteCount: number;
+  trashCount: number;
   recentNotes: Note[];
   allNotes: Note[];
   stickyNoteIds: string[];
@@ -68,7 +69,7 @@ function timeAgo(iso: string, language: Language): string {
 }
 
 export default function Sidebar({
-  language, folders, selectedFolderId, noteCount, recentNotes, allNotes, stickyNoteIds, onSelectNote,
+  language, folders, selectedFolderId, noteCount, trashCount, recentNotes, allNotes, stickyNoteIds, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
   onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
@@ -492,6 +493,64 @@ export default function Sidebar({
             borderRadius: 10,
             pointerEvents: 'none',
           }}>{stickyNoteIds.length}</span>
+        </motion.button>
+
+        {/* Papelera / Trash */}
+        <motion.button
+          onClick={() => onSelectFolder('trash')}
+          whileHover="hover"
+          whileTap="tap"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid transparent',
+            background: selectedFolderId === 'trash' && !searchQuery ? 'var(--bg-active)' : 'transparent',
+            color: selectedFolderId === 'trash' && !searchQuery ? 'var(--accent-light)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: 'calc(13px * var(--ui-scale))',
+            fontWeight: selectedFolderId === 'trash' && !searchQuery ? 600 : 400,
+            textAlign: 'left',
+            transition: 'all 0.12s ease-out',
+            marginBottom: 4,
+            position: 'relative',
+            boxShadow: selectedFolderId === 'trash' && !searchQuery
+              ? '0 0 12px rgba(239, 68, 68, 0.18), inset 0 1px 0 rgba(255,255,255,0.02)'
+              : 'none',
+          }}
+          variants={{
+            hover: {
+              x: 3,
+              boxShadow: '0 0 14px rgba(239, 68, 68, 0.2), inset 0 1px 0 rgba(255,255,255,0.04)',
+              borderColor: 'rgba(239, 68, 68, 0.24)',
+              background: selectedFolderId === 'trash' && !searchQuery ? 'var(--bg-active)' : 'rgba(239, 68, 68, 0.05)',
+              transition: { duration: 0.1 },
+            },
+            tap: { scale: 0.98, x: 0, transition: { duration: 0.1 } },
+          }}
+        >
+          <motion.span
+            variants={{
+              hover: { scale: 1.15, rotate: [-4, 4, -2, 0], transition: { type: 'spring', stiffness: 300, damping: 10 } },
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--danger)', pointerEvents: 'none' }}
+          >
+            <Trash2 size={15} />
+          </motion.span>
+          <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.trash}</span>
+          {trashCount > 0 && (
+            <span style={{
+              fontSize: 'calc(11px * var(--ui-scale))',
+              background: 'rgba(239, 68, 68, 0.14)',
+              color: '#fca5a5',
+              padding: '1px 6px',
+              borderRadius: 10,
+              pointerEvents: 'none',
+            }}>{trashCount}</span>
+          )}
         </motion.button>
 
         {/* Sin carpeta / Unfiled */}

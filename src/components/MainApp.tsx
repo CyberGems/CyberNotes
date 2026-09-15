@@ -71,6 +71,7 @@ export default function MainApp({
   const [noteLoading, setNoteLoading] = useState(true);
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
   const [openStickyIds, setOpenStickyIds] = useState<string[]>([]);
+  const [trashCount, setTrashCount] = useState(0);
   const [draftCache, setDraftCache] = useState<Record<string, { title: string; content: string }>>({});
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
   const [pendingNavNoteId, setPendingNavNoteId] = useState<string | null>(null);
@@ -123,10 +124,12 @@ export default function MainApp({
   const statusBarUrlRef = useRef<string | null>(null);
   const rootStyleRef = useRef<HTMLDivElement | null>(null);
   const selectedNoteIdRef = useRef<string | null>(null);
+  const selectedFolderIdRef = useRef<string | null>(null);
   const allNotesRef = useRef<Note[]>([]);
   const notesRef = useRef<Note[]>([]);
   const openStickyIdsRef = useRef<string[]>([]);
   selectedNoteIdRef.current = selectedNoteId;
+  selectedFolderIdRef.current = selectedFolderId;
   allNotesRef.current = allNotes;
   notesRef.current = notes;
   openStickyIdsRef.current = openStickyIds;
@@ -143,6 +146,9 @@ export default function MainApp({
     loadAllNotes();
     loadNotes(null);
     loadSettings();
+    window.cyberNotesAPI.getTrashCount().then(setTrashCount).catch((err) => {
+      console.error('[MainApp] Error loading trash count:', err);
+    });
 
     // Escuchar el menú contextual desde Electron de forma global
     const unregisterContext = window.cyberNotesAPI.onContextMenuData((data: any) => {
@@ -188,6 +194,7 @@ export default function MainApp({
     });
 
     const unregisterNoteUpdated = window.cyberNotesAPI.onNoteUpdated?.((updatedNote) => {
+      if (updatedNote.deleted_at) return;
       const meta = toNoteMeta(updatedNote);
       setAllNotes(prev => {
         const exists = prev.some(n => n.id === updatedNote.id);
@@ -195,11 +202,15 @@ export default function MainApp({
         return [updatedNote, ...prev];
       });
       setNotes(prev => {
+        if (selectedFolderIdRef.current === 'trash') return prev.filter(n => n.id !== updatedNote.id);
         const exists = prev.some(n => n.id === updatedNote.id);
         if (exists) return prev.map(n => n.id === updatedNote.id ? { ...n, ...meta } : n);
         return [updatedNote, ...prev];
       });
-      setSelectedNote(prev => (prev && prev.id === updatedNote.id ? updatedNote : prev));
+      setSelectedNote(prev => {
+        if (!prev || prev.id !== updatedNote.id) return prev;
+        return selectedFolderIdRef.current === 'trash' ? null : updatedNote;
+      });
     });
 
     const unregisterNoteDeleted = window.cyberNotesAPI.onNoteDeleted?.((deletedId) => {
@@ -208,6 +219,10 @@ export default function MainApp({
       setOpenNoteIds(prev => prev.filter(id => id !== deletedId));
       setSelectedNote(prev => (prev && prev.id === deletedId ? null : prev));
       setSelectedNoteId(prev => (prev === deletedId ? null : prev));
+      setTrashCount(prev => prev + 1);
+      if (selectedFolderIdRef.current === 'trash') {
+        window.cyberNotesAPI.getTrashNotes().then(trash => setNotes(trash.map(toNoteMeta)));
+      }
     });
 
     const unregisterStickyFocus = window.cyberNotesAPI.onStickyFocusNote?.((targetNoteId) => {
@@ -297,23 +312,23 @@ export default function MainApp({
 
   // Sincronizar selectedNoteId con openNoteIds
   useEffect(() => {
-    if (selectedNoteId) {
+    if (selectedNoteId && selectedFolderId !== 'trash') {
       setOpenNoteIds(prev => {
         if (prev.includes(selectedNoteId)) return prev;
         return [...prev, selectedNoteId];
       });
     }
-  }, [selectedNoteId]);
+  }, [selectedNoteId, selectedFolderId]);
 
   // Registrar el momento en que se abre cada nota (para el panel de recientes → "Abiertas")
   useEffect(() => {
-    if (!isLoadedRef.current || !selectedNoteId) return;
+    if (!isLoadedRef.current || !selectedNoteId || selectedFolderId === 'trash') return;
     setOpenedHistory(prev => {
       const next = { ...prev, [selectedNoteId]: Date.now() };
       window.cyberNotesAPI.setSetting('opened_history', JSON.stringify(next));
       return next;
     });
-  }, [selectedNoteId]);
+  }, [selectedNoteId, selectedFolderId]);
 
   const loadSettings = async () => {
     const s = await window.cyberNotesAPI.getSettings([
@@ -413,7 +428,11 @@ export default function MainApp({
 
   const loadNotes = async (folderId: string | null) => {
     let n: Note[];
-    if (searchQuery) {
+    if (folderId === 'trash') {
+      n = searchQuery
+        ? await window.cyberNotesAPI.searchTrashNotes(searchQuery)
+        : await window.cyberNotesAPI.getTrashNotes();
+    } else if (searchQuery) {
       n = await window.cyberNotesAPI.searchNotes(searchQuery);
     } else {
       n = await window.cyberNotesAPI.getNotesByFolder(folderId);
@@ -483,6 +502,12 @@ export default function MainApp({
       }
       return;
     }
+    if (folderId === 'trash') {
+      const trash = await window.cyberNotesAPI.getTrashNotes();
+      setNotes(trash.map(toNoteMeta));
+      setSelectedNoteId(trash.length > 0 ? trash[0].id : null);
+      return;
+    }
     const n = await window.cyberNotesAPI.getNotesByFolder(folderId);
     setNotes(n.map(toNoteMeta));
   };
@@ -524,11 +549,18 @@ export default function MainApp({
           setNotes(allNotesRef.current.filter(note => openStickyIdsRef.current.includes(note.id)));
           return;
         }
+        if (selectedFolderId === 'trash') {
+          const trash = await window.cyberNotesAPI.getTrashNotes();
+          setNotes(trash.map(toNoteMeta));
+          return;
+        }
         const n = await window.cyberNotesAPI.getNotesByFolder(selectedFolderId);
         setNotes(n.map(toNoteMeta));
         return;
       }
-      const n = await window.cyberNotesAPI.searchNotes(q);
+      const n = selectedFolderId === 'trash'
+        ? await window.cyberNotesAPI.searchTrashNotes(q)
+        : await window.cyberNotesAPI.searchNotes(q);
       const visible = selectedFolderId === 'sticky'
         ? n.filter(note => openStickyIdsRef.current.includes(note.id))
         : n;
@@ -668,7 +700,9 @@ export default function MainApp({
   }, [draftCache, autosaveEnabled, allNotes, executeCloseTab]);
 
   const handleDeleteNote = async (id: string) => {
-    await window.cyberNotesAPI.deleteNote(id);
+    const movedToTrash = await window.cyberNotesAPI.deleteNote(id);
+    if (!movedToTrash) return;
+    setTrashCount(prev => prev + 1);
     delete contentCacheRef.current[id];
     const remaining = notes.filter(n => n.id !== id);
     setNotes(remaining);
@@ -695,6 +729,58 @@ export default function MainApp({
         setSelectedNoteId(null);
       }
     }
+  };
+
+  const handleRestoreNote = async (id: string) => {
+    const restored = await window.cyberNotesAPI.restoreNote(id);
+    if (!restored) return;
+    const meta = toNoteMeta(restored);
+    setAllNotes(prev => prev.some(n => n.id === id) ? prev.map(n => n.id === id ? meta : n) : [meta, ...prev]);
+    if (selectedFolderId === 'trash') {
+      setNotes(prev => prev.filter(n => n.id !== id));
+      setSelectedNoteId(prev => prev === id ? null : prev);
+      setSelectedNote(prev => prev?.id === id ? null : prev);
+    }
+    setTrashCount(prev => Math.max(0, prev - 1));
+  };
+
+  const handleRestoreAllTrash = async () => {
+    const restored = await window.cyberNotesAPI.restoreAllTrash();
+    if (restored.length === 0) return;
+    const restoredMeta = restored.map(toNoteMeta);
+    setAllNotes(prev => {
+      const byId = new Map(prev.map(note => [note.id, note]));
+      restoredMeta.forEach(note => byId.set(note.id, note));
+      return Array.from(byId.values());
+    });
+    if (selectedFolderId === 'trash') {
+      setNotes([]);
+      setSelectedNote(null);
+      setSelectedNoteId(null);
+    }
+    setTrashCount(0);
+  };
+
+  const handlePurgeNote = async (id: string) => {
+    const purged = await window.cyberNotesAPI.purgeNote(id);
+    if (!purged) return;
+    setNotes(prev => prev.filter(n => n.id !== id));
+    if (selectedNoteId === id) {
+      setSelectedNote(null);
+      setSelectedNoteId(null);
+    }
+    setTrashCount(prev => Math.max(0, prev - 1));
+  };
+
+  const handleEmptyTrash = async () => {
+    const purgedCount = await window.cyberNotesAPI.emptyTrash();
+    if (purgedCount === 0) return;
+    setNotes(prev => selectedFolderId === 'trash' ? [] : prev);
+    if (selectedFolderId === 'trash') {
+      setSelectedNote(null);
+      setSelectedNoteId(null);
+    }
+    setTrashCount(0);
   };
 
   const handleTogglePin = async (note: Note) => {
@@ -837,9 +923,10 @@ export default function MainApp({
   ]);
 
   const handleDeleteFolder = async (id: string) => {
-    await window.cyberNotesAPI.deleteFolder(id);
+    const movedCount = await window.cyberNotesAPI.deleteFolder(id);
+    setTrashCount(prev => prev + Number(movedCount || 0));
     setFolders(prev => prev.filter(f => f.id !== id));
-    // Notas de esa carpeta ya no existen en DB
+    // Las notas de la carpeta pasan a la Papelera y desaparecen de las vistas activas.
     setAllNotes(prev => prev.filter(n => n.folder_id !== id));
     setNotes(prev => prev.filter(n => n.folder_id !== id));
     if (selectedFolderId === id) {
@@ -1062,6 +1149,7 @@ export default function MainApp({
               folders={folders}
               selectedFolderId={selectedFolderId}
               noteCount={allNotes.length}
+              trashCount={trashCount}
               recentNotes={recentNotesTop6}
               allNotes={allNotes}
               stickyNoteIds={openStickyIds}
@@ -1113,6 +1201,11 @@ export default function MainApp({
               onSelectNote={handleAttemptSelectNote}
               onCreateNote={handleCreateNote}
               onDeleteNote={handleDeleteNote}
+              onRestoreNote={handleRestoreNote}
+              onRestoreAllTrash={handleRestoreAllTrash}
+              onPurgeNote={handlePurgeNote}
+              onEmptyTrash={handleEmptyTrash}
+              trashCount={trashCount}
               onTogglePin={handleTogglePin}
               onMoveNote={handleMoveNote}
               onRenameNote={handleRenameNote}
@@ -1122,6 +1215,8 @@ export default function MainApp({
                 ? { id: 'floating', name: TRANSLATIONS[language].sidebar.floatingNotes, icon: '☁️', color: '#06b6d4' } as Folder
                 : selectedFolderId === 'favorites'
                   ? { id: 'favorites', name: TRANSLATIONS[language].sidebar.favorites, icon: 'star', color: '#f59e0b' } as Folder
+                : selectedFolderId === 'trash'
+                  ? { id: 'trash', name: TRANSLATIONS[language].sidebar.trash, icon: 'trash-2', color: '#ef4444' } as Folder
                 : (folders.find(f => f.id === selectedFolderId) ?? null)}
               searchQuery={searchQuery}
               uiScale={uiScale}
@@ -1139,6 +1234,7 @@ export default function MainApp({
         <NoteEditor
           language={language}
           note={selectedNote}
+          readOnly={selectedFolderId === 'trash'}
           isNoteLoading={
             !sessionReady
             || (!!selectedNoteId && (noteLoading || !selectedNote || selectedNote.id !== selectedNoteId))

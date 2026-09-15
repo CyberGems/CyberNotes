@@ -12,6 +12,7 @@ export function toNoteMeta(note: Note): Note {
     pinned: note.pinned,
     created_at: note.created_at,
     updated_at: note.updated_at,
+    deleted_at: note.deleted_at ?? null,
   };
 }
 

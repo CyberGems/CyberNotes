@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, Pin } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, Pin, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon from './FolderIcon';
@@ -16,6 +16,11 @@ interface Props {
   onSelectNote: (id: string) => void;
   onCreateNote: () => void;
   onDeleteNote: (id: string) => void;
+  onRestoreNote: (id: string) => void;
+  onRestoreAllTrash: () => void;
+  onPurgeNote: (id: string) => void;
+  onEmptyTrash: () => void;
+  trashCount: number;
   onTogglePin: (note: Note) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
   onRenameNote: (id: string, title: string) => void;
@@ -108,10 +113,12 @@ const OVERSCAN = 8;
 
 export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
-  onDeleteNote, onTogglePin, onMoveNote, onRenameNote, selectedFolder, searchQuery, uiScale = 1,
+  onDeleteNote, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
+  onTogglePin, onMoveNote, onRenameNote, selectedFolder, searchQuery, uiScale = 1,
 }: Props) {
   const t = TRANSLATIONS[language];
   const isStickyFolder = selectedFolder?.id === 'sticky';
+  const isTrashFolder = selectedFolder?.id === 'trash';
   const createNoteLabel = isStickyFolder ? t.editor.stickyNew : (language === 'es' ? 'Nueva nota' : 'New note');
   const createNoteTooltip = isStickyFolder ? t.editor.stickyNew : (language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)');
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'alpha' | 'alpha-desc'>('updated');
@@ -123,6 +130,7 @@ export default function NoteList({
   const [renameTarget, setRenameTarget] = useState<Note | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
   const [openStickyIds, setOpenStickyIds] = useState<string[]>([]);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
@@ -493,17 +501,52 @@ export default function NoteList({
             )}
             {getHeaderTitle()}
           </h2>
-          <Tooltip placement="bottom" label={createNoteTooltip}>
-          <button
-            className="new-note-btn"
-            onClick={onCreateNote}
-            style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
-          >
-            <Plus size={14} />
-            {createNoteLabel}
-          </button>
-          </Tooltip>
+          {isTrashFolder ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Tooltip placement="bottom" label={t.noteList.restoreAll}>
+                <button
+                  className="btn-icon"
+                  type="button"
+                  onClick={onRestoreAllTrash}
+                  disabled={trashCount === 0}
+                  aria-label={t.noteList.restoreAll}
+                  style={{ padding: 6, color: 'var(--accent-light)' }}
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </Tooltip>
+              <Tooltip placement="bottom" label={t.noteList.emptyTrash}>
+                <button
+                  className="btn-icon"
+                  type="button"
+                  onClick={() => setShowEmptyTrashConfirm(true)}
+                  disabled={trashCount === 0}
+                  aria-label={t.noteList.emptyTrash}
+                  style={{ padding: 6, color: 'var(--danger)' }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </Tooltip>
+            </div>
+          ) : (
+            <Tooltip placement="bottom" label={createNoteTooltip}>
+              <button
+                className="new-note-btn"
+                onClick={onCreateNote}
+                style={{ fontSize: 'calc(12px * var(--ui-scale))' }}
+              >
+                <Plus size={14} />
+                {createNoteLabel}
+              </button>
+            </Tooltip>
+          )}
         </div>
+
+        {isTrashFolder && (
+          <div style={{ fontSize: 'calc(10.5px * var(--ui-scale))', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+            {t.noteList.trashRetention}
+          </div>
+        )}
 
         {/* Sort & View Controls */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -694,6 +737,7 @@ export default function NoteList({
                                     isSelected={selectedNoteId === note.id}
                                     isContextActive={contextMenu?.note.id === note.id}
                                     isStickyOpen={openStickyIds.includes(note.id)}
+                                    isTrash={isTrashFolder}
                                     onClick={() => {
                                       onSelectNote(note.id);
                                       listRef.current?.focus({ preventScroll: true });
@@ -733,6 +777,7 @@ export default function NoteList({
                             isSelected={selectedNoteId === note.id}
                             isContextActive={contextMenu?.note.id === note.id}
                             isStickyOpen={openStickyIds.includes(note.id)}
+                            isTrash={isTrashFolder}
                             onClick={() => {
                               onSelectNote(note.id);
                               listRef.current?.focus({ preventScroll: true });
@@ -820,12 +865,24 @@ export default function NoteList({
             <FileText size={13} style={{ flexShrink: 0 }} />
             <span>{language === 'es' ? 'Abrir nota' : 'Open note'}</span>
           </button>
+          {isTrashFolder && (
+            <button
+              onClick={() => { onRestoreNote(contextMenu.note.id); setContextMenu(null); }}
+              style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--accent-light)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <RotateCcw size={13} style={{ flexShrink: 0 }} />
+              <span>{t.noteList.restore}</span>
+            </button>
+          )}
           <button
+            disabled={isTrashFolder}
             onClick={() => {
               window.cyberNotesAPI.openStickyNote(contextMenu.note.id);
               setContextMenu(null);
             }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: isTrashFolder ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: isTrashFolder ? 0.4 : 1 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
@@ -833,8 +890,9 @@ export default function NoteList({
             <span>{language === 'es' ? 'Abrir como nota flotante' : 'Open as sticky note'}</span>
           </button>
           <button
+            disabled={isTrashFolder}
             onClick={() => { setRenameTarget(contextMenu.note); setRenameInput(contextMenu.note.title); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: isTrashFolder ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: isTrashFolder ? 0.4 : 1 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
@@ -842,8 +900,9 @@ export default function NoteList({
             <span>{language === 'es' ? 'Renombrar' : 'Rename'}</span>
           </button>
           <button
+            disabled={isTrashFolder}
             onClick={() => { onTogglePin(contextMenu.note); setContextMenu(null); }}
-            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: isTrashFolder ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: isTrashFolder ? 0.4 : 1 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
@@ -851,7 +910,7 @@ export default function NoteList({
             <span>{contextMenu.note.pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}</span>
           </button>
 
-          {folders.length > 0 && (
+          {!isTrashFolder && folders.length > 0 && (
             <>
               <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
               <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -893,7 +952,7 @@ export default function NoteList({
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
             <Trash2 size={13} color="var(--danger)" style={{ color: 'var(--danger)', flexShrink: 0 }} />
-            <span>{t.general.delete}</span>
+            <span>{isTrashFolder ? t.noteList.permanentDelete : t.general.delete}</span>
           </button>
         </div>,
         document.body
@@ -970,8 +1029,12 @@ export default function NoteList({
                 <Trash2 size={20} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 700 }}>{language === 'es' ? '¿Eliminar esta nota?' : 'Delete this note?'}</h3>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{language === 'es' ? 'Esta acción no se puede deshacer.' : 'This action cannot be undone.'}</span>
+                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 700 }}>
+                  {isTrashFolder ? t.noteList.permanentDeleteConfirm : (language === 'es' ? '¿Enviar esta nota a la papelera?' : 'Move this note to the trash?')}
+                </h3>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  {isTrashFolder ? t.noteList.permanentDeleteDesc : t.noteList.deleteToTrashDesc}
+                </span>
               </div>
             </div>
 
@@ -999,7 +1062,8 @@ export default function NoteList({
               <button 
                 className="btn btn-danger" 
                 onClick={() => {
-                  onDeleteNote(noteToDelete.id);
+                  if (isTrashFolder) onPurgeNote(noteToDelete.id);
+                  else onDeleteNote(noteToDelete.id);
                   setNoteToDelete(null);
                   setContextMenu(null);
                 }}
@@ -1012,7 +1076,46 @@ export default function NoteList({
                   gap: 6
                 }}
               >
-                <Trash2 size={14} /> {t.general.delete}
+                <Trash2 size={14} /> {isTrashFolder ? t.noteList.permanentDelete : t.noteList.moveToTrash}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showEmptyTrashConfirm && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
+          animation: 'fadeIn 0.2s ease-out',
+        }} onClick={() => setShowEmptyTrashConfirm(false)}>
+          <div style={{
+            background: 'var(--bg-modal)', padding: '24px 32px', borderRadius: 'var(--radius-lg)',
+            width: 380, display: 'flex', flexDirection: 'column', gap: 20, border: '1px solid var(--border)',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.6), 0 0 24px var(--danger-dim)',
+            animation: 'modalScaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', width: 42, height: 42,
+                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}>
+                <Trash2 size={20} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 700 }}>{t.noteList.emptyTrashConfirm}</h3>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{t.noteList.emptyTrashDesc}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button className="btn btn-ghost" onClick={() => setShowEmptyTrashConfirm(false)} style={{ padding: '8px 16px', fontWeight: 600 }}>
+                {t.general.cancel}
+              </button>
+              <button className="btn btn-danger" onClick={() => { void onEmptyTrash(); setShowEmptyTrashConfirm(false); }} style={{ padding: '8px 16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Trash2 size={14} /> {t.noteList.emptyTrash}
               </button>
             </div>
           </div>
@@ -1035,12 +1138,13 @@ interface NoteItemProps {
   isSelected: boolean;
   isContextActive?: boolean;
   isStickyOpen?: boolean;
+  isTrash?: boolean;
   onClick: () => void;
   onDelete: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, isStickyOpen, onClick, onDelete, onContextMenu }: NoteItemProps) {
+const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, isStickyOpen, isTrash = false, onClick, onDelete, onContextMenu }: NoteItemProps) {
   const [isDragging, setIsDragging] = useState(false);
   const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
   const t = TRANSLATIONS[language];
@@ -1063,8 +1167,9 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
     <div
       onClick={onClick}
       onContextMenu={onContextMenu}
-      draggable={true}
+      draggable={!isTrash}
       onDragStart={e => {
+        if (isTrash) return;
         setIsDragging(true);
         (e as any).dataTransfer.setData('text/plain', note.id);
         (e as any).dataTransfer.setData('application/cybernotes-note', note.id);
@@ -1175,7 +1280,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         gap: 8,
         flexShrink: 0,
       }}>
-        <span>{formatDate(note.updated_at, language)}</span>
+        <span>{formatDate((isTrash && note.deleted_at) || note.updated_at, language)}</span>
         {folder && (
           <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
           <span
@@ -1212,7 +1317,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         )}
       </div>
 
-      <Tooltip placement="left" label={language === 'es' ? 'Eliminar nota' : 'Delete note'}>
+      <Tooltip placement="left" label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}>
         <button
           type="button"
           className="delete-note-btn"
@@ -1220,7 +1325,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
             e.stopPropagation();
             onDelete();
           }}
-          aria-label={language === 'es' ? 'Eliminar nota' : 'Delete note'}
+          aria-label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}
           style={{
             position: 'absolute',
             top: viewMode === 'compact' ? 5 : 8,
