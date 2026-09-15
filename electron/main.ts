@@ -1859,10 +1859,18 @@ ipcMain.handle('sticky:close', (_e: any, noteId: string) => closeStickyNote(note
 ipcMain.handle('sticky:toggleAlwaysOnTop', (_e: any, noteId: string) => toggleStickyAlwaysOnTop(noteId));
 ipcMain.handle('sticky:getConfig', (_e: any, noteId: string) => getStickyConfig(noteId));
 ipcMain.handle('sticky:saveConfig', (_e: any, noteId: string, config: any) => saveStickyConfig(noteId, config));
-ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number) => {
+ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number, width?: number, height?: number) => {
   const win = stickyWindows.get(noteId);
   if (!win || win.isDestroyed() || !Number.isFinite(x) || !Number.isFinite(y)) return;
-  win.setPosition(Math.round(x), Math.round(y), false);
+  const current = win.getBounds();
+  const stableWidth = Number.isFinite(width) && (width as number) >= 240 ? Math.round(width as number) : current.width;
+  const stableHeight = Number.isFinite(height) && (height as number) >= 200 ? Math.round(height as number) : current.height;
+  win.setBounds({
+    x: Math.round(x),
+    y: Math.round(y),
+    width: stableWidth,
+    height: stableHeight,
+  }, false);
 });
 ipcMain.handle('sticky:getOpenList', () => Array.from(stickyWindows.keys()));
 ipcMain.handle('sticky:focusMain', (_e: any, noteId: string) => focusMainWindowWithNote(noteId));

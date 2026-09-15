@@ -346,18 +346,27 @@ export default function StickyNoteApp({ noteId }: Props) {
     const startScreenY = e.screenY;
     const startWindowX = e.screenX - e.clientX;
     const startWindowY = e.screenY - e.clientY;
+    const stableWidth = window.outerWidth;
+    const stableHeight = window.outerHeight;
     const grip = e.currentTarget;
+    let pendingX = startWindowX;
+    let pendingY = startWindowY;
+    let frame: number | null = null;
 
     const handleMove = (event: MouseEvent) => {
-      window.cyberNotesAPI.moveStickyWindow(
-        noteId,
-        startWindowX + event.screenX - startScreenX,
-        startWindowY + event.screenY - startScreenY,
-      );
+      pendingX = startWindowX + event.screenX - startScreenX;
+      pendingY = startWindowY + event.screenY - startScreenY;
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        window.cyberNotesAPI.moveStickyWindow(noteId, pendingX, pendingY, stableWidth, stableHeight);
+      });
     };
     const cleanup = () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', cleanup);
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
       grip.style.cursor = '';
       document.body.style.cursor = '';
       if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;

@@ -143,7 +143,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   toggleStickyAlwaysOnTop: (noteId: string) => ipcRenderer.invoke('sticky:toggleAlwaysOnTop', noteId),
   getStickyConfig: (noteId: string) => ipcRenderer.invoke('sticky:getConfig', noteId),
   saveStickyConfig: (noteId: string, config: any) => ipcRenderer.invoke('sticky:saveConfig', noteId, config),
-  moveStickyWindow: (noteId: string, x: number, y: number) => ipcRenderer.send('sticky:move', noteId, x, y),
+  moveStickyWindow: (noteId: string, x: number, y: number, width?: number, height?: number) =>
+    ipcRenderer.send('sticky:move', noteId, x, y, width, height),
   getOpenStickyNotes: () => ipcRenderer.invoke('sticky:getOpenList'),
   focusMainWindowWithNote: (noteId: string) => ipcRenderer.invoke('sticky:focusMain', noteId),
   toggleAllStickyNotes: (show?: boolean) => ipcRenderer.invoke('sticky:toggleAll', show),
