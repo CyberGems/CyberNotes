@@ -57,6 +57,7 @@ declare global {
       // Session lock
       reportActivity: () => Promise<boolean>;
       setSessionLocked: (locked: boolean) => Promise<boolean>;
+      isSessionLocked: () => Promise<boolean>;
       ackSessionLocked: () => void;
       onForceLock: (callback: () => void) => () => void;
       onShieldEnable: (callback: () => void) => () => void;
@@ -131,6 +132,7 @@ declare global {
       toggleStickyAlwaysOnTop: (noteId: string) => Promise<boolean>;
       getStickyConfig: (noteId: string) => Promise<{ color: string; opacity: number; pinned_top: boolean }>;
       saveStickyConfig: (noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean }) => Promise<boolean>;
+      moveStickyWindow: (noteId: string, x: number, y: number) => void;
       getOpenStickyNotes: () => Promise<string[]>;
       focusMainWindowWithNote: (noteId: string) => Promise<void>;
       toggleAllStickyNotes: (show?: boolean) => Promise<boolean>;

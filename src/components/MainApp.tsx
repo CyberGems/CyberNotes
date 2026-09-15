@@ -70,6 +70,7 @@ export default function MainApp({
   /** True mientras se pide content a disco (cambio de nota sin cache). */
   const [noteLoading, setNoteLoading] = useState(true);
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
+  const [openStickyIds, setOpenStickyIds] = useState<string[]>([]);
   const [draftCache, setDraftCache] = useState<Record<string, { title: string; content: string }>>({});
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
   const [pendingNavNoteId, setPendingNavNoteId] = useState<string | null>(null);
@@ -124,9 +125,11 @@ export default function MainApp({
   const selectedNoteIdRef = useRef<string | null>(null);
   const allNotesRef = useRef<Note[]>([]);
   const notesRef = useRef<Note[]>([]);
+  const openStickyIdsRef = useRef<string[]>([]);
   selectedNoteIdRef.current = selectedNoteId;
   allNotesRef.current = allNotes;
   notesRef.current = notes;
+  openStickyIdsRef.current = openStickyIds;
 
   useEffect(() => {
     const trackMouse = (e: MouseEvent) => {
@@ -212,6 +215,20 @@ export default function MainApp({
       setOpenNoteIds(prev => prev.includes(targetNoteId) ? prev : [...prev, targetNoteId]);
     });
 
+    let stickyListenerActive = true;
+    window.cyberNotesAPI.getOpenStickyNotes().then((ids) => {
+      if (stickyListenerActive && Array.isArray(ids)) {
+        openStickyIdsRef.current = ids;
+        setOpenStickyIds(ids);
+      }
+    });
+    const unregisterStickyList = window.cyberNotesAPI.onStickyListChanged((ids) => {
+      if (stickyListenerActive && Array.isArray(ids)) {
+        openStickyIdsRef.current = ids;
+        setOpenStickyIds(ids);
+      }
+    });
+
     const closeMenu = () => setContextMenu(null);
     window.addEventListener('click', closeMenu);
 
@@ -228,6 +245,8 @@ export default function MainApp({
       if (unregisterNoteUpdated) unregisterNoteUpdated();
       if (unregisterNoteDeleted) unregisterNoteDeleted();
       if (unregisterStickyFocus) unregisterStickyFocus();
+      stickyListenerActive = false;
+      unregisterStickyList();
     };
   }, []);
 
@@ -406,6 +425,16 @@ export default function MainApp({
     }
   };
 
+  // La vista de adhesivas depende de ventanas abiertas, no de la carpeta de la nota.
+  useEffect(() => {
+    if (selectedFolderId !== 'sticky' || searchQuery) return;
+    const stickyNotes = allNotes.filter(note => openStickyIds.includes(note.id));
+    setNotes(stickyNotes);
+    if (stickyNotes.length > 0 && !selectedNoteIdRef.current) {
+      setSelectedNoteId(stickyNotes[0].id);
+    }
+  }, [selectedFolderId, searchQuery, allNotes, openStickyIds]);
+
   /** Carga content completo de una nota (cache en memoria para pestañas abiertas). */
   const loadFullNote = useCallback(async (id: string | null) => {
     if (!id) {
@@ -446,6 +475,14 @@ export default function MainApp({
   const handleSelectFolder = async (folderId: string | null) => {
     setSelectedFolderId(folderId);
     setSearchQuery('');
+    if (folderId === 'sticky') {
+      const stickyNotes = allNotesRef.current.filter(note => openStickyIdsRef.current.includes(note.id));
+      setNotes(stickyNotes);
+      if (stickyNotes.length > 0 && !selectedNoteIdRef.current) {
+        setSelectedNoteId(stickyNotes[0].id);
+      }
+      return;
+    }
     const n = await window.cyberNotesAPI.getNotesByFolder(folderId);
     setNotes(n.map(toNoteMeta));
   };
@@ -483,13 +520,20 @@ export default function MainApp({
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(async () => {
       if (!q) {
+        if (selectedFolderId === 'sticky') {
+          setNotes(allNotesRef.current.filter(note => openStickyIdsRef.current.includes(note.id)));
+          return;
+        }
         const n = await window.cyberNotesAPI.getNotesByFolder(selectedFolderId);
         setNotes(n.map(toNoteMeta));
         return;
       }
       const n = await window.cyberNotesAPI.searchNotes(q);
-      setNotes(n.map(toNoteMeta));
-      setSelectedNoteId(n.length > 0 ? n[0].id : null);
+      const visible = selectedFolderId === 'sticky'
+        ? n.filter(note => openStickyIdsRef.current.includes(note.id))
+        : n;
+      setNotes(visible.map(toNoteMeta));
+      setSelectedNoteId(visible.length > 0 ? visible[0].id : null);
     }, 250);
   }, [selectedFolderId]);
 
@@ -497,7 +541,7 @@ export default function MainApp({
     const now = new Date().toISOString();
     const newNote: Note = {
       id: window.crypto.randomUUID(),
-      folder_id: (selectedFolderId === 'floating' || selectedFolderId === 'favorites')
+      folder_id: (selectedFolderId === 'floating' || selectedFolderId === 'favorites' || selectedFolderId === 'sticky')
         ? null
         : selectedFolderId,
       title: language === 'es' ? 'Nueva nota' : 'New note',
@@ -679,7 +723,7 @@ export default function MainApp({
     }
 
     // Si estamos viendo una carpeta específica y movemos la nota a otra, la quitamos de la lista visible
-    if (selectedFolderId !== null && selectedFolderId !== targetFolderId && !searchQuery) {
+    if (selectedFolderId !== null && selectedFolderId !== 'sticky' && selectedFolderId !== targetFolderId && !searchQuery) {
        setNotes(prev => prev.filter(n => n.id !== noteId));
     }
   };
@@ -972,7 +1016,7 @@ export default function MainApp({
         onSelectNote={(id) => {
           setSelectedNoteId(id);
           const note = allNotes.find(n => n.id === id);
-          if (note) setSelectedFolderId(note.folder_id);
+          if (note) setSelectedFolderId(prev => prev === 'sticky' ? prev : note.folder_id);
         }}
         recentNotes={recentNotesTop10}
         onClearRecent={async () => {
@@ -1011,6 +1055,7 @@ export default function MainApp({
               noteCount={allNotes.length}
               recentNotes={recentNotesTop6}
               allNotes={allNotes}
+              stickyNoteIds={openStickyIds}
               openedHistory={openedHistory}
               recentClearedAt={recentClearedAt}
               onClearRecent={async () => {
@@ -1022,7 +1067,10 @@ export default function MainApp({
               }}
               onSelectNote={(id) => {
                 let note = allNotes.find(n => n.id === id);
-                if (note) { setSelectedNoteId(id); setSelectedFolderId(note.folder_id); }
+                if (note) {
+                  setSelectedNoteId(id);
+                  setSelectedFolderId(prev => prev === 'sticky' ? prev : note!.folder_id);
+                }
               }}
               onSelectFolder={handleSelectFolder}
               onCreateFolder={handleCreateFolder}
@@ -1059,7 +1107,9 @@ export default function MainApp({
               onTogglePin={handleTogglePin}
               onMoveNote={handleMoveNote}
               onRenameNote={handleRenameNote}
-              selectedFolder={selectedFolderId === 'floating'
+              selectedFolder={selectedFolderId === 'sticky'
+                ? { id: 'sticky', name: TRANSLATIONS[language].sidebar.stickyNotes, icon: 'sticky-note', color: '#f59e0b' } as Folder
+                : selectedFolderId === 'floating'
                 ? { id: 'floating', name: TRANSLATIONS[language].sidebar.floatingNotes, icon: '☁️', color: '#06b6d4' } as Folder
                 : selectedFolderId === 'favorites'
                   ? { id: 'favorites', name: TRANSLATIONS[language].sidebar.favorites, icon: 'star', color: '#f59e0b' } as Folder

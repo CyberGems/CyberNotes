@@ -1110,14 +1110,16 @@ body:has(.has-bg),
 }
 .sticky-drag-grip {
   opacity: 0.72;
-  cursor: default;
+  cursor: grab !important;
+  -webkit-app-region: no-drag;
+  user-select: none;
 }
 .sticky-drag-grip:hover {
   opacity: 1;
-  cursor: grab;
+  cursor: grab !important;
 }
 .sticky-drag-grip:active {
-  cursor: grabbing;
+  cursor: grabbing !important;
 }
 
 /* ─── Centered modal (About, etc.) ───────────────────────── */

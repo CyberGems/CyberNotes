@@ -5,7 +5,7 @@ import { Folder, Note } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import {
   Plus, FolderOpen, Settings, Lock, Search, X,
-  ChevronRight, Pencil, Trash2, FileText, Clock, Cloud, Star,
+  ChevronRight, Pencil, Trash2, FileText, Clock, Cloud, Star, StickyNote as StickyNoteIcon,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { playSynthSound } from '../utils/audio';
@@ -19,6 +19,7 @@ interface Props {
   noteCount: number;
   recentNotes: Note[];
   allNotes: Note[];
+  stickyNoteIds: string[];
   openedHistory?: Record<string, number>;
   recentClearedAt?: number;
   onClearRecent?: () => void;
@@ -67,7 +68,7 @@ function timeAgo(iso: string, language: Language): string {
 }
 
 export default function Sidebar({
-  language, folders, selectedFolderId, noteCount, recentNotes, allNotes, onSelectNote,
+  language, folders, selectedFolderId, noteCount, recentNotes, allNotes, stickyNoteIds, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
   onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
@@ -427,6 +428,70 @@ export default function Sidebar({
             borderRadius: 10,
             pointerEvents: 'none',
           }}>{allNotes.filter(n => n.pinned === 1).length}</span>
+        </motion.button>
+
+        {/* Notas adhesivas / Sticky notes */}
+        <motion.button
+          onClick={() => onSelectFolder('sticky')}
+          whileHover="hover"
+          whileTap="tap"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid transparent',
+            background: selectedFolderId === 'sticky' && !searchQuery
+              ? 'var(--bg-active)'
+              : 'transparent',
+            color: selectedFolderId === 'sticky' && !searchQuery
+              ? 'var(--accent-light)'
+              : 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: 'calc(13px * var(--ui-scale))',
+            fontWeight: selectedFolderId === 'sticky' && !searchQuery ? 600 : 400,
+            textAlign: 'left',
+            transition: 'all 0.12s ease-out',
+            marginBottom: 4,
+            position: 'relative',
+            boxShadow: selectedFolderId === 'sticky' && !searchQuery
+              ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
+              : 'none',
+          }}
+          variants={{
+            hover: {
+              x: 3,
+              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
+              borderColor: 'rgba(255, 255, 255, 0.08)',
+              background: selectedFolderId === 'sticky' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
+              transition: { duration: 0.1 }
+            },
+            tap: {
+              scale: 0.98,
+              x: 0,
+              transition: { duration: 0.1 }
+            }
+          }}
+        >
+          <motion.span
+            variants={{
+              hover: { scale: 1.2, rotate: [-3, 3, -3, 0], transition: { type: 'spring', stiffness: 300, damping: 10 } }
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', pointerEvents: 'none' }}
+          >
+            <StickyNoteIcon size={15} />
+          </motion.span>
+          <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.stickyNotes}</span>
+          <span style={{
+            fontSize: 'calc(11px * var(--ui-scale))',
+            background: 'var(--bg-surface)',
+            color: 'var(--text-muted)',
+            padding: '1px 6px',
+            borderRadius: 10,
+            pointerEvents: 'none',
+          }}>{stickyNoteIds.length}</span>
         </motion.button>
 
         {/* Sin carpeta / Unfiled */}

@@ -17,6 +17,7 @@ export const TRANSLATIONS = {
     sidebar: {
       allNotes: 'Todas las notas',
       favorites: 'Favoritos',
+      stickyNotes: 'Notas adhesivas',
       floatingNotes: 'Sin carpeta',
       folders: 'Carpetas',
       newFolder: 'Nueva carpeta',
@@ -267,6 +268,7 @@ export const TRANSLATIONS = {
     sidebar: {
       allNotes: 'All Notes',
       favorites: 'Favorites',
+      stickyNotes: 'Sticky Notes',
       floatingNotes: 'Unfiled',
       folders: 'Folders',
       newFolder: 'New Folder',

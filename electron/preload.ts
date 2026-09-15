@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Session lock (privacy: no note flash from tray after idle) --
   reportActivity: () => ipcRenderer.invoke('session:activity'),
   setSessionLocked: (locked: boolean) => ipcRenderer.invoke('session:set-locked', locked),
+  isSessionLocked: () => ipcRenderer.invoke('session:is-locked'),
   ackSessionLocked: () => ipcRenderer.send('session:locked'),
   onForceLock: (callback: () => void) => {
     const listener = () => callback();
@@ -142,6 +143,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   toggleStickyAlwaysOnTop: (noteId: string) => ipcRenderer.invoke('sticky:toggleAlwaysOnTop', noteId),
   getStickyConfig: (noteId: string) => ipcRenderer.invoke('sticky:getConfig', noteId),
   saveStickyConfig: (noteId: string, config: any) => ipcRenderer.invoke('sticky:saveConfig', noteId, config),
+  moveStickyWindow: (noteId: string, x: number, y: number) => ipcRenderer.send('sticky:move', noteId, x, y),
   getOpenStickyNotes: () => ipcRenderer.invoke('sticky:getOpenList'),
   focusMainWindowWithNote: (noteId: string) => ipcRenderer.invoke('sticky:focusMain', noteId),
   toggleAllStickyNotes: (show?: boolean) => ipcRenderer.invoke('sticky:toggleAll', show),

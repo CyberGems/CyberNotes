@@ -410,39 +410,30 @@ function shouldLockBeforeShow(): boolean {
   return sessionLocked || idleExceeded();
 }
 
+function getStickyLockAction(): 'hide' | 'shield' {
+  const value = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_lock_action'])?.value;
+  return value === 'shield' ? 'shield' : 'hide';
+}
+
 function requestRendererLock(): void {
   sessionLocked = true;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('session:force-lock');
   }
-  const lockAction = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_lock_action'])?.value || 'hide';
-  if (lockAction === 'hide') {
-    stickyWindows.forEach((win) => {
-      if (!win.isDestroyed() && win.isVisible()) {
-        win.hide();
-      }
-    });
-    stickyNotesTemporarilyHidden = true;
-  } else {
-    stickyWindows.forEach((win) => {
-      if (!win.isDestroyed()) {
-        win.webContents.send('session:force-lock');
-      }
-    });
-  }
+  lockStickyWindows();
   updateTrayMenu();
 }
 
 function handleSessionUnlocked(): void {
   sessionLocked = false;
-  if (stickyNotesTemporarilyHidden) {
-    stickyNotesTemporarilyHidden = false;
-    stickyWindows.forEach((win) => {
-      if (!win.isDestroyed()) {
-        win.show();
-      }
-    });
+  for (const noteId of stickyNotesHiddenByLock) {
+    const win = stickyWindows.get(noteId);
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+    }
   }
+  stickyNotesHiddenByLock.clear();
   stickyWindows.forEach((win) => {
     if (!win.isDestroyed()) {
       win.webContents.send('session:shield-disable');
@@ -536,7 +527,25 @@ function restoreWindow() {
 
 // ─── Sticky Notes Manager ──────────────────────────────────────────────────
 const stickyWindows = new Map<string, BrowserWindow>();
-let stickyNotesTemporarilyHidden = false;
+const stickyNotesHiddenByLock = new Set<string>();
+
+function lockStickyWindows(): void {
+  if (getStickyLockAction() === 'hide') {
+    stickyWindows.forEach((win, noteId) => {
+      if (!win.isDestroyed() && win.isVisible()) {
+        win.hide();
+        stickyNotesHiddenByLock.add(noteId);
+      }
+    });
+    return;
+  }
+
+  stickyWindows.forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('session:force-lock');
+    }
+  });
+}
 
 function notifyStickyListChanged() {
   const openIds = Array.from(stickyWindows.keys());
@@ -555,6 +564,10 @@ function openStickyNote(noteId: string): boolean {
   if (stickyWindows.has(noteId)) {
     const existing = stickyWindows.get(noteId);
     if (existing && !existing.isDestroyed()) {
+      if (shouldLockBeforeShow()) {
+        lockStickyWindows();
+        return true;
+      }
       if (existing.isMinimized()) existing.restore();
       existing.show();
       existing.focus();
@@ -654,6 +667,7 @@ function openStickyNote(noteId: string): boolean {
 
   win.on('close', () => {
     stickyWindows.delete(noteId);
+    stickyNotesHiddenByLock.delete(noteId);
     runQuery('UPDATE sticky_notes SET is_open = 0 WHERE note_id = ?', [noteId]);
     notifyStickyListChanged();
     updateTrayMenu();
@@ -669,13 +683,16 @@ function openStickyNote(noteId: string): boolean {
 
   win.once('ready-to-show', () => {
     if (shouldLockBeforeShow()) {
-      const lockAction = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_lock_action'])?.value || 'hide';
-      if (lockAction === 'hide') {
+      if (getStickyLockAction() === 'hide') {
+        stickyNotesHiddenByLock.add(noteId);
         win.hide();
         notifyStickyListChanged();
         updateTrayMenu();
         return;
       }
+      // The renderer also checks the initial session state, but this event keeps
+      // already-loaded sticky windows in sync with a lock that happened during startup.
+      win.webContents.send('session:force-lock');
     }
     win.show();
     notifyStickyListChanged();
@@ -737,6 +754,10 @@ function saveStickyConfig(noteId: string, config: { color?: string; opacity?: nu
 
 function toggleAllStickyNotes(forceShow?: boolean): boolean {
   if (stickyWindows.size === 0) return false;
+  if (sessionLocked && getStickyLockAction() === 'hide') {
+    lockStickyWindows();
+    return false;
+  }
   let anyVisible = false;
   stickyWindows.forEach((win) => {
     if (!win.isDestroyed() && win.isVisible()) anyVisible = true;
@@ -1603,14 +1624,26 @@ ipcMain.handle('session:activity', () => {
 });
 
 ipcMain.handle('session:set-locked', (_e: any, locked: boolean) => {
-  sessionLocked = !!locked;
-  if (!locked) lastActivityAt = Date.now();
-  updateTrayMenu();
+  if (locked) {
+    if (!sessionLocked) {
+      requestRendererLock();
+    } else {
+      sessionLocked = true;
+      lockStickyWindows();
+      updateTrayMenu();
+    }
+  } else {
+    lastActivityAt = Date.now();
+    handleSessionUnlocked();
+  }
   return true;
 });
 
+ipcMain.handle('session:is-locked', () => sessionLocked);
+
 ipcMain.on('session:locked', () => {
   sessionLocked = true;
+  lockStickyWindows();
   updateTrayMenu();
 });
 
@@ -1634,12 +1667,10 @@ ipcMain.handle('auth:verifyPassword', async (_e: any, password: string) => {
 
 ipcMain.handle('auth:removePassword', () => {
   runQuery('DELETE FROM settings WHERE key = ?', ['password_hash']);
-  sessionLocked = false;
+  handleSessionUnlocked();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('setting-changed', { key: 'password_hash', value: 'removed' });
-    mainWindow.webContents.send('session:shield-disable');
   }
-  updateTrayMenu();
   return true;
 });
 
@@ -1828,6 +1859,11 @@ ipcMain.handle('sticky:close', (_e: any, noteId: string) => closeStickyNote(note
 ipcMain.handle('sticky:toggleAlwaysOnTop', (_e: any, noteId: string) => toggleStickyAlwaysOnTop(noteId));
 ipcMain.handle('sticky:getConfig', (_e: any, noteId: string) => getStickyConfig(noteId));
 ipcMain.handle('sticky:saveConfig', (_e: any, noteId: string, config: any) => saveStickyConfig(noteId, config));
+ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number) => {
+  const win = stickyWindows.get(noteId);
+  if (!win || win.isDestroyed() || !Number.isFinite(x) || !Number.isFinite(y)) return;
+  win.setPosition(Math.round(x), Math.round(y), false);
+});
 ipcMain.handle('sticky:getOpenList', () => Array.from(stickyWindows.keys()));
 ipcMain.handle('sticky:focusMain', (_e: any, noteId: string) => focusMainWindowWithNote(noteId));
 ipcMain.handle('sticky:toggleAll', (_e: any, show?: boolean) => toggleAllStickyNotes(show));

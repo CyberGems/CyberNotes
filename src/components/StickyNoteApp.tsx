@@ -128,6 +128,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorContentRef = useRef<string>('');
   const noteRef = useRef<Note | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   noteRef.current = note;
 
   const t = TRANSLATIONS[language];
@@ -172,6 +173,9 @@ export default function StickyNoteApp({ noteId }: Props) {
           applyEditorFont(s.editor_font || 'inter');
         }
 
+        const initiallyLocked = await window.cyberNotesAPI.isSessionLocked();
+        if (mounted) setIsSessionLocked(initiallyLocked);
+
         const stickyConfig = await window.cyberNotesAPI.getStickyConfig(noteId);
         if (mounted && stickyConfig) {
           if (stickyConfig.color && stickyConfig.color in STICKY_COLORS) {
@@ -209,6 +213,13 @@ export default function StickyNoteApp({ noteId }: Props) {
       mounted = false;
     };
   }, [noteId, editor]);
+
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+      dragCleanupRef.current = null;
+    };
+  }, []);
 
   // Sync real-time updates from other windows
   useEffect(() => {
@@ -325,6 +336,40 @@ export default function StickyNoteApp({ noteId }: Props) {
     await window.cyberNotesAPI.deleteNote(noteId);
   };
 
+  const handleGripMouseDown = (e: React.MouseEvent<HTMLSpanElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCleanupRef.current?.();
+
+    const startScreenX = e.screenX;
+    const startScreenY = e.screenY;
+    const startWindowX = e.screenX - e.clientX;
+    const startWindowY = e.screenY - e.clientY;
+    const grip = e.currentTarget;
+
+    const handleMove = (event: MouseEvent) => {
+      window.cyberNotesAPI.moveStickyWindow(
+        noteId,
+        startWindowX + event.screenX - startScreenX,
+        startWindowY + event.screenY - startScreenY,
+      );
+    };
+    const cleanup = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', cleanup);
+      grip.style.cursor = '';
+      document.body.style.cursor = '';
+      if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
+    };
+
+    dragCleanupRef.current = cleanup;
+    grip.style.cursor = 'grabbing';
+    document.body.style.cursor = 'grabbing';
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', cleanup);
+  };
+
   // Close menus on outside click
   useEffect(() => {
     const handleClick = () => {
@@ -402,9 +447,10 @@ export default function StickyNoteApp({ noteId }: Props) {
               justifyContent: 'center',
               flexShrink: 0,
               color: 'rgba(255, 255, 255, 0.32)',
-              WebkitAppRegion: 'drag',
+              WebkitAppRegion: 'no-drag',
               transition: 'color 0.15s ease, opacity 0.15s ease',
             } as any}
+            onMouseDown={handleGripMouseDown}
           >
             <GripVertical size={12} strokeWidth={2} />
           </span>

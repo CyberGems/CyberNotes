@@ -1,7 +1,8 @@
 import {
   Folder, FileText, Briefcase, Home, Zap, Lightbulb,
   Palette, Book, Microscope, Target, Heart, Star, Tag,
-  Archive, Inbox, Code, Users, Rocket, Bookmark, Wrench, Layers
+  Archive, Inbox, Code, Users, Rocket, Bookmark, Wrench, Layers,
+  StickyNote as StickyNoteIcon
 } from 'lucide-react';
 
 interface Props {
@@ -32,6 +33,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
   'bookmark': Bookmark,
   'wrench': Wrench,
   'layers': Layers,
+  'sticky-note': StickyNoteIcon,
 };
 
 export default function FolderIcon({ name, color, size = 16 }: Props) {
