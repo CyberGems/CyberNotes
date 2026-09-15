@@ -379,6 +379,17 @@ export default function StickyNoteApp({ noteId }: Props) {
     window.addEventListener('mouseup', cleanup);
   };
 
+  const handleEditorBodyMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editor) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('.ProseMirror')) return;
+
+    // El espacio vacío enfoca el documento sin intentar crear un caret fuera
+    // de una posición válida del contenido.
+    e.preventDefault();
+    editor.chain().focus('end').run();
+  };
+
   // Close menus on outside click
   useEffect(() => {
     const handleClick = () => {
@@ -715,6 +726,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
       {/* ── Editor Body ── */}
       <div
+        onMouseDown={handleEditorBodyMouseDown}
         style={{
           flex: 1,
           overflowY: 'auto',
