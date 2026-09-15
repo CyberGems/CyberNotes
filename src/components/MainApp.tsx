@@ -592,7 +592,7 @@ export default function MainApp({
       content: '',
       preview: '',
       thumb: '',
-      pinned: 0,
+      pinned: selectedFolderId === 'favorites' ? 1 : 0,
       created_at: now,
       updated_at: now,
     };

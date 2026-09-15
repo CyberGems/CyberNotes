@@ -613,8 +613,6 @@ export default function StickyNoteApp({ noteId }: Props) {
     const startScreenY = e.screenY;
     const startWindowX = e.screenX - e.clientX;
     const startWindowY = e.screenY - e.clientY;
-    const stableWidth = window.outerWidth;
-    const stableHeight = window.outerHeight;
     const grip = e.currentTarget;
     let pendingX = startWindowX;
     let pendingY = startWindowY;
@@ -626,7 +624,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
         frame = null;
-        window.cyberNotesAPI.moveStickyWindow(noteId, pendingX, pendingY, stableWidth, stableHeight);
+        window.cyberNotesAPI.moveStickyWindow(noteId, pendingX, pendingY);
       });
     };
     const cleanup = () => {

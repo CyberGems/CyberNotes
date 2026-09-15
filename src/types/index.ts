@@ -140,7 +140,7 @@ declare global {
       toggleStickyAlwaysOnTop: (noteId: string) => Promise<boolean>;
       getStickyConfig: (noteId: string) => Promise<{ color: string; opacity: number; pinned_top: boolean }>;
       saveStickyConfig: (noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean }) => Promise<boolean>;
-      moveStickyWindow: (noteId: string, x: number, y: number, width?: number, height?: number) => void;
+      moveStickyWindow: (noteId: string, x: number, y: number) => void;
       getOpenStickyNotes: () => Promise<string[]>;
       focusMainWindowWithNote: (noteId: string) => Promise<void>;
       toggleAllStickyNotes: (show?: boolean) => Promise<boolean>;

@@ -118,9 +118,18 @@ export default function NoteList({
 }: Props) {
   const t = TRANSLATIONS[language];
   const isStickyFolder = selectedFolder?.id === 'sticky';
+  const isFavoriteFolder = selectedFolder?.id === 'favorites';
   const isTrashFolder = selectedFolder?.id === 'trash';
-  const createNoteLabel = isStickyFolder ? t.editor.stickyNew : (language === 'es' ? 'Nueva nota' : 'New note');
-  const createNoteTooltip = isStickyFolder ? t.editor.stickyNew : (language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)');
+  const createNoteLabel = isStickyFolder
+    ? t.editor.stickyNew
+    : isFavoriteFolder
+      ? t.noteList.newFavorite
+      : (language === 'es' ? 'Nueva nota' : 'New note');
+  const createNoteTooltip = isStickyFolder
+    ? t.editor.stickyNew
+    : isFavoriteFolder
+      ? (language === 'es' ? 'Nuevo favorito (Ctrl+N)' : 'New favorite (Ctrl+N)')
+      : (language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)');
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'alpha' | 'alpha-desc'>('updated');
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
   const [showSortMenu, setShowSortMenu] = useState(false);

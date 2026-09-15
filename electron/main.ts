@@ -596,51 +596,63 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   if (!noteRow) return false;
 
   const row = queryGet('SELECT * FROM sticky_notes WHERE note_id = ?', [noteId]);
-  const width = (row && typeof row.width === 'number' && row.width >= 240) ? row.width : 320;
-  const height = (row && typeof row.height === 'number' && row.height >= 200) ? row.height : 360;
+  let width = (row && typeof row.width === 'number' && row.width >= 240) ? row.width : 320;
+  let height = (row && typeof row.height === 'number' && row.height >= 200) ? row.height : 360;
   const pinnedTop = row ? row.pinned_top !== 0 : true;
 
   let winX: number | undefined = row && typeof row.x === 'number' ? row.x : undefined;
   let winY: number | undefined = row && typeof row.y === 'number' ? row.y : undefined;
 
-  const allDisplays = screen.getAllDisplays();
   let validPos = false;
+  let savedDisplay: Electron.Display | undefined;
+  let targetDisplay: Electron.Display | undefined;
   if (winX !== undefined && winY !== undefined) {
-    const matched = allDisplays.find((d) => {
-      const wa = d.workArea;
-      return (
-        winX! + 80 > wa.x &&
-        winX! < wa.x + wa.width &&
-        winY! + 40 > wa.y &&
-        winY! < wa.y + wa.height
-      );
-    });
-    if (matched) validPos = true;
+    const matched = screen.getDisplayMatching({ x: winX, y: winY, width, height });
+    savedDisplay = matched;
+    const wa = matched.workArea;
+    validPos = (
+      winX >= wa.x &&
+      winY >= wa.y &&
+      winX + width <= wa.x + wa.width &&
+      winY + height <= wa.y + wa.height
+    );
+    if (validPos) targetDisplay = matched;
   }
 
-  if (!validPos) {
-    let targetDisplay: Electron.Display;
+  if (!targetDisplay) {
     if (centerOnMainWindow && mainWindow && !mainWindow.isDestroyed()) {
-      const mainBounds = mainWindow.getBounds();
-      const mainCenter = {
-        x: mainBounds.x + mainBounds.width / 2,
-        y: mainBounds.y + mainBounds.height / 2,
-      };
-      targetDisplay = screen.getDisplayNearestPoint(mainCenter) || screen.getPrimaryDisplay();
+      targetDisplay = screen.getDisplayMatching(mainWindow.getBounds());
+    } else if (savedDisplay) {
+      targetDisplay = savedDisplay;
     } else {
       let cursorPos = { x: 0, y: 0 };
       try { cursorPos = screen.getCursorScreenPoint(); } catch (_) {}
       targetDisplay = screen.getDisplayNearestPoint(cursorPos) || screen.getPrimaryDisplay();
     }
-    const wa = targetDisplay.workArea;
-    if (centerOnMainWindow) {
-      winX = Math.round(wa.x + (wa.width - width) / 2);
-      winY = Math.round(wa.y + (wa.height - height) / 2);
-    } else {
-      const offset = (stickyWindows.size * 32) % 160;
-      winX = Math.min(Math.max(wa.x + wa.width - width - 40 - offset, wa.x + 20), wa.x + wa.width - width);
-      winY = Math.min(Math.max(wa.y + 60 + offset, wa.y + 20), wa.y + wa.height - height);
-    }
+  }
+
+  const wa = targetDisplay.workArea;
+  // Keep corrupted or stale bounds from expanding across the virtual desktop.
+  width = Math.min(width, Math.max(240, wa.width - 32));
+  height = Math.min(height, Math.max(200, wa.height - 32));
+
+  const maxX = wa.x + wa.width - width - 16;
+  const maxY = wa.y + wa.height - height - 16;
+  if (validPos) {
+    winX = Math.min(Math.max(winX!, wa.x + 16), maxX);
+    winY = Math.min(Math.max(winY!, wa.y + 16), maxY);
+  } else if (centerOnMainWindow) {
+    winX = Math.round(wa.x + (wa.width - width) / 2);
+    winY = Math.round(wa.y + (wa.height - height) / 2);
+  } else if (savedDisplay === targetDisplay && winX !== undefined && winY !== undefined) {
+    // Repair an old position that was partly outside its saved monitor without
+    // moving it to whichever monitor currently contains the mouse pointer.
+    winX = Math.min(Math.max(winX, wa.x + 16), maxX);
+    winY = Math.min(Math.max(winY, wa.y + 16), maxY);
+  } else {
+    const offset = (stickyWindows.size * 32) % 160;
+    winX = Math.min(Math.max(wa.x + wa.width - width - 40 - offset, wa.x + 20), wa.x + wa.width - width);
+    winY = Math.min(Math.max(wa.y + 60 + offset, wa.y + 20), wa.y + wa.height - height);
   }
 
   const skipTaskbarVal = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_skip_taskbar']);
@@ -676,21 +688,27 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   runQuery(
     `INSERT INTO sticky_notes (note_id, x, y, width, height, opacity, is_open)
      VALUES (?, ?, ?, ?, ?, 0.9, 1)
-     ON CONFLICT(note_id) DO UPDATE SET is_open = 1`,
+     ON CONFLICT(note_id) DO UPDATE SET x = excluded.x, y = excluded.y,
+       width = excluded.width, height = excluded.height, is_open = 1`,
     [noteId, winX, winY, width, height]
   );
 
   let boundsTimer: ReturnType<typeof setTimeout> | null = null;
+  const persistBounds = () => {
+    if (win.isDestroyed()) return;
+    const b = win.getBounds();
+    runQuery(
+      `UPDATE sticky_notes SET x = ?, y = ?, width = ?, height = ? WHERE note_id = ?`,
+      [b.x, b.y, b.width, b.height, noteId],
+      { flushNow: isQuitting }
+    );
+  };
   const saveBounds = () => {
     if (win.isDestroyed()) return;
     if (boundsTimer) clearTimeout(boundsTimer);
     boundsTimer = setTimeout(() => {
-      if (win.isDestroyed()) return;
-      const b = win.getBounds();
-      runQuery(
-        `UPDATE sticky_notes SET x = ?, y = ?, width = ?, height = ? WHERE note_id = ?`,
-        [b.x, b.y, b.width, b.height, noteId]
-      );
+      boundsTimer = null;
+      persistBounds();
     }, 250);
   };
 
@@ -698,9 +716,20 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   win.on('move', saveBounds);
 
   win.on('close', () => {
+    if (boundsTimer) {
+      clearTimeout(boundsTimer);
+      boundsTimer = null;
+      persistBounds();
+    }
     stickyWindows.delete(noteId);
     stickyNotesHiddenByLock.delete(noteId);
-    runQuery('UPDATE sticky_notes SET is_open = 0 WHERE note_id = ?', [noteId]);
+    // Preserve the open state across an application quit. A user clicking the
+    // sticky's X still dismisses it until they explicitly open it again.
+    runQuery(
+      'UPDATE sticky_notes SET is_open = ? WHERE note_id = ?',
+      [isQuitting ? 1 : 0, noteId],
+      { flushNow: isQuitting }
+    );
     notifyStickyListChanged();
     updateTrayMenu();
   });
@@ -1987,23 +2016,17 @@ ipcMain.handle('notes:emptyTrash', () => {
 });
 
 // -- Sticky Notes IPC --
-ipcMain.handle('sticky:open', (_e: any, noteId: string) => openStickyNote(noteId));
+ipcMain.handle('sticky:open', (event, noteId: string) =>
+  openStickyNote(noteId, event.sender === mainWindow?.webContents)
+);
 ipcMain.handle('sticky:close', (_e: any, noteId: string) => closeStickyNote(noteId));
 ipcMain.handle('sticky:toggleAlwaysOnTop', (_e: any, noteId: string) => toggleStickyAlwaysOnTop(noteId));
 ipcMain.handle('sticky:getConfig', (_e: any, noteId: string) => getStickyConfig(noteId));
 ipcMain.handle('sticky:saveConfig', (_e: any, noteId: string, config: any) => saveStickyConfig(noteId, config));
-ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number, width?: number, height?: number) => {
+ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number) => {
   const win = stickyWindows.get(noteId);
   if (!win || win.isDestroyed() || !Number.isFinite(x) || !Number.isFinite(y)) return;
-  const current = win.getBounds();
-  const stableWidth = Number.isFinite(width) && (width as number) >= 240 ? Math.round(width as number) : current.width;
-  const stableHeight = Number.isFinite(height) && (height as number) >= 200 ? Math.round(height as number) : current.height;
-  win.setBounds({
-    x: Math.round(x),
-    y: Math.round(y),
-    width: stableWidth,
-    height: stableHeight,
-  }, false);
+  win.setPosition(Math.round(x), Math.round(y), false);
 });
 ipcMain.handle('sticky:getOpenList', () => Array.from(stickyWindows.keys()));
 ipcMain.handle('sticky:focusMain', (_e: any, noteId: string) => focusMainWindowWithNote(noteId));
