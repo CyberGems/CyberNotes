@@ -139,7 +139,15 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
   },
 };
 
-const OPACITY_OPTIONS = [1.0, 0.9, 0.8, 0.7, 0.55];
+const DEFAULT_STICKY_OPACITY = 0.9;
+const OPACITY_OPTIONS = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+
+const normalizeStickyOpacity = (value: number) => {
+  const bounded = Math.min(1, Math.max(0.1, value));
+  return OPACITY_OPTIONS.reduce((closest, option) => (
+    Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
+  ), DEFAULT_STICKY_OPACITY);
+};
 
 const rgbaWithAlpha = (color: string, alpha: number) => {
   const match = color.match(/^rgba?\(\s*([^,]+),\s*([^,]+),\s*([^,]+)(?:,\s*[^)]+)?\)$/);
@@ -153,11 +161,12 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [title, setTitle] = useState('');
   const [language, setLanguage] = useState<Language>('es');
   const [color, setColor] = useState<StickyColorId>('cyber-yellow');
-  const [opacity, setOpacity] = useState<number>(1.0);
+  const [opacity, setOpacity] = useState<number>(DEFAULT_STICKY_OPACITY);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showOpacityPicker, setShowOpacityPicker] = useState(false);
   const [hoveredColor, setHoveredColor] = useState<StickyColorId | null>(null);
+  const [hoveredOpacity, setHoveredOpacity] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -170,9 +179,10 @@ export default function StickyNoteApp({ noteId }: Props) {
 
   const t = TRANSLATIONS[language];
   const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
-  const surfaceAlpha = opacity * 0.94;
-  const headerAlpha = opacity * 0.98;
-  const glassBlur = Math.round(6 + (1 - opacity) * 22);
+  const previewOpacity = hoveredOpacity ?? opacity;
+  const surfaceAlpha = 0.3 + previewOpacity * 0.7;
+  const headerAlpha = 0.36 + previewOpacity * 0.64;
+  const glassBlur = Math.round(6 + (1 - previewOpacity) * 18);
 
   // TipTap editor
   const editor = useEditor({
@@ -222,7 +232,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             setColor(stickyConfig.color as StickyColorId);
           }
           if (typeof stickyConfig.opacity === 'number') {
-            setOpacity(stickyConfig.opacity);
+            setOpacity(normalizeStickyOpacity(stickyConfig.opacity));
           }
           if (typeof stickyConfig.pinned_top === 'boolean') {
             setIsAlwaysOnTop(stickyConfig.pinned_top);
@@ -351,12 +361,14 @@ export default function StickyNoteApp({ noteId }: Props) {
   const handleSelectColor = async (colorId: StickyColorId) => {
     setColor(colorId);
     setHoveredColor(null);
+    setHoveredOpacity(null);
     setShowColorPicker(false);
     await window.cyberNotesAPI.saveStickyConfig(noteId, { color: colorId });
   };
 
   const handleSelectOpacity = async (val: number) => {
     setOpacity(val);
+    setHoveredOpacity(null);
     setShowOpacityPicker(false);
     await window.cyberNotesAPI.saveStickyConfig(noteId, { opacity: val });
   };
@@ -437,6 +449,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       setShowColorPicker(false);
       setShowOpacityPicker(false);
       setHoveredColor(null);
+      setHoveredOpacity(null);
     };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
@@ -598,6 +611,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                   e.stopPropagation();
                   setShowColorPicker(!showColorPicker);
                   setShowOpacityPicker(false);
+                  setHoveredOpacity(null);
                 }}
                 style={{
                   background: showColorPicker ? 'rgba(255,255,255,0.1)' : 'transparent',
@@ -678,6 +692,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                   e.stopPropagation();
                   setShowOpacityPicker(!showOpacityPicker);
                   setShowColorPicker(false);
+                  setHoveredColor(null);
                 }}
                 style={{
                   background: showOpacityPicker ? 'rgba(255,255,255,0.1)' : 'transparent',
@@ -714,12 +729,14 @@ export default function StickyNoteApp({ noteId }: Props) {
                   boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
                   minWidth: 80,
                 }}
+                onMouseLeave={() => setHoveredOpacity(null)}
               >
                 {OPACITY_OPTIONS.map((op) => (
                   <button
                     className="sticky-note-button"
                     key={op}
                     onClick={() => handleSelectOpacity(op)}
+                    onMouseEnter={() => setHoveredOpacity(op)}
                     style={{
                       background: opacity === op ? colorMeta.accentGlow : 'transparent',
                       color: opacity === op ? colorMeta.accent : 'rgba(255,255,255,0.7)',

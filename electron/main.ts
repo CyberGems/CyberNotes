@@ -166,7 +166,7 @@ async function initDatabase() {
       height      INTEGER DEFAULT 360,
       pinned_top  INTEGER DEFAULT 1,
       color       TEXT DEFAULT 'cyber-yellow',
-      opacity     REAL DEFAULT 1.0,
+      opacity     REAL DEFAULT 0.9,
       is_open     INTEGER DEFAULT 1
     );
   `);
@@ -175,7 +175,7 @@ async function initDatabase() {
   ensureColumn('notes', 'thumb', "TEXT DEFAULT ''");
   ensureColumn('sticky_notes', 'pinned_top', "INTEGER DEFAULT 1");
   ensureColumn('sticky_notes', 'color', "TEXT DEFAULT 'cyber-yellow'");
-  ensureColumn('sticky_notes', 'opacity', "REAL DEFAULT 1.0");
+  ensureColumn('sticky_notes', 'opacity', "REAL DEFAULT 0.9");
   ensureColumn('sticky_notes', 'is_open', "INTEGER DEFAULT 1");
 
   // Rellenar miniaturas de notas existentes (una sola vez / solo filas vacías)
@@ -642,8 +642,8 @@ function openStickyNote(noteId: string): boolean {
 
   stickyWindows.set(noteId, win);
   runQuery(
-    `INSERT INTO sticky_notes (note_id, x, y, width, height, is_open)
-     VALUES (?, ?, ?, ?, ?, 1)
+    `INSERT INTO sticky_notes (note_id, x, y, width, height, opacity, is_open)
+     VALUES (?, ?, ?, ?, ?, 0.9, 1)
      ON CONFLICT(note_id) DO UPDATE SET is_open = 1`,
     [noteId, winX, winY, width, height]
   );
@@ -724,7 +724,7 @@ function getStickyConfig(noteId: string) {
   const row = queryGet('SELECT color, opacity, pinned_top FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
     color: row?.color || 'cyber-yellow',
-    opacity: typeof row?.opacity === 'number' ? row.opacity : 1.0,
+    opacity: typeof row?.opacity === 'number' ? row.opacity : 0.9,
     pinned_top: row ? row.pinned_top !== 0 : true,
   };
 }
