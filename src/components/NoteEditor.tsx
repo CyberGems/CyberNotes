@@ -1421,6 +1421,27 @@ export default function NoteEditor({
     editor.chain().focus().setImage({ src: url }).run();
   };
 
+  const handleCopySelection = useCallback(() => {
+    if (!editor || editor.state.selection.empty) return;
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, '\n', '\n');
+    editor.commands.focus();
+    if (!document.execCommand('copy')) {
+      void navigator.clipboard?.writeText(text);
+    }
+  }, [editor]);
+
+  const handlePasteFromClipboard = useCallback(async () => {
+    if (!editor || readOnly) return;
+    editor.commands.focus();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) editor.chain().focus().insertContent(text).run();
+    } catch {
+      document.execCommand('paste');
+    }
+  }, [editor, readOnly]);
+
   const t = TRANSLATIONS[language];
 
   const noteLoader = (
@@ -2093,6 +2114,8 @@ export default function NoteEditor({
             <>
               <ToolbarBtn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>
+              <ToolbarBtn onClick={handleCopySelection} disabled={editor.state.selection.empty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => { void handlePasteFromClipboard(); }} disabled={readOnly} title={language === 'es' ? 'Pegar (Ctrl+V)' : 'Paste (Ctrl+V)'}><Clipboard size={15} /></ToolbarBtn>
               
               <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
 
