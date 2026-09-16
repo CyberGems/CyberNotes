@@ -150,6 +150,7 @@ declare global {
       // Keyboard
       unlockCapsLock: () => Promise<boolean>;
       checkCapsLock: () => Promise<boolean>;
+      checkNumLock: () => Promise<boolean>;
       // Sticky Notes
       openStickyNote: (noteId: string) => Promise<boolean>;
       closeStickyNote: (noteId: string) => Promise<boolean>;

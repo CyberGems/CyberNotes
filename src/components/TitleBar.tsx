@@ -343,7 +343,7 @@ export default function TitleBar({
               ? t('El Bloq Mayús se apagará solo si dejas de escribir', 'Caps Lock will turn off if you stop typing')
               : t('Bloq Mayús encendido (auto-desactivar está apagado)', 'Caps Lock is on (auto-disable is off)');
 
-          return (
+          return capsOn && autoOn ? (
             <Tooltip placement="bottom" label={tooltip}>
               <div
                 data-no-drag
@@ -420,7 +420,7 @@ export default function TitleBar({
                 )}
               </div>
             </Tooltip>
-          );
+          ) : null;
         })()}
       </div>
 

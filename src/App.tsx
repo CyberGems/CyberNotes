@@ -7,6 +7,8 @@ import LockScreen from './components/LockScreen';
 import MainApp from './components/MainApp';
 import AppLoader from './components/AppLoader';
 import StickyNoteApp from './components/StickyNoteApp';
+import WelcomeNameModal from './components/WelcomeNameModal';
+import { formatDisplayName } from './components/WelcomeGreeting';
 
 type AppView = 'loading' | 'lock' | 'app';
 
@@ -28,6 +30,7 @@ export default function App() {
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [hasPassword, setHasPassword] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [showWelcomeNameSetup, setShowWelcomeNameSetup] = useState(false);
 
   const lastActivityRef = useRef<number>(Date.now());
   const hasPasswordRef = useRef<boolean>(false);
@@ -81,6 +84,7 @@ export default function App() {
             'theme', 'colorIntensity', 'language',
             'bg_image', 'glass_blur', 'bg_opacity',
             'auto_lock_minutes', 'editor_font',
+            'welcome_name', 'welcome_name_prompt_dismissed',
           ]),
           window.cyberNotesAPI.getUserName().catch(() => null),
         ]);
@@ -93,7 +97,9 @@ export default function App() {
         setTheme(t);
         setColorIntensity(i);
         setLanguage(l);
-        setDisplayName(systemUserName);
+        const hasCustomName = s.welcome_name !== null;
+        setDisplayName(hasCustomName ? s.welcome_name : formatDisplayName(systemUserName));
+        setShowWelcomeNameSetup(!hasCustomName && s.welcome_name_prompt_dismissed !== 'true');
         setAutoLockMinutes(Number.isFinite(autoLock) ? autoLock : 0);
         applyThemeVars(t, i);
         applyEditorFont(s.editor_font || 'inter');
@@ -242,6 +248,26 @@ export default function App() {
     await window.cyberNotesAPI.setSetting('language', lang);
   }, []);
 
+  const handleWelcomeNameSave = useCallback(async (name: string) => {
+    const trimmedName = name.trim();
+    setDisplayName(trimmedName || null);
+    setShowWelcomeNameSetup(false);
+    await window.cyberNotesAPI.setSetting('welcome_name', trimmedName);
+    await window.cyberNotesAPI.setSetting('welcome_name_prompt_dismissed', 'true');
+  }, []);
+
+  const handleWelcomeNameSkip = useCallback(async () => {
+    setShowWelcomeNameSetup(false);
+    await window.cyberNotesAPI.setSetting('welcome_name_prompt_dismissed', 'true');
+  }, []);
+
+  const handleDisplayNameChange = useCallback(async (name: string) => {
+    const trimmedName = name.trim();
+    setDisplayName(trimmedName || null);
+    await window.cyberNotesAPI.setSetting('welcome_name', trimmedName);
+    await window.cyberNotesAPI.setSetting('welcome_name_prompt_dismissed', 'true');
+  }, []);
+
   const handleAutoLockChange = useCallback(async (v: number) => {
     setAutoLockMinutes(v);
     await window.cyberNotesAPI.setSetting('auto_lock_minutes', v.toString());
@@ -268,6 +294,7 @@ export default function App() {
       <MainApp
         language={language}
         displayName={displayName}
+        onDisplayNameChange={handleDisplayNameChange}
         onLanguageChange={handleLanguageChange}
         currentTheme={theme}
         onThemeChange={handleThemeChange}
@@ -278,6 +305,14 @@ export default function App() {
         autoLockMinutes={autoLockMinutes}
         onAutoLockChange={handleAutoLockChange}
       />
+      {showWelcomeNameSetup && (
+        <WelcomeNameModal
+          language={language}
+          initialName={displayName}
+          onSave={handleWelcomeNameSave}
+          onSkip={handleWelcomeNameSkip}
+        />
+      )}
       {privacyShield && (
         <AppLoader isShield={true} language={language} />
       )}

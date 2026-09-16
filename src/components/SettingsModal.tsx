@@ -10,6 +10,8 @@ import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
 interface Props {
   language: Language;
+  displayName?: string | null;
+  onDisplayNameChange?: (name: string) => void | Promise<void>;
   onLanguageChange: (lang: Language) => void;
   currentTheme: ThemeId;
   onThemeChange: (t: ThemeId) => void;
@@ -119,7 +121,7 @@ function SettingsOptionCopy({
 }
 
 export default function SettingsModal({ 
-  language, onLanguageChange,
+  language, displayName, onDisplayNameChange, onLanguageChange,
   currentTheme, onThemeChange, colorIntensity, onIntensityChange, 
   bgImage, onBgImageChange, glassBlur, onBlurChange, bgOpacity, onOpacityChange,
   autoLockMinutes, onAutoLockChange,
@@ -570,6 +572,43 @@ export default function SettingsModal({
                         <option value="en">English</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Welcome name */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    gap: 16,
+                  }}>
+                    <SettingsOptionCopy icon={<Type />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Nombre para saludos' : 'Greeting name'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es'
+                          ? 'Se usará para personalizar los saludos de CyberNotes'
+                          : 'Used to personalize CyberNotes greetings'}
+                      </span>
+                    </SettingsOptionCopy>
+                    <input
+                      className="input"
+                      value={displayName || ''}
+                      onChange={event => { void onDisplayNameChange?.(event.target.value); }}
+                      placeholder={language === 'es' ? 'Tu nombre' : 'Your name'}
+                      aria-label={language === 'es' ? 'Nombre para saludos' : 'Greeting name'}
+                      style={{
+                        flex: '0 1 180px',
+                        minWidth: 120,
+                        background: 'var(--bg-app)',
+                        padding: '7px 10px',
+                        fontSize: 12,
+                      }}
+                    />
                   </div>
 
                   <label style={{ 

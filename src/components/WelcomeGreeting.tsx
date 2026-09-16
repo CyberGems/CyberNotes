@@ -9,8 +9,10 @@ interface WelcomeGreetingProps {
   style?: CSSProperties;
 }
 
-function formatDisplayName(rawName: string): string {
+export function formatDisplayName(rawName: string | null | undefined): string | null {
+  if (!rawName) return null;
   const lastSegment = rawName.trim().split(/[\\/@]/).pop()?.trim() || '';
+  if (!lastSegment) return null;
   return lastSegment
     .split(/[\s._-]+/)
     .filter(Boolean)

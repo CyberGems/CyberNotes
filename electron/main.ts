@@ -1794,6 +1794,20 @@ ipcMain.handle('check-caps-lock', async () => {
   });
 });
 
+ipcMain.handle('check-num-lock', async () => {
+  if (process.platform !== 'win32') return false;
+  return new Promise((resolve) => {
+    const psScript = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Control]::IsKeyLocked('NumLock')";
+    exec(`powershell -Command "${psScript}"`, (err, stdout) => {
+      if (err) {
+        resolve(false);
+      } else {
+        resolve(stdout.trim().toLowerCase() === 'true');
+      }
+    });
+  });
+});
+
 // -- Updates (handled by electron/updater.ts via update:check|download|install) --
 ipcMain.handle('app:getVersions', () => ({
   app: app.getVersion(),

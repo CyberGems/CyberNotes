@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   writeImageToClipboard: (url: string) => ipcRenderer.invoke('clipboard:writeImage', url),
   unlockCapsLock: () => ipcRenderer.invoke('unlock-caps-lock'),
   checkCapsLock: () => ipcRenderer.invoke('check-caps-lock'),
+  checkNumLock: () => ipcRenderer.invoke('check-num-lock'),
   onContextMenuData: (callback: (data: any) => void) => {
     const listener = (_e: any, data: any) => callback(data);
     ipcRenderer.on('context-menu-data', listener);

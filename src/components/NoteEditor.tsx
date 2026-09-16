@@ -606,6 +606,7 @@ export default function NoteEditor({
   const [showLeaveEditorWarning, setShowLeaveEditorWarning] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
+  const [isNumLockActive, setIsNumLockActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [capsToast, setCapsToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -624,8 +625,12 @@ export default function NoteEditor({
   // 1. Initial check on startup / mount
   useEffect(() => {
     const checkInitialCaps = async () => {
-      if (window.cyberNotesAPI && window.cyberNotesAPI.checkCapsLock) {
-        const isActive = await window.cyberNotesAPI.checkCapsLock();
+      if (window.cyberNotesAPI?.checkCapsLock || window.cyberNotesAPI?.checkNumLock) {
+        const [isActive, isNumActive] = await Promise.all([
+          window.cyberNotesAPI.checkCapsLock?.() ?? Promise.resolve(false),
+          window.cyberNotesAPI.checkNumLock?.() ?? Promise.resolve(false),
+        ]);
+        setIsNumLockActive(isNumActive);
         if (isActive) {
           setIsCapsLockActive(true);
           prevCapsActiveRef.current = true;
@@ -644,7 +649,9 @@ export default function NoteEditor({
   useEffect(() => {
     const handleKeyboardActivity = (e: KeyboardEvent) => {
       const capActive = e.getModifierState && e.getModifierState("CapsLock");
+      const numActive = e.getModifierState && e.getModifierState("NumLock");
       setIsCapsLockActive(!!capActive);
+      setIsNumLockActive(!!numActive);
 
       if (autoUnlockCapsLock && capActive) {
         setTimeLeft(autoUnlockCapsLockTimeout);
@@ -732,10 +739,14 @@ export default function NoteEditor({
   // Covers missed IPC while hidden and app-scope (no global worker).
   useEffect(() => {
     const syncCapsFromSystem = async () => {
-      if (!window.cyberNotesAPI?.checkCapsLock) return;
+      if (!window.cyberNotesAPI?.checkCapsLock && !window.cyberNotesAPI?.checkNumLock) return;
       try {
-        const active = await window.cyberNotesAPI.checkCapsLock();
+        const [active, numActive] = await Promise.all([
+          window.cyberNotesAPI.checkCapsLock?.() ?? Promise.resolve(false),
+          window.cyberNotesAPI.checkNumLock?.() ?? Promise.resolve(false),
+        ]);
         setIsCapsLockActive(active);
+        setIsNumLockActive(numActive);
         if (!active) {
           setTimeLeft(0);
         } else if (autoUnlockCapsLock) {
@@ -2669,6 +2680,64 @@ export default function NoteEditor({
           <Tooltip placement="top" label={language === 'es' ? `Escala actual: ${Math.round(uiScale * 100)}%` : `Current scale: ${Math.round(uiScale * 100)}%`}>
             <span style={{ fontSize: 10, fontWeight: 700, minWidth: 30, color: 'var(--accent-light)', textAlign: 'right', cursor: 'default' }}>
               {Math.round(uiScale * 100)}%
+            </span>
+          </Tooltip>
+        </div>
+
+        {/* Indicadores físicos de bloqueo de teclado */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <Tooltip
+            placement="top"
+            label={language === 'es'
+              ? (isCapsLockActive ? 'Bloq Mayús activado' : 'Bloq Mayús desactivado')
+              : (isCapsLockActive ? 'Caps Lock on' : 'Caps Lock off')}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 6px',
+                borderRadius: 999,
+                border: `1px solid ${isCapsLockActive ? 'var(--accent)' : 'var(--border)'}`,
+                background: isCapsLockActive ? 'var(--accent-dim)' : 'rgba(255,255,255,0.03)',
+                color: isCapsLockActive ? 'var(--accent-light)' : 'var(--text-muted)',
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: 0.2,
+                opacity: isCapsLockActive ? 1 : 0.72,
+                userSelect: 'none',
+              }}
+            >
+              <span aria-hidden="true">⇪</span>
+              <span>CAPS</span>
+            </span>
+          </Tooltip>
+          <Tooltip
+            placement="top"
+            label={language === 'es'
+              ? (isNumLockActive ? 'Bloq Num activado' : 'Bloq Num desactivado')
+              : (isNumLockActive ? 'Num Lock on' : 'Num Lock off')}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 6px',
+                borderRadius: 999,
+                border: `1px solid ${isNumLockActive ? 'var(--accent)' : 'var(--border)'}`,
+                background: isNumLockActive ? 'var(--accent-dim)' : 'rgba(255,255,255,0.03)',
+                color: isNumLockActive ? 'var(--accent-light)' : 'var(--text-muted)',
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: 0.2,
+                opacity: isNumLockActive ? 1 : 0.72,
+                userSelect: 'none',
+              }}
+            >
+              <span aria-hidden="true">#</span>
+              <span>NUM</span>
             </span>
           </Tooltip>
         </div>

@@ -373,6 +373,104 @@ body:has(.sticky-note-window),
   }
 }
 
+.welcome-name-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 6, 12, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: welcomeNameOverlayIn 0.25s ease-out both;
+}
+
+.welcome-name-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px;
+  color: var(--text-primary);
+  background: var(--bg-modal);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 28px var(--accent-glow);
+  animation: welcomeNameCardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.welcome-name-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  color: var(--accent-light);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+
+.welcome-name-copy {
+  text-align: center;
+}
+
+.welcome-name-copy h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: calc(18px * var(--ui-scale));
+}
+
+.welcome-name-copy p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: calc(12px * var(--ui-scale));
+  line-height: 1.45;
+}
+
+.welcome-name-field {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 600;
+}
+
+.welcome-name-field .input {
+  box-sizing: border-box;
+}
+
+.welcome-name-actions {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@keyframes welcomeNameOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes welcomeNameCardIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-name-overlay,
+  .welcome-name-card {
+    animation: none;
+  }
+}
+
 .ProseMirror {
   outline: none;
   min-height: 100%;

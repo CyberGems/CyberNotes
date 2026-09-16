@@ -331,11 +331,6 @@ export default function LockScreen({
             }}>
               CyberNotes
             </h1>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>
-              {hasPassword
-                ? t.lockScreen.enterPassword
-                : t.lockScreen.noPassword}
-            </p>
           </div>
         </div>
 
@@ -352,49 +347,59 @@ export default function LockScreen({
 
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {!hasPassword && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>
+              {t.lockScreen.noPassword}
+            </p>
+          )}
           {hasPassword && (
-            <div style={{ position: 'relative' }}>
-              <input
-                ref={inputRef}
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onContextMenu={inputMenu.onContextMenu}
-                placeholder={t.lockScreen.placeholderPassword}
-                autoFocus
-                className="input"
-                style={{ paddingRight: 40, fontSize: 15 }}
-                disabled={loading}
-                onKeyDown={e => {
-                  if (e.getModifierState) setCapsOn(e.getModifierState('CapsLock'));
-                }}
-                onKeyUp={e => {
-                  if (e.getModifierState) setCapsOn(e.getModifierState('CapsLock'));
-                }}
-              />
-              <Tooltip
-                placement="top"
-                label={showPassword ? t.lockScreen.hidePassword : t.lockScreen.showPassword}
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="btn-icon"
-                  style={{
-                    position: 'absolute',
-                    right: 8,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
+            <>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'left' }}>
+                {t.lockScreen.enterPassword}
+              </p>
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={inputRef}
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onContextMenu={inputMenu.onContextMenu}
+                  placeholder={t.lockScreen.placeholderPassword}
+                  autoFocus
+                  className="input"
+                  style={{ paddingRight: 40, fontSize: 15 }}
+                  disabled={loading}
+                  onKeyDown={e => {
+                    if (e.getModifierState) setCapsOn(e.getModifierState('CapsLock'));
                   }}
-                  tabIndex={-1}
-                  aria-label={showPassword ? t.lockScreen.hidePassword : t.lockScreen.showPassword}
+                  onKeyUp={e => {
+                    if (e.getModifierState) setCapsOn(e.getModifierState('CapsLock'));
+                  }}
+                />
+                <Tooltip
+                  placement="top"
+                  label={showPassword ? t.lockScreen.hidePassword : t.lockScreen.showPassword}
                 >
-                  {showPassword
-                    ? <EyeOff size={16} color="var(--text-muted)" />
-                    : <Eye size={16} color="var(--text-muted)" />}
-                </button>
-              </Tooltip>
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="btn-icon"
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                    }}
+                    tabIndex={-1}
+                    aria-label={showPassword ? t.lockScreen.hidePassword : t.lockScreen.showPassword}
+                  >
+                    {showPassword
+                      ? <EyeOff size={16} color="var(--text-muted)" />
+                      : <Eye size={16} color="var(--text-muted)" />}
+                  </button>
+                </Tooltip>
+              </div>
+            </>
           )}
 
           {hasPassword && capsOn && (

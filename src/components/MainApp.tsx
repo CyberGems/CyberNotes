@@ -64,6 +64,7 @@ const migrateIcon = (icon: string): string => {
 interface Props {
   language: Language;
   displayName?: string | null;
+  onDisplayNameChange?: (name: string) => void | Promise<void>;
   onLanguageChange: (l: Language) => void;
   currentTheme: ThemeId;
   onThemeChange: (t: ThemeId) => void;
@@ -83,6 +84,7 @@ type DraftEntry = Pick<NoteDraft, 'title' | 'content'> & {
 export default function MainApp({
   language,
   displayName,
+  onDisplayNameChange,
   onLanguageChange,
   currentTheme,
   onThemeChange,
@@ -1628,6 +1630,8 @@ export default function MainApp({
         <SettingsModal
           initialTab={settingsTab}
           language={language}
+          displayName={displayName}
+          onDisplayNameChange={onDisplayNameChange}
           onLanguageChange={onLanguageChange}
           currentTheme={currentTheme}
           onThemeChange={onThemeChange}
