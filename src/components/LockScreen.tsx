@@ -115,7 +115,7 @@ export default function LockScreen({
   } as CSSProperties;
   return (
     <div
-      className={hasBg ? 'has-bg' : ''}
+      className={`lock-screen-root ${hasBg ? 'has-bg' : ''}`}
       style={{
         height: '100vh',
         width: '100%',
@@ -123,13 +123,78 @@ export default function LockScreen({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--bg-app)',
+        background: 'radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 42%), radial-gradient(circle at 15% 18%, color-mix(in srgb, var(--accent-light) 7%, transparent) 0%, transparent 28%), var(--bg-app)',
         position: 'relative',
         overflow: 'hidden',
         ['--glass-blur' as string]: `${glassBlur}px`,
         ['--bg-overlay-opacity' as string]: String(bgOpacity),
       }}
     >
+      <style>{`
+        @keyframes lockOrbit {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes lockOrbitReverse {
+          from { transform: rotate(360deg); }
+          to { transform: rotate(0deg); }
+        }
+        @keyframes lockLogoPulse {
+          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px var(--accent-glow)); }
+          50% { transform: scale(1.035); filter: drop-shadow(0 0 22px var(--accent-glow)); }
+        }
+        @keyframes lockCardIn {
+          from { opacity: 0; transform: translateY(8px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .lock-screen-card {
+          animation: lockCardIn 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .lock-screen-orbit {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          pointer-events: none;
+        }
+        .lock-screen-orbit-primary {
+          border: 2px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+          border-top-color: var(--accent);
+          border-right-color: color-mix(in srgb, var(--accent) 38%, transparent);
+          animation: lockOrbit 2.2s linear infinite;
+        }
+        .lock-screen-orbit-secondary {
+          inset: 6px;
+          border: 1px dashed color-mix(in srgb, var(--accent-light) 28%, transparent);
+          animation: lockOrbitReverse 7s linear infinite;
+        }
+        .lock-screen-icon {
+          animation: lockLogoPulse 2.8s ease-in-out infinite;
+        }
+        .lock-screen-submit {
+          background: linear-gradient(135deg, var(--accent), var(--accent-light));
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-light) 35%, transparent), 0 0 18px var(--accent-glow);
+        }
+        .lock-screen-submit:hover {
+          background: linear-gradient(135deg, var(--accent-light), var(--accent));
+          box-shadow: 0 0 0 1px var(--accent-light), 0 0 26px var(--accent-glow);
+          transform: translateY(-1px);
+        }
+        .lock-screen-submit:active {
+          transform: translateY(0);
+        }
+        .lock-screen-submit:disabled {
+          opacity: 0.68;
+          box-shadow: none;
+          transform: none;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .lock-screen-card,
+          .lock-screen-orbit,
+          .lock-screen-icon {
+            animation: none;
+          }
+        }
+      `}</style>
       {hasBg && (
         <img
           src={bgImage!}
@@ -219,10 +284,10 @@ export default function LockScreen({
 
       {/* Card */}
       <div
-        className={`${shaking ? 'animate-shake' : ''} glass-effect`}
+        className={`${shaking ? 'animate-shake' : 'lock-screen-card'} glass-effect`}
         style={{
           background: hasBg ? 'var(--bg-modal)' : 'var(--bg-surface)',
-          border: '1px solid var(--border)',
+          border: '1px solid color-mix(in srgb, var(--accent) 28%, var(--border))',
           borderRadius: 'var(--radius-lg)',
           padding: '48px 40px 28px',
           width: 380,
@@ -231,24 +296,37 @@ export default function LockScreen({
           flexDirection: 'column',
           alignItems: 'center',
           gap: 24,
-          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.5), 0 0 34px color-mix(in srgb, var(--accent-glow) 70%, transparent)',
           position: 'relative',
           zIndex: 1,
         }}
       >
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <img
-            src="icon.png"
-            style={{
-              width: 64,
-              height: 64,
-              display: 'block',
-            }}
-            alt="Logo"
-          />
+          <div style={{ position: 'relative', width: 84, height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="lock-screen-orbit lock-screen-orbit-primary" />
+            <div className="lock-screen-orbit lock-screen-orbit-secondary" />
+            <img
+              src="icon.png"
+              className="lock-screen-icon"
+              style={{
+                width: 56,
+                height: 56,
+                display: 'block',
+              }}
+              alt="Logo"
+            />
+          </div>
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: -0.5, margin: 0 }}>
+            <h1 style={{
+              fontSize: 24,
+              fontWeight: 700,
+              letterSpacing: -0.5,
+              margin: 0,
+              background: 'linear-gradient(135deg, var(--text-primary) 35%, var(--accent-light) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>
               CyberNotes
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, marginBottom: 0 }}>
@@ -342,7 +420,7 @@ export default function LockScreen({
 
           <button
             type="submit"
-            className="btn btn-primary"
+            className="btn btn-primary lock-screen-submit"
             disabled={loading}
             style={{ width: '100%', padding: '10px', fontSize: 14, fontWeight: 600 }}
           >

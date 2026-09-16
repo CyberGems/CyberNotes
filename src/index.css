@@ -259,13 +259,15 @@ body:has(.sticky-note-window),
   color: var(--text-primary);
 }
 .modal-action-btn.is-save {
-  color: var(--accent-light);
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--text-on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  border: 1px solid color-mix(in srgb, var(--accent-light) 70%, transparent);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 .modal-action-btn.is-save:hover {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
+  background: linear-gradient(135deg, var(--accent-light), var(--accent));
+  border-color: var(--accent-light);
+  box-shadow: 0 0 16px var(--accent-glow);
 }
 .modal-action-btn.is-danger {
   color: #fca5a5;
