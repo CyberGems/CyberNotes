@@ -1500,7 +1500,7 @@ export default function SettingsModal({
                       }}
                       style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)' }}
                     >
-                      <Download size={15} />
+                      <Upload size={15} />
                       {language === 'es' ? 'Exportar' : 'Export'}
                     </button>
                   </div>
@@ -1552,7 +1552,7 @@ export default function SettingsModal({
                         }
                       }}
                     >
-                      <Upload size={15} />
+                      <Download size={15} />
                       {language === 'es' ? 'Importar' : 'Import'}
                     </button>
                   </div>

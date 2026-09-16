@@ -943,6 +943,17 @@ html.tab-dragging * {
 .panel.settings-panel {
   width: min(640px, 100%);
 }
+.settings-panel {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.settings-panel input,
+.settings-panel textarea,
+.settings-panel select,
+.settings-panel [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
 .settings-header {
   display: flex;
   align-items: center;
