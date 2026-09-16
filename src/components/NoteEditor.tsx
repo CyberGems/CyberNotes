@@ -1686,6 +1686,11 @@ export default function NoteEditor({
         <button className="btn btn-primary" onClick={onCreateNote} style={{ gap: 6 }}>
           <Plus size={15} /> {language === 'es' ? 'Nueva nota' : 'New note'}
         </button>
+        {canReopenClosedTab && (
+          <button className="btn btn-ghost" onClick={onReopenClosedTab} style={{ gap: 6 }}>
+            <RotateCcw size={15} /> {language === 'es' ? 'Reabrir pestaña cerrada' : 'Reopen closed tab'}
+          </button>
+        )}
         <button className="btn btn-ghost" onClick={onToggleLayout} style={{ gap: 6, marginTop: 12 }}>
           <PanelLeft size={15} /> {language === 'es' ? 'Cambiar vista' : 'Switch view'}
         </button>
