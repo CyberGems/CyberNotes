@@ -729,8 +729,8 @@ body:has(.sticky-note-window),
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  min-width: 120px;
-  max-width: 200px;
+  min-width: 130px;
+  max-width: 220px;
   height: 36px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border);
@@ -911,8 +911,8 @@ html.tab-dragging * {
 
 /* Wide tabs support */
 .tab-strip.tabs-wide .editor-tab {
-  min-width: 168px;
-  max-width: 280px;
+  min-width: 169px;
+  max-width: 286px;
 }
 
 /* ─── Settings panel (CyberFeeds-style side drawer) ───────── */
@@ -1275,6 +1275,69 @@ html.tab-dragging * {
 .settings-option-copy + select,
 .settings-option-copy + div {
   flex-shrink: 0;
+}
+.settings-option-copy + select.input {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+.settings-option-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-option-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.settings-option-row:has(.settings-option-copy) {
+  cursor: pointer;
+}
+.settings-option-row > .settings-option-copy {
+  width: 100%;
+  flex: 0 0 auto;
+}
+.settings-option-row > .custom-switch {
+  align-self: flex-end;
+}
+.settings-option-select {
+  width: 100% !important;
+  max-width: 420px;
+}
+.settings-general-stack {
+  gap: 14px !important;
+}
+.settings-general-stack > *:has(> .settings-option-copy),
+.settings-general-stack > *:has(> label > .settings-option-copy) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px !important;
+}
+.settings-general-stack > *:has(> .settings-option-copy) > .settings-option-copy,
+.settings-general-stack > *:has(> label > .settings-option-copy) .settings-option-copy {
+  width: 100%;
+  flex: 0 0 auto;
+}
+.settings-general-stack > *:has(> .settings-option-copy) > .custom-switch,
+.settings-general-stack > *:has(> label > .settings-option-copy) .custom-switch {
+  align-self: flex-end;
+}
+.settings-general-stack > *:has(> .settings-option-copy) > :not(.settings-option-copy) {
+  align-self: flex-start;
+  max-width: 100%;
+}
+.settings-general-stack > *:has(> .settings-option-copy) > .settings-option-select {
+  align-self: stretch;
+}
+.settings-general-stack .settings-option-copy > div:last-child {
+  gap: 5px !important;
 }
 .sticky-note-header {
   -webkit-app-region: no-drag;

@@ -525,11 +525,12 @@ export default function SettingsModal({
 
           {/* ── GENERAL ── */}
           {tab === 'general' && (
-            <div className="settings-card">
+            <>
+            <div className="settings-card settings-general-card">
                 <SettingsHeading icon={<SlidersHorizontal />}>
                   {language === 'es' ? 'Preferencias' : 'Preferences'}
                 </SettingsHeading>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="settings-general-stack" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {/* Language Selector Dropdown */}
                   <div style={{
                     display: 'flex',
@@ -641,77 +642,6 @@ export default function SettingsModal({
                     </SettingsOptionCopy>
                     <div className={`custom-switch ${autoStart ? 'active' : ''}`} />
                   </label>
-
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer'
-                  }} onClick={() => handleToggleStickyRestore(!stickyRestoreOnStartup)}>
-                    <SettingsOptionCopy icon={<StickyNote />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore floating notes on startup'}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {language === 'es' ? 'Vuelve a abrir en el escritorio las notas flotantes que estaban activas al cerrar' : 'Reopens active desktop floating notes when CyberNotes starts'}
-                      </span>
-                    </SettingsOptionCopy>
-                    <div className={`custom-switch ${stickyRestoreOnStartup ? 'active' : ''}`} />
-                  </label>
-
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer'
-                  }} onClick={() => handleToggleStickySkipTaskbar(!stickySkipTaskbar)}>
-                    <SettingsOptionCopy icon={<StickyNote />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {language === 'es' ? 'Notas flotantes en modo widget' : 'Floating notes as desktop widgets'}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {language === 'es' ? 'Oculta las notas flotantes de la barra de tareas para no saturarla' : 'Hides floating notes from the taskbar to avoid cluttering it'}
-                      </span>
-                    </SettingsOptionCopy>
-                    <div className={`custom-switch ${stickySkipTaskbar ? 'active' : ''}`} />
-                  </label>
-
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    gap: 16,
-                  }}>
-                    <SettingsOptionCopy icon={<StickyNote />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {language === 'es' ? 'Acción al bloquear la sesión de CyberNotes con contraseña' : 'Action taken when CyberNotes is password-locked'}
-                      </span>
-                    </SettingsOptionCopy>
-                    <select 
-                      value={stickyLockAction}
-                      onChange={(e) => handleChangeStickyLockAction(e.target.value as 'hide' | 'shield')}
-                      className="input"
-                      style={{ fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer', minWidth: 160, padding: '6px 8px' }}
-                    >
-                      <option value="hide">{language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked'}</option>
-                      <option value="shield">{language === 'es' ? 'Escudo de privacidad' : 'Privacy shield'}</option>
-                    </select>
-                  </div>
 
                   <div style={{
                     display: 'flex',
@@ -838,101 +768,6 @@ export default function SettingsModal({
                     </SettingsOptionCopy>
                     <div className={`custom-switch ${rememberLastNote ? 'active' : ''}`} />
                   </label>
-
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    gap: 16,
-                  }}>
-                    <SettingsOptionCopy icon={<PanelLeft />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Ancho de pestañas' : 'Tab Width'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Elige el tamaño horizontal de las pestañas en el editor' : 'Choose the horizontal size of tabs in the editor'}</span>
-                    </SettingsOptionCopy>
-                    <select 
-                      value={tabsWidthMode}
-                      onChange={(e) => onTabsWidthModeChange(e.target.value as 'normal' | 'wide')}
-                      className="input"
-                      style={{ fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer', width: 120, padding: '6px 8px' }}
-                    >
-                      <option value="normal">{language === 'es' ? 'Normal' : 'Normal'}</option>
-                      <option value="wide">{language === 'es' ? 'Ancho (+40%)' : 'Wide (+40%)'}</option>
-                    </select>
-                  </div>
-
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer'
-                  }} onClick={() => onShowLineCounterChange(!showLineCounter)}>
-                    <SettingsOptionCopy icon={<Rows3 />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Mostrar contador de líneas' : 'Show line counter'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra la línea y columna actual en el editor' : 'Display current line and column in the editor'}</span>
-                    </SettingsOptionCopy>
-                    <div className={`custom-switch ${showLineCounter ? 'active' : ''}`} />
-                  </label>
-
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer'
-                  }} onClick={() => onShowLineGutterChange(!showLineGutter)}>
-                    <SettingsOptionCopy icon={<Hash />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Líneas numeradas (gutter)' : 'Line numbers (gutter)'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra la numeración de líneas al costado izquierdo del editor' : 'Show line numbers on the left side of the editor'}</span>
-                    </SettingsOptionCopy>
-                    <div className={`custom-switch ${showLineGutter ? 'active' : ''}`} />
-                  </label>
-
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer'
-                  }} onClick={() => onShowMinimapChange(!showMinimap)}>
-                    <SettingsOptionCopy icon={<Map />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Minimapa' : 'Minimap'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra un minimapa del documento para navegación rápida' : 'Show a document minimap for quick navigation'}</span>
-                    </SettingsOptionCopy>
-                    <div className={`custom-switch ${showMinimap ? 'active' : ''}`} />
-                  </label>
-
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer'
-                  }} onClick={() => onShowWordCounterChange(!showWordCounter)}>
-                    <SettingsOptionCopy icon={<Hash />}>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Contador de palabras' : 'Word counter'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Muestra palabras, caracteres y tiempo de lectura en la barra de estado' : 'Show words, characters and reading time in the status bar'}</span>
-                    </SettingsOptionCopy>
-                    <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
-                  </label>
-
-
 
                   <label style={{ 
                     display: 'flex', 
@@ -1079,6 +914,58 @@ export default function SettingsModal({
                   </div>
                 </div>
             </div>
+            <div className="settings-card settings-floating-card">
+              <SettingsHeading icon={<StickyNote />}>
+                {language === 'es' ? 'Notas flotantes' : 'Floating Notes'}
+              </SettingsHeading>
+              <div className="settings-option-stack">
+                <label className="settings-option-row" onClick={() => handleToggleStickyRestore(!stickyRestoreOnStartup)}>
+                  <SettingsOptionCopy icon={<StickyNote />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore floating notes on startup'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Vuelve a abrir en el escritorio las notas flotantes que estaban activas al cerrar' : 'Reopens active desktop floating notes when CyberNotes starts'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${stickyRestoreOnStartup ? 'active' : ''}`} />
+                </label>
+
+                <label className="settings-option-row" onClick={() => handleToggleStickySkipTaskbar(!stickySkipTaskbar)}>
+                  <SettingsOptionCopy icon={<StickyNote />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Notas flotantes en modo widget' : 'Floating notes as desktop widgets'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Oculta las notas flotantes de la barra de tareas para no saturarla' : 'Hides floating notes from the taskbar to avoid cluttering it'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${stickySkipTaskbar ? 'active' : ''}`} />
+                </label>
+
+                <div className="settings-option-row">
+                  <SettingsOptionCopy icon={<StickyNote />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es'
+                        ? 'Elige si las notas se ocultan o muestran un escudo opaco desenfocado mientras CyberNotes está bloqueado.'
+                        : 'Choose whether notes are hidden or covered by an opaque, blurred shield while CyberNotes is locked.'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <select
+                    value={stickyLockAction}
+                    onChange={(e) => handleChangeStickyLockAction(e.target.value as 'hide' | 'shield')}
+                    className="input settings-option-select"
+                  >
+                    <option value="hide">{language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked'}</option>
+                    <option value="shield">{language === 'es' ? 'Escudo de privacidad (mantener visible)' : 'Privacy shield (keep visible)'}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            </>
           )}
 
           {/* ── APPEARANCE ── */}
@@ -1255,6 +1142,80 @@ export default function SettingsModal({
                     </div>
                   </div>
                 </div>
+            </div>
+
+            <div className="settings-card settings-editor-card">
+              <SettingsHeading icon={<PanelLeft />}>
+                {language === 'es' ? 'Editor' : 'Editor'}
+              </SettingsHeading>
+              <div className="settings-option-stack">
+                <div className="settings-option-row">
+                  <SettingsOptionCopy icon={<PanelLeft />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Ancho de pestañas' : 'Tab Width'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Elige el tamaño horizontal de las pestañas en el editor' : 'Choose the horizontal size of tabs in the editor'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <select
+                    value={tabsWidthMode}
+                    onChange={(e) => onTabsWidthModeChange(e.target.value as 'normal' | 'wide')}
+                    className="input settings-option-select"
+                  >
+                    <option value="normal">{language === 'es' ? 'Normal' : 'Normal'}</option>
+                    <option value="wide">{language === 'es' ? 'Ancho (+30%)' : 'Wide (+30%)'}</option>
+                  </select>
+                </div>
+
+                <label className="settings-option-row" onClick={() => onShowLineCounterChange(!showLineCounter)}>
+                  <SettingsOptionCopy icon={<Rows3 />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Mostrar contador de líneas' : 'Show line counter'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra la línea y columna actual en el editor' : 'Display current line and column in the editor'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showLineCounter ? 'active' : ''}`} />
+                </label>
+
+                <label className="settings-option-row" onClick={() => onShowLineGutterChange(!showLineGutter)}>
+                  <SettingsOptionCopy icon={<Hash />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Líneas numeradas (gutter)' : 'Line numbers (gutter)'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra la numeración de líneas al costado izquierdo del editor' : 'Show line numbers on the left side of the editor'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showLineGutter ? 'active' : ''}`} />
+                </label>
+
+                <label className="settings-option-row" onClick={() => onShowMinimapChange(!showMinimap)}>
+                  <SettingsOptionCopy icon={<Map />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Minimapa' : 'Minimap'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra un minimapa del documento para navegación rápida' : 'Show a document minimap for quick navigation'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showMinimap ? 'active' : ''}`} />
+                </label>
+
+                <label className="settings-option-row" onClick={() => onShowWordCounterChange(!showWordCounter)}>
+                  <SettingsOptionCopy icon={<Hash />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Contador de palabras' : 'Word counter'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra palabras, caracteres y tiempo de lectura en la barra de estado' : 'Show words, characters and reading time in the status bar'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
+                </label>
+              </div>
             </div>
 
             <div className="settings-card">

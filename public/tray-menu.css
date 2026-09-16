@@ -90,6 +90,13 @@ html, body {
   height: 14px;
   display: block;
   flex-shrink: 0;
+  opacity: 0.7;
+  filter: grayscale(1) saturate(0) brightness(0.78);
+  transition: opacity 0.12s ease, filter 0.12s ease;
+}
+.head:hover .head-icon {
+  opacity: 1;
+  filter: none;
 }
 
 .divider {
@@ -196,6 +203,10 @@ html, body {
 .item.danger:hover .icon { color: #f08c7d; }
 
 .shell.help-view .divider:last-of-type { display: none; }
+.shell.help-view .card {
+  background: #202226;
+  border-color: rgba(255, 255, 255, 0.1);
+}
 
 .icon svg {
   display: block;
