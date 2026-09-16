@@ -1704,7 +1704,7 @@ export default function SettingsModal({
         >
           <div className="config-brand-line">
             <img className="config-brand-icon" src="icon.png" alt="" aria-hidden="true" draggable={false} />
-            <span>CyberNotes <span className="config-brand-version">v{appVersion || '1.8.0'}</span></span>
+            <span>CyberNotes <span className="config-brand-version">v{appVersion || '1.9.0'}</span></span>
           </div>
           <span className="config-brand-copyright">© 2026 CyberGems</span>
         </button>
