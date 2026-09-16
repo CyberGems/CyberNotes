@@ -303,7 +303,27 @@ console.log('Welcome to CyberNotes!', note);</code></pre><p>Enjoy writing with t
     [quickstartId, folderGettingStartedId, quickstartTitle, quickstartContent, quickstartPreview, '', 0, now, now]
   );
 
-  // 5. Abrir pestañas iniciales y seleccionar la nota principal
+  // 5. Nota flotante de demostración con referencias prácticas
+  const floatingDemoId = 'floating-demo-note';
+  const floatingDemoTitle = isEs ? '⚡ Atajos rápidos' : '⚡ Quick shortcuts';
+  const floatingDemoContent = isEs
+    ? '<h2>⚡ Atajos rápidos</h2><p>Una pequeña referencia para tener CyberNotes siempre a mano.</p><ul><li><strong>Ctrl + N:</strong> crear una nota normal.</li><li><strong>Ctrl + S:</strong> guardar la nota actual.</li><li><strong>Ctrl + F:</strong> buscar entre tus notas.</li><li><strong>Ctrl + Shift + N:</strong> crear una carpeta.</li><li><strong>Alt + Shift + N:</strong> mostrar u ocultar la aplicación.</li></ul><p><em>Esta nota flotante es solo una demostración. Puedes editarla o cerrarla cuando quieras.</em></p>'
+    : '<h2>⚡ Quick shortcuts</h2><p>A small reference to keep CyberNotes close at hand.</p><ul><li><strong>Ctrl + N:</strong> create a regular note.</li><li><strong>Ctrl + S:</strong> save the current note.</li><li><strong>Ctrl + F:</strong> search your notes.</li><li><strong>Ctrl + Shift + N:</strong> create a folder.</li><li><strong>Alt + Shift + N:</strong> show or hide the app.</li></ul><p><em>This floating note is only a demonstration. Edit or close it whenever you want.</em></p>';
+  const floatingDemoPreview = isEs
+    ? 'Referencia rápida de atajos de teclado de CyberNotes.'
+    : 'Quick reference for CyberNotes keyboard shortcuts.';
+
+  runQuery(
+    `INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [floatingDemoId, null, floatingDemoTitle, floatingDemoContent, floatingDemoPreview, '', 0, now, now]
+  );
+  runQuery(
+    `INSERT INTO sticky_notes (note_id, x, y, width, height, pinned_top, color, opacity, is_open)
+     VALUES (?, NULL, NULL, 340, 320, 1, 'neon-cyan', 0.9, 1)`,
+    [floatingDemoId]
+  );
+
+  // 6. Abrir pestañas iniciales y seleccionar la nota principal
   runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['open_note_ids', JSON.stringify([welcomeId, suiteId])]);
   runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['last_note_id', welcomeId]);
 }

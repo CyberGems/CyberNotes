@@ -720,7 +720,7 @@ export default function MainApp({
   }, [selectedFolderId]);
 
   const handleCreateNote = useCallback(async (kind: 'note' | 'floating' | 'favorite' = 'note') => {
-    const createFloating = kind === 'floating' || (kind === 'note' && selectedFolderId === 'sticky');
+    const createFloating = kind === 'floating';
     if (createFloating) {
       try {
         const newId = await window.cyberNotesAPI.createAndOpenStickyNote();
@@ -750,7 +750,7 @@ export default function MainApp({
       return;
     }
 
-    const createFavorite = kind === 'favorite' || (kind === 'note' && selectedFolderId === 'favorites');
+    const createFavorite = kind === 'favorite';
     const now = new Date().toISOString();
     const newNote: Note = {
       id: window.crypto.randomUUID(),
@@ -773,6 +773,9 @@ export default function MainApp({
       setAllNotes(prev => [meta, ...prev]);
       setOpenNoteIds(prev => insertTabAfter(prev, saved.id, selectedNoteIdRef.current));
       setSelectedNote({ ...meta, content: saved.content || '' });
+      if (selectedFolderId === 'sticky' || selectedFolderId === 'favorites' || selectedFolderId === 'floating') {
+        setSelectedFolderId(null);
+      }
       setSelectedNoteId(saved.id);
     } catch (err) {
       console.error('[MainApp] Error creating note:', err);
@@ -1500,6 +1503,10 @@ export default function MainApp({
               selectedNoteId={selectedNoteId}
               onSelectNote={handleAttemptSelectNote}
               onCreateNote={handleCreateNote}
+              onRequestCreateFolder={() => {
+                if (layoutMode !== 3) setLayoutMode(3);
+                setTriggerNewFolderSignal(prev => prev + 1);
+              }}
               onDeleteNote={handleDeleteNote}
               onRestoreNote={handleRestoreNote}
               onRestoreAllTrash={handleRestoreAllTrash}

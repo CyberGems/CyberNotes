@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, Eye } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
@@ -16,6 +16,7 @@ interface Props {
   selectedNoteId: string | null;
   onSelectNote: (id: string) => void;
   onCreateNote: (kind?: 'note' | 'floating' | 'favorite') => void;
+  onRequestCreateFolder: () => void;
   onDeleteNote: (id: string) => void;
   onRestoreNote: (id: string) => void;
   onRestoreAllTrash: () => void;
@@ -121,21 +122,27 @@ function NewNoteSplitButton({
   createNoteAriaLabel,
   showFloatingOption,
   showFavoriteOption,
+  showNoteOption,
+  showFolderOption,
   onCreateNote,
+  onRequestCreateFolder,
 }: {
   language: Language;
   createNoteLabel: string;
   createNoteAriaLabel: string;
   showFloatingOption: boolean;
   showFavoriteOption: boolean;
+  showNoteOption: boolean;
+  showFolderOption: boolean;
   onCreateNote: (kind?: 'note' | 'floating' | 'favorite') => void;
+  onRequestCreateFolder: () => void;
 }) {
   const t = TRANSLATIONS[language];
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const closeTimer = useRef<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const hasExtras = showFloatingOption || showFavoriteOption;
+  const hasExtras = showNoteOption || showFloatingOption || showFavoriteOption || showFolderOption;
 
   const cancelClose = () => {
     if (closeTimer.current !== null) {
@@ -182,7 +189,10 @@ function NewNoteSplitButton({
         aria-haspopup={hasExtras ? 'menu' : undefined}
         aria-expanded={hasExtras ? open : undefined}
         style={{
+          minWidth: 96,
+          justifyContent: 'center',
           fontSize: 'calc(12px * var(--ui-scale))',
+          lineHeight: 1.2,
           whiteSpace: 'nowrap',
           flexShrink: 0,
         }}
@@ -204,6 +214,17 @@ function NewNoteSplitButton({
               onMouseEnter={openMenu}
               onMouseLeave={scheduleClose}
             >
+              {showNoteOption && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="new-note-split-item"
+                  onClick={() => { onCreateNote('note'); setOpen(false); }}
+                >
+                  <FileText size={14} />
+                  {t.noteList.newNoteShort}
+                </button>
+              )}
               {showFloatingOption && (
                 <button
                   type="button"
@@ -211,7 +232,7 @@ function NewNoteSplitButton({
                   className="new-note-split-item"
                   onClick={() => { onCreateNote('floating'); setOpen(false); }}
                 >
-                  <AppWindow size={13} />
+                  <AppWindow size={14} />
                   {t.noteList.newFloatingNote}
                 </button>
               )}
@@ -222,8 +243,19 @@ function NewNoteSplitButton({
                   className="new-note-split-item"
                   onClick={() => { onCreateNote('favorite'); setOpen(false); }}
                 >
-                  <Star size={13} />
+                  <Star size={14} />
                   {t.noteList.newFavoriteShort}
+                </button>
+              )}
+              {showFolderOption && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="new-note-split-item"
+                  onClick={() => { onRequestCreateFolder(); setOpen(false); }}
+                >
+                  <FolderPlus size={14} />
+                  {t.noteList.newFolderShort}
                 </button>
               )}
             </motion.div>
@@ -237,6 +269,7 @@ function NewNoteSplitButton({
 
 export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
+  onRequestCreateFolder,
   onDeleteNote, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
   onTogglePin, onMoveNote, onRenameNote, selectedFolder, searchQuery, uiScale = 1,
 }: Props) {
@@ -245,16 +278,8 @@ export default function NoteList({
   const isFavoriteFolder = selectedFolder?.id === 'favorites';
   const isUnfiledFolder = selectedFolder?.id === 'floating';
   const isTrashFolder = selectedFolder?.id === 'trash';
-  const createNoteLabel = isStickyFolder
-    ? t.editor.stickyNew
-    : isFavoriteFolder
-      ? t.noteList.newFavorite
-      : (language === 'es' ? 'Nueva nota' : 'New note');
-  const createNoteTooltip = isStickyFolder
-    ? t.editor.stickyNew
-    : isFavoriteFolder
-      ? (language === 'es' ? 'Nuevo favorito (Ctrl+N)' : 'New favorite (Ctrl+N)')
-      : (language === 'es' ? 'Nueva nota (Ctrl+N)' : 'New note (Ctrl+N)');
+  const createNoteLabel = t.noteList.add;
+  const createNoteTooltip = t.noteList.addNote;
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'alpha' | 'alpha-desc'>('updated');
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -818,9 +843,12 @@ export default function NoteList({
               language={language}
               createNoteLabel={createNoteLabel}
               createNoteAriaLabel={createNoteTooltip}
+              showNoteOption={true}
               showFloatingOption={true}
               showFavoriteOption={true}
+              showFolderOption={true}
               onCreateNote={onCreateNote}
+              onRequestCreateFolder={onRequestCreateFolder}
             />
           )}
         </div>

@@ -860,6 +860,8 @@ html.tab-dragging * {
   cursor: pointer;
   transition: all 0.2s ease;
   font-weight: 500;
+  font-family: inherit;
+  line-height: 1.2;
 }
 
 .new-note-btn:hover {
@@ -876,7 +878,7 @@ html.tab-dragging * {
 }
 .new-note-split-menu {
   position: fixed;
-  min-width: 168px;
+  min-width: 172px;
   width: max-content;
   padding: 4px;
   border-radius: var(--radius-sm);
@@ -900,9 +902,16 @@ html.tab-dragging * {
   color: var(--text-primary);
   font-size: calc(12px * var(--ui-scale));
   font-weight: 500;
+  font-family: inherit;
+  line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
+}
+.new-note-split-item svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
 }
 .new-note-split-item:hover {
   background: var(--bg-hover);
