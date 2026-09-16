@@ -797,13 +797,16 @@ export default function SettingsModal({
                     border: '1px solid var(--border)',
                     gap: 12,
                   }}>
-                    <label style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      width: '100%',
-                    }}>
+                    <label
+                      className="settings-caps-lock-toggle-row"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        width: '100%',
+                      }}
+                    >
                       <SettingsOptionCopy icon={<Keyboard />}>
                         <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Desactivar Bloq Mayús por inactividad' : 'Auto-unlock Caps Lock on inactivity'}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Desactiva físicamente el Bloq Mayús tras un periodo ajustable de inactividad de teclado en el editor' : 'Physically turns off Caps Lock after a configurable period of keyboard inactivity in the editor'}</span>
@@ -816,16 +819,19 @@ export default function SettingsModal({
                     </label>
 
                     {autoUnlockCapsLock && (
-                      <div style={{
-                        marginTop: 4,
-                        padding: '10px 14px',
-                        background: 'var(--bg-notelist)',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                      }}>
+                      <div
+                        className="settings-caps-lock-details"
+                        style={{
+                          marginTop: 4,
+                          padding: '10px 14px',
+                          background: 'var(--bg-notelist)',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                        }}
+                      >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
                             <Clock3 size={13} aria-hidden="true" />
@@ -1492,10 +1498,10 @@ export default function SettingsModal({
                           message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
                         });
                       }}
-                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px' }}
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)' }}
                     >
                       <Download size={15} />
-                      {language === 'es' ? 'Exportar (JSON)' : 'Export (JSON)'}
+                      {language === 'es' ? 'Exportar' : 'Export'}
                     </button>
                   </div>
 

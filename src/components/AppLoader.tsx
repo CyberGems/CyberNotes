@@ -19,7 +19,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
         position: 'fixed',
         inset: 0,
         zIndex: 999999,
-        background: 'radial-gradient(ellipse at 50% 45%, rgba(99, 102, 241, 0.12) 0%, rgba(13, 14, 24, 0.96) 55%, #08090e 100%)',
+        background: 'radial-gradient(ellipse at 50% 45%, rgba(38, 155, 181, 0.12) 0%, rgba(13, 14, 24, 0.96) 55%, #08090e 100%)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -35,8 +35,8 @@ export default function AppLoader({ language = 'en', isShield = false, message }
           100% { transform: rotate(360deg); }
         }
         @keyframes cyberPulse {
-          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px rgba(99, 102, 241, 0.4)); }
-          50% { transform: scale(1.04); filter: drop-shadow(0 0 24px rgba(99, 102, 241, 0.7)); }
+          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px rgba(38, 155, 181, 0.4)); }
+          50% { transform: scale(1.04); filter: drop-shadow(0 0 24px rgba(38, 155, 181, 0.7)); }
         }
         @keyframes cyberRunner {
           0% { left: -40%; width: 30%; }
@@ -70,7 +70,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
         }}
       >
         {/* Logo Container with Orbit Ring */}
-        <div style={{ position: 'relative', width: 84, height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+        <div style={{ position: 'relative', width: 84, height: 84, minWidth: 84, minHeight: 84, flex: '0 0 84px', aspectRatio: '1 / 1', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
           {/* Glowing orbital ring */}
           <div
             style={{
@@ -78,8 +78,8 @@ export default function AppLoader({ language = 'en', isShield = false, message }
               inset: 0,
               borderRadius: '50%',
               border: '2px solid rgba(255, 255, 255, 0.06)',
-              borderTopColor: 'var(--accent, #6366f1)',
-              borderRightColor: 'rgba(99, 102, 241, 0.35)',
+              borderTopColor: '#269bb5',
+              borderRightColor: 'rgba(38, 155, 181, 0.35)',
               animation: 'cyberSpin 1.8s linear infinite',
             }}
           />
@@ -90,7 +90,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
               position: 'absolute',
               inset: 6,
               borderRadius: '50%',
-              border: '1px dashed rgba(165, 180, 252, 0.25)',
+              border: '1px dashed rgba(139, 216, 226, 0.25)',
               animation: 'cyberSpin 6s linear infinite reverse',
             }}
           />
@@ -116,7 +116,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
             fontSize: 22,
             fontWeight: 700,
             letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #ffffff 40%, var(--accent-light, #c7d2fe) 100%)',
+            background: 'linear-gradient(135deg, #ffffff 40%, #8bd8e2 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             marginBottom: 6,
@@ -155,8 +155,8 @@ export default function AppLoader({ language = 'en', isShield = false, message }
               position: 'absolute',
               top: 0,
               bottom: 0,
-              background: 'linear-gradient(90deg, transparent, var(--accent, #6366f1), #818cf8, transparent)',
-              boxShadow: '0 0 10px var(--accent-glow, rgba(99, 102, 241, 0.6))',
+              background: 'linear-gradient(90deg, transparent, #269bb5, #8bd8e2, transparent)',
+              boxShadow: '0 0 10px rgba(38, 155, 181, 0.6)',
               borderRadius: 999,
               animation: 'cyberRunner 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
             }}
