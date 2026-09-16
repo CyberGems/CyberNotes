@@ -1051,22 +1051,23 @@ html.tab-dragging * {
 .config-autosave-pill {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
-  min-height: 28px;
-  padding: 5px 9px;
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  border-radius: var(--radius-sm);
-  background: var(--accent-dim);
-  color: var(--text-primary);
+  min-height: 0;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
   font-family: inherit;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-align: center;
+  text-align: left;
   text-transform: uppercase;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 10px var(--accent-glow);
+  cursor: default;
+  pointer-events: none;
+  transition: color 0.2s ease, opacity 0.2s ease;
   animation: fadeInPill 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @keyframes fadeInPill {
@@ -1338,6 +1339,28 @@ html.tab-dragging * {
 }
 .settings-general-stack .settings-option-copy > div:last-child {
   gap: 5px !important;
+}
+.settings-option-row:has(> .custom-switch) {
+  flex-direction: row;
+  align-items: center;
+}
+.settings-option-row:has(> .custom-switch) > .settings-option-copy {
+  width: auto;
+  flex: 1 1 auto;
+}
+.settings-option-row:has(> .custom-switch) > .custom-switch {
+  align-self: center;
+}
+.settings-general-stack > *:has(> .settings-option-copy):has(> .custom-switch) {
+  flex-direction: row;
+  align-items: center;
+}
+.settings-general-stack > *:has(> .settings-option-copy):has(> .custom-switch) > .settings-option-copy {
+  width: auto;
+  flex: 1 1 auto;
+}
+.settings-general-stack > *:has(> .settings-option-copy):has(> .custom-switch) > .custom-switch {
+  align-self: center;
 }
 .sticky-note-header {
   -webkit-app-region: no-drag;

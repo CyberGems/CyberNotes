@@ -950,8 +950,8 @@ export default function SettingsModal({
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {language === 'es'
-                        ? 'Elige si las notas se ocultan o muestran un escudo opaco desenfocado mientras CyberNotes está bloqueado.'
-                        : 'Choose whether notes are hidden or covered by an opaque, blurred shield while CyberNotes is locked.'}
+                        ? 'Elige si las notas se ocultan o permanecen visibles con una capa opaca desenfocada mientras CyberNotes está bloqueado.'
+                        : 'Choose whether notes are hidden or remain visible behind an opaque, blurred layer while CyberNotes is locked.'}
                     </span>
                   </SettingsOptionCopy>
                   <select
@@ -960,7 +960,7 @@ export default function SettingsModal({
                     className="input settings-option-select"
                   >
                     <option value="hide">{language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked'}</option>
-                    <option value="shield">{language === 'es' ? 'Escudo de privacidad (mantener visible)' : 'Privacy shield (keep visible)'}</option>
+                    <option value="shield">{language === 'es' ? 'Mantener visibles con una capa opaca desenfocada' : 'Keep visible with an opaque, blurred layer'}</option>
                   </select>
                 </div>
               </div>
