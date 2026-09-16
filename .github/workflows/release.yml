@@ -127,18 +127,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Final guard: action-gh-release has been observed to publish a release
-      # even with draft: true when a draft already exists. Re-assert draft.
-      - name: Force draft state (final guard)
+      # Final guard: action-gh-release can keep an existing draft body and has
+      # been observed to publish even with draft: true. Apply notes and re-assert draft.
+      - name: Apply release notes and force draft
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "${{ github.ref_name }}"
-          gh release edit $tag --draft
+          gh release edit $tag --notes-file ./release_notes.md --draft
           $state = gh release view $tag --json isDraft --jq .isDraft
           if ($state -ne "true") {
             throw "Failed to force $tag back to draft (isDraft=$state)"
           }
-          Write-Host "Release $tag confirmed as draft."
+          Write-Host "Release $tag confirmed as draft with filled notes."
