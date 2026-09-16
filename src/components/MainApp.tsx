@@ -579,6 +579,13 @@ export default function MainApp({
       return;
     }
     const meta = allNotesRef.current.find(n => n.id === id) || notesRef.current.find(n => n.id === id);
+    const activeDraft = draftCacheRef.current[id];
+    if (activeDraft && meta) {
+      contentCacheRef.current[id] = activeDraft.content;
+      setSelectedNote({ ...meta, title: activeDraft.title, content: activeDraft.content });
+      setNoteLoading(false);
+      return;
+    }
     const cached = contentCacheRef.current[id];
     if (cached !== undefined && meta) {
       setSelectedNote({ ...meta, content: cached });
@@ -591,6 +598,17 @@ export default function MainApp({
     if (!full || selectedNoteIdRef.current !== id) {
       // Otra navegación ganó la carrera: no apagar loading aquí si el id ya cambió
       if (selectedNoteIdRef.current === id) setNoteLoading(false);
+      return;
+    }
+    const latestDraft = draftCacheRef.current[id];
+    if (latestDraft) {
+      contentCacheRef.current[id] = latestDraft.content;
+      setSelectedNote({
+        ...toNoteMeta(full),
+        title: latestDraft.title,
+        content: latestDraft.content,
+      });
+      setNoteLoading(false);
       return;
     }
     contentCacheRef.current[id] = full.content || '';
@@ -638,8 +656,9 @@ export default function MainApp({
     draftFlushRef.current = flush;
   }, []);
 
-  const clearDraftState = useCallback((id: string) => {
+  const clearDraftState = useCallback((id: string, removeFromRecoveryQueue = true) => {
     delete draftCacheRef.current[id];
+    delete contentCacheRef.current[id];
     persistedDraftsRef.current = persistedDraftsRef.current.filter(draft => draft.note_id !== id);
     setDraftCache(prev => {
       if (!(id in prev)) return prev;
@@ -647,7 +666,9 @@ export default function MainApp({
       delete next[id];
       return next;
     });
-    setDraftRecoveryQueue(prev => prev.filter(draft => draft.note_id !== id));
+    if (removeFromRecoveryQueue) {
+      setDraftRecoveryQueue(prev => prev.filter(draft => draft.note_id !== id));
+    }
   }, []);
 
   const prepareForLock = useCallback(async () => {
@@ -862,6 +883,9 @@ export default function MainApp({
     const deleted = await window.cyberNotesAPI.deleteDraft(id);
     if (!deleted) return;
     clearDraftState(id);
+    if (selectedNoteIdRef.current === id) {
+      setDraftRecoveryNonce(prev => prev + 1);
+    }
   }, [clearDraftState]);
 
   const resolveDraftRecovery = useCallback(async (continueDraft: boolean) => {
@@ -871,6 +895,7 @@ export default function MainApp({
     const note = allNotesRef.current.find(item => item.id === draft.note_id);
     if (!note) {
       await window.cyberNotesAPI.deleteDraft(draft.note_id);
+      clearDraftState(draft.note_id, false);
       setDraftRecoveryQueue(prev => prev.slice(1));
       return;
     }
@@ -885,17 +910,26 @@ export default function MainApp({
       draftCacheRef.current = { ...draftCacheRef.current, [draft.note_id]: entry };
       contentCacheRef.current[draft.note_id] = draft.content;
       setDraftCache(prev => ({ ...prev, [draft.note_id]: entry }));
+      setSelectedNote(prev => (
+        prev && prev.id === draft.note_id
+          ? { ...prev, title: draft.title, content: draft.content }
+          : prev
+      ));
       setDraftRecoveryNonce(prev => prev + 1);
       setSelectedFolderId(prev => prev === 'sticky' ? prev : note.folder_id);
       setOpenNoteIds(prev => prev.includes(draft.note_id) ? prev : [...prev, draft.note_id]);
       setSelectedNoteId(draft.note_id);
     } else {
       await window.cyberNotesAPI.deleteDraft(draft.note_id);
+      clearDraftState(draft.note_id, false);
+      if (selectedNoteIdRef.current === draft.note_id) {
+        setDraftRecoveryNonce(prev => prev + 1);
+      }
     }
 
     persistedDraftsRef.current = persistedDraftsRef.current.filter(item => item.note_id !== draft.note_id);
     setDraftRecoveryQueue(prev => prev.slice(1));
-  }, [draftRecoveryQueue]);
+  }, [draftRecoveryQueue, clearDraftState]);
 
   useModalKeys({
     enabled: draftRecoveryQueue.length > 0,

@@ -234,6 +234,7 @@ export default function NoteEditor({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentNoteRef = useRef<Note | null>(note);
+  const hydratedNoteIdRef = useRef<string | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const editorRootRef = useRef<HTMLDivElement | null>(null);
   const isSelectionChangingRef = useRef(false);
@@ -621,7 +622,7 @@ export default function NoteEditor({
     setLocalTitle(newTitle);
     localTitleRef.current = newTitle;
     const current = currentNoteRef.current;
-    if (current) {
+    if (current && hydratedNoteIdRef.current === current.id) {
       const updated = { ...current, title: newTitle };
       currentNoteRef.current = updated;
       if (autosaveEnabled) {
@@ -1071,7 +1072,9 @@ export default function NoteEditor({
     content: '',
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      if (!isSelectionChangingRef.current) {
+      const current = currentNoteRef.current;
+      const isHydrated = !!current && hydratedNoteIdRef.current === current.id;
+      if (!isSelectionChangingRef.current && isHydrated) {
         isDirtyRef.current = true;
         scheduleAutoSave(html);
       }
@@ -1091,7 +1094,7 @@ export default function NoteEditor({
       if (isDirtyRef.current) {
         const html = editor.getHTML();
         const current = currentNoteRef.current;
-        if (current) {
+        if (current && hydratedNoteIdRef.current === current.id) {
           if (autosaveEnabledRef.current) {
             const preview = extractPreview(html);
             const thumb = extractThumb(html);
@@ -1137,7 +1140,7 @@ export default function NoteEditor({
 
     const flushBeforeLock = async () => {
       const current = currentNoteRef.current;
-      if (!current || !editor) return;
+      if (!current || !editor || hydratedNoteIdRef.current !== current.id) return;
 
       if (autosaveEnabledRef.current) {
         if (saveTimer.current) {
@@ -1189,8 +1192,12 @@ export default function NoteEditor({
   };
 
   const handleManualSave = useCallback(() => {
-    if (!editor || !note) return;
+    if (!editor || !note || hydratedNoteIdRef.current !== note.id) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (draftSyncTimer.current) {
+      clearTimeout(draftSyncTimer.current);
+      draftSyncTimer.current = null;
+    }
     const html = editor.getHTML();
     const preview = extractPreview(html);
     onSave({ ...note, content: html, title: localTitle, preview, thumb: extractThumb(html) });
@@ -1202,13 +1209,19 @@ export default function NoteEditor({
   const handleRevertToSaved = useCallback(() => {
     if (!editor || !note) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (draftSyncTimer.current) {
+      clearTimeout(draftSyncTimer.current);
+      draftSyncTimer.current = null;
+    }
     isSelectionChangingRef.current = true;
+    hydratedNoteIdRef.current = null;
     loadEditorContent(editor, note.content || '');
     setLocalTitle(note.title || '');
     localTitleRef.current = note.title || '';
     isDirtyRef.current = false;
     setHasUnsavedChanges(false);
     onDiscardDraft?.(note.id);
+    hydratedNoteIdRef.current = note.id;
     syncMinimapHtml(true);
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
   }, [editor, note, onDiscardDraft, syncMinimapHtml]);
@@ -1225,13 +1238,14 @@ export default function NoteEditor({
   }, [hasUnsavedChanges]);
 
   // Actualizar editor cuando cambia la nota seleccionada o cuando se monta/desmonta
-  useEffect(() => {
+  useLayoutEffect(() => {
     const draft = note ? draftCache[note.id] : null;
     setPinned(note?.pinned === 1);
     setLocalTitle(draft ? draft.title : (note?.title || ''));
     localTitleRef.current = draft ? draft.title : (note?.title || '');
     setHasUnsavedChanges(!!draft);
 
+    hydratedNoteIdRef.current = null;
     if (!editor || !note) return;
     
     // Set selection changing flag to true to ignore programmatic updates
@@ -1243,6 +1257,7 @@ export default function NoteEditor({
     // Carga limpia: sin meter el cambio de nota en el historial de Undo
     const content = draft ? draft.content : (note.content || '');
     loadEditorContent(editor, content);
+    hydratedNoteIdRef.current = note.id;
 
     updateTextMetrics(editor);
     updateLineInfo(editor);
@@ -1270,6 +1285,13 @@ export default function NoteEditor({
 
     return () => {
       clearTimeout(timeoutId);
+      if (draftSyncTimer.current) {
+        clearTimeout(draftSyncTimer.current);
+        draftSyncTimer.current = null;
+      }
+      if (hydratedNoteIdRef.current === note.id) {
+        hydratedNoteIdRef.current = null;
+      }
       // Closure-based safeguard: flush save immediately when note changes or unmounts.
       // En modo manual NO persistimos: el borrador ya está al día en draftCache.
       if (saveTimer.current && isDirtyRef.current) {
@@ -1286,28 +1308,29 @@ export default function NoteEditor({
     };
   }, [note?.id, editor, draftRecoveryNonce]);
 
-  // Sincronizar ref con la note prop cuando cambia (mismo id, nuevo ref)
+  // Mantener la referencia sincronizada después de hidratar el contenido.
   useEffect(() => {
     currentNoteRef.current = note;
   }, [note]);
 
   const scheduleAutoSave = useCallback((html: string) => {
+    const current = currentNoteRef.current;
+    if (!current || hydratedNoteIdRef.current !== current.id) return;
+    const noteId = current.id;
     if (!autosaveEnabled) {
       setHasUnsavedChanges(true);
-      const current = currentNoteRef.current;
-      if (current) {
-        // Throttle: no bombardear al padre en cada tecla (solo marcar dirty + sync periódico)
-        if (draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
-        draftSyncTimer.current = setTimeout(() => {
-          onEditDraft?.(current.id, localTitleRef.current, html);
-        }, 300);
-      }
+      // Throttle: no bombardear al padre en cada tecla (solo marcar dirty + sync periódico)
+      if (draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
+      draftSyncTimer.current = setTimeout(() => {
+        if (currentNoteRef.current?.id !== noteId || hydratedNoteIdRef.current !== noteId) return;
+        onEditDraft?.(noteId, localTitleRef.current, html);
+      }, 300);
       return;
     }
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       const current = currentNoteRef.current;
-      if (!current) return;
+      if (!current || current.id !== noteId || hydratedNoteIdRef.current !== noteId) return;
       const preview = extractPreview(html);
       const thumb = extractThumb(html);
       onSave({ ...current, content: html, preview, thumb });
