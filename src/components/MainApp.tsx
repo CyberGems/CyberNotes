@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
-import { Folder, Note, ThemeId } from '../types';
+import { Folder, Note, NoteDraft, ThemeId } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { EditorFontId, applyEditorFont, DEFAULT_EDITOR_FONT } from '../fonts';
 import TitleBar from './TitleBar';
@@ -69,9 +69,15 @@ interface Props {
   colorIntensity: number;
   onIntensityChange: (v: number) => void;
   onLock: () => void;
+  onRegisterLockPreparation?: (handler: () => Promise<void>) => () => void;
   autoLockMinutes: number;
   onAutoLockChange: (v: number) => void;
 }
+
+type DraftEntry = Pick<NoteDraft, 'title' | 'content'> & {
+  baseUpdatedAt: string;
+  updatedAt: string;
+};
 
 export default function MainApp({
   language,
@@ -81,6 +87,7 @@ export default function MainApp({
   colorIntensity,
   onIntensityChange,
   onLock,
+  onRegisterLockPreparation,
   autoLockMinutes,
   onAutoLockChange,
 }: Props) {
@@ -98,7 +105,9 @@ export default function MainApp({
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
   const [openStickyIds, setOpenStickyIds] = useState<string[]>([]);
   const [trashCount, setTrashCount] = useState(0);
-  const [draftCache, setDraftCache] = useState<Record<string, { title: string; content: string }>>({});
+  const [draftCache, setDraftCache] = useState<Record<string, DraftEntry>>({});
+  const [draftRecoveryQueue, setDraftRecoveryQueue] = useState<NoteDraft[]>([]);
+  const [draftRecoveryNonce, setDraftRecoveryNonce] = useState(0);
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
   const [pendingNavNoteId, setPendingNavNoteId] = useState<string | null>(null);
   const [confirmLeaveDismissed, setConfirmLeaveDismissed] = useState(false);
@@ -154,11 +163,18 @@ export default function MainApp({
   const allNotesRef = useRef<Note[]>([]);
   const notesRef = useRef<Note[]>([]);
   const openStickyIdsRef = useRef<string[]>([]);
+  const draftCacheRef = useRef<Record<string, DraftEntry>>({});
+  const draftFlushRef = useRef<(() => Promise<void>) | null>(null);
+  const draftWriteChainsRef = useRef<Record<string, Promise<boolean>>>({});
+  const persistedDraftsRef = useRef<NoteDraft[]>([]);
+  const draftsLoadedRef = useRef(false);
+  const allNotesLoadedRef = useRef(false);
   selectedNoteIdRef.current = selectedNoteId;
   selectedFolderIdRef.current = selectedFolderId;
   allNotesRef.current = allNotes;
   notesRef.current = notes;
   openStickyIdsRef.current = openStickyIds;
+  draftCacheRef.current = draftCache;
 
   useEffect(() => {
     const trackMouse = (e: MouseEvent) => {
@@ -225,6 +241,8 @@ export default function MainApp({
     const unregisterNoteUpdated = window.cyberNotesAPI.onNoteUpdated?.((updatedNote) => {
       if (updatedNote.deleted_at) return;
       const meta = toNoteMeta(updatedNote);
+      persistedDraftsRef.current = persistedDraftsRef.current.filter(draft => draft.note_id !== updatedNote.id);
+      setDraftRecoveryQueue(prev => prev.filter(draft => draft.note_id !== updatedNote.id));
       setAllNotes(prev => {
         const exists = prev.some(n => n.id === updatedNote.id);
         if (exists) return prev.map(n => n.id === updatedNote.id ? { ...n, ...meta } : n);
@@ -248,6 +266,15 @@ export default function MainApp({
       setOpenNoteIds(prev => prev.filter(id => id !== deletedId));
       setSelectedNote(prev => (prev && prev.id === deletedId ? null : prev));
       setSelectedNoteId(prev => (prev === deletedId ? null : prev));
+      delete draftCacheRef.current[deletedId];
+      setDraftCache(prev => {
+        if (!(deletedId in prev)) return prev;
+        const next = { ...prev };
+        delete next[deletedId];
+        return next;
+      });
+      persistedDraftsRef.current = persistedDraftsRef.current.filter(draft => draft.note_id !== deletedId);
+      setDraftRecoveryQueue(prev => prev.filter(draft => draft.note_id !== deletedId));
       setTrashCount(prev => prev + 1);
       if (selectedFolderIdRef.current === 'trash') {
         window.cyberNotesAPI.getTrashNotes().then(trash => setNotes(trash.map(toNoteMeta)));
@@ -360,6 +387,7 @@ export default function MainApp({
   }, [selectedNoteId, selectedFolderId]);
 
   const loadSettings = async () => {
+    await loadDrafts();
     const s = await window.cyberNotesAPI.getSettings([
       'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity', 'auto_lock_minutes',
       'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
@@ -452,7 +480,30 @@ export default function MainApp({
 
   const loadAllNotes = async () => {
     const all = await window.cyberNotesAPI.getAllNotes();
-    setAllNotes(all.map(toNoteMeta));
+    const metas = all.map(toNoteMeta);
+    allNotesLoadedRef.current = true;
+    allNotesRef.current = metas;
+    setAllNotes(metas);
+    if (draftsLoadedRef.current) {
+      setDraftRecoveryQueue(
+        persistedDraftsRef.current.filter(draft => all.some(note => note.id === draft.note_id && !note.deleted_at))
+      );
+    }
+  };
+
+  const loadDrafts = async () => {
+    try {
+      const drafts = await window.cyberNotesAPI.getDrafts();
+      persistedDraftsRef.current = drafts;
+      draftsLoadedRef.current = true;
+      if (allNotesLoadedRef.current) {
+        setDraftRecoveryQueue(
+          drafts.filter(draft => allNotesRef.current.some(note => note.id === draft.note_id && !note.deleted_at))
+        );
+      }
+    } catch (err) {
+      console.error('[MainApp] Error loading drafts:', err);
+    }
   };
 
   const loadNotes = async (folderId: string | null) => {
@@ -520,6 +571,75 @@ export default function MainApp({
     return () => { cancelled = true; };
   }, [selectedNoteId, loadFullNote]);
 
+  const queueDraftWrite = useCallback((id: string, draft: DraftEntry) => {
+    const note = allNotesRef.current.find(item => item.id === id);
+    if (!note) return Promise.resolve(false);
+
+    const payload: NoteDraft = {
+      note_id: id,
+      title: draft.title,
+      content: draft.content,
+      base_updated_at: draft.baseUpdatedAt || note.updated_at,
+      updated_at: draft.updatedAt,
+    };
+    const previous = draftWriteChainsRef.current[id] ?? Promise.resolve(true);
+    const next = previous
+      .catch(() => false)
+      .then(() => window.cyberNotesAPI.saveDraft(payload));
+    draftWriteChainsRef.current[id] = next;
+    next.catch(err => {
+      console.error(`[MainApp] Error saving draft ${id}:`, err);
+    }).finally(() => {
+      if (draftWriteChainsRef.current[id] === next) {
+        delete draftWriteChainsRef.current[id];
+      }
+    });
+    return next;
+  }, []);
+
+  const registerDraftFlush = useCallback((flush: (() => Promise<void>) | null) => {
+    draftFlushRef.current = flush;
+  }, []);
+
+  const clearDraftState = useCallback((id: string) => {
+    delete draftCacheRef.current[id];
+    persistedDraftsRef.current = persistedDraftsRef.current.filter(draft => draft.note_id !== id);
+    setDraftCache(prev => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setDraftRecoveryQueue(prev => prev.filter(draft => draft.note_id !== id));
+  }, []);
+
+  const prepareForLock = useCallback(async () => {
+    try {
+      await draftFlushRef.current?.();
+      await Promise.all(Object.values(draftWriteChainsRef.current));
+
+      const finalWrites = Object.entries(draftCacheRef.current).map(([id, draft]) => {
+        const note = allNotesRef.current.find(item => item.id === id);
+        if (!note) return Promise.resolve(false);
+        return window.cyberNotesAPI.saveDraft({
+          note_id: id,
+          title: draft.title,
+          content: draft.content,
+          base_updated_at: draft.baseUpdatedAt || note.updated_at,
+          updated_at: draft.updatedAt,
+        }, true);
+      });
+      await Promise.all(finalWrites);
+    } catch (err) {
+      console.error('[MainApp] Error preparing drafts before lock:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!onRegisterLockPreparation) return;
+    return onRegisterLockPreparation(prepareForLock);
+  }, [onRegisterLockPreparation, prepareForLock]);
+
   const handleSelectFolder = async (folderId: string | null) => {
     setSelectedFolderId(folderId);
     setSearchQuery('');
@@ -567,6 +687,7 @@ export default function MainApp({
       setSelectedNote(prev => prev ? { ...prev, title, updated_at: updated.updated_at } : prev);
     }
     await window.cyberNotesAPI.saveNote(updated);
+    clearDraftState(id);
   };
 
   const handleSearch = useCallback((q: string) => {
@@ -664,6 +785,8 @@ export default function MainApp({
     contentCacheRef.current[updated.id] = updated.content || '';
     patchNoteMeta(updated);
     setSelectedNote(prev => (prev && prev.id === updated.id ? updated : prev));
+    const pendingDraftWrite = draftWriteChainsRef.current[updated.id];
+    if (pendingDraftWrite) await pendingDraftWrite.catch(() => false);
     await window.cyberNotesAPI.saveNote(updated);
 
     if (selectedFolderId === 'favorites' && updated.pinned !== 1 && !searchQuery) {
@@ -671,30 +794,74 @@ export default function MainApp({
     }
     
     // Al guardar exitosamente, eliminamos la nota del caché de borradores sucios
-    setDraftCache(prev => {
-      if (!(note.id in prev)) return prev;
-      const next = { ...prev };
-      delete next[note.id];
-      return next;
-    });
-  }, [patchNoteMeta, selectedFolderId, searchQuery]);
+    clearDraftState(updated.id);
+  }, [clearDraftState, patchNoteMeta, selectedFolderId, searchQuery]);
 
   const handleEditDraft = useCallback((id: string, title: string, content: string) => {
+    const previous = draftCacheRef.current[id];
+    const note = allNotesRef.current.find(item => item.id === id);
+    const draft: DraftEntry = {
+      title,
+      content,
+      baseUpdatedAt: previous?.baseUpdatedAt || note?.updated_at || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     contentCacheRef.current[id] = content;
+    draftCacheRef.current = { ...draftCacheRef.current, [id]: draft };
     setDraftCache(prev => {
       const cur = prev[id];
       if (cur && cur.title === title && cur.content === content) return prev;
-      return { ...prev, [id]: { title, content } };
+      return { ...prev, [id]: draft };
     });
-  }, []);
+    return queueDraftWrite(id, draft).then(() => undefined);
+  }, [queueDraftWrite]);
 
-  const handleDiscardDraft = useCallback((id: string) => {
-    setDraftCache(prev => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  }, []);
+  const handleDiscardDraft = useCallback(async (id: string) => {
+    const pendingDraftWrite = draftWriteChainsRef.current[id];
+    if (pendingDraftWrite) await pendingDraftWrite.catch(() => false);
+    const deleted = await window.cyberNotesAPI.deleteDraft(id);
+    if (!deleted) return;
+    clearDraftState(id);
+  }, [clearDraftState]);
+
+  const resolveDraftRecovery = useCallback(async (continueDraft: boolean) => {
+    const draft = draftRecoveryQueue[0];
+    if (!draft) return;
+
+    const note = allNotesRef.current.find(item => item.id === draft.note_id);
+    if (!note) {
+      await window.cyberNotesAPI.deleteDraft(draft.note_id);
+      setDraftRecoveryQueue(prev => prev.slice(1));
+      return;
+    }
+
+    if (continueDraft) {
+      const entry: DraftEntry = {
+        title: draft.title,
+        content: draft.content,
+        baseUpdatedAt: draft.base_updated_at,
+        updatedAt: draft.updated_at,
+      };
+      draftCacheRef.current = { ...draftCacheRef.current, [draft.note_id]: entry };
+      contentCacheRef.current[draft.note_id] = draft.content;
+      setDraftCache(prev => ({ ...prev, [draft.note_id]: entry }));
+      setDraftRecoveryNonce(prev => prev + 1);
+      setSelectedFolderId(prev => prev === 'sticky' ? prev : note.folder_id);
+      setOpenNoteIds(prev => prev.includes(draft.note_id) ? prev : [...prev, draft.note_id]);
+      setSelectedNoteId(draft.note_id);
+    } else {
+      await window.cyberNotesAPI.deleteDraft(draft.note_id);
+    }
+
+    persistedDraftsRef.current = persistedDraftsRef.current.filter(item => item.note_id !== draft.note_id);
+    setDraftRecoveryQueue(prev => prev.slice(1));
+  }, [draftRecoveryQueue]);
+
+  useModalKeys({
+    enabled: draftRecoveryQueue.length > 0,
+    onEsc: () => {},
+    onEnter: () => {},
+  });
 
   // Guard de navegación (Caso A): si dejamos una nota con borrador en modo manual,
   // pedimos confirmación antes de cambiar de nota/pestaña.
@@ -725,7 +892,7 @@ export default function MainApp({
   }, [selectedNoteId, draftCache, selectedNote, handleSaveNote, dontAskChecked, pendingNavNoteId]);
 
   const discardAndLeaveNav = useCallback(async () => {
-    if (selectedNoteId) handleDiscardDraft(selectedNoteId);
+    if (selectedNoteId) await handleDiscardDraft(selectedNoteId);
     if (dontAskChecked) {
       await window.cyberNotesAPI.setSetting('confirm_leave_note_dismissed', 'true');
       setConfirmLeaveDismissed(true);
@@ -763,12 +930,13 @@ export default function MainApp({
     });
     
     // Descartar borrador si se cierra la pestaña
+    void handleDiscardDraft(id);
     setDraftCache(prev => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
-  }, [selectedNoteId]);
+  }, [selectedNoteId, handleDiscardDraft]);
 
   const saveAndCloseDraftTab = useCallback(async () => {
     if (!noteToCloseWithDraft) return;
@@ -823,11 +991,7 @@ export default function MainApp({
     setOpenNoteIds(prev => prev.filter(noteId => noteId !== id));
     
     // Limpiar caché de borrador si existía
-    setDraftCache(prev => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
+    clearDraftState(id);
 
     if (selectedNoteId === id) {
       const remainingTabs = openNoteIds.filter(noteId => noteId !== id);
@@ -875,6 +1039,7 @@ export default function MainApp({
   const handlePurgeNote = async (id: string) => {
     const purged = await window.cyberNotesAPI.purgeNote(id);
     if (!purged) return;
+    clearDraftState(id);
     setNotes(prev => prev.filter(n => n.id !== id));
     if (selectedNoteId === id) {
       setSelectedNote(null);
@@ -902,6 +1067,7 @@ export default function MainApp({
     contentCacheRef.current[note.id] = content;
     const updated = { ...note, content, pinned: note.pinned === 1 ? 0 : 1, updated_at: new Date().toISOString() };
     await window.cyberNotesAPI.saveNote(updated);
+    clearDraftState(note.id);
     patchNoteMeta(updated);
     if (selectedNoteId === note.id) {
       setSelectedNote(prev => prev ? { ...prev, pinned: updated.pinned, updated_at: updated.updated_at } : prev);
@@ -922,6 +1088,7 @@ export default function MainApp({
     contentCacheRef.current[noteId] = content;
     const updated = { ...note, content, folder_id: targetFolderId, updated_at: new Date().toISOString() };
     await window.cyberNotesAPI.saveNote(updated);
+    clearDraftState(noteId);
     
     patchNoteMeta(updated);
     if (selectedNoteId === noteId) {
@@ -978,6 +1145,7 @@ export default function MainApp({
         showAbout ||
         showTrayPin ||
         showUnsavedExitDialog ||
+        draftRecoveryQueue.length > 0 ||
         pendingNavNoteId !== null ||
         noteToCloseWithDraft !== null
       ) {
@@ -1027,6 +1195,7 @@ export default function MainApp({
     showAbout,
     showTrayPin,
     showUnsavedExitDialog,
+    draftRecoveryQueue.length,
     pendingNavNoteId,
     noteToCloseWithDraft,
     layoutMode,
@@ -1034,8 +1203,20 @@ export default function MainApp({
   ]);
 
   const handleDeleteFolder = async (id: string) => {
+    const affectedIds = allNotes.filter(note => note.folder_id === id).map(note => note.id);
     const movedCount = await window.cyberNotesAPI.deleteFolder(id);
     setTrashCount(prev => prev + Number(movedCount || 0));
+    affectedIds.forEach(noteId => {
+      delete draftCacheRef.current[noteId];
+    });
+    if (affectedIds.length > 0) {
+      const affectedSet = new Set(affectedIds);
+      setDraftCache(prev => Object.fromEntries(
+        Object.entries(prev).filter(([noteId]) => !affectedSet.has(noteId))
+      ));
+      persistedDraftsRef.current = persistedDraftsRef.current.filter(draft => !affectedSet.has(draft.note_id));
+      setDraftRecoveryQueue(prev => prev.filter(draft => !affectedSet.has(draft.note_id)));
+    }
     setFolders(prev => prev.filter(f => f.id !== id));
     // Las notas de la carpeta pasan a la Papelera y desaparecen de las vistas activas.
     setAllNotes(prev => prev.filter(n => n.folder_id !== id));
@@ -1182,6 +1363,14 @@ export default function MainApp({
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   };
+
+  const recoveryDraft = draftRecoveryQueue[0] ?? null;
+  const recoveryNote = recoveryDraft
+    ? allNotes.find(note => note.id === recoveryDraft.note_id) ?? null
+    : null;
+  const recoveryDraftIsStale = !!recoveryDraft
+    && !!recoveryNote
+    && recoveryDraft.base_updated_at !== recoveryNote.updated_at;
 
   return (
     <div 
@@ -1376,6 +1565,8 @@ export default function MainApp({
           draftCache={draftCache}
           onEditDraft={handleEditDraft}
           onDiscardDraft={handleDiscardDraft}
+          onRegisterDraftFlush={registerDraftFlush}
+          draftRecoveryNonce={draftRecoveryNonce}
           tabsWidthMode={tabsWidthMode}
           showMinimap={showMinimap}
           onShowMinimapChange={handleShowMinimapChange}
@@ -1471,6 +1662,104 @@ export default function MainApp({
           }}
         />
       )}
+
+      <AnimatePresence>
+        {recoveryDraft && recoveryNote && (
+          <motion.div
+            key={`draft-recovery-${recoveryDraft.note_id}`}
+            {...modalOverlayMotion}
+            style={{ ...modalOverlayStyle, zIndex: 21000 }}
+          >
+            <motion.div
+              {...modalCardMotion}
+              className="glass-effect"
+              style={{
+                width: 'calc(440px * var(--ui-scale))',
+                maxWidth: 'calc(100vw - 32px)',
+                background: 'rgba(15, 15, 22, 0.97)',
+                border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '24px 28px',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.65), 0 0 30px var(--accent-glow)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 18,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  flexShrink: 0,
+                  background: 'var(--accent-dim)',
+                  border: '1px solid color-mix(in srgb, var(--accent) 45%, transparent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent-light)',
+                  fontSize: 22,
+                }}>
+                  ↻
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 style={{
+                    fontSize: 'calc(16px * var(--ui-scale))',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    margin: 0,
+                  }}>
+                    {language === 'es' ? 'Borrador recuperable' : 'Recoverable draft'}
+                  </h3>
+                  <p style={{
+                    fontSize: 'calc(12.5px * var(--ui-scale))',
+                    color: 'var(--text-secondary)',
+                    margin: '6px 0 0',
+                    lineHeight: 1.5,
+                  }}>
+                    {language === 'es'
+                      ? `La nota "${recoveryDraft.title || recoveryNote.title}" tiene un borrador guardado antes del bloqueo.`
+                      : `The note "${recoveryDraft.title || recoveryNote.title}" has a draft saved before the lock.`}
+                  </p>
+                </div>
+              </div>
+
+              <p style={{
+                fontSize: 'calc(11.5px * var(--ui-scale))',
+                color: recoveryDraftIsStale ? 'var(--warning)' : 'var(--text-muted)',
+                margin: 0,
+                lineHeight: 1.45,
+              }}>
+                {recoveryDraftIsStale
+                  ? (language === 'es'
+                    ? 'La versión guardada cambió después de crear este borrador. Puedes conservar el borrador o descartarlo.'
+                    : 'The saved version changed after this draft was created. You can keep the draft or discard it.')
+                  : (language === 'es'
+                    ? 'La versión guardada no se modificará hasta que decidas guardar el borrador.'
+                    : 'The saved version will not change until you choose to save the draft.')}
+              </p>
+
+              <div className="modal-actions is-stack">
+                <button
+                  type="button"
+                  className="modal-action-btn is-save"
+                  onClick={() => { void resolveDraftRecovery(true); }}
+                >
+                  {language === 'es' ? 'Continuar con el borrador' : 'Continue with draft'}
+                  <EnterGlyph />
+                </button>
+                <button
+                  type="button"
+                  className="modal-action-btn is-danger"
+                  onClick={() => { void resolveDraftRecovery(false); }}
+                >
+                  {language === 'es' ? 'Volver a la versión guardada' : 'Use saved version'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Confirmación de Cierre de Pestaña Sucia */}
       <AnimatePresence>

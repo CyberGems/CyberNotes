@@ -24,6 +24,14 @@ export interface Note {
   deleted_at?: string | null;
 }
 
+export interface NoteDraft {
+  note_id: string;
+  title: string;
+  content: string;
+  base_updated_at: string;
+  updated_at: string;
+}
+
 export type ThemeId = 'cyber-dark' | 'midnight' | 'forest' | 'light' | 'graphite' | 'neon';
 
 export interface Theme {
@@ -80,6 +88,9 @@ declare global {
       getNotesByFolder: (folderId: string | null) => Promise<Note[]>;
       getNoteById: (id: string) => Promise<Note | null>;
       saveNote: (note: Note) => Promise<Note>;
+      getDrafts: () => Promise<NoteDraft[]>;
+      saveDraft: (draft: NoteDraft, flushNow?: boolean) => Promise<boolean>;
+      deleteDraft: (noteId: string) => Promise<boolean>;
       deleteNote: (id: string) => Promise<boolean>;
       searchNotes: (query: string) => Promise<Note[]>;
       getTrashNotes: () => Promise<Note[]>;

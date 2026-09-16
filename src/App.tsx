@@ -32,15 +32,36 @@ export default function App() {
   const hasPasswordRef = useRef<boolean>(false);
   const autoLockMinutesRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lockPreparationRef = useRef<(() => Promise<void>) | null>(null);
+  const lockInProgressRef = useRef(false);
 
   hasPasswordRef.current = hasPassword;
   autoLockMinutesRef.current = autoLockMinutes;
 
-  const handleLock = useCallback(() => {
-    setPrivacyShield(false);
-    setView('lock');
-    window.cyberNotesAPI.setSessionLocked(true);
-    window.cyberNotesAPI.ackSessionLocked();
+  const registerLockPreparation = useCallback((handler: () => Promise<void>) => {
+    lockPreparationRef.current = handler;
+    return () => {
+      if (lockPreparationRef.current === handler) {
+        lockPreparationRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleLock = useCallback(async () => {
+    if (lockInProgressRef.current) return;
+    lockInProgressRef.current = true;
+    try {
+      await lockPreparationRef.current?.();
+      // Drafts are durable before MainApp is unmounted, so the locked view
+      // must not wait for an editor dialog that no longer exists.
+      await window.cyberNotesAPI.setUnsavedChanges(false);
+      setPrivacyShield(false);
+      setView('lock');
+      await window.cyberNotesAPI.setSessionLocked(true);
+      window.cyberNotesAPI.ackSessionLocked();
+    } finally {
+      lockInProgressRef.current = false;
+    }
   }, []);
 
   const handleUnlock = useCallback(() => {
@@ -247,6 +268,7 @@ export default function App() {
         colorIntensity={colorIntensity}
         onIntensityChange={handleIntensityChange}
         onLock={handleLock}
+        onRegisterLockPreparation={registerLockPreparation}
         autoLockMinutes={autoLockMinutes}
         onAutoLockChange={handleAutoLockChange}
       />

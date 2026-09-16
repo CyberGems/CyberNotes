@@ -21,7 +21,7 @@ import {
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
   Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
-  Undo, Redo, Save, Download, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
+  Undo, Redo, Save, Upload, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
   CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow
 } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -32,7 +32,7 @@ interface Props {
   readOnly?: boolean;
   /** Cargando content de otra nota: no mostrar bienvenida; overlay / preloader. */
   isNoteLoading?: boolean;
-  onSave: (note: Note) => void;
+  onSave: (note: Note) => void | Promise<void>;
   onCreateNote: () => void;
   layoutMode: number;
   onToggleLayout: () => void;
@@ -57,8 +57,10 @@ interface Props {
   onCloseTab?: (id: string) => void;
   onReorderTabs?: (fromId: string, toId: string, edge: 'before' | 'after') => void;
   draftCache?: Record<string, { title: string; content: string }>;
-  onEditDraft?: (id: string, title: string, content: string) => void;
+  onEditDraft?: (id: string, title: string, content: string) => void | Promise<void>;
   onDiscardDraft?: (id: string) => void;
+  onRegisterDraftFlush?: (flush: (() => Promise<void>) | null) => void;
+  draftRecoveryNonce?: number;
   tabsWidthMode?: 'normal' | 'wide';
   showMinimap?: boolean;
   onShowMinimapChange?: (v: boolean) => void;
@@ -202,6 +204,8 @@ export default function NoteEditor({
   draftCache = {},
   onEditDraft,
   onDiscardDraft,
+  onRegisterDraftFlush,
+  draftRecoveryNonce = 0,
   tabsWidthMode = 'normal',
   showMinimap = false,
   onShowMinimapChange,
@@ -1083,6 +1087,40 @@ export default function NoteEditor({
   // Sincronizar editorRef después de que useEditor lo haya inicializado
   editorRef.current = editor;
 
+  useEffect(() => {
+    if (!onRegisterDraftFlush) return;
+
+    const flushBeforeLock = async () => {
+      const current = currentNoteRef.current;
+      if (!current || !editor) return;
+
+      if (autosaveEnabledRef.current) {
+        if (saveTimer.current) {
+          clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+        if (isDirtyRef.current) {
+          const html = editor.getHTML();
+          const preview = extractPreview(html);
+          await onSave({ ...current, content: html, preview, thumb: extractThumb(html) });
+          isDirtyRef.current = false;
+        }
+        return;
+      }
+
+      if (draftSyncTimer.current) {
+        clearTimeout(draftSyncTimer.current);
+        draftSyncTimer.current = null;
+      }
+      if (hasUnsavedChangesRef.current || isDirtyRef.current) {
+        await onEditDraft?.(current.id, localTitleRef.current, editor.getHTML());
+      }
+    };
+
+    onRegisterDraftFlush(flushBeforeLock);
+    return () => onRegisterDraftFlush(null);
+  }, [editor, onEditDraft, onRegisterDraftFlush, onSave]);
+
   const updateLineInfo = (editor: any) => {
     if (!showLineCounter) return;
     const { from } = editor.state.selection;
@@ -1201,7 +1239,7 @@ export default function NoteEditor({
         }
       }
     };
-  }, [note?.id, editor]);
+  }, [note?.id, editor, draftRecoveryNonce]);
 
   // Sincronizar ref con la note prop cuando cambia (mismo id, nuevo ref)
   useEffect(() => {
@@ -1968,7 +2006,7 @@ export default function NoteEditor({
                   e.currentTarget.style.color = showExportMenu ? 'var(--accent-light)' : 'var(--text-muted)';
                 }}
               >
-                <Download size={15} />
+                <Upload size={15} />
               </button>
               </Tooltip>
 

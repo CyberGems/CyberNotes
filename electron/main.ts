@@ -172,6 +172,14 @@ async function initDatabase() {
       deleted_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS note_drafts (
+      note_id         TEXT PRIMARY KEY,
+      title           TEXT NOT NULL,
+      content         TEXT NOT NULL,
+      base_updated_at TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sticky_notes (
       note_id     TEXT PRIMARY KEY,
       x           INTEGER,
@@ -402,6 +410,7 @@ function purgeOldTrash(): void {
 
   const ops = expired.flatMap((row: any) => [
     { sql: 'DELETE FROM sticky_notes WHERE note_id = ?', params: [row.id] },
+    { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [row.id] },
     { sql: 'DELETE FROM notes WHERE id = ? AND deleted_at IS NOT NULL', params: [row.id] },
   ]);
   runQueryBatch(ops);
@@ -2002,6 +2011,7 @@ ipcMain.handle('folders:delete', (_e: any, id: string) => {
   const deletedAt = new Date().toISOString();
   const affected = queryAll('SELECT id FROM notes WHERE folder_id = ? AND deleted_at IS NULL', [id]);
   runQueryBatch([
+    { sql: 'DELETE FROM note_drafts WHERE note_id IN (SELECT id FROM notes WHERE folder_id = ? AND deleted_at IS NULL)', params: [id] },
     { sql: 'UPDATE notes SET folder_id = NULL, deleted_at = ? WHERE folder_id = ? AND deleted_at IS NULL', params: [deletedAt, id] },
     { sql: 'UPDATE sticky_notes SET is_open = 0 WHERE note_id IN (SELECT id FROM notes WHERE folder_id IS NULL AND deleted_at = ?)', params: [deletedAt] },
     { sql: 'DELETE FROM folders WHERE id = ?', params: [id] },
@@ -2049,15 +2059,21 @@ ipcMain.handle('notes:save', (_e: any, note: any) => {
   const exists = queryGet('SELECT id, deleted_at FROM notes WHERE id = ?', [note.id]);
   if (exists?.deleted_at) return note;
   if (exists) {
-    runQuery(
-      'UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, thumb = ?, pinned = ?, updated_at = ? WHERE id = ?',
-      [note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.updated_at, note.id]
-    );
+    runQueryBatch([
+      {
+        sql: 'UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, thumb = ?, pinned = ?, updated_at = ? WHERE id = ?',
+        params: [note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.updated_at, note.id],
+      },
+      { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [note.id] },
+    ]);
   } else {
-    runQuery(
-      'INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [note.id, note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.created_at, note.updated_at]
-    );
+    runQueryBatch([
+      {
+        sql: 'INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        params: [note.id, note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.created_at, note.updated_at],
+      },
+      { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [note.id] },
+    ]);
   }
 
   // Sincronización en tiempo real
@@ -2072,6 +2088,39 @@ ipcMain.handle('notes:save', (_e: any, note: any) => {
   return note;
 });
 
+ipcMain.handle('drafts:getAll', () => {
+  return queryAll(
+    'SELECT note_id, title, content, base_updated_at, updated_at FROM note_drafts ORDER BY updated_at DESC'
+  );
+});
+
+ipcMain.handle('drafts:save', (_e: any, draft: any, flushNow = false) => {
+  const noteId = typeof draft?.note_id === 'string' ? draft.note_id : '';
+  const title = typeof draft?.title === 'string' ? draft.title : '';
+  const content = typeof draft?.content === 'string' ? draft.content : '';
+  const baseUpdatedAt = typeof draft?.base_updated_at === 'string' ? draft.base_updated_at : '';
+  const updatedAt = typeof draft?.updated_at === 'string' ? draft.updated_at : '';
+  if (!noteId || !baseUpdatedAt || !updatedAt) return false;
+
+  const note = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NULL', [noteId]);
+  if (!note) return false;
+
+  runQuery(
+    `INSERT OR REPLACE INTO note_drafts
+      (note_id, title, content, base_updated_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [noteId, title, content, baseUpdatedAt, updatedAt],
+    { flushNow: Boolean(flushNow) }
+  );
+  return true;
+});
+
+ipcMain.handle('drafts:delete', (_e: any, noteId: string) => {
+  if (typeof noteId !== 'string' || !noteId) return false;
+  runQuery('DELETE FROM note_drafts WHERE note_id = ?', [noteId]);
+  return true;
+});
+
 ipcMain.handle('notes:delete', (_e: any, id: string) => {
   const deletedAt = new Date().toISOString();
   const active = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NULL', [id]);
@@ -2079,6 +2128,7 @@ ipcMain.handle('notes:delete', (_e: any, id: string) => {
   runQueryBatch([
     { sql: 'UPDATE notes SET deleted_at = ? WHERE id = ?', params: [deletedAt, id] },
     { sql: 'UPDATE sticky_notes SET is_open = 0 WHERE note_id = ?', params: [id] },
+    { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [id] },
   ]);
   const sw = stickyWindows.get(id);
   if (sw && !sw.isDestroyed()) {
@@ -2148,6 +2198,7 @@ ipcMain.handle('notes:purge', (_e: any, id: string) => {
   if (!trashed) return false;
   runQueryBatch([
     { sql: 'DELETE FROM sticky_notes WHERE note_id = ?', params: [id] },
+    { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [id] },
     { sql: 'DELETE FROM notes WHERE id = ? AND deleted_at IS NOT NULL', params: [id] },
   ]);
   return true;
@@ -2157,6 +2208,7 @@ ipcMain.handle('notes:emptyTrash', () => {
   const row = queryGet('SELECT COUNT(*) as count FROM notes WHERE deleted_at IS NOT NULL');
   runQueryBatch([
     { sql: 'DELETE FROM sticky_notes WHERE note_id IN (SELECT id FROM notes WHERE deleted_at IS NOT NULL)' },
+    { sql: 'DELETE FROM note_drafts WHERE note_id IN (SELECT id FROM notes WHERE deleted_at IS NOT NULL)' },
     { sql: 'DELETE FROM notes WHERE deleted_at IS NOT NULL' },
   ]);
   return Number(row?.count || 0);
@@ -2294,6 +2346,9 @@ ipcMain.handle('data:import', async () => {
         params: [n.id, n.folder_id, n.title, n.content, n.preview, n.thumb || '', n.pinned, n.created_at, n.updated_at, n.deleted_at || null],
       });
     }
+    // Imported data replaces the saved baseline, so existing drafts could no longer
+    // be safely associated with their original versions.
+    ops.push({ sql: 'DELETE FROM note_drafts' });
     runQueryBatch(ops, { flushNow: true });
     return true;
   } catch (e) {
