@@ -338,6 +338,41 @@ body:has(.sticky-note-window),
 
 /* ─── TipTap Editor Styles ────────────────────────────────── */
 
+.welcome-greeting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  animation: welcomeGreetingIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.welcome-greeting-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+@keyframes welcomeGreetingIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-greeting {
+    animation: none;
+  }
+}
+
 .ProseMirror {
   outline: none;
   min-height: 100%;

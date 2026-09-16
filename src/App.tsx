@@ -27,6 +27,7 @@ export default function App() {
   const [privacyShield, setPrivacyShield] = useState(false);
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [hasPassword, setHasPassword] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(null);
 
   const lastActivityRef = useRef<number>(Date.now());
   const hasPasswordRef = useRef<boolean>(false);
@@ -75,10 +76,13 @@ export default function App() {
   useEffect(() => {
     const init = async () => {
       try {
-        const s = await window.cyberNotesAPI.getSettings([
-          'theme', 'colorIntensity', 'language',
-          'bg_image', 'glass_blur', 'bg_opacity',
-          'auto_lock_minutes', 'editor_font',
+        const [s, systemUserName] = await Promise.all([
+          window.cyberNotesAPI.getSettings([
+            'theme', 'colorIntensity', 'language',
+            'bg_image', 'glass_blur', 'bg_opacity',
+            'auto_lock_minutes', 'editor_font',
+          ]),
+          window.cyberNotesAPI.getUserName().catch(() => null),
         ]);
         
         let t = s.theme ? (s.theme as ThemeId) : 'cyber-dark';
@@ -89,6 +93,7 @@ export default function App() {
         setTheme(t);
         setColorIntensity(i);
         setLanguage(l);
+        setDisplayName(systemUserName);
         setAutoLockMinutes(Number.isFinite(autoLock) ? autoLock : 0);
         applyThemeVars(t, i);
         applyEditorFont(s.editor_font || 'inter');
@@ -262,6 +267,7 @@ export default function App() {
     <>
       <MainApp
         language={language}
+        displayName={displayName}
         onLanguageChange={handleLanguageChange}
         currentTheme={theme}
         onThemeChange={handleThemeChange}

@@ -1806,6 +1806,14 @@ ipcMain.handle('app:getVersions', () => ({
   osType: os.type(),
 }));
 
+ipcMain.handle('app:getUserName', () => {
+  try {
+    return os.userInfo().username || process.env.USERNAME || process.env.USER || null;
+  } catch {
+    return process.env.USERNAME || process.env.USER || null;
+  }
+});
+
 ipcMain.handle('shell:openExternal', (_e: any, url: string) => {
   if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
     return shell.openExternal(url);

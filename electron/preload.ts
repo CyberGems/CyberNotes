@@ -147,6 +147,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     return () => ipcRenderer.removeListener('update:status', listener);
   },
   getVersions: () => ipcRenderer.invoke('app:getVersions'),
+  getUserName: () => ipcRenderer.invoke('app:getUserName'),
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 
   // -- Sticky Notes --

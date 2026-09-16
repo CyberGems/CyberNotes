@@ -128,6 +128,7 @@ declare global {
         osRelease: string;
         osType: string;
       }>;
+      getUserName: () => Promise<string | null>;
       openExternal: (url: string) => Promise<boolean>;
       // Assets
       selectAndSaveImage: () => Promise<string | null>;

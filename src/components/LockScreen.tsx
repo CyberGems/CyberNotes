@@ -3,6 +3,7 @@ import { Lock, Eye, EyeOff, Minus, Square, X, CaseSensitive } from 'lucide-react
 import { Language, TRANSLATIONS } from '../languages';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import Tooltip from './Tooltip';
+import WelcomeGreeting from './WelcomeGreeting';
 
 interface Props {
   language: Language;
@@ -337,6 +338,17 @@ export default function LockScreen({
             </p>
           </div>
         </div>
+
+        <WelcomeGreeting
+          language={language}
+          showName={false}
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--accent-light)',
+            animationDelay: '120ms',
+          }}
+        />
 
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>

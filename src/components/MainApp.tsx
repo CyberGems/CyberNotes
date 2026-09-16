@@ -63,6 +63,7 @@ const migrateIcon = (icon: string): string => {
 
 interface Props {
   language: Language;
+  displayName?: string | null;
   onLanguageChange: (l: Language) => void;
   currentTheme: ThemeId;
   onThemeChange: (t: ThemeId) => void;
@@ -81,6 +82,7 @@ type DraftEntry = Pick<NoteDraft, 'title' | 'content'> & {
 
 export default function MainApp({
   language,
+  displayName,
   onLanguageChange,
   currentTheme,
   onThemeChange,
@@ -1437,6 +1439,7 @@ export default function MainApp({
 
       <TitleBar
         language={language}
+        displayName={displayName}
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
         onOpenAbout={() => setShowAbout(true)}

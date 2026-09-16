@@ -13,6 +13,10 @@ export const TRANSLATIONS = {
       search: 'Buscar notas...',
       warning: 'Advertencia',
       attention: 'Atención',
+      welcomeMorning: 'Buenos días, {name}',
+      welcomeAfternoon: 'Buenas tardes, {name}',
+      welcomeEvening: 'Buenas noches, {name}',
+      welcomeBack: 'Bienvenido de nuevo',
     },
     sidebar: {
       allNotes: 'Todas las notas',
@@ -308,6 +312,10 @@ export const TRANSLATIONS = {
       search: 'Search notes...',
       warning: 'Warning',
       attention: 'Attention',
+      welcomeMorning: 'Good morning, {name}',
+      welcomeAfternoon: 'Good afternoon, {name}',
+      welcomeEvening: 'Good evening, {name}',
+      welcomeBack: 'Welcome back',
     },
     sidebar: {
       allNotes: 'All Notes',

@@ -3,9 +3,11 @@ import { createPortal } from 'react-dom';
 import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
+import WelcomeGreeting from './WelcomeGreeting';
 
 interface Props {
   language?: 'es' | 'en';
+  displayName?: string | null;
   onLock?: () => void;
   onOpenSettings?: () => void;
   onOpenAbout?: () => void;
@@ -53,6 +55,7 @@ function formatCapsTime(sec: number): string {
 
 export default function TitleBar({
   language = 'es',
+  displayName,
   onLock,
   onOpenSettings,
   onOpenAbout,
@@ -300,12 +303,24 @@ export default function TitleBar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: 10,
           minWidth: 0,
           padding: '0 12px',
           height: '100%',
           WebkitAppRegion: 'drag',
         } as any}
       >
+        <WelcomeGreeting
+          language={language}
+          name={displayName}
+          style={{
+            fontSize: 'calc(11px * var(--ui-scale))',
+            fontWeight: 500,
+            maxWidth: 'min(260px, 34vw)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        />
         {(() => {
           const capsOn = !!capsStatus?.active;
           const autoOn = !!autoUnlockCapsLock;
