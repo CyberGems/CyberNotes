@@ -2317,6 +2317,60 @@ ipcMain.handle('images:selectAndSave', async () => {
   return `file:///${destPath.replace(/\\/g, '/')}`;
 });
 
+// -- Note document export / print --
+ipcMain.handle('document:export-pdf', async (_e: any, payload: { title?: string; html?: string }) => {
+  const title = String(payload?.title || 'cybernotes-note')
+    .replace(/[<>:"/\\|?*]/g, '-')
+    .trim() || 'cybernotes-note';
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    title: 'Exportar nota como PDF',
+    defaultPath: `${title}.pdf`,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (result.canceled || !result.filePath) return false;
+
+  const printWindow = new BrowserWindow({
+    show: false,
+    width: 900,
+    height: 1200,
+    webPreferences: { sandbox: true },
+  });
+  try {
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(String(payload?.html || ''))}`);
+    const pdf = await printWindow.webContents.printToPDF({ printBackground: true });
+    fs.writeFileSync(result.filePath, pdf);
+    return true;
+  } catch (error) {
+    console.error('[Export PDF] Error:', error);
+    return false;
+  } finally {
+    if (!printWindow.isDestroyed()) printWindow.close();
+  }
+});
+
+ipcMain.handle('document:print', async (_e: any, payload: { title?: string; html?: string }) => {
+  const printWindow = new BrowserWindow({
+    show: false,
+    width: 900,
+    height: 1200,
+    webPreferences: { sandbox: true },
+  });
+  try {
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(String(payload?.html || ''))}`);
+    return await new Promise<boolean>((resolve) => {
+      printWindow.webContents.print(
+        { silent: false, printBackground: true },
+        (success) => resolve(success),
+      );
+    });
+  } catch (error) {
+    console.error('[Print document] Error:', error);
+    return false;
+  } finally {
+    if (!printWindow.isDestroyed()) printWindow.close();
+  }
+});
+
 // -- Import/Export --
 ipcMain.handle('data:export', async () => {
   const result = await dialog.showSaveDialog(mainWindow!, {

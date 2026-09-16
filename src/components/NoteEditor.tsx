@@ -21,10 +21,18 @@ import {
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
   Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
-  Undo, Redo, Save, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
+  Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
   CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow
 } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
+
+export interface NoteExportActions {
+  markdown: () => void;
+  html: () => void;
+  pdf: () => Promise<void>;
+  text: () => void;
+  print: () => Promise<void>;
+}
 
 interface Props {
   language: Language;
@@ -56,7 +64,7 @@ interface Props {
   onSelectNote?: (id: string) => void;
   onCloseTab?: (id: string) => void;
   onReorderTabs?: (fromId: string, toId: string, edge: 'before' | 'after') => void;
-  onRegisterExportActions?: (actions: { markdown: () => void; html: () => void } | null) => void;
+  onRegisterExportActions?: (actions: NoteExportActions | null) => void;
   draftCache?: Record<string, { title: string; content: string }>;
   onEditDraft?: (id: string, title: string, content: string) => void | Promise<void>;
   onDiscardDraft?: (id: string) => void;
@@ -596,6 +604,7 @@ export default function NoteEditor({
   };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showLeaveEditorWarning, setShowLeaveEditorWarning] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [capsToast, setCapsToast] = useState<string | null>(null);
@@ -1335,12 +1344,12 @@ export default function NoteEditor({
     document.body.removeChild(link);
   };
 
-  const handleExportHtml = () => {
+  const buildExportHtml = () => {
     if (!note) return;
     const editorHtml = editor?.getHTML() || '';
     const title = note.title || 'Nota';
     const htmlContent = `<!DOCTYPE html>
-<html lang="es">
+<html lang="${language}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1390,6 +1399,13 @@ export default function NoteEditor({
 </body>
 </html>`;
 
+    return { title, htmlContent };
+  };
+
+  const handleExportHtml = () => {
+    const documentData = buildExportHtml();
+    if (!documentData) return;
+    const { title, htmlContent } = documentData;
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1400,14 +1416,51 @@ export default function NoteEditor({
     document.body.removeChild(link);
   };
 
+  const handleExportPdf = async () => {
+    const documentData = buildExportHtml();
+    if (!documentData) return;
+    await window.cyberNotesAPI.exportNotePdf(documentData.title, documentData.htmlContent);
+  };
+
+  const handleExportText = () => {
+    if (!note) return;
+    const title = note.title || 'Nota';
+    const textContent = `${title}\n\n${editor?.getText() || ''}`;
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${title.toLowerCase().replace(/\s+/g, '-')}.txt`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = async () => {
+    const documentData = buildExportHtml();
+    if (!documentData) return;
+    await window.cyberNotesAPI.printDocument(documentData.title, documentData.htmlContent);
+  };
+
   useEffect(() => {
     if (!onRegisterExportActions) return;
     onRegisterExportActions({
       markdown: handleExportMarkdown,
       html: handleExportHtml,
+      pdf: handleExportPdf,
+      text: handleExportText,
+      print: handlePrint,
     });
     return () => onRegisterExportActions(null);
-  }, [handleExportHtml, handleExportMarkdown, onRegisterExportActions]);
+  }, [handleExportHtml, handleExportMarkdown, handleExportPdf, handleExportText, handlePrint, onRegisterExportActions]);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const close = () => setShowExportMenu(false);
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showExportMenu]);
 
   const handleSetLink = () => {
     if (!editor) return;
@@ -2048,7 +2101,88 @@ export default function NoteEditor({
               
               <ToolbarBtn onClick={handleSetLink} active={editor.isActive('link')} title={language === 'es' ? 'Insertar link' : 'Insert Link'}><LinkIcon size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen' : 'Insert Image'}><ImageIcon size={15} /></ToolbarBtn>
-              
+
+              <div style={{ position: 'relative', display: 'flex' }}>
+                <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota' : 'Export note'}>
+                  <button
+                    type="button"
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setShowExportMenu(prev => !prev);
+                    }}
+                    style={noteActionBtnStyle(showExportMenu)}
+                    aria-haspopup="menu"
+                    aria-expanded={showExportMenu}
+                  >
+                    <Upload size={15} />
+                  </button>
+                </Tooltip>
+                <AnimatePresence>
+                  {showExportMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="glass-effect"
+                      role="menu"
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        marginTop: 6,
+                        minWidth: 205,
+                        padding: 4,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        background: 'var(--bg-modal)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                        zIndex: 100,
+                      }}
+                    >
+                      {[
+                        { icon: <FileDown size={13} />, label: language === 'es' ? 'Exportar PDF' : 'Export PDF', hint: 'Ctrl+Alt+P', onClick: handleExportPdf },
+                        { icon: <FileText size={13} />, label: language === 'es' ? 'Exportar Markdown (.md)' : 'Export Markdown (.md)', hint: 'Ctrl+Alt+M', onClick: handleExportMarkdown },
+                        { icon: <FileText size={13} />, label: language === 'es' ? 'Exportar texto (.txt)' : 'Export plain text (.txt)', hint: 'Ctrl+Alt+T', onClick: handleExportText },
+                        { icon: <Globe size={13} />, label: language === 'es' ? 'Exportar HTML (.html)' : 'Export HTML (.html)', hint: 'Ctrl+Alt+H', onClick: handleExportHtml },
+                        { icon: <Printer size={13} />, label: language === 'es' ? 'Imprimir' : 'Print', hint: 'Ctrl+P', onClick: handlePrint },
+                      ].map(item => (
+                        <button
+                          key={item.hint}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => { setShowExportMenu(false); void item.onClick(); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '7px 9px',
+                            fontSize: 11,
+                            textAlign: 'left',
+                            background: 'transparent',
+                            color: 'var(--text-primary)',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <span style={{ display: 'inline-flex', color: 'var(--accent-light)' }}>{item.icon}</span>
+                          <span style={{ flex: 1 }}>{item.label}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 9, whiteSpace: 'nowrap' }}>{item.hint}</span>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <div style={{ flex: 1 }} />
             </>
           )}

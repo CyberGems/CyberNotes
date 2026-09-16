@@ -5,7 +5,7 @@ import { EditorFontId, applyEditorFont, DEFAULT_EDITOR_FONT } from '../fonts';
 import TitleBar from './TitleBar';
 import Sidebar from './Sidebar';
 import NoteList from './NoteList';
-import NoteEditor from './NoteEditor';
+import NoteEditor, { type NoteExportActions } from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
 import TrayPinModal from './TrayPinModal';
@@ -77,11 +77,6 @@ interface Props {
 type DraftEntry = Pick<NoteDraft, 'title' | 'content'> & {
   baseUpdatedAt: string;
   updatedAt: string;
-};
-
-type EditorExportActions = {
-  markdown: () => void;
-  html: () => void;
 };
 
 export default function MainApp({
@@ -171,7 +166,7 @@ export default function MainApp({
   const draftCacheRef = useRef<Record<string, DraftEntry>>({});
   const draftFlushRef = useRef<(() => Promise<void>) | null>(null);
   const draftWriteChainsRef = useRef<Record<string, Promise<boolean>>>({});
-  const editorExportActionsRef = useRef<EditorExportActions | null>(null);
+  const editorExportActionsRef = useRef<NoteExportActions | null>(null);
   const persistedDraftsRef = useRef<NoteDraft[]>([]);
   const draftsLoadedRef = useRef(false);
   const allNotesLoadedRef = useRef(false);
@@ -182,8 +177,34 @@ export default function MainApp({
   openStickyIdsRef.current = openStickyIds;
   draftCacheRef.current = draftCache;
 
-  const registerEditorExportActions = useCallback((actions: EditorExportActions | null) => {
+  const registerEditorExportActions = useCallback((actions: NoteExportActions | null) => {
     editorExportActionsRef.current = actions;
+  }, []);
+
+  useEffect(() => {
+    const handleExportShortcut = (event: KeyboardEvent) => {
+      const modifier = event.ctrlKey || event.metaKey;
+      if (!modifier || event.repeat) return;
+
+      const key = event.key.toLowerCase();
+      let action: (() => void | Promise<void>) | undefined;
+
+      if (event.altKey) {
+        if (key === 'm') action = editorExportActionsRef.current?.markdown;
+        else if (key === 'h') action = editorExportActionsRef.current?.html;
+        else if (key === 'p') action = editorExportActionsRef.current?.pdf;
+        else if (key === 't') action = editorExportActionsRef.current?.text;
+      } else if (key === 'p') {
+        action = editorExportActionsRef.current?.print;
+      }
+
+      if (!action) return;
+      event.preventDefault();
+      void action();
+    };
+
+    window.addEventListener('keydown', handleExportShortcut);
+    return () => window.removeEventListener('keydown', handleExportShortcut);
   }, []);
 
   useEffect(() => {
@@ -1424,6 +1445,9 @@ export default function MainApp({
         }}
         onExportMarkdown={() => editorExportActionsRef.current?.markdown()}
         onExportHtml={() => editorExportActionsRef.current?.html()}
+        onExportPdf={() => { void editorExportActionsRef.current?.pdf(); }}
+        onExportText={() => editorExportActionsRef.current?.text()}
+        onPrint={() => { void editorExportActionsRef.current?.print(); }}
         onSelectNote={(id) => {
           setSelectedNoteId(id);
           const note = allNotes.find(n => n.id === id);

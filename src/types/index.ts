@@ -103,6 +103,8 @@ declare global {
       // Import / Export
       exportData: () => Promise<boolean>;
       importData: () => Promise<boolean>;
+      exportNotePdf: (title: string, html: string) => Promise<boolean>;
+      printDocument: (title: string, html: string) => Promise<boolean>;
       // Updates / About
       checkForUpdates: () => Promise<{ ok: boolean; version?: string; error?: string }>;
       downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;

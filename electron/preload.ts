@@ -133,6 +133,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Import / Export --
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),
+  exportNotePdf: (title: string, html: string) => ipcRenderer.invoke('document:export-pdf', { title, html }),
+  printDocument: (title: string, html: string) => ipcRenderer.invoke('document:print', { title, html }),
 
   // -- Updates / About --
   checkForUpdates: () => ipcRenderer.invoke('update:check'),

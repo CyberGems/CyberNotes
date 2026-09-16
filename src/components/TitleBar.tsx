@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload } from 'lucide-react';
+import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 
@@ -12,6 +12,9 @@ interface Props {
   onOpenTrayPin?: () => void;
   onExportMarkdown?: () => void;
   onExportHtml?: () => void;
+  onExportPdf?: () => void;
+  onExportText?: () => void;
+  onPrint?: () => void;
   onSelectNote?: (id: string) => void;
   onClearRecent?: () => void;
   recentNotes?: Note[];
@@ -56,6 +59,9 @@ export default function TitleBar({
   onOpenTrayPin,
   onExportMarkdown,
   onExportHtml,
+  onExportPdf,
+  onExportText,
+  onPrint,
   onSelectNote,
   onClearRecent,
   recentNotes = [],
@@ -107,12 +113,64 @@ export default function TitleBar({
   }, [menuOpen]);
 
   useEffect(() => {
+    if (!menuOpen) return;
+    const focusMenuItem = (direction: 1 | -1 | 0) => {
+      const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], button.menu-item') || [])
+        .filter(item => !item.hasAttribute('disabled') && item.offsetParent !== null);
+      if (!items.length) return;
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = direction === 0
+        ? 0
+        : (currentIndex + direction + items.length) % items.length;
+      items[nextIndex]?.focus();
+    };
+
+    const focusFirstItem = () => focusMenuItem(0);
+    const frame = window.requestAnimationFrame(focusFirstItem);
+    const handleMenuKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMenuOpen(false);
+        burgerRef.current?.focus();
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        focusMenuItem(1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        focusMenuItem(-1);
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        focusMenuItem(0);
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], button.menu-item') || [])
+          .filter(item => !item.hasAttribute('disabled') && item.offsetParent !== null);
+        items[items.length - 1]?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleMenuKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleMenuKeyDown);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
     window.cyberNotesAPI.isMaximized?.().then(setIsMaximized).catch(() => {});
     const unsub = window.cyberNotesAPI.onMaximizedState?.((max) => setIsMaximized(max));
     return () => { unsub?.(); };
   }, []);
 
   const t = (es: string, en: string) => language === 'es' ? es : en;
+  const activateMenuItem = (event: React.KeyboardEvent, action: () => void) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      action();
+    }
+  };
 
   const toggleStyle = (active: boolean): React.CSSProperties => ({
     width: 32,
@@ -361,7 +419,7 @@ export default function TitleBar({
           </Tooltip>
 
           {menuOpen && createPortal(
-            <div ref={menuRef} style={{
+            <div ref={menuRef} role="menu" aria-label={t('Menú principal', 'Main menu')} style={{
               position: 'fixed',
               top: menuPos.top,
               right: menuPos.right,
@@ -432,6 +490,8 @@ export default function TitleBar({
               <button
                 className="menu-item"
                 onClick={() => setExportSubOpen(!exportSubOpen)}
+                aria-haspopup="true"
+                aria-expanded={exportSubOpen}
               >
                 <Upload size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Exportar', 'Export')}</span>
@@ -450,19 +510,53 @@ export default function TitleBar({
                 }}>
                   <button
                     className="menu-item"
+                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportPdf?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                    aria-keyshortcuts="Control+Alt+P"
+                  >
+                    <FileDown size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Exportar PDF', 'Export PDF')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+P</span>
+                  </button>
+                  <button
+                    className="menu-item"
                     onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportMarkdown?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
+                    aria-keyshortcuts="Control+Alt+M"
                   >
                     <FileText size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Markdown (.md)', 'Markdown (.md)')}</span>
+                    <span style={{ flex: 1 }}>{t('Markdown (.md)', 'Markdown (.md)')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+M</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportText?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                    aria-keyshortcuts="Control+Alt+T"
+                  >
+                    <FileText size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Texto plano (.txt)', 'Plain text (.txt)')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+T</span>
                   </button>
                   <button
                     className="menu-item"
                     onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportHtml?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
+                    aria-keyshortcuts="Control+Alt+H"
                   >
                     <Globe size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('HTML (.html)', 'HTML (.html)')}</span>
+                    <span style={{ flex: 1 }}>{t('HTML (.html)', 'HTML (.html)')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+H</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onPrint?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                    aria-keyshortcuts="Control+P"
+                  >
+                    <Printer size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Imprimir', 'Print')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
                   </button>
                 </div>
               )}
@@ -472,7 +566,10 @@ export default function TitleBar({
               {/* Toggles */}
               <div
                 className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onAutosaveChange?.(!autosaveEnabled)}
+                onKeyDown={e => activateMenuItem(e, () => onAutosaveChange?.(!autosaveEnabled))}
               >
                 <Save size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Autoguardado', 'Autosave')}</span>
@@ -482,7 +579,10 @@ export default function TitleBar({
               </div>
               <div
                 className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock)}
+                onKeyDown={e => activateMenuItem(e, () => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock))}
               >
                 <span style={{ fontSize: 13, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, opacity: 0.7 }}>⇪</span>
                 <span style={{ flex: 1 }}>{t('Auto-unlock Caps', 'Auto-unlock Caps')}</span>
@@ -492,7 +592,10 @@ export default function TitleBar({
               </div>
               <div
                 className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onShowMinimapChange?.(!showMinimap)}
+                onKeyDown={e => activateMenuItem(e, () => onShowMinimapChange?.(!showMinimap))}
               >
                 <Map size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Minimapa', 'Minimap')}</span>
@@ -502,7 +605,10 @@ export default function TitleBar({
               </div>
               <div
                 className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onShowLineCounterChange?.(!showLineCounter)}
+                onKeyDown={e => activateMenuItem(e, () => onShowLineCounterChange?.(!showLineCounter))}
               >
                 <BarChart3 size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Contador líneas', 'Line counter')}</span>
@@ -512,7 +618,10 @@ export default function TitleBar({
               </div>
               <div
                 className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onShowLineGutterChange?.(!showLineGutter)}
+                onKeyDown={e => activateMenuItem(e, () => onShowLineGutterChange?.(!showLineGutter))}
               >
                 <List size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Líneas numeradas', 'Line gutter')}</span>
@@ -522,7 +631,10 @@ export default function TitleBar({
               </div>
               <div
                 className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onShowWordCounterChange?.(!showWordCounter)}
+                onKeyDown={e => activateMenuItem(e, () => onShowWordCounterChange?.(!showWordCounter))}
               >
                 <Hash size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Contador palabras', 'Word counter')}</span>
@@ -532,7 +644,10 @@ export default function TitleBar({
               </div>
               <div
                 className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onRememberLastNoteChange?.(!rememberLastNote)}
+                onKeyDown={e => activateMenuItem(e, () => onRememberLastNoteChange?.(!rememberLastNote))}
               >
                 <Pin size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Recordar sesión', 'Remember session')}</span>
