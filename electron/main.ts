@@ -14,9 +14,9 @@ const require = createRequire(import.meta.url);
 const isDev = !app.isPackaged;
 
 function getDevRendererUrl(query?: Record<string, string>): string {
-  const raw = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+  const raw = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5273';
   const match = raw.match(/^(https?):\/\/([^:/]+)(?::(\d+))?/i);
-  const url = new URL(`${match?.[1] || 'http'}://${match?.[2] || 'localhost'}:${match?.[3] || '5173'}`);
+  const url = new URL(`${match?.[1] || 'http'}://${match?.[2] || 'localhost'}:${match?.[3] || '5273'}`);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       url.searchParams.set(key, value);
