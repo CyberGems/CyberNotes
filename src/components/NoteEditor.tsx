@@ -1073,7 +1073,8 @@ export default function NoteEditor({
         const goesToTitle = !!target && target === titleInputRef.current;
         const goesInsideEditor = !!target && !!editorRootRef.current?.contains(target);
         const goesToNav = !!target && !!target.closest?.('[data-leave-guard="nav"]');
-        if (target && !goesToTitle && !goesInsideEditor && !goesToNav) {
+        const goesToAppChrome = !!target && !!target.closest?.('.titlebar-glass');
+        if (target && !goesToTitle && !goesInsideEditor && !goesToNav && !goesToAppChrome) {
           setShowLeaveEditorWarning(true);
         }
       }
