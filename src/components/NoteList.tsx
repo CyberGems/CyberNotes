@@ -1691,40 +1691,62 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         flexShrink: 0,
       }}>
         <span>{formatDate((isTrash && note.deleted_at) || note.updated_at, language)}</span>
-        {folder && !isDense && (
+        {folder && (isDense ? (
           <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
-          <span
-            className={highlightSweep ? 'folder-badge-animating' : ''}
-            style={{
-              position: 'relative',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '2px 8px',
-              borderRadius: 12,
-              fontSize: '9px',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              color: 'var(--text-secondary)',
-              border: folder.color ? `1px solid ${folder.color}44` : '1px solid var(--border)',
-              background: folder.color ? `${folder.color}14` : 'var(--bg-surface)',
-              boxShadow: highlightSweep ? `0 0 12px ${folder.color || 'var(--accent)'}` : 'none',
-              textShadow: 'none',
-              maxWidth: 120,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              transition: 'all 0.25s ease',
-            }}
-          >
-            {highlightSweep && <span className="folder-badge-shine" />}
-            <FolderIcon name={folder.icon} color={folder.color} size={12} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'relative', zIndex: 1 }}>
-              {folder.name}
+            <span
+              className={highlightSweep ? 'folder-badge-animating' : ''}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 20,
+                height: 20,
+                borderRadius: 6,
+                border: folder.color ? `1px solid ${folder.color}66` : '1px solid var(--border)',
+                background: folder.color ? `${folder.color}18` : 'var(--bg-surface)',
+                color: folder.color || 'var(--text-secondary)',
+                boxShadow: highlightSweep ? `0 0 10px ${folder.color || 'var(--accent)'}` : 'none',
+                transition: 'all 0.25s ease',
+              }}
+            >
+              <FolderIcon name={folder.icon} color={folder.color} size={11} />
             </span>
-          </span>
           </Tooltip>
-        )}
+        ) : (
+          <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
+            <span
+              className={highlightSweep ? 'folder-badge-animating' : ''}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: '9px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                color: 'var(--text-secondary)',
+                border: folder.color ? `1px solid ${folder.color}44` : '1px solid var(--border)',
+                background: folder.color ? `${folder.color}14` : 'var(--bg-surface)',
+                boxShadow: highlightSweep ? `0 0 12px ${folder.color || 'var(--accent)'}` : 'none',
+                textShadow: 'none',
+                maxWidth: 120,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                transition: 'all 0.25s ease',
+              }}
+            >
+              {highlightSweep && <span className="folder-badge-shine" />}
+              <FolderIcon name={folder.icon} color={folder.color} size={12} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'relative', zIndex: 1 }}>
+                {folder.name}
+              </span>
+            </span>
+          </Tooltip>
+        ))}
       </div>
 
       <Tooltip placement="left" label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}>
