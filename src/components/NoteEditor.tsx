@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useLayoutEffect, type CSSProperties } from 'react';
+import { useEffect, useRef, useCallback, useState, useLayoutEffect, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,14 +15,16 @@ import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb } from '../utils/notes';
 import Tooltip from './Tooltip';
+import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
   Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Download, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
-  CheckSquare, Trash2, RemoveFormatting, BookPlus
+  CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow
 } from 'lucide-react';
+import { FILTER_COLORS } from './FolderIcon';
 
 interface Props {
   language: Language;
@@ -53,12 +55,14 @@ interface Props {
   folders?: Folder[];
   onSelectNote?: (id: string) => void;
   onCloseTab?: (id: string) => void;
+  onReorderTabs?: (fromId: string, toId: string, edge: 'before' | 'after') => void;
   draftCache?: Record<string, { title: string; content: string }>;
   onEditDraft?: (id: string, title: string, content: string) => void;
   onDiscardDraft?: (id: string) => void;
   tabsWidthMode?: 'normal' | 'wide';
   showMinimap?: boolean;
   onShowMinimapChange?: (v: boolean) => void;
+  openStickyIds?: string[];
 }
 
 // Extensión personalizada para imagen con soporte de tamaño y alineación
@@ -160,6 +164,13 @@ const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProp
   position: 'relative',
 });
 
+const TAB_DRAG_MIME = 'application/x-cybernotes-tab';
+
+function tabDropEdge(e: ReactDragEvent<HTMLElement>): 'before' | 'after' {
+  const rect = e.currentTarget.getBoundingClientRect();
+  return e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+}
+
 export default function NoteEditor({ 
   language,
   note,
@@ -187,12 +198,14 @@ export default function NoteEditor({
   folders = [],
   onSelectNote,
   onCloseTab,
+  onReorderTabs,
   draftCache = {},
   onEditDraft,
   onDiscardDraft,
   tabsWidthMode = 'normal',
   showMinimap = false,
   onShowMinimapChange,
+  openStickyIds = [],
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -204,6 +217,31 @@ export default function NoteEditor({
   const lastContextMenuTimeRef = useRef(0);
   const isDirtyRef = useRef(false);
   const tabStripRef = useRef<HTMLDivElement>(null);
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  const draggingTabIdRef = useRef<string | null>(null);
+  const [tabDropHint, setTabDropHint] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
+
+  const clearTabDrag = useCallback(() => {
+    draggingTabIdRef.current = null;
+    setDraggingTabId(null);
+    setTabDropHint(null);
+    document.documentElement.classList.remove('tab-dragging');
+  }, []);
+
+  useEffect(() => {
+    const allowDrop = (e: DragEvent) => {
+      if (!draggingTabIdRef.current) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    };
+    document.addEventListener('dragenter', allowDrop);
+    document.addEventListener('dragover', allowDrop);
+    return () => {
+      document.removeEventListener('dragenter', allowDrop);
+      document.removeEventListener('dragover', allowDrop);
+      document.documentElement.classList.remove('tab-dragging');
+    };
+  }, []);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const minimapRef = useRef<HTMLDivElement>(null);
 
@@ -490,6 +528,28 @@ export default function NoteEditor({
 
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
+  const isFloatingNote = !!(note?.id && openStickyIds.includes(note.id));
+  const identityColor = pinned && isFloatingNote
+    ? null
+    : pinned
+      ? FILTER_COLORS.favorites
+      : isFloatingNote
+        ? FILTER_COLORS.sticky
+        : null;
+  const identityBorder = pinned && isFloatingNote
+    ? '1px solid color-mix(in srgb, #f59e0b 55%, #22d3ee)'
+    : pinned
+      ? '1px solid rgba(245, 158, 11, 0.45)'
+      : isFloatingNote
+        ? '1px solid rgba(34, 211, 238, 0.45)'
+        : '1px solid rgba(255, 255, 255, 0.05)';
+  const identityGlow = pinned && isFloatingNote
+    ? '0 0 12px rgba(245, 158, 11, 0.18), 0 0 10px rgba(34, 211, 238, 0.14), inset 0 1px 3px rgba(0,0,0,0.2)'
+    : pinned
+      ? '0 0 12px rgba(245, 158, 11, 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
+      : isFloatingNote
+        ? '0 0 12px rgba(34, 211, 238, 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
+        : 'inset 0 1px 3px rgba(0,0,0,0.2)';
   const [isRaw, setIsRaw] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -1070,6 +1130,12 @@ export default function NoteEditor({
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
   }, [editor, note, onDiscardDraft, syncMinimapHtml]);
 
+  useModalKeys({
+    enabled: showLeaveEditorWarning,
+    onEsc: () => { setShowLeaveEditorWarning(false); editor?.commands.focus(); },
+    onEnter: () => { handleManualSave(); setShowLeaveEditorWarning(false); },
+  });
+
   // Sincronizar estado de cambios no guardados con el proceso principal
   useEffect(() => {
     window.cyberNotesAPI?.setUnsavedChanges(hasUnsavedChanges);
@@ -1401,8 +1467,15 @@ export default function NoteEditor({
         <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', overflow: 'hidden' }}>
           <div
             ref={tabStripRef}
-            className={`tab-strip ${tabsWidthMode === 'wide' ? 'tabs-wide' : ''}`}
+            className={`tab-strip ${tabsWidthMode === 'wide' ? 'tabs-wide' : ''} ${draggingTabId ? 'is-reordering' : ''}`}
             style={{ borderBottom: 'none' }}
+            onDragOver={(e) => {
+              if (!draggingTabIdRef.current) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={clearTabDrag}
+            onDragEnd={clearTabDrag}
           >
             {openNoteIds.map((tabId) => {
               const tabNote = notes.find(n => n.id === tabId);
@@ -1415,12 +1488,16 @@ export default function NoteEditor({
 
               const folder = folders.find(f => f.id === tabNote.folder_id);
               const folderColor = folder ? folder.color : 'transparent';
+              const dropClass = tabDropHint?.id === tabId
+                ? (tabDropHint.edge === 'before' ? 'drop-before' : 'drop-after')
+                : '';
 
               return (
                 <Tooltip
                   key={tabId}
                   placement="bottom"
                   label={
+                    draggingTabId ? '' : (
                     <>
                       <span style={{ fontWeight: 600 }}>{displayTitle || (language === 'es' ? 'Sin título' : 'Untitled')}</span>
                       {folder?.name && (
@@ -1429,12 +1506,52 @@ export default function NoteEditor({
                         </span>
                       )}
                     </>
+                    )
                   }
                 >
                 <div
                   data-note-id={tabId}
-                  className={`editor-tab ${isActive ? 'active' : ''}`}
+                  draggable
+                  className={`editor-tab ${isActive ? 'active' : ''} ${draggingTabId === tabId ? 'is-dragging' : ''} ${dropClass}`}
                   onClick={() => onSelectNote?.(tabId)}
+                  onDragStart={(e) => {
+                    if ((e.target as HTMLElement).closest('.tab-close-btn')) {
+                      e.preventDefault();
+                      return;
+                    }
+                    e.dataTransfer.setData(TAB_DRAG_MIME, tabId);
+                    e.dataTransfer.setData('text/plain', tabId);
+                    e.dataTransfer.effectAllowed = 'move';
+                    draggingTabIdRef.current = tabId;
+                    document.documentElement.classList.add('tab-dragging');
+                    setDraggingTabId(tabId);
+                    setTabDropHint(null);
+                  }}
+                  onDragOver={(e) => {
+                    const fromId = draggingTabIdRef.current;
+                    if (!fromId || fromId === tabId) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                    const edge = tabDropEdge(e);
+                    setTabDropHint(prev => (prev?.id === tabId && prev.edge === edge) ? prev : { id: tabId, edge });
+                  }}
+                  onDragLeave={(e) => {
+                    const next = e.relatedTarget as Node | null;
+                    if (next && e.currentTarget.contains(next)) return;
+                    setTabDropHint(prev => (prev?.id === tabId ? null : prev));
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const fromId = e.dataTransfer.getData(TAB_DRAG_MIME) || e.dataTransfer.getData('text/plain');
+                    const edge = tabDropEdge(e);
+                    clearTabDrag();
+                    if (fromId && openNoteIds.includes(fromId)) {
+                      onReorderTabs?.(fromId, tabId, edge);
+                    }
+                  }}
+                  onDragEnd={clearTabDrag}
                 >
                   {isActive && (
                     <motion.div
@@ -1446,8 +1563,10 @@ export default function NoteEditor({
                         left: 0,
                         right: 0,
                         height: 2,
+                        borderRadius: '8px 8px 0 0',
                         background: 'var(--accent)',
                         boxShadow: '0 0 8px var(--accent-glow)',
+                        pointerEvents: 'none',
                       }}
                     />
                   )}
@@ -1465,6 +1584,12 @@ export default function NoteEditor({
                       }}
                     />
                   )}
+                  {tabNote.pinned === 1 && (
+                    <Star size={10} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" style={{ flexShrink: 0 }} />
+                  )}
+                  {openStickyIds.includes(tabId) && (
+                    <AppWindow size={10} color={FILTER_COLORS.sticky} style={{ flexShrink: 0 }} />
+                  )}
 
                   <span className="editor-tab-title" style={{ fontStyle: isDirty ? 'italic' : 'normal' }}>
                     {displayTitle || (language === 'es' ? 'Sin título' : 'Untitled')}
@@ -1473,6 +1598,8 @@ export default function NoteEditor({
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, position: 'relative' }}>
                     <button
                       className="tab-close-btn"
+                      draggable={false}
+                      onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         onCloseTab?.(tabId);
@@ -1509,9 +1636,50 @@ export default function NoteEditor({
       }}>
         {/* Top glowing cyber border line */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%)', opacity: 0.6 }} />
+        {(pinned || isFloatingNote) && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 14,
+              bottom: 14,
+              width: 3,
+              borderRadius: 2,
+              background: pinned && isFloatingNote
+                ? 'linear-gradient(180deg, #f59e0b 0%, #22d3ee 100%)'
+                : (identityColor || FILTER_COLORS.favorites),
+              boxShadow: pinned && isFloatingNote
+                ? '0 0 10px rgba(245, 158, 11, 0.35), 0 0 10px rgba(34, 211, 238, 0.28)'
+                : `0 0 10px ${identityColor}88`,
+            }}
+          />
+        )}
         
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            {(pinned || isFloatingNote) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                {pinned && (
+                  <Tooltip
+                    placement="bottom"
+                    delay={400}
+                    label={language === 'es' ? 'Nota favorita' : 'Favorite note'}
+                  >
+                    <span style={{ display: 'inline-flex' }}>
+                      <Star size={16} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" />
+                    </span>
+                  </Tooltip>
+                )}
+                {isFloatingNote && (
+                  <Tooltip placement="bottom" delay={400} label={t.noteList.stickyActive}>
+                    <span style={{ display: 'inline-flex' }}>
+                      <AppWindow size={16} color={FILTER_COLORS.sticky} />
+                    </span>
+                  </Tooltip>
+                )}
+              </div>
+            )}
             <input
               ref={titleInputRef}
               value={localTitle}
@@ -1544,7 +1712,7 @@ export default function NoteEditor({
                 fontSize: 'calc(26px * var(--ui-scale))',
                 fontWeight: 700,
                 background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
+                border: identityBorder,
                 outline: 'none',
                 color: 'var(--text-primary)',
                 marginBottom: 4,
@@ -1552,7 +1720,7 @@ export default function NoteEditor({
                 padding: '8px 16px',
                 borderRadius: 'var(--radius-md)',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
+                boxShadow: identityGlow,
               }}
               onFocus={e => {
                 e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
@@ -1561,8 +1729,8 @@ export default function NoteEditor({
               }}
               onBlur={e => {
                 e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
-                e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.2)';
+                e.currentTarget.style.border = identityBorder;
+                e.currentTarget.style.boxShadow = identityGlow;
               }}
             />
           </div>
@@ -1683,40 +1851,59 @@ export default function NoteEditor({
             <button
               type="button"
               onClick={handlePin}
-              style={noteActionBtnStyle(pinned)}
+              style={{
+                ...noteActionBtnStyle(pinned),
+                ...(pinned ? {
+                  color: FILTER_COLORS.favorites,
+                  background: 'rgba(245, 158, 11, 0.14)',
+                  border: '1px solid rgba(245, 158, 11, 0.45)',
+                } : {}),
+              }}
               onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--bg-hover)';
                 e.currentTarget.style.color = 'var(--text-primary)';
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = pinned ? 'var(--accent-dim)' : 'transparent';
-                e.currentTarget.style.color = pinned ? 'var(--accent-light)' : 'var(--text-muted)';
+                e.currentTarget.style.background = pinned ? 'rgba(245, 158, 11, 0.14)' : 'transparent';
+                e.currentTarget.style.color = pinned ? FILTER_COLORS.favorites : 'var(--text-muted)';
+                e.currentTarget.style.border = pinned ? '1px solid rgba(245, 158, 11, 0.45)' : '1px solid transparent';
               }}
             >
-              <Star size={15} fill={pinned ? 'currentColor' : 'none'} stroke={pinned ? 'none' : 'currentColor'} strokeWidth={pinned ? 0 : 2} />
+              <Star size={15} fill={pinned ? FILTER_COLORS.favorites : 'none'} color={pinned ? FILTER_COLORS.favorites : 'currentColor'} stroke={pinned ? 'none' : 'currentColor'} strokeWidth={pinned ? 0 : 2} />
             </button>
             </Tooltip>
 
-            {/* Abrir como nota flotante (Sticky Note) */}
-            <Tooltip placement="bottom" label={language === 'es' ? 'Abrir como nota flotante' : 'Open as sticky note'}>
+            {/* Abrir / mostrar nota flotante */}
+            <Tooltip placement="bottom" label={isFloatingNote ? t.noteList.showFloatingNote : t.noteList.openSticky}>
               <button
                 type="button"
                 onClick={() => {
-                  if (note?.id) {
+                  if (!note?.id) return;
+                  if (isFloatingNote) {
+                    window.cyberNotesAPI.revealStickyNote(note.id);
+                  } else {
                     window.cyberNotesAPI.openStickyNote(note.id);
                   }
                 }}
-                style={noteActionBtnStyle(false)}
+                style={{
+                  ...noteActionBtnStyle(isFloatingNote),
+                  ...(isFloatingNote ? {
+                    color: FILTER_COLORS.sticky,
+                    background: 'rgba(34, 211, 238, 0.14)',
+                    border: '1px solid rgba(34, 211, 238, 0.45)',
+                  } : {}),
+                }}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = 'var(--bg-hover)';
                   e.currentTarget.style.color = 'var(--text-primary)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = 'var(--text-muted)';
+                  e.currentTarget.style.background = isFloatingNote ? 'rgba(34, 211, 238, 0.14)' : 'transparent';
+                  e.currentTarget.style.color = isFloatingNote ? FILTER_COLORS.sticky : 'var(--text-muted)';
+                  e.currentTarget.style.border = isFloatingNote ? '1px solid rgba(34, 211, 238, 0.45)' : '1px solid transparent';
                 }}
               >
-                <ExternalLink size={15} />
+                <AppWindow size={15} color={isFloatingNote ? FILTER_COLORS.sticky : 'currentColor'} />
               </button>
             </Tooltip>
 
@@ -2843,9 +3030,12 @@ export default function NoteEditor({
                 if (e.key === 'Escape') setEditLinkData(null);
               }}
             />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setEditLinkData(null)}>{t.general.cancel}</button>
-              <button className="btn btn-primary" onClick={() => {
+            <div className="modal-actions">
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => setEditLinkData(null)}>
+                {t.general.cancel}
+                <span className="modal-key-esc">Esc</span>
+              </button>
+              <button type="button" className="modal-action-btn is-save" onClick={() => {
                  if (editLinkData.href === '') {
                    editor.chain().focus().extendMarkRange('link').unsetLink().run();
                  } else {
@@ -2856,7 +3046,10 @@ export default function NoteEditor({
                    }
                  }
                  setEditLinkData(null);
-              }}>{t.general.save}</button>
+              }}>
+                {t.general.save}
+                <EnterGlyph />
+              </button>
             </div>
 
             {linkInputMenu.menu}
@@ -2912,96 +3105,73 @@ export default function NoteEditor({
       )}
 
       {/* Caso B — Aviso al salir del editor con cambios sin guardar (modo manual) */}
-      <AnimatePresence>
-        {showLeaveEditorWarning && createPortal(
-          <div
-            style={{
-              position: 'fixed', inset: 0,
-              background: 'rgba(5, 5, 8, 0.8)',
-              backdropFilter: 'blur(16px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 20000,
-            }}
-            onClick={() => setShowLeaveEditorWarning(false)}
-          >
+      {createPortal(
+        <AnimatePresence>
+          {showLeaveEditorWarning && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 15 }}
-              transition={{ type: 'spring', damping: 26, stiffness: 330 }}
-              className="glass-effect"
-              style={{
-                width: 'calc(420px * var(--ui-scale))',
-                background: 'rgba(15, 15, 22, 0.95)',
-                border: '1px solid rgba(234, 88, 12, 0.3)',
-                borderRadius: 'var(--radius-lg)',
-                padding: '24px 28px',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05)',
-                display: 'flex', flexDirection: 'column', gap: 20,
-              }}
-              onClick={e => e.stopPropagation()}
+              key="leave-editor"
+              {...modalOverlayMotion}
+              style={{ ...modalOverlayStyle, zIndex: 20000 }}
+              onClick={() => setShowLeaveEditorWarning(false)}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: 12,
-                  background: 'rgba(234, 88, 12, 0.1)',
+              <motion.div
+                {...modalCardMotion}
+                className="glass-effect"
+                style={{
+                  width: 'calc(420px * var(--ui-scale))',
+                  background: 'rgba(15, 15, 22, 0.95)',
                   border: '1px solid rgba(234, 88, 12, 0.3)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.6))' }}>
-                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-                    <line x1="12" y1="9" x2="12" y2="13" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '24px 28px',
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05)',
+                  display: 'flex', flexDirection: 'column', gap: 20,
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 12,
+                    background: 'rgba(234, 88, 12, 0.1)',
+                    border: '1px solid rgba(234, 88, 12, 0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.6))' }}>
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <h3 style={{ fontSize: 'calc(16px * var(--ui-scale))', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
+                      {language === 'es' ? '¿Salir sin guardar?' : 'Leave without saving?'}
+                    </h3>
+                    <p style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-muted)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                      {language === 'es'
+                        ? 'Si sales del editor perderás los cambios sin guardar de esta nota.'
+                        : 'If you leave the editor you will lose this note’s unsaved changes.'}
+                    </p>
+                  </div>
                 </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <h3 style={{ fontSize: 'calc(16px * var(--ui-scale))', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
-                    {language === 'es' ? '¿Salir sin guardar?' : 'Leave without saving?'}
-                  </h3>
-                  <p style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-muted)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
-                    {language === 'es'
-                      ? 'Si sales del editor perderás los cambios sin guardar de esta nota.'
-                      : 'If you leave the editor you will lose this note’s unsaved changes.'}
-                  </p>
+
+                <div className="modal-actions is-stack">
+                  <button type="button" className="modal-action-btn is-save" onClick={() => { handleManualSave(); setShowLeaveEditorWarning(false); }}>
+                    {language === 'es' ? 'Guardar' : 'Save'}
+                    <EnterGlyph />
+                  </button>
+                  <button type="button" className="modal-action-btn is-danger" onClick={() => { handleRevertToSaved(); setShowLeaveEditorWarning(false); }}>
+                    {language === 'es' ? 'Salir sin guardar' : 'Leave without saving'}
+                  </button>
+                  <button type="button" className="modal-action-btn is-cancel" onClick={() => { setShowLeaveEditorWarning(false); editor?.commands.focus(); }}>
+                    {language === 'es' ? 'Seguir editando' : 'Keep editing'}
+                    <span className="modal-key-esc">Esc</span>
+                  </button>
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => { handleManualSave(); setShowLeaveEditorWarning(false); }}
-                  style={{ justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
-                >
-                  {language === 'es' ? 'Guardar' : 'Save'}
-                </button>
-
-                <button
-                  className="btn btn-danger"
-                  onClick={() => { handleRevertToSaved(); setShowLeaveEditorWarning(false); }}
-                  style={{
-                    justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))',
-                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#ef4444', transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => { const b = e.currentTarget; b.style.background = '#ef4444'; b.style.color = '#fff'; }}
-                  onMouseLeave={(e) => { const b = e.currentTarget; b.style.background = 'rgba(239, 68, 68, 0.1)'; b.style.color = '#ef4444'; }}
-                >
-                  {language === 'es' ? 'Salir sin guardar' : 'Leave without saving'}
-                </button>
-
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => { setShowLeaveEditorWarning(false); editor?.commands.focus(); }}
-                  style={{ justifyContent: 'center', padding: '8px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
-                >
-                  {language === 'es' ? 'Seguir editando' : 'Keep editing'}
-                </button>
-              </div>
+              </motion.div>
             </motion.div>
-          </div>,
-          document.body
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       <style>{`
         .ProseMirror {

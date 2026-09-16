@@ -654,10 +654,10 @@ export default function SettingsModal({
                   }} onClick={() => handleToggleStickyRestore(!stickyRestoreOnStartup)}>
                     <SettingsOptionCopy icon={<StickyNote />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore sticky notes on startup'}
+                        {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore floating notes on startup'}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {language === 'es' ? 'Vuelve a abrir en el escritorio las notas flotantes que estaban activas al cerrar' : 'Reopens active desktop sticky notes when CyberNotes starts'}
+                        {language === 'es' ? 'Vuelve a abrir en el escritorio las notas flotantes que estaban activas al cerrar' : 'Reopens active desktop floating notes when CyberNotes starts'}
                       </span>
                     </SettingsOptionCopy>
                     <div className={`custom-switch ${stickyRestoreOnStartup ? 'active' : ''}`} />
@@ -675,10 +675,10 @@ export default function SettingsModal({
                   }} onClick={() => handleToggleStickySkipTaskbar(!stickySkipTaskbar)}>
                     <SettingsOptionCopy icon={<StickyNote />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {language === 'es' ? 'Notas flotantes en modo widget' : 'Sticky notes as desktop widgets'}
+                        {language === 'es' ? 'Notas flotantes en modo widget' : 'Floating notes as desktop widgets'}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {language === 'es' ? 'Oculta las notas flotantes de la barra de tareas para no saturarla' : 'Hides sticky notes from the taskbar to avoid cluttering it'}
+                        {language === 'es' ? 'Oculta las notas flotantes de la barra de tareas para no saturarla' : 'Hides floating notes from the taskbar to avoid cluttering it'}
                       </span>
                     </SettingsOptionCopy>
                     <div className={`custom-switch ${stickySkipTaskbar ? 'active' : ''}`} />
@@ -696,7 +696,7 @@ export default function SettingsModal({
                   }}>
                     <SettingsOptionCopy icon={<StickyNote />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {language === 'es' ? 'Bloqueo de notas flotantes' : 'Sticky notes session lock action'}
+                        {language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {language === 'es' ? 'Acción al bloquear la sesión de CyberNotes con contraseña' : 'Action taken when CyberNotes is password-locked'}

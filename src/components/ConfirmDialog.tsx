@@ -2,6 +2,13 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Info, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Language } from '../languages';
+import {
+  EnterGlyph,
+  modalCardMotion,
+  modalOverlayMotion,
+  modalOverlayStyle,
+  useModalKeys,
+} from './ModalActions';
 
 export type DialogVariant = 'info' | 'warning' | 'success';
 
@@ -44,20 +51,20 @@ export default function ConfirmDialog({
     : (language === 'es' ? 'Aceptar' : 'OK'));
   const cancelText = cancelLabel ?? (language === 'es' ? 'Cancelar' : 'Cancel');
 
+  useModalKeys({
+    enabled: true,
+    onEsc: () => onResolve(false),
+    onEnter: () => onResolve(true),
+  });
+
   return createPortal(
-    <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.8)',
-        backdropFilter: 'blur(16px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 100001, animation: 'fadeIn 0.2s ease-out',
-      }}
+    <motion.div
+      {...modalOverlayMotion}
+      style={{ ...modalOverlayStyle, zIndex: 100001 }}
       onClick={() => onResolve(false)}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.92, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', damping: 26, stiffness: 330 }}
+        {...modalCardMotion}
         className="glass-effect"
         style={{
           width: 'calc(400px * var(--ui-scale))',
@@ -96,28 +103,28 @@ export default function ConfirmDialog({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <div className="modal-actions">
           {confirm && (
             <button
-              className="btn btn-ghost"
+              type="button"
+              className="modal-action-btn is-cancel"
               onClick={() => onResolve(false)}
-              style={{ padding: '8px 16px', fontWeight: 600 }}
-              autoFocus
             >
               {cancelText}
+              <span className="modal-key-esc">Esc</span>
             </button>
           )}
           <button
-            className={confirm && variant === 'warning' ? 'btn btn-danger' : 'btn btn-primary'}
+            type="button"
+            className={`modal-action-btn ${confirm && variant === 'warning' ? 'is-danger' : 'is-save'}`}
             onClick={() => onResolve(true)}
-            style={{ padding: '8px 18px', fontWeight: 600 }}
-            autoFocus={!confirm}
           >
             {okText}
+            <EnterGlyph />
           </button>
         </div>
       </motion.div>
-    </div>,
+    </motion.div>,
     document.body
   );
 }

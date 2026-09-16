@@ -561,7 +561,7 @@ export default function TitleBar({
                     onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate'); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                   >
-                    <Heart size={13} style={{ color: '#ec4899', opacity: 0.85 }} />
+                    <Heart size={13} style={{ color: '#F43F5E', opacity: 1 }} fill="#F43F5E" stroke="none" />
                     <span>{t('Donar', 'Donate')}</span>
                   </button>
                   <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />

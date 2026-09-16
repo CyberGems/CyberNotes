@@ -46,6 +46,7 @@ export default defineConfig({
     },
   },
   server: {
+    port: 5273,
     hmr: process.env.DISABLE_HMR !== 'true',
   },
 });

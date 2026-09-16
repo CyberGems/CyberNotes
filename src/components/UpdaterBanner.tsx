@@ -1,17 +1,19 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { Download, Rocket, X, RefreshCw, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { Download, Rocket, X, RefreshCw, Info, ChevronDown, ChevronUp, Sparkles, ExternalLink, SkipForward } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 
 type Status =
   | { state: 'idle' }
   | { state: 'checking' }
-  | { state: 'available'; version: string }
-  | { state: 'downloading'; percent: number }
+  | { state: 'available'; version: string; releaseNotes?: string; releaseUrl?: string }
+  | { state: 'downloading'; percent: number; version?: string }
   | { state: 'downloaded'; version: string }
   | { state: 'installing'; version: string }
   | { state: 'error'; message: string };
 
 const AUTO_RESTART_SEC = 8;
+const SKIP_KEY = 'cybernotes_skipped_update_version';
+const RELEASES_REPO = 'CyberGems/CyberNotes';
 
 function isNetworkOrOfflineError(msg?: string): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
@@ -37,12 +39,109 @@ function isNetworkOrOfflineError(msg?: string): boolean {
   );
 }
 
+function readSkippedVersion(): string | null {
+  try {
+    return localStorage.getItem(SKIP_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function parseChangelogPeek(markdown?: string): { items: string[]; totalCount: number } {
+  if (!markdown) return { items: [], totalCount: 0 };
+  const lines = markdown.split(/\r?\n/);
+  const allHighlights: string[] = [];
+  let inHighlightsSection = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    if (/^###?\s.*(?:highlights|features|novedades|what's new|cambios)/i.test(line)) {
+      inHighlightsSection = true;
+      continue;
+    }
+
+    if (
+      inHighlightsSection &&
+      /^###?\s.*(?:downloads|packages|virustotal|assets|descargas|instrucciones)/i.test(line)
+    ) {
+      break;
+    }
+
+    if (rawLine.startsWith('- ') || rawLine.startsWith('* ')) {
+      const text = rawLine.replace(/^[-*]\s+/, '').trim();
+      const cleaned = text
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/:\s*$/, '')
+        .trim();
+
+      if (
+        cleaned &&
+        !cleaned.toLowerCase().includes('recommended installer') &&
+        !cleaned.toLowerCase().includes('setup installer')
+      ) {
+        allHighlights.push(cleaned);
+      }
+    }
+  }
+
+  if (allHighlights.length === 0) {
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (line.startsWith('- ') || line.startsWith('* ')) {
+        const cleaned = line
+          .replace(/^[-*]\s+/, '')
+          .replace(/\*\*([^*]+)\*\*/g, '$1')
+          .replace(/\*([^*]+)\*/g, '$1')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/:\s*$/, '')
+          .trim();
+        if (
+          cleaned &&
+          !cleaned.toLowerCase().includes('recommended installer') &&
+          !cleaned.toLowerCase().includes('setup installer')
+        ) {
+          allHighlights.push(cleaned);
+        }
+      }
+    }
+  }
+
+  if (allHighlights.length === 0) {
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (line && !line.startsWith('#') && !line.startsWith('---') && !line.startsWith('|')) {
+        const cleaned = line
+          .replace(/\*\*([^*]+)\*\*/g, '$1')
+          .replace(/\*([^*]+)\*/g, '$1')
+          .replace(/`([^`]+)`/g, '$1')
+          .trim();
+        if (cleaned.length > 10) {
+          allHighlights.push(cleaned);
+          if (allHighlights.length >= 2) break;
+        }
+      }
+    }
+  }
+
+  return {
+    items: allHighlights.slice(0, 4),
+    totalCount: allHighlights.length,
+  };
+}
+
 export default function UpdaterBanner({ language }: { language: Language }) {
   const t = TRANSLATIONS[language].updater;
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const [countdown, setCountdown] = useState(AUTO_RESTART_SEC);
   const [dismissed, setDismissed] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [releaseNotes, setReleaseNotes] = useState<string | undefined>();
+  const [releaseUrl, setReleaseUrl] = useState<string>('');
+  const lastVersionRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -51,11 +150,27 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
   }, []);
 
+  const currentVersion = status.state === 'available' || status.state === 'downloaded' || status.state === 'installing' || status.state === 'downloading'
+    ? (status.version || '')
+    : '';
+
   useEffect(() => {
     const off = window.cyberNotesAPI.onUpdateStatus((s: any) => {
-      const next = s as Status;
+      let next = s as Status;
       if (next.state === 'error' && isNetworkOrOfflineError(next.message)) {
         return;
+      }
+      if (next.state === 'available') {
+        if (readSkippedVersion() === next.version) return;
+        lastVersionRef.current = next.version;
+        setReleaseNotes(next.releaseNotes);
+        setReleaseUrl(next.releaseUrl || `https://github.com/${RELEASES_REPO}/releases/tag/v${next.version}`);
+      }
+      if (next.state === 'downloaded' || next.state === 'installing') {
+        lastVersionRef.current = next.version || lastVersionRef.current;
+      }
+      if (next.state === 'downloading') {
+        next = { ...next, version: next.version || lastVersionRef.current };
       }
       if (next.state === 'downloading' || next.state === 'downloaded' || next.state === 'installing' || next.state === 'available' || next.state === 'error') {
         setDismissed(false);
@@ -72,6 +187,21 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     });
     return () => { off(); clearTimers(); };
   }, [clearTimers]);
+
+  useEffect(() => {
+    if (status.state !== 'available' || !status.version) return;
+    if (releaseNotes) return;
+    let cancelled = false;
+    fetch(`https://api.github.com/repos/${RELEASES_REPO}/releases/tags/v${status.version}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        if (data?.body) setReleaseNotes(data.body);
+        if (data?.html_url) setReleaseUrl(data.html_url);
+      })
+      .catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [status, releaseNotes]);
 
   useEffect(() => {
     if (status.state !== 'downloaded' || dismissed) {
@@ -99,186 +229,287 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     window.cyberNotesAPI.installUpdate();
   }, [clearTimers]);
 
-  const handleDismissError = useCallback(() => {
-    setStatus({ state: 'idle' });
+  const handleDismiss = useCallback(() => {
+    clearTimers();
     setDismissed(true);
-  }, []);
+    if (status.state === 'downloaded') {
+      window.cyberNotesAPI.cancelAutoInstall?.();
+    }
+  }, [clearTimers, status.state]);
+
+  const handleSkip = useCallback((version: string) => {
+    try {
+      localStorage.setItem(SKIP_KEY, version);
+    } catch { /* ignore */ }
+    clearTimers();
+    setDismissed(true);
+    window.cyberNotesAPI.cancelAutoInstall?.();
+  }, [clearTimers]);
+
+  const handleDownload = useCallback(() => {
+    try {
+      localStorage.removeItem(SKIP_KEY);
+    } catch { /* ignore */ }
+    const version = currentVersion;
+    setStatus({ state: 'downloading', percent: 0, version });
+    void window.cyberNotesAPI.downloadUpdate();
+  }, [currentVersion]);
+
+  const { items: peekItems, totalCount } = useMemo(
+    () => parseChangelogPeek(releaseNotes),
+    [releaseNotes],
+  );
+  const remainingCount = Math.max(0, totalCount - peekItems.length);
 
   if (dismissed) return null;
 
-  if (status.state === 'downloading') {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        style={{
-          position: 'fixed',
-          bottom: 14,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          minWidth: 360,
-          maxWidth: 'min(92vw, 480px)',
-          padding: '10px 14px',
-          borderRadius: 12,
-          background: 'color-mix(in srgb, var(--bg-modal) 94%, var(--accent) 6%)',
-          border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-          boxShadow: '0 12px 32px rgba(0,0,0,0.45), 0 0 20px var(--accent-glow)',
-          backdropFilter: 'blur(12px)',
-          pointerEvents: 'auto',
-        }}
-      >
-        <div style={{
-          width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'var(--accent-dim)', border: '1px solid var(--accent)', flexShrink: 0,
-        }}>
-          <Download size={14} className="spin" style={{ color: 'var(--accent-light)' }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-            {t.downloading.replace('{percent}', String(status.percent))}
-          </div>
-          <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${Math.max(2, status.percent)}%`,
-              background: 'var(--accent)',
-              borderRadius: 2,
-              transition: 'width 0.4s ease',
-              boxShadow: '0 0 8px var(--accent-glow)',
-            }} />
-          </div>
-        </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-light)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
-          {status.percent}%
-        </span>
-      </div>
-    );
+  const showCard = status.state === 'available'
+    || status.state === 'downloading'
+    || status.state === 'downloaded'
+    || status.state === 'installing'
+    || status.state === 'error';
+
+  if (!showCard) return null;
+
+  if (status.state === 'error' && isNetworkOrOfflineError(status.message)) {
+    return null;
   }
 
-  if (status.state === 'downloaded') {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        style={{
-          position: 'fixed',
-          bottom: 14,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          minWidth: 380,
-          maxWidth: 'min(92vw, 520px)',
-          padding: '10px 12px 10px 14px',
-          borderRadius: 12,
-          background: 'color-mix(in srgb, var(--bg-modal) 94%, var(--success) 6%)',
-          border: '1px solid color-mix(in srgb, var(--success) 35%, var(--border))',
-          boxShadow: '0 12px 32px rgba(0,0,0,0.45), 0 0 20px rgba(34,197,94,0.18)',
-          backdropFilter: 'blur(12px)',
-        }}
-      >
-        <div style={{
-          width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(34,197,94,0.14)', border: '1px solid rgba(34,197,94,0.35)', flexShrink: 0,
-        }}>
-          <Rocket size={14} style={{ color: 'var(--success)' }} />
+  const title = status.state === 'available'
+    ? t.available
+    : status.state === 'downloading'
+      ? t.downloading.replace(' {percent}%', '').replace('{percent}%', '')
+      : status.state === 'downloaded'
+        ? t.downloaded.replace('{version}', status.version)
+        : status.state === 'installing'
+          ? t.installing
+          : t.error;
+
+  const cardUrl = releaseUrl || (currentVersion
+    ? `https://github.com/${RELEASES_REPO}/releases/tag/v${currentVersion}`
+    : `https://github.com/${RELEASES_REPO}/releases`);
+
+  return (
+    <div
+      role="dialog"
+      aria-label={t.available}
+      style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        zIndex: 9999,
+        width: 390,
+        maxWidth: 'calc(100vw - 48px)',
+        background: 'linear-gradient(145deg, var(--bg-modal), var(--bg-surface))',
+        border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
+        boxShadow: '0 14px 36px rgba(0, 0, 0, 0.55), 0 0 16px var(--accent-glow)',
+        borderRadius: 12,
+        padding: '14px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: status.state === 'error'
+                ? 'var(--bg-surface)'
+                : status.state === 'downloaded'
+                  ? 'rgba(34,197,94,0.14)'
+                  : 'color-mix(in srgb, var(--accent) 15%, transparent)',
+              border: status.state === 'downloaded'
+                ? '1px solid rgba(34,197,94,0.35)'
+                : '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: status.state === 'downloaded' ? 'var(--success)' : 'var(--accent)',
+              flexShrink: 0,
+            }}
+          >
+            {status.state === 'downloading' || status.state === 'installing'
+              ? <RefreshCw size={15} className="spin" />
+              : status.state === 'downloaded'
+                ? <Rocket size={15} />
+                : status.state === 'error'
+                  ? <Info size={15} style={{ color: 'var(--text-secondary)' }} />
+                  : <Sparkles size={15} />}
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+                {title}
+              </span>
+              {currentVersion && status.state !== 'error' && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--accent)',
+                    background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                    padding: '1px 6px',
+                    borderRadius: 4,
+                    lineHeight: '16px',
+                  }}
+                >
+                  v{currentVersion}
+                </span>
+              )}
+            </div>
+            {status.state === 'downloaded' && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                {t.restartingIn.replace('{sec}', String(countdown))}
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-            {t.downloaded.replace('{version}', status.version)}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-            {t.restartingIn.replace('{sec}', String(countdown))}
-          </div>
-          <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${((AUTO_RESTART_SEC - countdown) / AUTO_RESTART_SEC) * 100}%`,
-              background: 'var(--success)',
-              transition: 'width 1s linear',
-            }} />
-          </div>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={handleNow} style={{ padding: '7px 12px', fontSize: 12, flexShrink: 0 }}>
-          {t.restartNow}
+
+        <button
+          type="button"
+          className="btn-icon"
+          style={{ width: 24, height: 24, borderRadius: 6 }}
+          onClick={handleDismiss}
+          title={t.dismiss}
+          aria-label={t.dismiss}
+        >
+          <X size={13} />
         </button>
-        <button type="button" className="btn btn-ghost" onClick={handleLater} style={{ padding: '7px 10px', fontSize: 12, flexShrink: 0 }}>
-          {t.later}
-        </button>
       </div>
-    );
-  }
 
-  if (status.state === 'installing') {
-    return (
-      <div
-        role="status"
-        style={{
-          position: 'fixed',
-          bottom: 14,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 16px',
-          borderRadius: 12,
-          background: 'var(--bg-modal)',
-          border: '1px solid var(--accent)',
-          boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
-        }}
-      >
-        <RefreshCw size={14} className="spin" style={{ color: 'var(--accent)' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{t.installing}</span>
-      </div>
-    );
-  }
-
-  if (status.state === 'error') {
-    if (isNetworkOrOfflineError(status.message)) {
-      return null;
-    }
-
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        style={{
-          position: 'fixed',
-          bottom: 14,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 9999,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          padding: '10px 14px',
-          borderRadius: 12,
-          background: 'var(--bg-modal)',
-          border: '1px solid var(--border)',
-          boxShadow: '0 12px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.2)',
-          maxWidth: 'min(92vw, 480px)',
-          minWidth: 300,
-          backdropFilter: 'blur(12px)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg-surface)', border: '1px solid var(--border)', flexShrink: 0,
-          }}>
-            <Info size={14} style={{ color: 'var(--text-secondary)' }} />
+      {(status.state === 'available' || status.state === 'downloading') && (
+        <div
+          style={{
+            background: 'color-mix(in srgb, var(--bg-surface) 80%, black)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '9px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 5,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.6px',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+            }}
+          >
+            {t.whatsNew}
           </div>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
-            {t.error}
-          </span>
+
+          {peekItems.length > 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                maxHeight: 125,
+                overflowY: 'auto',
+              }}
+            >
+              {peekItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 6,
+                    fontSize: 11.5,
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: 'var(--accent)',
+                      fontSize: 10,
+                      lineHeight: '17px',
+                      userSelect: 'none',
+                    }}
+                  >
+                    •
+                  </span>
+                  <span style={{ wordBreak: 'break-word' }}>{item}</span>
+                </div>
+              ))}
+
+              {remainingCount > 0 && (
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    color: 'var(--text-muted)',
+                    fontStyle: 'italic',
+                    marginTop: 2,
+                  }}
+                >
+                  {t.moreInFullNotes.replace('{count}', String(remainingCount))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              {TRANSLATIONS[language].about.releasesTooltip}
+            </div>
+          )}
+        </div>
+      )}
+
+      {status.state === 'downloading' && (
+        <div style={{ padding: '2px 0 0' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 11,
+              marginBottom: 6,
+            }}
+          >
+            <span style={{ color: 'var(--text-muted)' }}>{t.downloadBtn}...</span>
+            <span style={{ fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+              {status.percent}%
+            </span>
+          </div>
+          <div
+            style={{
+              width: '100%',
+              height: 5,
+              background: 'rgba(255, 255, 255, 0.08)',
+              borderRadius: 999,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${Math.max(2, Math.min(100, status.percent))}%`,
+                background: 'linear-gradient(90deg, var(--accent), var(--accent-light))',
+                borderRadius: 999,
+                transition: 'width 0.2s ease-out',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {status.state === 'downloaded' && (
+        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500 }}>
+          {t.restartAndApply}
+        </div>
+      )}
+
+      {status.state === 'error' && (
+        <>
           {status.message && (
             <button
               type="button"
@@ -291,46 +522,156 @@ export default function UpdaterBanner({ language }: { language: Language }) {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 4,
-                flexShrink: 0,
+                alignSelf: 'flex-start',
               }}
             >
-              {showDetails ? (t.hideDetails || 'Ocultar') : (t.details || 'Detalles')}
+              {showDetails ? t.hideDetails : t.details}
               {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           )}
-          <button
-            type="button"
-            className="btn-icon"
-            onClick={handleDismissError}
-            aria-label={language === 'es' ? 'Cerrar' : 'Close'}
-            style={{ width: 26, height: 26, flexShrink: 0 }}
-          >
-            <X size={14} />
-          </button>
-        </div>
+          {showDetails && status.message && (
+            <div
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                background: 'rgba(0, 0, 0, 0.25)',
+                border: '1px solid var(--border)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10.5,
+                color: 'var(--text-muted)',
+                wordBreak: 'break-word',
+                maxHeight: 90,
+                overflowY: 'auto',
+                lineHeight: 1.4,
+              }}
+            >
+              {status.message}
+            </div>
+          )}
+        </>
+      )}
 
-        {showDetails && status.message && (
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: 6,
-              background: 'rgba(0, 0, 0, 0.25)',
-              border: '1px solid var(--border)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10.5,
-              color: 'var(--text-muted)',
-              wordBreak: 'break-word',
-              maxHeight: 90,
-              overflowY: 'auto',
-              lineHeight: 1.4,
-            }}
-          >
-            {status.message}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 2,
+          gap: 6,
+        }}
+      >
+        {status.state === 'available' ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{
+                  padding: '3px 8px',
+                  fontSize: 11,
+                  height: 26,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                onClick={() => window.cyberNotesAPI.openExternal(cardUrl)}
+                title={t.viewReleaseNotes}
+              >
+                <ExternalLink size={12} />
+                <span>{t.viewRelease}</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{
+                  padding: '3px 8px',
+                  fontSize: 11,
+                  height: 26,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  color: 'var(--text-muted)',
+                }}
+                onClick={() => handleSkip(currentVersion)}
+                title={t.skipUpdate}
+              >
+                <SkipForward size={12} />
+                <span>{t.skipUpdate}</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{
+                padding: '4px 12px',
+                fontSize: 11,
+                height: 26,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+              onClick={handleDownload}
+            >
+              <Download size={13} />
+              <span>{t.downloadBtn}</span>
+            </button>
+          </>
+        ) : status.state === 'downloading' ? (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: '3px 8px', fontSize: 11, height: 24 }}
+              onClick={handleDismiss}
+            >
+              {t.dismiss}
+            </button>
+          </div>
+        ) : status.state === 'downloaded' ? (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', gap: 6 }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: '3px 8px', fontSize: 11, height: 26 }}
+              onClick={handleLater}
+            >
+              {t.later}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{
+                padding: '4px 12px',
+                fontSize: 11,
+                height: 26,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontWeight: 600,
+              }}
+              onClick={handleNow}
+            >
+              <RefreshCw size={13} />
+              <span>{t.restartNow}</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: '3px 8px', fontSize: 11, height: 24 }}
+              onClick={handleDismiss}
+            >
+              {t.dismiss}
+            </button>
           </div>
         )}
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }

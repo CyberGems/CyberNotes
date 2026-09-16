@@ -67,11 +67,15 @@ body:has(.has-bg),
   background: transparent !important;
 }
 
-/* Sticky notes use the transparent BrowserWindow surface for real translucency. */
+/* Sticky notes fill an opaque HWND. Window opacity is applied via setOpacity. */
 html:has(.sticky-note-window),
 body:has(.sticky-note-window),
 #root:has(.sticky-note-window) {
-  background: transparent !important;
+  background: #1c160c;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
 }
 
 .app-bg-layer {
@@ -221,6 +225,82 @@ body:has(.sticky-note-window),
 .btn-icon:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.modal-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 128px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: calc(13px * var(--ui-scale));
+  cursor: pointer;
+  background: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.modal-action-btn.is-cancel {
+  color: #fb7185;
+  border: 1px solid rgba(251, 113, 133, 0.5);
+}
+.modal-action-btn.is-cancel:hover {
+  background: rgba(251, 113, 133, 0.1);
+  border-color: #fb7185;
+}
+.modal-action-btn.is-save {
+  color: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.modal-action-btn.is-save:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.modal-action-btn.is-danger {
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+.modal-action-btn.is-danger:hover {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: #ef4444;
+  color: #fff;
+}
+.modal-key-esc {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  line-height: 1.25;
+  opacity: 0.85;
+}
+.modal-key-enter {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  opacity: 0.85;
+}
+
+.modal-actions.is-stack {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.modal-actions.is-stack .modal-action-btn {
+  width: 100%;
+  min-width: 0;
 }
 
 /* ─── Input ────────────────────────────────────────────────── */
@@ -488,6 +568,11 @@ body:has(.sticky-note-window),
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20%       { transform: translateX(-10px); }
@@ -651,12 +736,48 @@ body:has(.sticky-note-window),
   border: 1px solid var(--border);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  cursor: pointer;
+  cursor: grab;
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+}
+
+html.tab-dragging,
+html.tab-dragging * {
+  cursor: grabbing !important;
+}
+
+.tab-strip.is-reordering .editor-tab {
+  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.editor-tab.is-dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.editor-tab.drop-before::before,
+.editor-tab.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.editor-tab.drop-before::before {
+  left: 0;
+}
+
+.editor-tab.drop-after::after {
+  right: 0;
 }
 
 .editor-tab:hover {
@@ -746,6 +867,46 @@ body:has(.sticky-note-window),
   border-color: var(--accent);
   color: var(--accent-light);
   box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.new-note-split {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 20;
+}
+.new-note-split-menu {
+  position: fixed;
+  min-width: 168px;
+  width: max-content;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 1000;
+}
+.new-note-split-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+}
+.new-note-split-item:hover {
+  background: var(--bg-hover);
+  color: var(--accent-light);
 }
 
 /* Wide tabs support */
@@ -1115,17 +1276,31 @@ body:has(.sticky-note-window),
 .settings-option-copy + div {
   flex-shrink: 0;
 }
+.sticky-note-header {
+  -webkit-app-region: no-drag;
+  user-select: none;
+}
+.sticky-note-header input {
+  cursor: text;
+  -webkit-app-region: no-drag;
+}
+.sticky-note-header button,
+.sticky-note-header [data-no-drag] {
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
 .sticky-drag-grip {
   opacity: 0.72;
-  cursor: grab !important;
-  -webkit-app-region: no-drag;
+  cursor: grab;
   user-select: none;
 }
 .sticky-drag-grip:hover {
   opacity: 1;
-  cursor: grab !important;
 }
-.sticky-drag-grip:active {
+.sticky-note-header.is-dragging,
+.sticky-note-header.is-dragging *,
+body.sticky-is-dragging,
+body.sticky-is-dragging * {
   cursor: grabbing !important;
 }
 
@@ -1149,6 +1324,9 @@ body:has(.sticky-note-window),
   margin: 8px auto;
   border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+.sticky-note-footer {
+  -webkit-app-region: no-drag;
 }
 .sticky-note-footer .sticky-note-button {
   min-width: 24px;
@@ -1270,16 +1448,69 @@ body:has(.sticky-note-window),
   cursor: default !important;
 }
 
-/* Paint the rounded outline in its own layer so resizing cannot expose corner artifacts. */
+.sticky-note-window {
+  -webkit-app-region: no-drag;
+  width: 100%;
+  height: 100%;
+}
 .sticky-note-window::after {
   content: '';
   position: absolute;
+  /* Inset the stroke so Windows DPI rounding cannot clip the right/bottom edges. */
   inset: 1px;
   z-index: 300;
   box-sizing: border-box;
   border: 1px solid var(--sticky-border, rgba(255, 255, 255, 0.14));
-  border-radius: 10px;
   pointer-events: none;
+}
+.sticky-note-window.is-attention::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 299;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--sticky-attention, #fff) 32%, transparent),
+    transparent 46%
+  );
+  animation: sticky-attention-flash 1.15s ease-out forwards;
+}
+.sticky-note-window.is-attention::after {
+  animation: sticky-attention-ring 1.15s ease-out;
+}
+@keyframes sticky-attention-flash {
+  0% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+@keyframes sticky-attention-ring {
+  0% {
+    border-color: var(--sticky-attention, rgba(255, 255, 255, 0.9));
+    box-shadow: 0 0 0 0 var(--sticky-attention-glow, rgba(255, 255, 255, 0.28));
+  }
+  40% {
+    border-color: var(--sticky-attention, rgba(255, 255, 255, 0.9));
+    box-shadow: 0 0 22px 2px var(--sticky-attention-glow, rgba(255, 255, 255, 0.38));
+  }
+  100% {
+    border-color: var(--sticky-border, rgba(255, 255, 255, 0.14));
+    box-shadow: none;
+  }
+}
+
+.sticky-save-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.sticky-save-led.is-saving {
+  animation: sticky-save-pulse 0.9s ease-in-out infinite;
+}
+@keyframes sticky-save-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* ─── Centered modal (About, etc.) ───────────────────────── */
@@ -1527,7 +1758,7 @@ body:has(.sticky-note-window),
   isolation: isolate;
 }
 
-/* Traveling luminous beam: sharp white-hot core with accent shoulders */
+/* Traveling luminous beam: sharp core with accent shoulders */
 .cyber-save-shine::before,
 .cyber-shine-pill::before {
   content: '';
@@ -1538,11 +1769,11 @@ body:has(.sticky-note-window),
   background: conic-gradient(
     from var(--cyber-beam-angle, 0deg),
     transparent 0deg,
-    transparent 65deg,
-    var(--accent) 115deg,
-    #ffffff 150deg,
-    var(--accent-light, var(--accent)) 185deg,
-    transparent 235deg,
+    transparent 70deg,
+    var(--accent) 118deg,
+    rgba(255, 255, 255, 0.62) 150deg,
+    var(--accent-light, var(--accent)) 182deg,
+    transparent 230deg,
     transparent 360deg
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -1558,24 +1789,36 @@ body:has(.sticky-note-window),
 .cyber-shine-pill::after {
   content: '';
   position: absolute;
-  inset: -2.5px;
+  inset: -2px;
   border-radius: inherit;
-  padding: 2.5px;
+  padding: 2px;
   background: conic-gradient(
     from var(--cyber-beam-angle, 0deg),
     transparent 0deg,
-    transparent 75deg,
-    var(--accent-glow, rgba(0, 240, 255, 0.45)) 150deg,
-    transparent 225deg,
+    transparent 80deg,
+    var(--accent-glow, rgba(0, 240, 255, 0.32)) 150deg,
+    transparent 220deg,
     transparent 360deg
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
-  filter: blur(4px);
+  filter: blur(3px);
   animation: cyber-border-beam 3.2s linear infinite;
   z-index: 1;
+}
+
+.cyber-shine-pill::before,
+.cyber-shine-pill::after {
+  opacity: 0;
+  animation: none;
+}
+
+.notelist-glass.is-hovered .cyber-shine-pill::before,
+.notelist-glass.is-hovered .cyber-shine-pill::after {
+  opacity: 0.72;
+  animation: cyber-border-beam 3.2s linear infinite;
 }
 
 /* ─── Drag and Drop Note Styling ───────────────────────────── */

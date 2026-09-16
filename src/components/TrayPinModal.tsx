@@ -275,11 +275,9 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
 
         {/* Footer */}
         <div
+          className="modal-actions"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 10,
+            marginTop: 0,
             padding: '14px 20px',
             borderTop: '1px solid var(--border)',
             background: 'color-mix(in srgb, var(--bg-app) 55%, var(--bg-modal))',
@@ -287,17 +285,16 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
         >
           <button
             type="button"
-            className="btn btn-ghost"
+            className="modal-action-btn is-cancel"
             onClick={handleClose}
-            style={{ padding: '7px 16px', fontSize: 12 }}
           >
             {isEs ? 'Listo' : 'Got it'}
+            <span className="modal-key-esc">Esc</span>
           </button>
           <button
             type="button"
-            className="btn btn-primary"
+            className="modal-action-btn is-save"
             onClick={handleOpenSettings}
-            style={{ padding: '7px 16px', fontSize: 12, gap: 7 }}
           >
             <span>{isEs ? 'Abrir configuración de Windows' : 'Open Windows Settings'}</span>
             <ExternalLink size={13} />

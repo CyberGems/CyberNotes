@@ -2,11 +2,12 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, Pin, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
-import FolderIcon from './FolderIcon';
+import FolderIcon, { FILTER_COLORS } from './FolderIcon';
 import Tooltip from './Tooltip';
+import { EnterGlyph, useModalKeys } from './ModalActions';
 
 interface Props {
   language: Language;
@@ -14,7 +15,7 @@ interface Props {
   folders: Folder[];
   selectedNoteId: string | null;
   onSelectNote: (id: string) => void;
-  onCreateNote: () => void;
+  onCreateNote: (kind?: 'note' | 'floating' | 'favorite') => void;
   onDeleteNote: (id: string) => void;
   onRestoreNote: (id: string) => void;
   onRestoreAllTrash: () => void;
@@ -55,6 +56,7 @@ export interface NoteGroup {
   key: string;
   label: string;
   isPinnedGroup?: boolean;
+  isFloatingGroup?: boolean;
   notes: Note[];
 }
 
@@ -110,6 +112,128 @@ type ViewMode = 'normal' | 'compact';
 const ROW_NORMAL = 112;  // ~104 card + 8 (margin 4+4)
 const ROW_COMPACT = 58;  // ~52 card + 6 (margin 3+3)
 const OVERSCAN = 8;
+const FLOATING_GROUP_KEY = 'floating';
+const FLOATING_GROUP_READY_KEY = 'note_list_floating_group_ready';
+
+function NewNoteSplitButton({
+  language,
+  createNoteLabel,
+  createNoteAriaLabel,
+  showFloatingOption,
+  showFavoriteOption,
+  onCreateNote,
+}: {
+  language: Language;
+  createNoteLabel: string;
+  createNoteAriaLabel: string;
+  showFloatingOption: boolean;
+  showFavoriteOption: boolean;
+  onCreateNote: (kind?: 'note' | 'floating' | 'favorite') => void;
+}) {
+  const t = TRANSLATIONS[language];
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const closeTimer = useRef<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const hasExtras = showFloatingOption || showFavoriteOption;
+
+  const cancelClose = () => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+
+  const updatePos = () => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+  };
+
+  const openMenu = () => {
+    cancelClose();
+    updatePos();
+    setOpen(true);
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => {
+      setOpen(false);
+      closeTimer.current = null;
+    }, 160);
+  };
+
+  useEffect(() => () => cancelClose(), []);
+
+  return (
+    <div
+      ref={wrapRef}
+      className="new-note-split"
+      onMouseEnter={hasExtras ? openMenu : undefined}
+      onMouseLeave={hasExtras ? scheduleClose : undefined}
+    >
+      <button
+        className="new-note-btn"
+        type="button"
+        onClick={() => onCreateNote()}
+        aria-label={createNoteAriaLabel}
+        aria-haspopup={hasExtras ? 'menu' : undefined}
+        aria-expanded={hasExtras ? open : undefined}
+        style={{
+          fontSize: 'calc(12px * var(--ui-scale))',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
+        }}
+      >
+        <Plus size={14} />
+        {createNoteLabel}
+      </button>
+      {createPortal(
+        <AnimatePresence>
+          {open && hasExtras && menuPos && (
+            <motion.div
+              className="new-note-split-menu"
+              role="menu"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.14 }}
+              style={{ top: menuPos.top, right: menuPos.right }}
+              onMouseEnter={openMenu}
+              onMouseLeave={scheduleClose}
+            >
+              {showFloatingOption && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="new-note-split-item"
+                  onClick={() => { onCreateNote('floating'); setOpen(false); }}
+                >
+                  <AppWindow size={13} />
+                  {t.noteList.newFloatingNote}
+                </button>
+              )}
+              {showFavoriteOption && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="new-note-split-item"
+                  onClick={() => { onCreateNote('favorite'); setOpen(false); }}
+                >
+                  <Star size={13} />
+                  {t.noteList.newFavoriteShort}
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </div>
+  );
+}
 
 export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
@@ -119,6 +243,7 @@ export default function NoteList({
   const t = TRANSLATIONS[language];
   const isStickyFolder = selectedFolder?.id === 'sticky';
   const isFavoriteFolder = selectedFolder?.id === 'favorites';
+  const isUnfiledFolder = selectedFolder?.id === 'floating';
   const isTrashFolder = selectedFolder?.id === 'trash';
   const createNoteLabel = isStickyFolder
     ? t.editor.stickyNew
@@ -183,18 +308,47 @@ export default function NoteList({
     };
   }, []);
 
+  useModalKeys({
+    enabled: !!noteToDelete,
+    onEsc: () => setNoteToDelete(null),
+    onEnter: () => {
+      if (!noteToDelete) return;
+      void (async () => {
+        if (!isTrashFolder && dontAskMoveToTrash) {
+          setSkipMoveToTrashConfirmation(true);
+          await window.cyberNotesAPI.setSetting('confirm_move_note_to_trash_dismissed', 'true');
+        }
+        if (isTrashFolder) onPurgeNote(noteToDelete.id);
+        else onDeleteNote(noteToDelete.id);
+        setNoteToDelete(null);
+        setContextMenu(null);
+      })();
+    },
+  });
+
+  useModalKeys({
+    enabled: showEmptyTrashConfirm,
+    onEsc: () => setShowEmptyTrashConfirm(false),
+    onEnter: () => { void onEmptyTrash(); setShowEmptyTrashConfirm(false); },
+  });
+
   const COLLAPSED_GROUPS_STORAGE_KEY = 'cybernotes_notelist_collapsed_groups';
   const COLLAPSED_GROUPS_SETTING_KEY = 'note_list_collapsed_groups';
   const [groupByDate, setGroupByDate] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY);
+      const ready = localStorage.getItem(FLOATING_GROUP_READY_KEY) === 'true';
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return new Set(parsed);
+        if (Array.isArray(parsed)) {
+          const next = new Set<string>(parsed);
+          if (!ready) next.add(FLOATING_GROUP_KEY);
+          return next;
+        }
       }
     } catch {}
-    return new Set();
+    return new Set([FLOATING_GROUP_KEY]);
   });
 
   const persistCollapsedGroups = useCallback((groups: Set<string>) => {
@@ -214,6 +368,7 @@ export default function NoteList({
         'note_list_view_mode',
         'note_list_group_by_date',
         COLLAPSED_GROUPS_SETTING_KEY,
+        FLOATING_GROUP_READY_KEY,
       ]);
       if (!active) return;
 
@@ -227,10 +382,20 @@ export default function NoteList({
         setGroupByDate(groupByDateValue !== 'false' && groupByDateValue !== '0');
       }
 
+      const floatingReady = settings[FLOATING_GROUP_READY_KEY] === 'true';
+      const markFloatingReady = (groups: Set<string>) => {
+        if (floatingReady) return groups;
+        groups.add(FLOATING_GROUP_KEY);
+        void window.cyberNotesAPI?.setSetting(FLOATING_GROUP_READY_KEY, 'true');
+        try { localStorage.setItem(FLOATING_GROUP_READY_KEY, 'true'); } catch {}
+        persistCollapsedGroups(groups);
+        return groups;
+      };
+
       if (settings[COLLAPSED_GROUPS_SETTING_KEY]) {
         try {
           const parsed = JSON.parse(settings[COLLAPSED_GROUPS_SETTING_KEY] as string);
-          if (Array.isArray(parsed)) setCollapsedGroups(new Set(parsed));
+          if (Array.isArray(parsed)) setCollapsedGroups(markFloatingReady(new Set(parsed)));
         } catch {
           // Ignore malformed preference data and retain the current fallback.
         }
@@ -240,10 +405,11 @@ export default function NoteList({
           if (legacy) {
             const parsed = JSON.parse(legacy);
             if (Array.isArray(parsed)) {
-              const migrated = new Set<string>(parsed);
+              const migrated = markFloatingReady(new Set<string>(parsed));
               setCollapsedGroups(migrated);
-              persistCollapsedGroups(migrated);
             }
+          } else {
+            setCollapsedGroups(markFloatingReady(new Set([FLOATING_GROUP_KEY])));
           }
         } catch {}
       }
@@ -296,10 +462,39 @@ export default function NoteList({
     });
   }, [initialNotes, sortBy]);
 
+  const isolateFloatingNotes = !isStickyFolder && !isTrashFolder && !isUnfiledFolder;
+
+  const { floatingNotes, regularNotes } = useMemo(() => {
+    if (!isolateFloatingNotes) {
+      return { floatingNotes: [] as Note[], regularNotes: sortedNotes };
+    }
+    const floating: Note[] = [];
+    const regular: Note[] = [];
+    for (const note of sortedNotes) {
+      if (openStickyIds.includes(note.id)) floating.push(note);
+      else regular.push(note);
+    }
+    return { floatingNotes: floating, regularNotes: regular };
+  }, [sortedNotes, isolateFloatingNotes, openStickyIds]);
+
   const isGroupingActive = groupByDate && (sortBy === 'updated' || sortBy === 'created');
+  const showFloatingSection = floatingNotes.length > 0;
+  const useGroupLayout = isGroupingActive || showFloatingSection;
 
   const noteGroups = useMemo<NoteGroup[]>(() => {
-    if (!isGroupingActive) return [];
+    const isEn = language === 'en';
+    const groups: NoteGroup[] = [];
+
+    if (showFloatingSection) {
+      groups.push({
+        key: FLOATING_GROUP_KEY,
+        label: t.sidebar.stickyNotes,
+        isFloatingGroup: true,
+        notes: floatingNotes,
+      });
+    }
+
+    if (!isGroupingActive) return groups;
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -307,32 +502,37 @@ export default function NoteList({
     const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
     const startOf30Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
 
-    const isEn = language === 'en';
-    const pinnedNotes: Note[] = [];
-    const unpinnedNotes: Note[] = [];
+    const notesForDateGroups: Note[] = [];
 
-    for (const note of sortedNotes) {
-      if (note.pinned) {
-        pinnedNotes.push(note);
-      } else {
-        unpinnedNotes.push(note);
+    if (isFavoriteFolder || isUnfiledFolder) {
+      notesForDateGroups.push(...regularNotes);
+    } else {
+      const pinnedNotes: Note[] = [];
+      const unpinnedNotes: Note[] = [];
+
+      for (const note of regularNotes) {
+        if (note.pinned) {
+          pinnedNotes.push(note);
+        } else {
+          unpinnedNotes.push(note);
+        }
       }
-    }
 
-    const groups: NoteGroup[] = [];
+      if (pinnedNotes.length > 0) {
+        groups.push({
+          key: 'pinned',
+          label: t.sidebar.favorites,
+          isPinnedGroup: true,
+          notes: pinnedNotes,
+        });
+      }
 
-    if (pinnedNotes.length > 0) {
-      groups.push({
-        key: 'pinned',
-        label: isEn ? 'Pinned' : 'Fijadas',
-        isPinnedGroup: true,
-        notes: pinnedNotes,
-      });
+      notesForDateGroups.push(...unpinnedNotes);
     }
 
     const groupMap = new Map<string, NoteGroup>();
 
-    for (const note of unpinnedNotes) {
+    for (const note of notesForDateGroups) {
       const dateIso = sortBy === 'created' ? note.created_at : note.updated_at;
       const { key, label } = getDateGroupKeyAndLabel(
         dateIso,
@@ -354,12 +554,13 @@ export default function NoteList({
     }
 
     return groups;
-  }, [sortedNotes, isGroupingActive, sortBy, language]);
+  }, [floatingNotes, regularNotes, isGroupingActive, showFloatingSection, sortBy, language, isFavoriteFolder, isUnfiledFolder, t.sidebar.stickyNotes, t.sidebar.favorites]);
 
   // Si la nota seleccionada está en un grupo colapsado, expandirlo automáticamente
   useEffect(() => {
-    if (!selectedNoteId || !isGroupingActive) return;
+    if (!selectedNoteId || !useGroupLayout) return;
     for (const g of noteGroups) {
+      if (g.key === FLOATING_GROUP_KEY) continue;
       if (g.notes.some(n => n.id === selectedNoteId)) {
         if (collapsedGroups.has(g.key)) {
           setCollapsedGroups(prev => {
@@ -372,33 +573,35 @@ export default function NoteList({
         break;
       }
     }
-  }, [selectedNoteId, isGroupingActive, noteGroups, persistCollapsedGroups]);
+  }, [selectedNoteId, useGroupLayout, noteGroups, persistCollapsedGroups, collapsedGroups]);
 
   const navigableNotes = useMemo(() => {
-    if (!isGroupingActive) return sortedNotes;
+    if (!useGroupLayout) return sortedNotes;
     const list: Note[] = [];
     for (const group of noteGroups) {
       if (!collapsedGroups.has(group.key)) {
         list.push(...group.notes);
       }
     }
-    return list.length > 0 ? list : sortedNotes;
-  }, [isGroupingActive, sortedNotes, noteGroups, collapsedGroups]);
+    if (!isGroupingActive) list.push(...regularNotes);
+    return list;
+  }, [useGroupLayout, isGroupingActive, sortedNotes, regularNotes, noteGroups, collapsedGroups]);
 
   const rowHeight = Math.round((viewMode === 'compact' ? ROW_COMPACT : ROW_NORMAL) * (uiScale || 1));
-  const totalHeight = sortedNotes.length * rowHeight;
+  const virtualNotes = (!isGroupingActive && showFloatingSection) ? regularNotes : sortedNotes;
+  const totalHeight = virtualNotes.length * rowHeight;
 
   // Virtualización: solo montar filas visibles
   const { startIndex, endIndex, offsetY } = useMemo(() => {
     const start = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN);
     const visible = Math.ceil(viewportHeight / rowHeight) + OVERSCAN * 2;
-    const end = Math.min(sortedNotes.length, start + visible);
+    const end = Math.min(virtualNotes.length, start + visible);
     return { startIndex: start, endIndex: end, offsetY: start * rowHeight };
-  }, [scrollTop, viewportHeight, rowHeight, sortedNotes.length]);
+  }, [scrollTop, viewportHeight, rowHeight, virtualNotes.length]);
 
   const visibleNotes = useMemo(
-    () => sortedNotes.slice(startIndex, endIndex),
-    [sortedNotes, startIndex, endIndex]
+    () => virtualNotes.slice(startIndex, endIndex),
+    [virtualNotes, startIndex, endIndex]
   );
 
   // Calcular notas ocultas debajo del scroll + medir viewport
@@ -431,7 +634,7 @@ export default function NoteList({
 
   const scrollNoteIntoView = useCallback((noteId: string, index: number) => {
     if (!listRef.current) return;
-    if (isGroupingActive) {
+    if (useGroupLayout) {
       requestAnimationFrame(() => {
         const el = listRef.current?.querySelector(`[data-note-id="${noteId}"]`) as HTMLElement | null;
         if (el) {
@@ -449,7 +652,7 @@ export default function NoteList({
         el.scrollTo({ top: targetTop + rowHeight - viewportH, behavior: 'smooth' });
       }
     }
-  }, [isGroupingActive, rowHeight]);
+  }, [useGroupLayout, rowHeight]);
 
   const requestDeleteNote = useCallback((note: Note) => {
     if (!isTrashFolder && skipMoveToTrashConfirmation) {
@@ -538,7 +741,7 @@ export default function NoteList({
   };
 
   return (
-    <div className="glass-effect notelist-glass" data-leave-guard="nav" style={{
+    <div className={`glass-effect notelist-glass${isHovering ? ' is-hovered' : ''}`} data-leave-guard="nav" style={{
       width: 'var(--notelist-width)',
       background: 'var(--bg-notelist)',
       borderRight: '1px solid var(--border)',
@@ -574,8 +777,12 @@ export default function NoteList({
             alignItems: 'center',
             gap: 6,
           }}>
-            {selectedFolder && !searchQuery && (
+            {searchQuery ? (
+              <Search size={16} color="var(--accent-light)" style={{ flexShrink: 0 }} />
+            ) : selectedFolder ? (
               <FolderIcon name={selectedFolder.icon} color={selectedFolder.color} size={16} />
+            ) : (
+              <FolderIcon name="file-text" color={FILTER_COLORS.all} size={16} />
             )}
             {getHeaderTitle()}
           </h2>
@@ -607,21 +814,14 @@ export default function NoteList({
               </Tooltip>
             </div>
           ) : (
-            <Tooltip placement="bottom" label={createNoteTooltip}>
-              <button
-                className="new-note-btn"
-                type="button"
-                onClick={onCreateNote}
-                style={{
-                  fontSize: 'calc(12px * var(--ui-scale))',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                }}
-              >
-                <Plus size={14} />
-                {createNoteLabel}
-              </button>
-            </Tooltip>
+            <NewNoteSplitButton
+              language={language}
+              createNoteLabel={createNoteLabel}
+              createNoteAriaLabel={createNoteTooltip}
+              showFloatingOption={true}
+              showFavoriteOption={true}
+              onCreateNote={onCreateNote}
+            />
           )}
         </div>
 
@@ -768,7 +968,7 @@ export default function NoteList({
                     : <><FileText size={34} strokeWidth={1.4} style={{ opacity: 0.32, color: 'var(--text-muted)' }} /><span style={{ fontSize: 13 }}>{t.noteList.noNotes}</span></>
                   }
                 </div>
-              ) : isGroupingActive ? (
+              ) : useGroupLayout ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {noteGroups.map(group => {
                     const isCollapsed = collapsedGroups.has(group.key);
@@ -792,6 +992,9 @@ export default function NoteList({
                           <span className="note-group-title">
                             {group.isPinnedGroup && (
                               <Star size={11} style={{ fill: 'currentColor', opacity: 0.85 }} />
+                            )}
+                            {group.isFloatingGroup && (
+                              <AppWindow size={11} style={{ opacity: 0.85 }} />
                             )}
                             {group.label}
                           </span>
@@ -819,7 +1022,7 @@ export default function NoteList({
                                     viewMode={viewMode}
                                     isSelected={selectedNoteId === note.id}
                                     isContextActive={contextMenu?.note.id === note.id}
-                                    isStickyOpen={openStickyIds.includes(note.id)}
+                                    isStickyOpen={!isStickyFolder && !group.isFloatingGroup && openStickyIds.includes(note.id)}
                                     isTrash={isTrashFolder}
                                     onClick={() => {
                                       onSelectNote(note.id);
@@ -836,6 +1039,43 @@ export default function NoteList({
                       </div>
                     );
                   })}
+                  {!isGroupingActive && regularNotes.length > 0 && (
+                    <div style={{ height: totalHeight, position: 'relative' }}>
+                      <div style={{ transform: `translateY(${offsetY}px)` }}>
+                        {visibleNotes.map(note => {
+                          const folder = note.folder_id ? (folderMap.get(note.folder_id) ?? null) : null;
+                          return (
+                            <div
+                              key={note.id}
+                              data-note-id={note.id}
+                              style={{
+                                height: rowHeight,
+                                boxSizing: 'border-box',
+                                padding: viewMode === 'compact' ? 'calc(3px * var(--ui-scale)) 0' : 'calc(4px * var(--ui-scale)) 0',
+                              }}
+                            >
+                              <NoteItem
+                                language={language}
+                                note={note}
+                                folder={folder}
+                                viewMode={viewMode}
+                                isSelected={selectedNoteId === note.id}
+                                isContextActive={contextMenu?.note.id === note.id}
+                                isStickyOpen={false}
+                                isTrash={isTrashFolder}
+                                onClick={() => {
+                                  onSelectNote(note.id);
+                                  listRef.current?.focus({ preventScroll: true });
+                                }}
+                                onDelete={() => requestDeleteNote(note)}
+                                onContextMenu={(e) => handleContextMenu(e, note)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ height: totalHeight, position: 'relative' }}>
@@ -859,7 +1099,7 @@ export default function NoteList({
                             viewMode={viewMode}
                             isSelected={selectedNoteId === note.id}
                             isContextActive={contextMenu?.note.id === note.id}
-                            isStickyOpen={openStickyIds.includes(note.id)}
+                            isStickyOpen={!isStickyFolder && openStickyIds.includes(note.id)}
                             isTrash={isTrashFolder}
                             onClick={() => {
                               onSelectNote(note.id);
@@ -962,15 +1202,25 @@ export default function NoteList({
           <button
             disabled={isTrashFolder}
             onClick={() => {
-              window.cyberNotesAPI.openStickyNote(contextMenu.note.id);
+              if (openStickyIds.includes(contextMenu.note.id)) {
+                window.cyberNotesAPI.revealStickyNote(contextMenu.note.id);
+              } else {
+                window.cyberNotesAPI.openStickyNote(contextMenu.note.id);
+              }
               setContextMenu(null);
             }}
             style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: isTrashFolder ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: isTrashFolder ? 0.4 : 1 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
-            <ExternalLink size={13} style={{ flexShrink: 0 }} />
-            <span>{language === 'es' ? 'Abrir como nota flotante' : 'Open as sticky note'}</span>
+            {openStickyIds.includes(contextMenu.note.id)
+              ? <Eye size={13} style={{ flexShrink: 0 }} />
+              : <ExternalLink size={13} style={{ flexShrink: 0 }} />}
+            <span>
+              {openStickyIds.includes(contextMenu.note.id)
+                ? t.noteList.showFloatingNote
+                : t.noteList.openSticky}
+            </span>
           </button>
           <button
             disabled={isTrashFolder}
@@ -1070,12 +1320,18 @@ export default function NoteList({
                 if (e.key === 'Escape') setRenameTarget(null);
               }}
             />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setRenameTarget(null)}>{t.general.cancel}</button>
-              <button className="btn btn-primary" onClick={() => {
+            <div className="modal-actions">
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => setRenameTarget(null)}>
+                {t.general.cancel}
+                <span className="modal-key-esc">Esc</span>
+              </button>
+              <button type="button" className="modal-action-btn is-save" onClick={() => {
                 onRenameNote(renameTarget.id, renameInput);
                 setRenameTarget(null);
-              }}>{t.general.save}</button>
+              }}>
+                {t.general.save}
+                <EnterGlyph />
+              </button>
             </div>
           </div>
         </div>,
@@ -1085,16 +1341,14 @@ export default function NoteList({
       {/* Modal Confirmar Eliminar Nota */}
       {noteToDelete && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.4)',
+          position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.72)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
-          animation: 'fadeIn 0.2s ease-out'
         }} onClick={() => setNoteToDelete(null)}>
           <div style={{
             background: 'var(--bg-modal)', padding: '24px 32px', borderRadius: 'var(--radius-lg)',
             width: 380, display: 'flex', flexDirection: 'column', gap: 20, border: '1px solid var(--border)',
             boxShadow: '0 24px 48px rgba(0,0,0,0.6), 0 0 24px var(--accent-glow)',
-            animation: 'modalScaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
@@ -1155,16 +1409,18 @@ export default function NoteList({
               </label>
             )}
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
-              <button 
-                className="btn btn-ghost" 
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-action-btn is-cancel"
                 onClick={() => setNoteToDelete(null)}
-                style={{ padding: '8px 16px', fontWeight: 600 }}
               >
                 {t.general.cancel}
+                <span className="modal-key-esc">Esc</span>
               </button>
-              <button 
-                className="btn btn-danger" 
+              <button
+                type="button"
+                className="modal-action-btn is-danger"
                 onClick={async () => {
                   if (!isTrashFolder && dontAskMoveToTrash) {
                     setSkipMoveToTrashConfirmation(true);
@@ -1175,16 +1431,9 @@ export default function NoteList({
                   setNoteToDelete(null);
                   setContextMenu(null);
                 }}
-                style={{ 
-                  padding: '8px 16px', 
-                  fontWeight: 600,
-                  boxShadow: '0 0 16px var(--danger-dim)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
               >
-                <Trash2 size={14} /> {isTrashFolder ? t.noteList.permanentDelete : t.noteList.moveToTrash}
+                {isTrashFolder ? t.noteList.permanentDelete : t.noteList.moveToTrash}
+                <EnterGlyph />
               </button>
             </div>
           </div>
@@ -1194,16 +1443,14 @@ export default function NoteList({
 
       {showEmptyTrashConfirm && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.4)',
+          position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.72)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
-          animation: 'fadeIn 0.2s ease-out',
         }} onClick={() => setShowEmptyTrashConfirm(false)}>
           <div style={{
             background: 'var(--bg-modal)', padding: '24px 32px', borderRadius: 'var(--radius-lg)',
             width: 380, display: 'flex', flexDirection: 'column', gap: 20, border: '1px solid var(--border)',
             boxShadow: '0 24px 48px rgba(0,0,0,0.6), 0 0 24px var(--danger-dim)',
-            animation: 'modalScaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
@@ -1218,12 +1465,14 @@ export default function NoteList({
                 <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{t.noteList.emptyTrashDesc}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
-              <button className="btn btn-ghost" onClick={() => setShowEmptyTrashConfirm(false)} style={{ padding: '8px 16px', fontWeight: 600 }}>
+            <div className="modal-actions">
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => setShowEmptyTrashConfirm(false)}>
                 {t.general.cancel}
+                <span className="modal-key-esc">Esc</span>
               </button>
-              <button className="btn btn-danger" onClick={() => { void onEmptyTrash(); setShowEmptyTrashConfirm(false); }} style={{ padding: '8px 16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Trash2 size={14} /> {t.noteList.emptyTrash}
+              <button type="button" className="modal-action-btn is-danger" onClick={() => { void onEmptyTrash(); setShowEmptyTrashConfirm(false); }}>
+                {t.noteList.emptyTrash}
+                <EnterGlyph />
               </button>
             </div>
           </div>
@@ -1318,8 +1567,8 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0, paddingRight: 28 }}>
             {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
             {isStickyOpen && (
-              <Tooltip placement="bottom" label={t.noteList.stickyActive || (language === 'es' ? 'Nota flotando en el escritorio' : 'Floating on desktop')}>
-                <Pin size={12} color="var(--accent-light)" style={{ flexShrink: 0, transform: 'rotate(45deg)' }} />
+              <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
+                <AppWindow size={12} color="var(--accent-light)" style={{ flexShrink: 0 }} />
               </Tooltip>
             )}
             <span style={{

@@ -150,12 +150,16 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   toggleStickyAlwaysOnTop: (noteId: string) => ipcRenderer.invoke('sticky:toggleAlwaysOnTop', noteId),
   getStickyConfig: (noteId: string) => ipcRenderer.invoke('sticky:getConfig', noteId),
   saveStickyConfig: (noteId: string, config: any) => ipcRenderer.invoke('sticky:saveConfig', noteId, config),
-  moveStickyWindow: (noteId: string, x: number, y: number) =>
-    ipcRenderer.send('sticky:move', noteId, x, y),
+  setStickyWindowChrome: (noteId: string, color: string, opacity: number) =>
+    ipcRenderer.send('sticky:setChrome', noteId, color, opacity),
+  beginStickyDrag: (noteId: string) => ipcRenderer.send('sticky:dragBegin', noteId),
+  dragStickyWindow: (noteId: string) => ipcRenderer.send('sticky:dragToCursor', noteId),
+  endStickyDrag: (noteId: string) => ipcRenderer.send('sticky:dragEnd', noteId),
   getOpenStickyNotes: () => ipcRenderer.invoke('sticky:getOpenList'),
   focusMainWindowWithNote: (noteId: string) => ipcRenderer.invoke('sticky:focusMain', noteId),
   toggleAllStickyNotes: (show?: boolean) => ipcRenderer.invoke('sticky:toggleAll', show),
   createAndOpenStickyNote: () => ipcRenderer.invoke('sticky:createAndOpen'),
+  revealStickyNote: (noteId: string) => ipcRenderer.invoke('sticky:reveal', noteId),
   onNoteUpdated: (callback: (note: any) => void) => {
     const listener = (_e: any, note: any) => callback(note);
     ipcRenderer.on('note:updated', listener);
@@ -175,5 +179,10 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     const listener = (_e: any, noteId: string) => callback(noteId);
     ipcRenderer.on('sticky:focus-note', listener);
     return () => ipcRenderer.removeListener('sticky:focus-note', listener);
+  },
+  onStickyAttention: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('sticky:attention', listener);
+    return () => ipcRenderer.removeListener('sticky:attention', listener);
   },
 });

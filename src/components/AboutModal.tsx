@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react';
 import {
   X, Github, RefreshCw, Download, CheckCircle2,
-  CircleDot, Tag, ClipboardCopy, Check, Globe,
+  Bug, Tag, ClipboardCopy, Check, Globe, BookOpen, Heart,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import Tooltip from './Tooltip';
 
 const REPO_URL = 'https://github.com/CyberGems/CyberNotes';
+const WIKI_URL = `${REPO_URL}/wiki`;
+const DONATE_URL = `${REPO_URL}#%EF%B8%8F-donate`;
+const DONATE_HEART = '#F43F5E';
 
 type AppVersions = {
   app: string;
@@ -269,6 +272,17 @@ export default function AboutModal({ language, onClose }: Props) {
                 <Globe size={14} />
               </button>
             </Tooltip>
+            <Tooltip label={t.docsTooltip} placement="top">
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ width: 28, height: 28 }}
+                onClick={() => window.cyberNotesAPI.openExternal(WIKI_URL)}
+                aria-label={t.docsTooltip}
+              >
+                <BookOpen size={14} />
+              </button>
+            </Tooltip>
             <Tooltip label={t.githubTooltip} placement="top">
               <button
                 type="button"
@@ -288,7 +302,7 @@ export default function AboutModal({ language, onClose }: Props) {
                 onClick={() => window.cyberNotesAPI.openExternal(`${REPO_URL}/issues`)}
                 aria-label={t.issuesTooltip}
               >
-                <CircleDot size={14} />
+                <Bug size={14} />
               </button>
             </Tooltip>
             <Tooltip label={t.releasesTooltip} placement="top">
@@ -300,6 +314,17 @@ export default function AboutModal({ language, onClose }: Props) {
                 aria-label={t.releasesTooltip}
               >
                 <Tag size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip label={t.donateTooltip} placement="top">
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ width: 28, height: 28 }}
+                onClick={() => window.cyberNotesAPI.openExternal(DONATE_URL)}
+                aria-label={t.donateTooltip}
+              >
+                <Heart size={14} color={DONATE_HEART} fill={DONATE_HEART} stroke="none" />
               </button>
             </Tooltip>
           </div>

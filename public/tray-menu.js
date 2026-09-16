@@ -128,7 +128,7 @@ function renderMainView() {
   }
 
   items.push(
-    makeItem({ action: 'new-sticky', icon: 'plus', label: currentState.newStickyLabel || 'New sticky note' })
+    makeItem({ action: 'new-sticky', icon: 'plus', label: currentState.newStickyLabel || 'New floating note' })
   );
 
   if (currentState.canLock) {

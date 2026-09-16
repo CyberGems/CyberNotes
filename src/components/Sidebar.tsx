@@ -1,16 +1,17 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Folder, Note } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import {
   Plus, FolderOpen, Settings, Lock, Search, X,
-  ChevronRight, Pencil, Trash2, FileText, Clock, Cloud, Star, AppWindow,
+  ChevronRight, Pencil, Trash2, FileText, Clock, Inbox, Star, AppWindow,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { playSynthSound } from '../utils/audio';
-import FolderIcon from './FolderIcon';
+import FolderIcon, { FILTER_COLORS } from './FolderIcon';
 import Tooltip from './Tooltip';
+import { EnterGlyph, modalCardMotion } from './ModalActions';
 
 interface Props {
   language: Language;
@@ -42,7 +43,7 @@ const FOLDER_ICONS = [
   'folder', 'file-text', 'briefcase', 'home',
   'zap', 'lightbulb', 'palette', 'book',
   'microscope', 'target', 'heart', 'tag',
-  'archive', 'inbox', 'code', 'users',
+  'archive', 'cloud', 'code', 'users',
   'rocket', 'bookmark', 'wrench', 'layers',
 ];
 const FOLDER_COLORS = [
@@ -52,6 +53,25 @@ const FOLDER_COLORS = [
   '#84cc16', '#0891b2', '#7c2d12', '#831843',
   '#4c0519', '#3730a3', '#1e40af', '#0d9488',
 ];
+
+function specialFilterBadgeStyle(isSelected: boolean, tint?: string): CSSProperties {
+  return {
+    fontSize: 'calc(11px * var(--ui-scale))',
+    background: isSelected
+      ? (tint ? `${tint}33` : 'color-mix(in srgb, var(--accent) 28%, transparent)')
+      : 'var(--bg-surface)',
+    color: isSelected ? (tint || 'var(--accent-light)') : 'var(--text-muted)',
+    padding: '1px 6px',
+    borderRadius: 10,
+    pointerEvents: 'none',
+    fontWeight: isSelected ? 600 : 400,
+    boxShadow: isSelected
+      ? tint
+        ? `0 0 6px ${tint}66, inset 0 1px 0 rgba(255,255,255,0.12)`
+        : '0 0 6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12)'
+      : 'none',
+  };
+}
 
 function timeAgo(iso: string, language: Language): string {
   let diff = Date.now() - new Date(iso).getTime();
@@ -181,6 +201,33 @@ export default function Sidebar({
     onUpdateFolder(editingFolder);
     setEditingFolder(null);
   };
+
+  useEffect(() => {
+    if (!showNewFolder && !editingFolder && !folderToDelete) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (folderToDelete) setFolderToDelete(null);
+        else if (editingFolder) setEditingFolder(null);
+        else setShowNewFolder(false);
+        return;
+      }
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'TEXTAREA' || tag === 'BUTTON') return;
+      e.preventDefault();
+      if (folderToDelete) {
+        onDeleteFolder(folderToDelete.id);
+        setFolderToDelete(null);
+      } else if (editingFolder) {
+        handleSaveEdit();
+      } else {
+        handleCreateFolder();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showNewFolder, editingFolder, folderToDelete, newFolderName, newFolderIcon, newFolderColor, onDeleteFolder, onCreateFolder, onUpdateFolder]);
 
   // Lista de notas recientes según la pestaña activa (Editadas / Abiertas / Creadas)
   const RECENT_LIMIT = 6;
@@ -349,14 +396,7 @@ export default function Sidebar({
             <FileText size={15} />
           </motion.span>
           <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.allNotes}</span>
-          <span style={{
-            fontSize: 'calc(11px * var(--ui-scale))',
-            background: 'var(--bg-surface)',
-            color: 'var(--text-muted)',
-            padding: '1px 6px',
-            borderRadius: 10,
-            pointerEvents: 'none',
-          }}>{noteCount}</span>
+          <span style={specialFilterBadgeStyle(selectedFolderId === null && !searchQuery, FILTER_COLORS.all)}>{noteCount}</span>
         </motion.button>
 
         {/* Favoritos / Favorites */}
@@ -421,14 +461,7 @@ export default function Sidebar({
             />
           </motion.span>
           <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.favorites}</span>
-          <span style={{
-            fontSize: 'calc(11px * var(--ui-scale))',
-            background: 'var(--bg-surface)',
-            color: 'var(--text-muted)',
-            padding: '1px 6px',
-            borderRadius: 10,
-            pointerEvents: 'none',
-          }}>{allNotes.filter(n => n.pinned === 1).length}</span>
+          <span style={specialFilterBadgeStyle(selectedFolderId === 'favorites' && !searchQuery, FILTER_COLORS.favorites)}>{allNotes.filter(n => n.pinned === 1).length}</span>
         </motion.button>
 
         {/* Notas adhesivas / Sticky notes */}
@@ -485,14 +518,7 @@ export default function Sidebar({
             <AppWindow size={15} />
           </motion.span>
           <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.stickyNotes}</span>
-          <span style={{
-            fontSize: 'calc(11px * var(--ui-scale))',
-            background: 'var(--bg-surface)',
-            color: 'var(--text-muted)',
-            padding: '1px 6px',
-            borderRadius: 10,
-            pointerEvents: 'none',
-          }}>{stickyNoteIds.length}</span>
+          <span style={specialFilterBadgeStyle(selectedFolderId === 'sticky' && !searchQuery, FILTER_COLORS.sticky)}>{stickyNoteIds.length}</span>
         </motion.button>
 
         {/* Sin carpeta / Unfiled */}
@@ -581,17 +607,10 @@ export default function Sidebar({
             }}
             style={{ display: 'inline-flex', alignItems: 'center', pointerEvents: 'none' }}
           >
-            <Cloud size={15} />
+            <Inbox size={15} />
           </motion.span>
           <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.floatingNotes}</span>
-          <span style={{
-            fontSize: 'calc(11px * var(--ui-scale))',
-            background: 'var(--bg-surface)',
-            color: 'var(--text-muted)',
-            padding: '1px 6px',
-            borderRadius: 10,
-            pointerEvents: 'none',
-          }}>{allNotes.filter(n => !n.folder_id).length}</span>
+          <span style={specialFilterBadgeStyle(selectedFolderId === 'floating' && !searchQuery, FILTER_COLORS.unfiled)}>{allNotes.filter(n => !n.folder_id).length}</span>
         </motion.button>
 
         {/* Papelera / Trash */}
@@ -607,8 +626,12 @@ export default function Sidebar({
             padding: '10px 12px',
             borderRadius: 'var(--radius-md)',
             border: '1px solid transparent',
-            background: selectedFolderId === 'trash' && !searchQuery ? 'var(--bg-active)' : 'transparent',
-            color: selectedFolderId === 'trash' && !searchQuery ? 'var(--accent-light)' : 'var(--text-secondary)',
+            background: selectedFolderId === 'trash' && !searchQuery
+              ? 'var(--bg-active)'
+              : 'transparent',
+            color: selectedFolderId === 'trash' && !searchQuery
+              ? 'var(--accent-light)'
+              : 'var(--text-secondary)',
             cursor: 'pointer',
             fontSize: 'calc(13px * var(--ui-scale))',
             fontWeight: selectedFolderId === 'trash' && !searchQuery ? 600 : 400,
@@ -617,15 +640,15 @@ export default function Sidebar({
             marginBottom: 4,
             position: 'relative',
             boxShadow: selectedFolderId === 'trash' && !searchQuery
-              ? '0 0 12px rgba(239, 68, 68, 0.18), inset 0 1px 0 rgba(255,255,255,0.02)'
+              ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
               : 'none',
           }}
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px rgba(239, 68, 68, 0.2), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(239, 68, 68, 0.24)',
-              background: selectedFolderId === 'trash' && !searchQuery ? 'var(--bg-active)' : 'rgba(239, 68, 68, 0.05)',
+              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
+              borderColor: 'rgba(255, 255, 255, 0.08)',
+              background: selectedFolderId === 'trash' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 },
             },
             tap: { scale: 0.98, x: 0, transition: { duration: 0.1 } },
@@ -635,20 +658,13 @@ export default function Sidebar({
             variants={{
               hover: { scale: 1.15, rotate: [-4, 4, -2, 0], transition: { type: 'spring', stiffness: 300, damping: 10 } },
             }}
-            style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--danger)', pointerEvents: 'none' }}
+            style={{ display: 'inline-flex', alignItems: 'center', pointerEvents: 'none' }}
           >
             <Trash2 size={15} />
           </motion.span>
           <span style={{ flex: 1, pointerEvents: 'none' }}>{t.sidebar.trash}</span>
           {trashCount > 0 && (
-            <span style={{
-              fontSize: 'calc(11px * var(--ui-scale))',
-              background: 'rgba(239, 68, 68, 0.14)',
-              color: '#fca5a5',
-              padding: '1px 6px',
-              borderRadius: 10,
-              pointerEvents: 'none',
-            }}>{trashCount}</span>
+            <span style={specialFilterBadgeStyle(selectedFolderId === 'trash' && !searchQuery, FILTER_COLORS.trash)}>{trashCount}</span>
           )}
         </motion.button>
 
@@ -789,14 +805,18 @@ export default function Sidebar({
               }}>{folder.name}</span>
               <span style={{
                 fontSize: 'calc(11px * var(--ui-scale))',
-                background: isSelected ? `${folder.color}33` : `${folder.color}22`,
-                color: '#fff',
+                background: isSelected
+                  ? 'color-mix(in srgb, var(--accent) 28%, transparent)'
+                  : `${folder.color}22`,
+                color: isSelected ? 'var(--accent-light)' : '#fff',
                 padding: '1px 6px',
                 borderRadius: 10,
                 marginRight: 6,
                 fontWeight: isSelected ? 600 : 400,
                 pointerEvents: 'none',
-                boxShadow: `0 0 6px ${folder.color}44, inset 0 1px 0 rgba(255,255,255,0.1)`,
+                boxShadow: isSelected
+                  ? '0 0 6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12)'
+                  : `0 0 6px ${folder.color}44, inset 0 1px 0 rgba(255,255,255,0.1)`,
               }}>{allNotes.filter(n => n.folder_id === folder.id).length}</span>
               <ChevronRight size={12} style={{ opacity: isTarget ? 0.8 : 0.4, color: isTarget ? folder.color : undefined, pointerEvents: 'none' }} />
             </motion.button>
@@ -1132,7 +1152,6 @@ export default function Sidebar({
               type="text"
               value={newFolderName}
               onChange={e => setNewFolderName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
               placeholder={t.sidebar.folderName}
               className="input"
               autoFocus
@@ -1219,9 +1238,15 @@ export default function Sidebar({
               })}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button className="btn btn-primary" onClick={handleCreateFolder} style={{ flex: 1 }}>{t.sidebar.create}</button>
-              <button className="btn btn-ghost" onClick={() => setShowNewFolder(false)} style={{ flex: 1 }}>{t.general.cancel}</button>
+            <div className="modal-actions">
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => setShowNewFolder(false)}>
+                {t.general.cancel}
+                <span className="modal-key-esc">Esc</span>
+              </button>
+              <button type="button" className="modal-action-btn is-save" onClick={handleCreateFolder}>
+                {t.sidebar.create}
+                <EnterGlyph />
+              </button>
             </div>
           </div>
         </div>,
@@ -1234,8 +1259,10 @@ export default function Sidebar({
           position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.7)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999,
-        }}>
-          <div style={{
+        }} onClick={() => setEditingFolder(null)}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
             background: 'var(--bg-modal)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-lg)',
@@ -1252,7 +1279,6 @@ export default function Sidebar({
               type="text"
               value={editingFolder.name}
               onChange={e => setEditingFolder({ ...editingFolder, name: e.target.value })}
-              onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditingFolder(null); }}
               className="input"
               autoFocus
               onContextMenu={inputMenu.onContextMenu}
@@ -1340,9 +1366,15 @@ export default function Sidebar({
               })}
             </div>
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary" onClick={handleSaveEdit} style={{ flex: 1 }}>{t.general.save}</button>
-              <button className="btn btn-ghost" onClick={() => setEditingFolder(null)} style={{ flex: 1 }}>{t.general.cancel}</button>
+            <div className="modal-actions">
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => setEditingFolder(null)}>
+                {t.general.cancel}
+                <span className="modal-key-esc">Esc</span>
+              </button>
+              <button type="button" className="modal-action-btn is-save" onClick={handleSaveEdit}>
+                {t.general.save}
+                <EnterGlyph />
+              </button>
             </div>
           </div>
         </div>,
@@ -1354,19 +1386,15 @@ export default function Sidebar({
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(5, 5, 8, 0.7)',
+          background: 'rgba(5, 5, 8, 0.72)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 99999,
-          animation: 'fadeIn 0.2s ease-out',
         }}>
           <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 15 }}
-            transition={{ type: 'spring', damping: 26, stiffness: 330 }}
+            {...modalCardMotion}
             className="glass-effect"
             style={{
               width: 'calc(400px * var(--ui-scale))',
@@ -1415,27 +1443,21 @@ export default function Sidebar({
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
-              <button
-                className="btn btn-ghost"
-                onClick={() => setFolderToDelete(null)}
-                style={{ padding: '8px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
-              >
+            <div className="modal-actions">
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => setFolderToDelete(null)}>
                 {t.general.cancel}
+                <span className="modal-key-esc">Esc</span>
               </button>
               <button
-                className="btn btn-danger"
+                type="button"
+                className="modal-action-btn is-danger"
                 onClick={() => {
                   onDeleteFolder(folderToDelete.id);
                   setFolderToDelete(null);
                 }}
-                style={{
-                  padding: '8px 20px',
-                  fontSize: 'calc(13px * var(--ui-scale))',
-                  boxShadow: '0 0 12px rgba(239, 68, 68, 0.25)',
-                }}
               >
                 {language === 'es' ? 'Eliminar' : 'Delete'}
+                <EnterGlyph />
               </button>
             </div>
           </motion.div>

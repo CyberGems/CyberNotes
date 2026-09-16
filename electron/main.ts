@@ -13,6 +13,18 @@ const require = createRequire(import.meta.url);
 // ─── Detectar si estamos en dev o producción ───────────────────────────────
 const isDev = !app.isPackaged;
 
+function getDevRendererUrl(query?: Record<string, string>): string {
+  const raw = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+  const match = raw.match(/^(https?):\/\/([^:/]+)(?::(\d+))?/i);
+  const url = new URL(`${match?.[1] || 'http'}://${match?.[2] || 'localhost'}:${match?.[3] || '5173'}`);
+  if (query) {
+    for (const [key, value] of Object.entries(query)) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return url.toString();
+}
+
 // Icon path resolution (window icon)
 let iconPath = path.join(__dirname, '..', 'public', 'icon.png');
 if (!isDev) {
@@ -545,10 +557,61 @@ function restoreWindow() {
 // ─── Sticky Notes Manager ──────────────────────────────────────────────────
 const stickyWindows = new Map<string, BrowserWindow>();
 const stickyNotesHiddenByLock = new Set<string>();
+const stickyDragOffsets = new Map<string, {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  lastX: number;
+  lastY: number;
+}>();
+const stickyRevealTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const STICKY_DEFAULT_WIDTH = 320;
 const STICKY_DEFAULT_HEIGHT = 360;
+const STICKY_MIN_WIDTH = 240;
+const STICKY_MIN_HEIGHT = 200;
 const STICKY_MAX_WIDTH = 720;
 const STICKY_MAX_HEIGHT = 640;
+const STICKY_WINDOW_BACKGROUNDS: Record<string, string> = {
+  'cyber-yellow': '#1c160c',
+  'neon-cyan': '#0a1820',
+  'matrix-green': '#0a1c12',
+  'midnight-purple': '#180c22',
+  'cyber-pink': '#1e0c14',
+  graphite: '#121218',
+  'electric-blue': '#0a1226',
+  'cyber-orange': '#24120a',
+  'acid-lime': '#141e0a',
+};
+
+function readNumericSetting(value: unknown, fallback: number): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampStickySize(width: number, height: number, maxWidth: number, maxHeight: number) {
+  return {
+    width: Math.min(maxWidth, Math.max(STICKY_MIN_WIDTH, Math.round(width))),
+    height: Math.min(maxHeight, Math.max(STICKY_MIN_HEIGHT, Math.round(height))),
+  };
+}
+
+function clampStickyWindowOpacity(value: number): number {
+  const bounded = Math.min(1, Math.max(0.1, value));
+  return [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1].reduce((closest, option) => (
+    Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
+  ), 0.9);
+}
+
+function applyStickyWindowChrome(win: BrowserWindow, color?: string, opacity?: number): void {
+  if (win.isDestroyed()) return;
+  if (color) {
+    win.setBackgroundColor(STICKY_WINDOW_BACKGROUNDS[color] || STICKY_WINDOW_BACKGROUNDS['cyber-yellow']);
+  }
+  if (typeof opacity === 'number' && Number.isFinite(opacity)) {
+    win.setOpacity(clampStickyWindowOpacity(opacity));
+  }
+}
 
 function lockStickyWindows(): void {
   if (getStickyLockAction() === 'hide') {
@@ -600,8 +663,13 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   if (!noteRow) return false;
 
   const row = queryGet('SELECT * FROM sticky_notes WHERE note_id = ?', [noteId]);
-  let width = (row && typeof row.width === 'number' && row.width >= 240) ? row.width : STICKY_DEFAULT_WIDTH;
-  let height = (row && typeof row.height === 'number' && row.height >= 200) ? row.height : STICKY_DEFAULT_HEIGHT;
+  const hasSavedSize = !!row;
+  let width = hasSavedSize
+    ? readNumericSetting(row.width, STICKY_DEFAULT_WIDTH)
+    : STICKY_DEFAULT_WIDTH;
+  let height = hasSavedSize
+    ? readNumericSetting(row.height, STICKY_DEFAULT_HEIGHT)
+    : STICKY_DEFAULT_HEIGHT;
   const pinnedTop = row ? row.pinned_top !== 0 : true;
 
   let winX: number | undefined = row && typeof row.x === 'number' ? row.x : undefined;
@@ -642,10 +710,9 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   // Keep corrupted or stale bounds from expanding across the virtual desktop.
   // The native maximum also prevents a later manual resize from turning a
   // sticky note into a full-screen window.
-  const maxWidth = Math.min(STICKY_MAX_WIDTH, Math.max(240, wa.width - 32));
-  const maxHeight = Math.min(STICKY_MAX_HEIGHT, Math.max(200, wa.height - 32));
-  width = Math.min(width, maxWidth);
-  height = Math.min(height, maxHeight);
+  const maxWidth = Math.min(STICKY_MAX_WIDTH, Math.max(STICKY_MIN_WIDTH, wa.width - 32));
+  const maxHeight = Math.min(STICKY_MAX_HEIGHT, Math.max(STICKY_MIN_HEIGHT, wa.height - 32));
+  ({ width, height } = clampStickySize(width, height, maxWidth, maxHeight));
 
   const maxX = wa.x + wa.width - width - 16;
   const maxY = wa.y + wa.height - height - 16;
@@ -668,19 +735,23 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
 
   const skipTaskbarVal = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_skip_taskbar']);
   const skipTaskbar = skipTaskbarVal ? skipTaskbarVal.value === 'true' : true;
+  const stickyConfig = getStickyConfig(noteId);
 
   const win = new BrowserWindow({
     width,
     height,
     x: winX,
     y: winY,
-    minWidth: 240,
-    minHeight: 200,
-    maxWidth,
-    maxHeight,
+    useContentSize: true,
+    minWidth: STICKY_MIN_WIDTH,
+    minHeight: STICKY_MIN_HEIGHT,
     frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
+    transparent: false,
+    backgroundColor: STICKY_WINDOW_BACKGROUNDS[stickyConfig.color] || STICKY_WINDOW_BACKGROUNDS['cyber-yellow'],
+    hasShadow: false,
+    roundedCorners: false,
+    maximizable: false,
+    fullscreenable: false,
     alwaysOnTop: pinnedTop,
     skipTaskbar,
     icon: iconPath,
@@ -692,6 +763,15 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     },
     show: false,
   });
+
+  win.setHasShadow(false);
+  // Setting maxWidth in the constructor can make Windows ignore the requested
+  // size and open the sticky near the monitor cap. Apply limits after the
+  // intended content size is set.
+  win.setContentSize(width, height);
+  win.setMinimumSize(STICKY_MIN_WIDTH, STICKY_MIN_HEIGHT);
+  win.setMaximumSize(maxWidth, maxHeight);
+  applyStickyWindowChrome(win, stickyConfig.color, stickyConfig.opacity);
 
   if (pinnedTop) {
     win.setAlwaysOnTop(true, 'floating');
@@ -707,12 +787,14 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   );
 
   let boundsTimer: ReturnType<typeof setTimeout> | null = null;
+
   const persistBounds = () => {
     if (win.isDestroyed()) return;
-    const b = win.getBounds();
+    const position = win.getBounds();
+    const [contentWidth, contentHeight] = win.getContentSize();
     runQuery(
       `UPDATE sticky_notes SET x = ?, y = ?, width = ?, height = ? WHERE note_id = ?`,
-      [b.x, b.y, b.width, b.height, noteId],
+      [position.x, position.y, contentWidth, contentHeight, noteId],
       { flushNow: isQuitting }
     );
   };
@@ -736,6 +818,12 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     }
     stickyWindows.delete(noteId);
     stickyNotesHiddenByLock.delete(noteId);
+    stickyDragOffsets.delete(noteId);
+    const revealTimer = stickyRevealTimers.get(noteId);
+    if (revealTimer) {
+      clearTimeout(revealTimer);
+      stickyRevealTimers.delete(noteId);
+    }
     // Preserve the open state across an application quit. A user clicking the
     // sticky's X still dismisses it until they explicitly open it again.
     runQuery(
@@ -763,6 +851,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
       // already-loaded sticky windows in sync with a lock that happened during startup.
       win.webContents.send('session:force-lock');
     }
+    win.setContentSize(width, height);
     win.show();
     notifyStickyListChanged();
     updateTrayMenu();
@@ -774,7 +863,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   win.once('ready-to-show', revealStickyWindow);
 
   if (isDev) {
-    win.loadURL(`http://localhost:5173/?sticky=${encodeURIComponent(noteId)}`);
+    win.loadURL(getDevRendererUrl({ sticky: noteId }));
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'), {
       search: `sticky=${encodeURIComponent(noteId)}`
@@ -793,6 +882,42 @@ function closeStickyNote(noteId: string): boolean {
   return false;
 }
 
+function revealStickyNote(noteId: string): boolean {
+  if (shouldLockBeforeShow()) {
+    lockStickyWindows();
+    return stickyWindows.has(noteId);
+  }
+
+  const win = stickyWindows.get(noteId);
+  if (!win || win.isDestroyed()) {
+    return openStickyNote(noteId);
+  }
+
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.moveTop();
+
+  const wasPinned = getStickyConfig(noteId).pinned_top;
+  if (!wasPinned) {
+    win.setAlwaysOnTop(true, 'pop-up-menu');
+    const previous = stickyRevealTimers.get(noteId);
+    if (previous) clearTimeout(previous);
+    stickyRevealTimers.set(noteId, setTimeout(() => {
+      stickyRevealTimers.delete(noteId);
+      if (win.isDestroyed()) return;
+      if (!getStickyConfig(noteId).pinned_top) {
+        win.setAlwaysOnTop(false, 'normal');
+      }
+    }, 2200));
+  }
+
+  win.focus();
+  if (!win.webContents.isDestroyed()) {
+    win.webContents.send('sticky:attention');
+  }
+  return true;
+}
+
 function toggleStickyAlwaysOnTop(noteId: string): boolean {
   const win = stickyWindows.get(noteId);
   if (!win || win.isDestroyed()) return false;
@@ -806,7 +931,7 @@ function getStickyConfig(noteId: string) {
   const row = queryGet('SELECT color, opacity, pinned_top FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
     color: row?.color || 'cyber-yellow',
-    opacity: typeof row?.opacity === 'number' ? row.opacity : 0.9,
+    opacity: clampStickyWindowOpacity(readNumericSetting(row?.opacity, 0.9)),
     pinned_top: row ? row.pinned_top !== 0 : true,
   };
 }
@@ -829,6 +954,7 @@ function saveStickyConfig(noteId: string, config: { color?: string; opacity?: nu
     if (config.pinned_top !== undefined) {
       win.setAlwaysOnTop(config.pinned_top, config.pinned_top ? 'floating' : 'normal');
     }
+    applyStickyWindowChrome(win, color, opacity);
     win.webContents.send('sticky:config-updated', { color, opacity, pinned_top: pinnedTop !== 0 });
   }
   return true;
@@ -846,7 +972,7 @@ function toggleAllStickyNotes(forceShow?: boolean): boolean {
   });
 
   const shouldShow = forceShow !== undefined ? forceShow : !anyVisible;
-  stickyWindows.forEach((win) => {
+  stickyWindows.forEach((win, noteId) => {
     if (!win.isDestroyed()) {
       if (shouldShow) {
         if (win.isMinimized()) win.restore();
@@ -865,11 +991,19 @@ function createAndOpenStickyNote(centerOnMainWindow = false): string {
   const isEs = langVal?.value === 'es';
   const newId = uuidv4();
   const now = new Date().toISOString();
-  const defaultTitle = isEs ? 'Nota adhesiva' : 'Sticky note';
+  const defaultTitle = isEs ? 'Nota flotante' : 'Floating note';
 
   runQuery(
     'INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [newId, null, defaultTitle, '', '', '', 0, now, now]
+  );
+
+  const colorIds = Object.keys(STICKY_WINDOW_BACKGROUNDS);
+  const randomColor = colorIds[Math.floor(Math.random() * colorIds.length)] || 'cyber-yellow';
+  runQuery(
+    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open)
+     VALUES (?, ?, 0.9, 1, 1)`,
+    [newId, randomColor]
   );
 
   openStickyNote(newId, centerOnMainWindow);
@@ -951,10 +1085,10 @@ function buildTrayMenuState() {
     stickyCount,
     anyStickyVisible,
     showLabel: visible ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
-    newStickyLabel: isEs ? 'Nueva nota adhesiva' : 'New sticky note',
+    newStickyLabel: isEs ? 'Nueva nota flotante' : 'New floating note',
     toggleStickyLabel: anyStickyVisible
-      ? (isEs ? 'Ocultar notas adhesivas' : 'Mostrar notas adhesivas')
-      : (isEs ? 'Mostrar notas adhesivas' : 'Ocultar notas adhesivas'),
+      ? (isEs ? 'Ocultar notas flotantes' : 'Hide floating notes')
+      : (isEs ? 'Mostrar notas flotantes' : 'Show floating notes'),
     lockLabel: isEs ? 'Bloquear' : 'Lock',
     settingsLabel: isEs ? 'Configuración' : 'Settings',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
@@ -1505,7 +1639,7 @@ function createWindow() {
   
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL(getDevRendererUrl());
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -2036,23 +2170,48 @@ ipcMain.handle('sticky:close', (_e: any, noteId: string) => closeStickyNote(note
 ipcMain.handle('sticky:toggleAlwaysOnTop', (_e: any, noteId: string) => toggleStickyAlwaysOnTop(noteId));
 ipcMain.handle('sticky:getConfig', (_e: any, noteId: string) => getStickyConfig(noteId));
 ipcMain.handle('sticky:saveConfig', (_e: any, noteId: string, config: any) => saveStickyConfig(noteId, config));
-ipcMain.on('sticky:move', (_e: any, noteId: string, x: number, y: number) => {
+ipcMain.on('sticky:setChrome', (_e: any, noteId: string, color?: string, opacity?: number) => {
   const win = stickyWindows.get(noteId);
-  if (!win || win.isDestroyed() || !Number.isFinite(x) || !Number.isFinite(y)) return;
-  // Keep the dimensions owned by the native window. Reapplying them here
-  // avoids Chromium/Electron changing the transparent window size mid-drag.
-  const current = win.getBounds();
-  win.setBounds({
-    x: Math.round(x),
-    y: Math.round(y),
-    width: current.width,
-    height: current.height,
-  }, false);
+  if (!win || win.isDestroyed()) return;
+  applyStickyWindowChrome(win, color, opacity);
+});
+ipcMain.on('sticky:dragBegin', (_e: any, noteId: string) => {
+  const win = stickyWindows.get(noteId);
+  if (!win || win.isDestroyed()) return;
+  const cursor = screen.getCursorScreenPoint();
+  const [wx, wy] = win.getPosition();
+  const [width, height] = win.getSize();
+  stickyDragOffsets.set(noteId, {
+    x: cursor.x - wx,
+    y: cursor.y - wy,
+    width,
+    height,
+    lastX: wx,
+    lastY: wy,
+  });
+});
+ipcMain.on('sticky:dragToCursor', (_e: any, noteId: string) => {
+  const win = stickyWindows.get(noteId);
+  const drag = stickyDragOffsets.get(noteId);
+  if (!win || win.isDestroyed() || !drag) return;
+  const cursor = screen.getCursorScreenPoint();
+  const nextX = Math.round(cursor.x - drag.x);
+  const nextY = Math.round(cursor.y - drag.y);
+  if (nextX === drag.lastX && nextY === drag.lastY) return;
+  drag.lastX = nextX;
+  drag.lastY = nextY;
+  // Reuse the size captured at drag start. setPosition() re-reads the HWND
+  // each frame and Windows DPI rounding inflates it until the monitor cap.
+  win.setBounds({ x: nextX, y: nextY, width: drag.width, height: drag.height }, false);
+});
+ipcMain.on('sticky:dragEnd', (_e: any, noteId: string) => {
+  stickyDragOffsets.delete(noteId);
 });
 ipcMain.handle('sticky:getOpenList', () => Array.from(stickyWindows.keys()));
 ipcMain.handle('sticky:focusMain', (_e: any, noteId: string) => focusMainWindowWithNote(noteId));
 ipcMain.handle('sticky:toggleAll', (_e: any, show?: boolean) => toggleAllStickyNotes(show));
 ipcMain.handle('sticky:createAndOpen', (event) => createAndOpenStickyNote(event.sender === mainWindow?.webContents));
+ipcMain.handle('sticky:reveal', (_e: any, noteId: string) => revealStickyNote(noteId));
 
 ipcMain.handle('notes:search', (_e: any, query: string) => {
   const q = `%${query}%`;

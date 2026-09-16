@@ -102,6 +102,8 @@ declare global {
         version?: string;
         percent?: number;
         message?: string;
+        releaseNotes?: string;
+        releaseUrl?: string;
       }) => void) => () => void;
       getVersions: () => Promise<{
         app: string;
@@ -140,15 +142,20 @@ declare global {
       toggleStickyAlwaysOnTop: (noteId: string) => Promise<boolean>;
       getStickyConfig: (noteId: string) => Promise<{ color: string; opacity: number; pinned_top: boolean }>;
       saveStickyConfig: (noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean }) => Promise<boolean>;
-      moveStickyWindow: (noteId: string, x: number, y: number) => void;
+      setStickyWindowChrome: (noteId: string, color: string, opacity: number) => void;
+      beginStickyDrag: (noteId: string) => void;
+      dragStickyWindow: (noteId: string) => void;
+      endStickyDrag: (noteId: string) => void;
       getOpenStickyNotes: () => Promise<string[]>;
       focusMainWindowWithNote: (noteId: string) => Promise<void>;
       toggleAllStickyNotes: (show?: boolean) => Promise<boolean>;
       createAndOpenStickyNote: () => Promise<string>;
+      revealStickyNote: (noteId: string) => Promise<boolean>;
       onNoteUpdated: (callback: (note: Note) => void) => () => void;
       onNoteDeleted: (callback: (noteId: string) => void) => () => void;
       onStickyListChanged: (callback: (openIds: string[]) => void) => () => void;
       onStickyFocusNote: (callback: (noteId: string) => void) => () => void;
+      onStickyAttention: (callback: () => void) => () => void;
     };
   }
 }

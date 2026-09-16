@@ -17,6 +17,7 @@ import Tooltip from './Tooltip';
 import {
   Pin,
   Palette,
+  Eye,
   ExternalLink,
   X,
   Bold,
@@ -35,7 +36,7 @@ import {
   Clipboard,
   CheckSquare,
   Trash2,
-  Eye,
+  Blend,
   Lock,
   GripVertical,
 } from 'lucide-react';
@@ -71,81 +72,81 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'yellow',
     accent: '#f59e0b',
     accentGlow: 'rgba(245, 158, 11, 0.4)',
-    bgDark: 'rgba(28, 22, 12, 0.94)',
+    bgDark: '#1c160c',
     border: 'rgba(245, 158, 11, 0.35)',
-    headerBg: 'rgba(38, 30, 14, 0.98)',
+    headerBg: '#261e0e',
   },
   'neon-cyan': {
     id: 'neon-cyan',
     nameKey: 'cyan',
     accent: '#06b6d4',
     accentGlow: 'rgba(6, 182, 212, 0.4)',
-    bgDark: 'rgba(10, 24, 32, 0.94)',
+    bgDark: '#0a1820',
     border: 'rgba(6, 182, 212, 0.35)',
-    headerBg: 'rgba(12, 32, 42, 0.98)',
+    headerBg: '#0c202a',
   },
   'matrix-green': {
     id: 'matrix-green',
     nameKey: 'green',
     accent: '#10b981',
     accentGlow: 'rgba(16, 185, 129, 0.4)',
-    bgDark: 'rgba(10, 28, 18, 0.94)',
+    bgDark: '#0a1c12',
     border: 'rgba(16, 185, 129, 0.35)',
-    headerBg: 'rgba(12, 36, 22, 0.98)',
+    headerBg: '#0c2416',
   },
   'midnight-purple': {
     id: 'midnight-purple',
     nameKey: 'purple',
     accent: '#a855f7',
     accentGlow: 'rgba(168, 85, 247, 0.4)',
-    bgDark: 'rgba(24, 12, 34, 0.94)',
+    bgDark: '#180c22',
     border: 'rgba(168, 85, 247, 0.35)',
-    headerBg: 'rgba(32, 16, 46, 0.98)',
+    headerBg: '#20102e',
   },
   'cyber-pink': {
     id: 'cyber-pink',
     nameKey: 'pink',
     accent: '#f43f5e',
     accentGlow: 'rgba(244, 63, 94, 0.4)',
-    bgDark: 'rgba(30, 12, 20, 0.94)',
+    bgDark: '#1e0c14',
     border: 'rgba(244, 63, 94, 0.35)',
-    headerBg: 'rgba(40, 16, 26, 0.98)',
+    headerBg: '#28101a',
   },
   graphite: {
     id: 'graphite',
     nameKey: 'dark',
     accent: '#38bdf8',
     accentGlow: 'rgba(56, 189, 248, 0.3)',
-    bgDark: 'rgba(18, 18, 24, 0.94)',
+    bgDark: '#121218',
     border: 'rgba(255, 255, 255, 0.14)',
-    headerBg: 'rgba(24, 24, 32, 0.98)',
+    headerBg: '#181820',
   },
   'electric-blue': {
     id: 'electric-blue',
     nameKey: 'blue',
     accent: '#3b82f6',
     accentGlow: 'rgba(59, 130, 246, 0.4)',
-    bgDark: 'rgba(10, 18, 38, 0.94)',
+    bgDark: '#0a1226',
     border: 'rgba(59, 130, 246, 0.35)',
-    headerBg: 'rgba(14, 26, 54, 0.98)',
+    headerBg: '#0e1a36',
   },
   'cyber-orange': {
     id: 'cyber-orange',
     nameKey: 'orange',
     accent: '#f97316',
     accentGlow: 'rgba(249, 115, 22, 0.4)',
-    bgDark: 'rgba(36, 18, 10, 0.94)',
+    bgDark: '#24120a',
     border: 'rgba(249, 115, 22, 0.35)',
-    headerBg: 'rgba(52, 24, 12, 0.98)',
+    headerBg: '#34180c',
   },
   'acid-lime': {
     id: 'acid-lime',
     nameKey: 'lime',
     accent: '#a3e635',
     accentGlow: 'rgba(163, 230, 53, 0.4)',
-    bgDark: 'rgba(20, 30, 10, 0.94)',
+    bgDark: '#141e0a',
     border: 'rgba(163, 230, 53, 0.35)',
-    headerBg: 'rgba(28, 42, 12, 0.98)',
+    headerBg: '#1c2a0c',
   },
 };
 
@@ -157,12 +158,6 @@ const normalizeStickyOpacity = (value: number) => {
   return OPACITY_OPTIONS.reduce((closest, option) => (
     Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
   ), DEFAULT_STICKY_OPACITY);
-};
-
-const rgbaWithAlpha = (color: string, alpha: number) => {
-  const match = color.match(/^rgba?\(\s*([^,]+),\s*([^,]+),\s*([^,]+)(?:,\s*[^)]+)?\)$/);
-  if (!match) return color;
-  return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
 };
 
 const MAX_STICKY_IMAGE_DIMENSION = 1400;
@@ -255,6 +250,51 @@ function loadStickyEditorContent(editor: Editor, raw: string) {
   editor.view.updateState(fresh);
 }
 
+const STICKY_FOOTER_TIP_DELAY = 500;
+
+function StickyFooterBtn({
+  label,
+  onClick,
+  active = false,
+  disabled = false,
+  accent,
+  accentGlow,
+  danger = false,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  accent?: string;
+  accentGlow?: string;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  const idle = danger ? 'rgba(244, 63, 94, 0.65)' : 'rgba(255, 255, 255, 0.5)';
+  return (
+    <Tooltip label={label} placement="top" delay={STICKY_FOOTER_TIP_DELAY}>
+      <button
+        className="sticky-note-button"
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+        style={{
+          background: active && accentGlow ? accentGlow : 'transparent',
+          color: active && accent ? accent : idle,
+          border: 'none',
+          borderRadius: 4,
+          padding: 4,
+          cursor: disabled ? 'default' : 'pointer',
+        }}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
+}
+
 export default function StickyNoteApp({ noteId }: Props) {
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
@@ -272,8 +312,10 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [pasteNotice, setPasteNotice] = useState<'too-large' | 'failed' | null>(null);
+  const [isAttention, setIsAttention] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pasteNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorContentRef = useRef<string>('');
   const noteRef = useRef<Note | null>(null);
@@ -283,9 +325,6 @@ export default function StickyNoteApp({ noteId }: Props) {
   const t = TRANSLATIONS[language];
   const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
   const previewOpacity = hoveredOpacity ?? opacity;
-  const surfaceAlpha = 0.3 + previewOpacity * 0.7;
-  const headerAlpha = 0.36 + previewOpacity * 0.64;
-  const glassBlur = Math.round(6 + (1 - previewOpacity) * 18);
 
   const showPasteNotice = useCallback((notice: 'too-large' | 'failed') => {
     setPasteNotice(notice);
@@ -400,10 +439,17 @@ export default function StickyNoteApp({ noteId }: Props) {
   }, [noteId, editor]);
 
   useEffect(() => {
+    if (loading) return;
+    window.cyberNotesAPI.setStickyWindowChrome(noteId, hoveredColor || color, previewOpacity);
+  }, [loading, noteId, hoveredColor, color, previewOpacity]);
+
+  useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
       dragCleanupRef.current = null;
+      document.body.classList.remove('sticky-is-dragging');
       if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
+      if (attentionTimerRef.current) clearTimeout(attentionTimerRef.current);
     };
   }, []);
 
@@ -434,11 +480,21 @@ export default function StickyNoteApp({ noteId }: Props) {
       setIsSessionLocked(false);
     });
 
+    const unregisterAttention = window.cyberNotesAPI.onStickyAttention?.(() => {
+      setIsAttention(true);
+      if (attentionTimerRef.current) clearTimeout(attentionTimerRef.current);
+      attentionTimerRef.current = setTimeout(() => {
+        setIsAttention(false);
+        attentionTimerRef.current = null;
+      }, 1150);
+    });
+
     return () => {
       unregisterNoteUpdated();
       unregisterNoteDeleted();
       unregisterLock();
       if (unregisterShieldDisable) unregisterShieldDisable();
+      if (unregisterAttention) unregisterAttention();
     };
   }, [noteId, editor]);
 
@@ -603,45 +659,115 @@ export default function StickyNoteApp({ noteId }: Props) {
     await window.cyberNotesAPI.deleteNote(noteId);
   };
 
-  const handleGripMouseDown = (e: React.MouseEvent<HTMLSpanElement>) => {
+  const endStickyWindowDrag = useCallback(() => {
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+  }, []);
+
+  const beginStickyWindowDrag = useCallback((header: HTMLElement) => {
+    endStickyWindowDrag();
+    header.classList.add('is-dragging');
+    document.body.classList.add('sticky-is-dragging');
+    window.cyberNotesAPI.beginStickyDrag(noteId);
+
+    const onMove = () => {
+      window.cyberNotesAPI.dragStickyWindow(noteId);
+    };
+    window.addEventListener('pointermove', onMove);
+
+    dragCleanupRef.current = () => {
+      window.removeEventListener('pointermove', onMove);
+      header.classList.remove('is-dragging');
+      document.body.classList.remove('sticky-is-dragging');
+      window.cyberNotesAPI.endStickyDrag(noteId);
+    };
+  }, [noteId, endStickyWindowDrag]);
+
+  const handleHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, textarea, a, select, [data-no-drag]')) return;
+
+    e.preventDefault();
+    const header = e.currentTarget;
+    const pointerId = e.pointerId;
+    try {
+      header.setPointerCapture(pointerId);
+    } catch {
+      // Capture can fail if the pointer is already gone.
+    }
+    beginStickyWindowDrag(header);
+
+    const onUp = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
+      header.removeEventListener('pointerup', onUp);
+      header.removeEventListener('pointercancel', onUp);
+      endStickyWindowDrag();
+    };
+    header.addEventListener('pointerup', onUp);
+    header.addEventListener('pointercancel', onUp);
+  };
+
+  const handleTitlePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+    if (e.button !== 0) return;
+    const input = e.currentTarget;
+    if (document.activeElement === input) return;
+
     e.preventDefault();
     e.stopPropagation();
-    dragCleanupRef.current?.();
 
-    const startScreenX = e.screenX;
-    const startScreenY = e.screenY;
-    const startWindowX = e.screenX - e.clientX;
-    const startWindowY = e.screenY - e.clientY;
-    const grip = e.currentTarget;
-    let pendingX = startWindowX;
-    let pendingY = startWindowY;
-    let frame: number | null = null;
+    const header = input.closest('.sticky-note-header') as HTMLElement | null;
+    const pointerId = e.pointerId;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+    let finished = false;
+    const TITLE_HOLD_MS = 200;
+    const TITLE_MOVE_PX = 8;
 
-    const handleMove = (event: MouseEvent) => {
-      pendingX = startWindowX + event.screenX - startScreenX;
-      pendingY = startWindowY + event.screenY - startScreenY;
-      if (frame !== null) return;
-      frame = requestAnimationFrame(() => {
-        frame = null;
-        window.cyberNotesAPI.moveStickyWindow(noteId, pendingX, pendingY);
-      });
-    };
-    const cleanup = () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', cleanup);
-      if (frame !== null) cancelAnimationFrame(frame);
-      frame = null;
-      grip.style.cursor = '';
-      document.body.style.cursor = '';
-      if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
+    const begin = () => {
+      if (dragging || finished || !header) return;
+      dragging = true;
+      try {
+        header.setPointerCapture(pointerId);
+      } catch {
+        // Capture can fail if the pointer is already gone.
+      }
+      beginStickyWindowDrag(header);
     };
 
-    dragCleanupRef.current = cleanup;
-    grip.style.cursor = 'grabbing';
-    document.body.style.cursor = 'grabbing';
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', cleanup);
+    const holdTimer = window.setTimeout(begin, TITLE_HOLD_MS);
+
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId || dragging || finished) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if ((dx * dx) + (dy * dy) >= TITLE_MOVE_PX * TITLE_MOVE_PX) begin();
+    };
+
+    const onUp = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId || finished) return;
+      finished = true;
+      window.clearTimeout(holdTimer);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      if (dragging) {
+        endStickyWindowDrag();
+        return;
+      }
+      input.focus();
+      const len = input.value.length;
+      try {
+        input.setSelectionRange(len, len);
+      } catch {
+        // Some inputs reject selection changes while unmounted.
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   const handleEditorBodyMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -705,19 +831,21 @@ export default function StickyNoteApp({ noteId }: Props) {
   if (loading) {
     return (
       <div
-        className="sticky-note-window"
+        className={`sticky-note-window${isAttention ? ' is-attention' : ''}`}
         style={{
-          width: '100vw',
-          height: '100vh',
+          width: '100%',
+          height: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           background: colorMeta.bgDark,
           color: colorMeta.accent,
-          borderRadius: 11,
+          borderRadius: 0,
           border: 'none',
           '--sticky-border': colorMeta.border,
-          clipPath: 'inset(0 round 11px)',
+          '--sticky-attention': colorMeta.accent,
+          '--sticky-attention-glow': colorMeta.accentGlow,
+          overflow: 'hidden',
           isolation: 'isolate',
           position: 'relative',
         } as any}
@@ -729,32 +857,30 @@ export default function StickyNoteApp({ noteId }: Props) {
 
   return (
     <div
-      className="sticky-note-window"
+      className={`sticky-note-window${isAttention ? ' is-attention' : ''}`}
       style={{
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: rgbaWithAlpha(colorMeta.bgDark, surfaceAlpha),
+        background: colorMeta.bgDark,
         color: '#f8fafc',
-        borderRadius: 11,
+        borderRadius: 0,
         border: 'none',
         '--sticky-border': colorMeta.border,
-        boxShadow: 'inset 0 0 24px rgba(255, 255, 255, 0.025)',
+        '--sticky-attention': colorMeta.accent,
+        '--sticky-attention-glow': colorMeta.accentGlow,
         overflow: 'hidden',
-        clipPath: 'inset(0 round 11px)',
-        transform: 'translateZ(0)',
-        willChange: 'transform',
         isolation: 'isolate',
         position: 'relative',
-        backdropFilter: `blur(${glassBlur}px) saturate(135%)`,
-        WebkitBackdropFilter: `blur(${glassBlur}px) saturate(135%)`,
-        transition: 'background 0.2s ease, backdrop-filter 0.2s ease, border-color 0.25s ease',
+        transition: 'background 0.2s ease, border-color 0.25s ease',
         userSelect: 'none',
       } as any}
     >
       {/* ── Barra de Título / Arrastre (Sticky Header) ── */}
       <div
+        className="sticky-note-header"
+        onPointerDown={handleHeaderPointerDown}
         style={{
           height: 38,
           flexShrink: 0,
@@ -762,17 +888,14 @@ export default function StickyNoteApp({ noteId }: Props) {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 8px',
-          background: rgbaWithAlpha(colorMeta.headerBg, headerAlpha),
-          borderTopLeftRadius: 11,
-          borderTopRightRadius: 11,
+          background: colorMeta.headerBg,
           borderBottom: `1px solid ${colorMeta.border}`,
           transition: 'background 0.2s ease, border-color 0.25s ease',
-          WebkitAppRegion: 'drag',
           gap: 6,
-        } as any}
+        }}
       >
         {/* Grip y título */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, WebkitAppRegion: 'drag' } as any}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
           <span
             aria-hidden="true"
             className="sticky-drag-grip"
@@ -784,30 +907,18 @@ export default function StickyNoteApp({ noteId }: Props) {
               justifyContent: 'center',
               flexShrink: 0,
               color: 'rgba(255, 255, 255, 0.32)',
-              WebkitAppRegion: 'no-drag',
               transition: 'color 0.15s ease, opacity 0.15s ease',
-            } as any}
-            onMouseDown={handleGripMouseDown}
+            }}
           >
             <GripVertical size={12} strokeWidth={2} />
           </span>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              backgroundColor: colorMeta.accent,
-              boxShadow: `0 0 8px ${colorMeta.accentGlow}`,
-              flexShrink: 0,
-            }}
-          />
           <input
             type="text"
             value={title}
             onChange={(e) => handleTitleChange(e.target.value)}
+            onPointerDown={handleTitlePointerDown}
             placeholder={t.editor.placeholderTitle}
             style={{
-              WebkitAppRegion: 'no-drag',
               background: 'transparent',
               border: 'none',
               outline: 'none',
@@ -817,19 +928,19 @@ export default function StickyNoteApp({ noteId }: Props) {
               flex: 1,
               minWidth: 0,
               letterSpacing: '-0.01em',
-            } as any}
+            }}
           />
         </div>
 
         {/* Acciones de la barra superior */}
         <div
+          data-no-drag
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 2,
-            WebkitAppRegion: 'no-drag',
             flexShrink: 0,
-          } as any}
+          }}
         >
           {/* New sticky note */}
           <Tooltip label={t.editor.stickyNew} placement="bottom">
@@ -912,6 +1023,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
             {showColorPicker && (
               <div
+                data-no-drag
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
@@ -987,12 +1099,13 @@ export default function StickyNoteApp({ noteId }: Props) {
                   justifyContent: 'center',
                 }}
               >
-                <Eye size={13} />
+                <Blend size={13} />
               </button>
             </Tooltip>
 
             {showOpacityPicker && (
               <div
+                data-no-drag
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
@@ -1054,7 +1167,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                 justifyContent: 'center',
               }}
             >
-              <ExternalLink size={13} />
+              <Eye size={13} />
             </button>
           </Tooltip>
 
@@ -1210,195 +1323,132 @@ export default function StickyNoteApp({ noteId }: Props) {
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 8px',
-            background: 'rgba(10, 10, 16, 0.45)',
-            borderBottomLeftRadius: 11,
-            borderBottomRightRadius: 11,
+            background: '#0a0a10',
             borderTop: `1px solid rgba(255, 255, 255, 0.07)`,
             gap: 4,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Tooltip label={t.editor.stickyUndo} placement="top">
-              <button
-                className="sticky-note-button"
-                type="button"
-                onClick={() => editor.chain().focus().undo().run()}
-                disabled={!editor.can().undo()}
-                aria-label={t.editor.stickyUndo}
-                style={{
-                  background: 'transparent',
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: 4,
-                  cursor: editor.can().undo() ? 'pointer' : 'default',
-                }}
-              >
-                <Undo2 size={12} />
-              </button>
-            </Tooltip>
-            <Tooltip label={t.editor.stickyRedo} placement="top">
-              <button
-                className="sticky-note-button"
-                type="button"
-                onClick={() => editor.chain().focus().redo().run()}
-                disabled={!editor.can().redo()}
-                aria-label={t.editor.stickyRedo}
-                style={{
-                  background: 'transparent',
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: 4,
-                  cursor: editor.can().redo() ? 'pointer' : 'default',
-                }}
-              >
-                <Redo2 size={12} />
-              </button>
-            </Tooltip>
+            <StickyFooterBtn
+              label={t.editor.stickyUndo}
+              onClick={() => editor.chain().focus().undo().run()}
+              disabled={!editor.can().undo()}
+            >
+              <Undo2 size={12} />
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.stickyRedo}
+              onClick={() => editor.chain().focus().redo().run()}
+              disabled={!editor.can().redo()}
+            >
+              <Redo2 size={12} />
+            </StickyFooterBtn>
             <div style={{ width: 1, height: 15, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
-            <button
-              className="sticky-note-button"
-              type="button"
+            <StickyFooterBtn
+              label={t.editor.bold}
               onClick={() => editor.chain().focus().toggleBold().run()}
-              style={{
-                background: editor.isActive('bold') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('bold') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('bold')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <Bold size={12} />
-            </button>
-            <button
-              className="sticky-note-button"
-              type="button"
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.italic}
               onClick={() => editor.chain().focus().toggleItalic().run()}
-              style={{
-                background: editor.isActive('italic') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('italic') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('italic')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <Italic size={12} />
-            </button>
-            <button
-              className="sticky-note-button"
-              type="button"
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.underline}
               onClick={() => editor.chain().focus().toggleUnderline().run()}
-              style={{
-                background: editor.isActive('underline') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('underline') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('underline')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <UnderlineIcon size={12} />
-            </button>
-            <button
-              className="sticky-note-button"
-              type="button"
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.strike}
               onClick={() => editor.chain().focus().toggleStrike().run()}
-              style={{
-                background: editor.isActive('strike') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('strike') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('strike')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <Strikethrough size={12} />
-            </button>
-            <button
-              className="sticky-note-button"
-              type="button"
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.highlight}
               onClick={() => editor.chain().focus().toggleHighlight().run()}
-              style={{
-                background: editor.isActive('highlight') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('highlight') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('highlight')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <Highlighter size={12} />
-            </button>
+            </StickyFooterBtn>
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
-            <button
-              className="sticky-note-button"
-              type="button"
+            <StickyFooterBtn
+              label={t.editor.bulletList}
               onClick={() => editor.chain().focus().toggleBulletList().run()}
-              style={{
-                background: editor.isActive('bulletList') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('bulletList') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('bulletList')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <List size={12} />
-            </button>
-            <button
-              className="sticky-note-button"
-              type="button"
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.orderedList}
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              style={{
-                background: editor.isActive('orderedList') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('orderedList') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('orderedList')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <ListOrdered size={12} />
-            </button>
-            <button
-              className="sticky-note-button"
-              type="button"
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.codeBlock}
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-              style={{
-                background: editor.isActive('codeBlock') ? colorMeta.accentGlow : 'transparent',
-                color: editor.isActive('codeBlock') ? colorMeta.accent : 'rgba(255, 255, 255, 0.5)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              active={editor.isActive('codeBlock')}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
             >
               <Code size={12} />
-            </button>
+            </StickyFooterBtn>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.35)', fontWeight: 500 }}>
-              {saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
-            </span>
-            <button
-              className="sticky-note-button"
-              type="button"
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Tooltip
+              label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
+              placement="top"
+              delay={STICKY_FOOTER_TIP_DELAY}
+            >
+              <span
+                className={`sticky-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
+                aria-label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
+                style={{
+                  background: saveStatus === 'error'
+                    ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
+                    : saveStatus === 'saving'
+                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
+                      : `radial-gradient(circle at 35% 35%, #ffffff 0%, ${colorMeta.accent} 46%, rgba(0, 0, 0, 0.55) 100%)`,
+                  boxShadow: saveStatus === 'error'
+                    ? '0 0 8px rgba(239, 68, 68, 0.7)'
+                    : saveStatus === 'saving'
+                      ? '0 0 8px rgba(245, 158, 11, 0.7)'
+                      : `0 0 8px ${colorMeta.accentGlow}`,
+                }}
+              />
+            </Tooltip>
+            <StickyFooterBtn
+              label={t.noteList.moveToTrash}
               onClick={() => setShowDeleteConfirm(true)}
-              style={{
-                background: 'transparent',
-                color: 'rgba(244, 63, 94, 0.65)',
-                border: 'none',
-                borderRadius: 4,
-                padding: 4,
-                cursor: 'pointer',
-              }}
+              danger
             >
               <Trash2 size={12} />
-            </button>
+            </StickyFooterBtn>
           </div>
         </div>
       )}

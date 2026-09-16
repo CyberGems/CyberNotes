@@ -19,12 +19,57 @@ const AUTO_INSTALL_DELAY_MS = 15000;
 
 type UpdateStatus =
   | { state: 'checking' }
-  | { state: 'available'; version: string }
+  | { state: 'available'; version: string; releaseNotes?: string; releaseUrl?: string }
   | { state: 'not-available'; version: string }
   | { state: 'downloading'; percent: number; bytesPerSecond?: number; transferred?: number; total?: number }
   | { state: 'downloaded'; version: string }
   | { state: 'installing'; version: string }
   | { state: 'error'; message: string };
+
+const RELEASES_REPO = 'CyberGems/CyberNotes';
+
+async function fetchReleaseDetails(
+  version: string,
+  rawNotes?: string | null | Array<{ version: string; note: string | null }>,
+): Promise<{ notes?: string; url: string }> {
+  const defaultUrl = `https://github.com/${RELEASES_REPO}/releases/tag/v${version}`;
+  let existingNotes: string | undefined;
+  if (typeof rawNotes === 'string' && rawNotes.trim().length > 0) {
+    existingNotes = rawNotes.trim();
+  } else if (Array.isArray(rawNotes)) {
+    existingNotes = rawNotes
+      .map((r) => r.note)
+      .filter((n): n is string => Boolean(n))
+      .join('\n\n');
+  }
+
+  if (existingNotes) {
+    return { notes: existingNotes, url: defaultUrl };
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${RELEASES_REPO}/releases/tags/v${version}`,
+      {
+        headers: {
+          'User-Agent': 'CyberNotes',
+          Accept: 'application/vnd.github.v3+json',
+        },
+      },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        notes: typeof data?.body === 'string' ? data.body : undefined,
+        url: typeof data?.html_url === 'string' ? data.html_url : defaultUrl,
+      };
+    }
+  } catch (err) {
+    console.warn('[Updater] Could not fetch release notes from GitHub API:', err);
+  }
+
+  return { url: defaultUrl };
+}
 
 function broadcast(status: UpdateStatus): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -98,10 +143,16 @@ export function initUpdater(autoUpdate: boolean): void {
 
     autoUpdater.on('checking-for-update', () => broadcast({ state: 'checking' }));
 
-    autoUpdater.on('update-available', (info) => {
+    autoUpdater.on('update-available', async (info) => {
       downloadedVersion = null;
       clearAutoInstallTimer();
-      broadcast({ state: 'available', version: info.version });
+      const details = await fetchReleaseDetails(info.version, info.releaseNotes);
+      broadcast({
+        state: 'available',
+        version: info.version,
+        releaseNotes: details.notes,
+        releaseUrl: details.url,
+      });
       if (autoUpdateEnabled && !isDownloading) {
         isDownloading = true;
         autoUpdater.downloadUpdate().catch((err) => {

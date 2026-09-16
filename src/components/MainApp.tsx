@@ -10,9 +10,35 @@ import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
 import TrayPinModal from './TrayPinModal';
 import ConfirmDialog from './ConfirmDialog';
+import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb } from '../utils/notes';
 import UpdaterBanner from './UpdaterBanner';
+import { FILTER_COLORS } from './FolderIcon';
+
+function insertTabAfter(ids: string[], newId: string, afterId: string | null | undefined): string[] {
+  if (ids.includes(newId)) return ids;
+  if (!afterId) return [...ids, newId];
+  const idx = ids.indexOf(afterId);
+  if (idx === -1) return [...ids, newId];
+  const next = ids.slice();
+  next.splice(idx + 1, 0, newId);
+  return next;
+}
+
+function reorderTabs(ids: string[], fromId: string, toId: string, edge: 'before' | 'after'): string[] {
+  if (fromId === toId) return ids;
+  const fromIdx = ids.indexOf(fromId);
+  const toIdx = ids.indexOf(toId);
+  if (fromIdx < 0 || toIdx < 0) return ids;
+  const next = ids.filter(id => id !== fromId);
+  let insertAt = next.indexOf(toId);
+  if (insertAt < 0) return ids;
+  if (edge === 'after') insertAt += 1;
+  next.splice(insertAt, 0, fromId);
+  if (next.length === ids.length && next.every((id, i) => id === ids[i])) return ids;
+  return next;
+}
 
 // Mapeo de emojis antiguos a nombres de iconos nuevos
 const EMOJI_TO_ICON_MAP: Record<string, string> = {
@@ -572,16 +598,38 @@ export default function MainApp({
     }, 250);
   }, [selectedFolderId]);
 
-  const handleCreateNote = useCallback(async () => {
-    if (selectedFolderId === 'sticky') {
+  const handleCreateNote = useCallback(async (kind: 'note' | 'floating' | 'favorite' = 'note') => {
+    const createFloating = kind === 'floating' || (kind === 'note' && selectedFolderId === 'sticky');
+    if (createFloating) {
       try {
-        await window.cyberNotesAPI.createAndOpenStickyNote();
+        const newId = await window.cyberNotesAPI.createAndOpenStickyNote();
+        if (newId) {
+          const now = new Date().toISOString();
+          const meta = toNoteMeta({
+            id: newId,
+            folder_id: null,
+            title: language === 'es' ? 'Nota flotante' : 'Floating note',
+            content: '',
+            preview: '',
+            thumb: '',
+            pinned: 0,
+            created_at: now,
+            updated_at: now,
+          });
+          contentCacheRef.current[newId] = '';
+          setAllNotes(prev => prev.some(n => n.id === newId) ? prev : [meta, ...prev]);
+          setNotes(prev => prev.some(n => n.id === newId) ? prev : [meta, ...prev]);
+          setOpenNoteIds(prev => insertTabAfter(prev, newId, selectedNoteIdRef.current));
+          setSelectedNote({ ...meta, content: '' });
+          setSelectedNoteId(newId);
+        }
       } catch (err) {
         console.error('[MainApp] Error creating sticky note:', err);
       }
       return;
     }
 
+    const createFavorite = kind === 'favorite' || (kind === 'note' && selectedFolderId === 'favorites');
     const now = new Date().toISOString();
     const newNote: Note = {
       id: window.crypto.randomUUID(),
@@ -592,7 +640,7 @@ export default function MainApp({
       content: '',
       preview: '',
       thumb: '',
-      pinned: selectedFolderId === 'favorites' ? 1 : 0,
+      pinned: createFavorite ? 1 : 0,
       created_at: now,
       updated_at: now,
     };
@@ -602,6 +650,7 @@ export default function MainApp({
       const meta = toNoteMeta(saved);
       setNotes(prev => [meta, ...prev]);
       setAllNotes(prev => [meta, ...prev]);
+      setOpenNoteIds(prev => insertTabAfter(prev, saved.id, selectedNoteIdRef.current));
       setSelectedNote({ ...meta, content: saved.content || '' });
       setSelectedNoteId(saved.id);
     } catch (err) {
@@ -659,6 +708,43 @@ export default function MainApp({
     setSelectedNoteId(targetId);
   }, [selectedNoteId, autosaveEnabled, draftCache, confirmLeaveDismissed]);
 
+  const dismissLeaveNav = useCallback(() => setPendingNavNoteId(null), []);
+
+  const saveAndLeaveNav = useCallback(async () => {
+    const draft = selectedNoteId ? draftCache[selectedNoteId] : null;
+    if (selectedNote && draft) {
+      await handleSaveNote({ ...selectedNote, title: draft.title, content: draft.content });
+    }
+    if (dontAskChecked) {
+      await window.cyberNotesAPI.setSetting('confirm_leave_note_dismissed', 'true');
+      setConfirmLeaveDismissed(true);
+    }
+    const target = pendingNavNoteId;
+    setPendingNavNoteId(null);
+    if (target) setSelectedNoteId(target);
+  }, [selectedNoteId, draftCache, selectedNote, handleSaveNote, dontAskChecked, pendingNavNoteId]);
+
+  const discardAndLeaveNav = useCallback(async () => {
+    if (selectedNoteId) handleDiscardDraft(selectedNoteId);
+    if (dontAskChecked) {
+      await window.cyberNotesAPI.setSetting('confirm_leave_note_dismissed', 'true');
+      setConfirmLeaveDismissed(true);
+    }
+    const target = pendingNavNoteId;
+    setPendingNavNoteId(null);
+    if (target) setSelectedNoteId(target);
+  }, [selectedNoteId, handleDiscardDraft, dontAskChecked, pendingNavNoteId]);
+
+  useModalKeys({
+    enabled: !!pendingNavNoteId,
+    onEsc: dismissLeaveNav,
+    onEnter: () => { void saveAndLeaveNav(); },
+  });
+
+  const handleReorderTabs = useCallback((fromId: string, toId: string, edge: 'before' | 'after') => {
+    setOpenNoteIds(prev => reorderTabs(prev, fromId, toId, edge));
+  }, []);
+
   const executeCloseTab = useCallback((id: string) => {
     setOpenNoteIds(prev => {
       const filtered = prev.filter(noteId => noteId !== id);
@@ -683,6 +769,28 @@ export default function MainApp({
       return next;
     });
   }, [selectedNoteId]);
+
+  const saveAndCloseDraftTab = useCallback(async () => {
+    if (!noteToCloseWithDraft) return;
+    const draft = draftCache[noteToCloseWithDraft.id];
+    if (draft) {
+      await handleSaveNote({ ...noteToCloseWithDraft, title: draft.title, content: draft.content });
+    }
+    executeCloseTab(noteToCloseWithDraft.id);
+    setNoteToCloseWithDraft(null);
+  }, [noteToCloseWithDraft, draftCache, handleSaveNote, executeCloseTab]);
+
+  const closeDraftTabWithoutSaving = useCallback(() => {
+    if (!noteToCloseWithDraft) return;
+    executeCloseTab(noteToCloseWithDraft.id);
+    setNoteToCloseWithDraft(null);
+  }, [noteToCloseWithDraft, executeCloseTab]);
+
+  useModalKeys({
+    enabled: !!noteToCloseWithDraft && !pendingNavNoteId,
+    onEsc: () => setNoteToCloseWithDraft(null),
+    onEnter: () => { void saveAndCloseDraftTab(); },
+  });
 
   const handleCloseTab = useCallback((id: string) => {
     const isDirty = draftCache[id] !== undefined && !autosaveEnabled;
@@ -1213,13 +1321,15 @@ export default function MainApp({
               onMoveNote={handleMoveNote}
               onRenameNote={handleRenameNote}
               selectedFolder={selectedFolderId === 'sticky'
-                ? { id: 'sticky', name: TRANSLATIONS[language].sidebar.stickyNotes, icon: 'app-window', color: '#f59e0b' } as Folder
+                ? { id: 'sticky', name: TRANSLATIONS[language].sidebar.stickyNotes, icon: 'app-window', color: FILTER_COLORS.sticky } as Folder
                 : selectedFolderId === 'floating'
-                ? { id: 'floating', name: TRANSLATIONS[language].sidebar.floatingNotes, icon: '☁️', color: '#06b6d4' } as Folder
+                ? { id: 'floating', name: TRANSLATIONS[language].sidebar.floatingNotes, icon: 'inbox', color: FILTER_COLORS.unfiled } as Folder
                 : selectedFolderId === 'favorites'
-                  ? { id: 'favorites', name: TRANSLATIONS[language].sidebar.favorites, icon: 'star', color: '#f59e0b' } as Folder
+                  ? { id: 'favorites', name: TRANSLATIONS[language].sidebar.favorites, icon: 'star', color: FILTER_COLORS.favorites } as Folder
                 : selectedFolderId === 'trash'
-                  ? { id: 'trash', name: TRANSLATIONS[language].sidebar.trash, icon: 'trash-2', color: '#ef4444' } as Folder
+                  ? { id: 'trash', name: TRANSLATIONS[language].sidebar.trash, icon: 'trash-2', color: FILTER_COLORS.trash } as Folder
+                : selectedFolderId === null
+                  ? { id: 'all', name: TRANSLATIONS[language].sidebar.allNotes, icon: 'file-text', color: FILTER_COLORS.all } as Folder
                 : (folders.find(f => f.id === selectedFolderId) ?? null)}
               searchQuery={searchQuery}
               uiScale={uiScale}
@@ -1259,8 +1369,10 @@ export default function MainApp({
           openNoteIds={openNoteIds}
           notes={allNotes}
           folders={folders}
+          openStickyIds={openStickyIds}
           onSelectNote={handleAttemptSelectNote}
           onCloseTab={handleCloseTab}
+          onReorderTabs={handleReorderTabs}
           draftCache={draftCache}
           onEditDraft={handleEditDraft}
           onDiscardDraft={handleDiscardDraft}
@@ -1363,26 +1475,13 @@ export default function MainApp({
       {/* Modal de Confirmación de Cierre de Pestaña Sucia */}
       <AnimatePresence>
         {noteToCloseWithDraft && (
-          <div 
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(5, 5, 8, 0.8)',
-              backdropFilter: 'blur(16px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 20000,
-            }}
+          <motion.div
+            key="close-dirty-tab"
+            {...modalOverlayMotion}
+            style={{ ...modalOverlayStyle, zIndex: 20000 }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 15 }}
-              transition={{ type: 'spring', damping: 26, stiffness: 330 }}
+              {...modalCardMotion}
               className="glass-effect"
               style={{
                 width: 'calc(420px * var(--ui-scale))',
@@ -1396,7 +1495,6 @@ export default function MainApp({
                 gap: 20,
               }}
             >
-              {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{
                   width: 48,
@@ -1431,93 +1529,41 @@ export default function MainApp({
                     margin: '4px 0 0 0',
                     lineHeight: 1.4,
                   }}>
-                    {language === 'es' 
-                      ? `La nota "${draftCache[noteToCloseWithDraft.id]?.title || noteToCloseWithDraft.title}" tiene cambios no guardados. Si la cierras ahora, perderás las modificaciones.` 
+                    {language === 'es'
+                      ? `La nota "${draftCache[noteToCloseWithDraft.id]?.title || noteToCloseWithDraft.title}" tiene cambios no guardados. Si la cierras ahora, perderás las modificaciones.`
                       : `The note "${draftCache[noteToCloseWithDraft.id]?.title || noteToCloseWithDraft.title}" has unsaved changes. If you close it now, your modifications will be lost.`}
                   </p>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                {/* Save and Close */}
-                <button
-                  className="btn btn-primary"
-                  onClick={async () => {
-                    const draft = draftCache[noteToCloseWithDraft.id];
-                    if (draft) {
-                      const updated = { ...noteToCloseWithDraft, title: draft.title, content: draft.content };
-                      await handleSaveNote(updated);
-                    }
-                    executeCloseTab(noteToCloseWithDraft.id);
-                    setNoteToCloseWithDraft(null);
-                  }}
-                  style={{ justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
-                >
-                  {language === 'es' ? 'Guardar y Cerrar' : 'Save & Close'}
+              <div className="modal-actions is-stack">
+                <button type="button" className="modal-action-btn is-save" onClick={() => { void saveAndCloseDraftTab(); }}>
+                  {language === 'es' ? 'Guardar y cerrar' : 'Save & close'}
+                  <EnterGlyph />
                 </button>
-
-                {/* Close without saving */}
-                <button
-                  className="btn btn-danger"
-                  onClick={() => {
-                    executeCloseTab(noteToCloseWithDraft.id);
-                    setNoteToCloseWithDraft(null);
-                  }}
-                  style={{
-                    justifyContent: 'center',
-                    padding: '10px 16px',
-                    fontSize: 'calc(13px * var(--ui-scale))',
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#ef4444',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    const btn = e.currentTarget as HTMLButtonElement;
-                    btn.style.background = '#ef4444';
-                    btn.style.color = '#fff';
-                  }}
-                  onMouseLeave={(e) => {
-                    const btn = e.currentTarget as HTMLButtonElement;
-                    btn.style.background = 'rgba(239, 68, 68, 0.1)';
-                    btn.style.color = '#ef4444';
-                  }}
-                >
-                  {language === 'es' ? 'Cerrar sin Guardar' : 'Close without Saving'}
+                <button type="button" className="modal-action-btn is-danger" onClick={closeDraftTabWithoutSaving}>
+                  {language === 'es' ? 'Cerrar sin guardar' : 'Close without saving'}
                 </button>
-
-                {/* Cancel */}
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => setNoteToCloseWithDraft(null)}
-                  style={{ justifyContent: 'center', padding: '8px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
-                >
+                <button type="button" className="modal-action-btn is-cancel" onClick={() => setNoteToCloseWithDraft(null)}>
                   {language === 'es' ? 'Cancelar' : 'Cancel'}
+                  <span className="modal-key-esc">Esc</span>
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Modal de Confirmación al Navegar fuera de una nota con borrador (Caso A) */}
       <AnimatePresence>
         {pendingNavNoteId && (
-          <div
-            style={{
-              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(5, 5, 8, 0.8)',
-              backdropFilter: 'blur(16px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 20000,
-            }}
+          <motion.div
+            key="leave-nav"
+            {...modalOverlayMotion}
+            style={{ ...modalOverlayStyle, zIndex: 20000 }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 15 }}
-              transition={{ type: 'spring', damping: 26, stiffness: 330 }}
+              {...modalCardMotion}
               className="glass-effect"
               style={{
                 width: 'calc(420px * var(--ui-scale))',
@@ -1529,7 +1575,6 @@ export default function MainApp({
                 display: 'flex', flexDirection: 'column', gap: 20,
               }}
             >
-              {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 12,
@@ -1555,7 +1600,6 @@ export default function MainApp({
                 </div>
               </div>
 
-              {/* Checkbox "No volver a mostrar" */}
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-muted)' }}>
                 <input
                   type="checkbox"
@@ -1566,64 +1610,21 @@ export default function MainApp({
                 {language === 'es' ? 'No volver a mostrar este aviso' : 'Do not show this warning again'}
               </label>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                {/* Guardar y continuar */}
-                <button
-                  className="btn btn-primary"
-                  onClick={async () => {
-                    const draft = selectedNoteId ? draftCache[selectedNoteId] : null;
-                    if (selectedNote && draft) {
-                      await handleSaveNote({ ...selectedNote, title: draft.title, content: draft.content });
-                    }
-                    if (dontAskChecked) {
-                      await window.cyberNotesAPI.setSetting('confirm_leave_note_dismissed', 'true');
-                      setConfirmLeaveDismissed(true);
-                    }
-                    const target = pendingNavNoteId;
-                    setPendingNavNoteId(null);
-                    if (target) setSelectedNoteId(target);
-                  }}
-                  style={{ justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
-                >
+              <div className="modal-actions is-stack">
+                <button type="button" className="modal-action-btn is-save" onClick={() => { void saveAndLeaveNav(); }}>
                   {language === 'es' ? 'Guardar y continuar' : 'Save & continue'}
+                  <EnterGlyph />
                 </button>
-
-                {/* Salir sin guardar (descartar) */}
-                <button
-                  className="btn btn-danger"
-                  onClick={async () => {
-                    if (selectedNoteId) handleDiscardDraft(selectedNoteId);
-                    if (dontAskChecked) {
-                      await window.cyberNotesAPI.setSetting('confirm_leave_note_dismissed', 'true');
-                      setConfirmLeaveDismissed(true);
-                    }
-                    const target = pendingNavNoteId;
-                    setPendingNavNoteId(null);
-                    if (target) setSelectedNoteId(target);
-                  }}
-                  style={{
-                    justifyContent: 'center', padding: '10px 16px', fontSize: 'calc(13px * var(--ui-scale))',
-                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#ef4444', transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => { const b = e.currentTarget; b.style.background = '#ef4444'; b.style.color = '#fff'; }}
-                  onMouseLeave={(e) => { const b = e.currentTarget; b.style.background = 'rgba(239, 68, 68, 0.1)'; b.style.color = '#ef4444'; }}
-                >
+                <button type="button" className="modal-action-btn is-danger" onClick={() => { void discardAndLeaveNav(); }}>
                   {language === 'es' ? 'Salir sin guardar' : 'Leave without saving'}
                 </button>
-
-                {/* Seguir aquí */}
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => setPendingNavNoteId(null)}
-                  style={{ justifyContent: 'center', padding: '8px 16px', fontSize: 'calc(13px * var(--ui-scale))' }}
-                >
+                <button type="button" className="modal-action-btn is-cancel" onClick={dismissLeaveNav}>
                   {language === 'es' ? 'Seguir aquí' : 'Stay here'}
+                  <span className="modal-key-esc">Esc</span>
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
