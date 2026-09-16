@@ -157,14 +157,15 @@ export default function LockScreen({
           pointer-events: none;
         }
         .lock-screen-orbit-primary {
-          border: 2px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+          border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
           border-top-color: var(--accent);
-          border-right-color: color-mix(in srgb, var(--accent) 38%, transparent);
+          border-right-color: color-mix(in srgb, var(--accent) 58%, transparent);
+          box-shadow: 0 0 16px color-mix(in srgb, var(--accent-glow) 75%, transparent);
           animation: lockOrbit 2.2s linear infinite;
         }
         .lock-screen-orbit-secondary {
           inset: 6px;
-          border: 1px dashed color-mix(in srgb, var(--accent-light) 28%, transparent);
+          border: 1px dashed color-mix(in srgb, var(--accent-light) 36%, transparent);
           animation: lockOrbitReverse 7s linear infinite;
         }
         .lock-screen-icon {

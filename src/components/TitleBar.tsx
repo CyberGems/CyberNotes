@@ -159,6 +159,22 @@ export default function TitleBar({
   }, [menuOpen]);
 
   useEffect(() => {
+    const handleMenuShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'm') return;
+      event.preventDefault();
+      setMenuOpen(previous => {
+        if (!previous && burgerRef.current) {
+          const rect = burgerRef.current.getBoundingClientRect();
+          setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+        }
+        return !previous;
+      });
+    };
+    window.addEventListener('keydown', handleMenuShortcut);
+    return () => window.removeEventListener('keydown', handleMenuShortcut);
+  }, []);
+
+  useEffect(() => {
     window.cyberNotesAPI.isMaximized?.().then(setIsMaximized).catch(() => {});
     const unsub = window.cyberNotesAPI.onMaximizedState?.((max) => setIsMaximized(max));
     return () => { unsub?.(); };
@@ -401,7 +417,7 @@ export default function TitleBar({
 
         {/* Burger Menu */}
         <div style={{ position: 'relative' }}>
-          <Tooltip placement="bottom" label={t('Menú', 'Menu')}>
+          <Tooltip placement="bottom" label={t('Menú (Ctrl+Shift+M)', 'Menu (Ctrl+Shift+M)')}>
           <button
             ref={burgerRef}
             className="btn-icon titlebar-btn"
