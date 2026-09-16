@@ -51,7 +51,7 @@ export const TRANSLATIONS = {
       newFolderShort: 'Carpeta',
       showFloatingNote: 'Mostrar nota flotante',
       deleteConfirm: '¿Eliminar esta nota?',
-      moveToTrash: 'Enviar a la papelera',
+      moveToTrash: 'Enviar a papelera',
       deleteToTrashDesc: 'Podrás restaurarla desde la Papelera durante 30 días.',
       restore: 'Restaurar nota',
       restoreAll: 'Restaurar todas',

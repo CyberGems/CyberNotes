@@ -107,11 +107,12 @@ function getDateGroupKeyAndLabel(
   };
 }
 
-type ViewMode = 'normal' | 'compact';
+type ViewMode = 'normal' | 'compact' | 'dense';
 
 /** Altura de slot virtual = card + márgenes verticales del diseño original. */
 const ROW_NORMAL = 112;  // ~104 card + 8 (margin 4+4)
 const ROW_COMPACT = 58;  // ~52 card + 6 (margin 3+3)
+const ROW_DENSE = 38;    // ~34 card + 4 (margin 2+2)
 const OVERSCAN = 8;
 const FLOATING_GROUP_KEY = 'floating';
 const FLOATING_GROUP_READY_KEY = 'note_list_floating_group_ready';
@@ -398,7 +399,7 @@ export default function NoteList({
       if (!active) return;
 
       const viewModeValue = settings.note_list_view_mode;
-      if (viewModeValue === 'compact' || viewModeValue === 'normal') {
+      if (viewModeValue === 'compact' || viewModeValue === 'dense' || viewModeValue === 'normal') {
         setViewMode(viewModeValue);
       }
 
@@ -465,7 +466,11 @@ export default function NoteList({
 
   // Alterna y persiste la densidad elegida
   const handleToggleViewMode = () => {
-    const next: ViewMode = viewMode === 'normal' ? 'compact' : 'normal';
+    const next: ViewMode = viewMode === 'normal'
+      ? 'compact'
+      : viewMode === 'compact'
+        ? 'dense'
+        : 'normal';
     setViewMode(next);
     window.cyberNotesAPI?.setSetting('note_list_view_mode', next);
   };
@@ -612,7 +617,14 @@ export default function NoteList({
     return list;
   }, [useGroupLayout, isGroupingActive, sortedNotes, regularNotes, noteGroups, collapsedGroups]);
 
-  const rowHeight = Math.round((viewMode === 'compact' ? ROW_COMPACT : ROW_NORMAL) * (uiScale || 1));
+  const rowHeight = Math.round((
+    viewMode === 'normal' ? ROW_NORMAL : viewMode === 'compact' ? ROW_COMPACT : ROW_DENSE
+  ) * (uiScale || 1));
+  const rowPadding = viewMode === 'dense'
+    ? 'calc(2px * var(--ui-scale)) 0'
+    : viewMode === 'compact'
+      ? 'calc(3px * var(--ui-scale)) 0'
+      : 'calc(4px * var(--ui-scale)) 0';
   const virtualNotes = (!isGroupingActive && showFloatingSection) ? regularNotes : sortedNotes;
   const totalHeight = virtualNotes.length * rowHeight;
 
@@ -948,15 +960,23 @@ export default function NoteList({
 
             <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
 
-            <Tooltip placement="bottom" label={viewMode === 'normal'
-              ? (language === 'es' ? 'Cambiar a vista compacta' : 'Switch to compact view')
-              : (language === 'es' ? 'Cambiar a vista normal' : 'Switch to standard view')}>
+            <Tooltip placement="bottom" label={
+              viewMode === 'normal'
+                ? (language === 'es' ? 'Cambiar a vista compacta' : 'Switch to compact view')
+                : viewMode === 'compact'
+                  ? (language === 'es' ? 'Cambiar a vista densa' : 'Switch to dense view')
+                  : (language === 'es' ? 'Cambiar a vista normal' : 'Switch to standard view')
+            }>
             <button
               onClick={handleToggleViewMode}
               className="btn-icon"
               style={{ padding: 2, color: 'var(--text-muted)' }}
             >
-              {viewMode === 'normal' ? <LayoutList size={14} /> : <StretchHorizontal size={14} />}
+              {viewMode === 'normal'
+                ? <LayoutList size={14} />
+                : viewMode === 'compact'
+                  ? <StretchHorizontal size={14} />
+                  : <FileText size={14} />}
             </button>
             </Tooltip>
           </div>
@@ -1040,7 +1060,7 @@ export default function NoteList({
                                   style={{
                                     height: rowHeight,
                                     boxSizing: 'border-box',
-                                    padding: viewMode === 'compact' ? 'calc(3px * var(--ui-scale)) 0' : 'calc(4px * var(--ui-scale)) 0',
+                                    padding: rowPadding,
                                   }}
                                 >
                                   <NoteItem
@@ -1079,7 +1099,7 @@ export default function NoteList({
                               style={{
                                 height: rowHeight,
                                 boxSizing: 'border-box',
-                                padding: viewMode === 'compact' ? 'calc(3px * var(--ui-scale)) 0' : 'calc(4px * var(--ui-scale)) 0',
+                                padding: rowPadding,
                               }}
                             >
                               <NoteItem
@@ -1117,7 +1137,7 @@ export default function NoteList({
                           style={{
                             height: rowHeight,
                             boxSizing: 'border-box',
-                            padding: viewMode === 'compact' ? 'calc(3px * var(--ui-scale)) 0' : 'calc(4px * var(--ui-scale)) 0',
+                            padding: rowPadding,
                           }}
                         >
                           <NoteItem
@@ -1519,7 +1539,7 @@ interface NoteItemProps {
   language: Language;
   note: Note;
   folder?: Folder | null;
-  viewMode: 'normal' | 'compact';
+  viewMode: 'normal' | 'compact' | 'dense';
   isSelected: boolean;
   isContextActive?: boolean;
   isStickyOpen?: boolean;
@@ -1532,6 +1552,7 @@ interface NoteItemProps {
 const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, isStickyOpen, isTrash = false, onClick, onDelete, onContextMenu }: NoteItemProps) {
   const [isDragging, setIsDragging] = useState(false);
   const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
+  const isDense = viewMode === 'dense';
   const t = TRANSLATIONS[language];
 
   const prevFolderIdRef = useRef(note.folder_id);
@@ -1567,7 +1588,11 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       style={{
         height: '100%',
         boxSizing: 'border-box',
-        padding: viewMode === 'compact' ? 'calc(5px * var(--ui-scale)) calc(14px * var(--ui-scale))' : 'calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale))',
+        padding: isDense
+          ? 'calc(3px * var(--ui-scale)) calc(10px * var(--ui-scale))'
+          : viewMode === 'compact'
+            ? 'calc(5px * var(--ui-scale)) calc(14px * var(--ui-scale))'
+            : 'calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale))',
         margin: '0 calc(12px * var(--ui-scale))',
         borderRadius: 'var(--radius-md)',
         background: isSelected || isContextActive ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
@@ -1592,7 +1617,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
     >
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: viewMode === 'compact' ? 2 : 4, flexShrink: 0, paddingRight: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isDense ? 4 : 6, marginBottom: viewMode === 'normal' ? 4 : 0, flexShrink: 0, paddingRight: 28 }}>
             {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
             {isStickyOpen && (
               <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
@@ -1600,7 +1625,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
               </Tooltip>
             )}
             <span style={{
-              fontSize: 'calc(13px * var(--ui-scale))',
+              fontSize: `calc(${isDense ? 12 : 13}px * var(--ui-scale))`,
               fontWeight: 600,
               color: 'var(--text-primary)',
               overflow: 'hidden',
@@ -1654,19 +1679,19 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       </div>
 
       <div style={{
-        fontSize: 'calc(10.5px * var(--ui-scale))',
+        fontSize: `calc(${isDense ? 9 : 10.5}px * var(--ui-scale))`,
         color: 'var(--text-secondary)',
         opacity: 0.9,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         marginTop: 'auto',
-        paddingTop: 'calc(4px * var(--ui-scale))',
+        paddingTop: isDense ? 0 : 'calc(4px * var(--ui-scale))',
         gap: 8,
         flexShrink: 0,
       }}>
         <span>{formatDate((isTrash && note.deleted_at) || note.updated_at, language)}</span>
-        {folder && (
+        {folder && !isDense && (
           <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
           <span
             className={highlightSweep ? 'folder-badge-animating' : ''}
@@ -1713,7 +1738,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
           aria-label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}
           style={{
             position: 'absolute',
-            top: viewMode === 'compact' ? 5 : 8,
+            top: isDense ? 3 : viewMode === 'compact' ? 5 : 8,
             right: 8,
             zIndex: 5,
             background: 'rgba(20, 20, 25, 0.88)',
@@ -1726,14 +1751,14 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: viewMode === 'compact' ? 22 : 26,
-            height: viewMode === 'compact' ? 22 : 26,
+            width: isDense ? 18 : viewMode === 'compact' ? 22 : 26,
+            height: isDense ? 18 : viewMode === 'compact' ? 22 : 26,
             borderRadius: '50%',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
             padding: 0,
           }}
         >
-          <Trash2 size={viewMode === 'compact' ? 12 : 13} />
+          <Trash2 size={isDense ? 11 : viewMode === 'compact' ? 12 : 13} />
         </button>
       </Tooltip>
 

@@ -175,6 +175,16 @@ export default function TitleBar({
   }, []);
 
   useEffect(() => {
+    const handleSettingsShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key !== ',') return;
+      event.preventDefault();
+      onOpenSettings?.();
+    };
+    window.addEventListener('keydown', handleSettingsShortcut);
+    return () => window.removeEventListener('keydown', handleSettingsShortcut);
+  }, [onOpenSettings]);
+
+  useEffect(() => {
     window.cyberNotesAPI.isMaximized?.().then(setIsMaximized).catch(() => {});
     const unsub = window.cyberNotesAPI.onMaximizedState?.((max) => setIsMaximized(max));
     return () => { unsub?.(); };
@@ -405,7 +415,7 @@ export default function TitleBar({
         style={{ display: 'flex', alignItems: 'center', gap: 2, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
         {/* Settings Button */}
-        <Tooltip placement="bottom" label={t('Configuración', 'Settings')}>
+        <Tooltip placement="bottom" label={t('Configuración (Ctrl+,)', 'Settings (Ctrl+,)')}>
           <button
             className="btn-icon titlebar-btn"
             onClick={onOpenSettings}
