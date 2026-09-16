@@ -1709,10 +1709,11 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
                 background: folder.color ? `${folder.color}18` : 'var(--bg-surface)',
                 color: folder.color || 'var(--text-secondary)',
                 boxShadow: highlightSweep ? `0 0 10px ${folder.color || 'var(--accent)'}` : 'none',
+                top: 'calc(-5px * var(--ui-scale))',
                 transition: 'all 0.25s ease',
               }}
             >
-              <span style={{ display: 'inline-flex', lineHeight: 0, transform: 'translateY(-1px)' }}>
+              <span style={{ display: 'inline-flex', lineHeight: 0 }}>
                 <FolderIcon name={folder.icon} color={folder.color} size={11} />
               </span>
             </span>
