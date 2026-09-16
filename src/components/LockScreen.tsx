@@ -354,7 +354,7 @@ export default function LockScreen({
           )}
           {hasPassword && (
             <>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'left' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>
                 {t.lockScreen.enterPassword}
               </p>
               <div style={{ position: 'relative' }}>

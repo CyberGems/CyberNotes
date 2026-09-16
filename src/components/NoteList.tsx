@@ -617,9 +617,10 @@ export default function NoteList({
     return list;
   }, [useGroupLayout, isGroupingActive, sortedNotes, regularNotes, noteGroups, collapsedGroups]);
 
+  const effectiveScale = uiScale || 1;
   const rowHeight = Math.round((
     viewMode === 'normal' ? ROW_NORMAL : viewMode === 'compact' ? ROW_COMPACT : ROW_DENSE
-  ) * (uiScale || 1));
+  ) * (viewMode === 'dense' ? Math.max(1, effectiveScale) : effectiveScale));
   const rowPadding = viewMode === 'dense'
     ? 'calc(2px * var(--ui-scale)) 0'
     : viewMode === 'compact'
