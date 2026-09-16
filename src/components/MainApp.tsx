@@ -1120,7 +1120,8 @@ export default function MainApp({
       ?? (await window.cyberNotesAPI.getNoteById(noteId))?.content
       ?? '';
     contentCacheRef.current[noteId] = content;
-    const updated = { ...note, content, folder_id: targetFolderId, updated_at: new Date().toISOString() };
+    // Cambiar de carpeta es una clasificación, no una edición del contenido.
+    const updated = { ...note, content, folder_id: targetFolderId, updated_at: note.updated_at };
     await window.cyberNotesAPI.saveNote(updated);
     clearDraftState(noteId);
     

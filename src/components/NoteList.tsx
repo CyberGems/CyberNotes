@@ -1617,7 +1617,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
     >
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isDense ? 4 : 6, marginBottom: viewMode === 'normal' ? 4 : 0, flexShrink: 0, paddingRight: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isDense ? 4 : 6, marginBottom: viewMode === 'normal' ? 4 : 2, flexShrink: 0, paddingRight: 28 }}>
             {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
             {isStickyOpen && (
               <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
@@ -1631,6 +1631,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              lineHeight: isDense ? 1.2 : 1.25,
               flex: 1,
               minWidth: 0,
             }}>
@@ -1682,6 +1683,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         fontSize: `calc(${isDense ? 9 : 10.5}px * var(--ui-scale))`,
         color: 'var(--text-secondary)',
         opacity: 0.9,
+        lineHeight: 1.2,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -1710,7 +1712,9 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
                 transition: 'all 0.25s ease',
               }}
             >
-              <FolderIcon name={folder.icon} color={folder.color} size={11} />
+              <span style={{ display: 'inline-flex', lineHeight: 0, transform: 'translateY(-1px)' }}>
+                <FolderIcon name={folder.icon} color={folder.color} size={11} />
+              </span>
             </span>
           </Tooltip>
         ) : (
