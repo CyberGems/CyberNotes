@@ -22,7 +22,7 @@ import {
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
   Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
-  CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow
+  CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw
 } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 
@@ -63,6 +63,11 @@ interface Props {
   folders?: Folder[];
   onSelectNote?: (id: string) => void;
   onCloseTab?: (id: string) => void;
+  onCloseOtherTabs?: (keepId: string) => void;
+  onCloseTabsToRight?: (fromId: string) => void;
+  onCloseAllTabs?: () => void;
+  onReopenClosedTab?: () => void;
+  canReopenClosedTab?: boolean;
   onReorderTabs?: (fromId: string, toId: string, edge: 'before' | 'after') => void;
   onRegisterExportActions?: (actions: NoteExportActions | null) => void;
   draftCache?: Record<string, { title: string; content: string }>;
@@ -209,6 +214,11 @@ export default function NoteEditor({
   folders = [],
   onSelectNote,
   onCloseTab,
+  onCloseOtherTabs,
+  onCloseTabsToRight,
+  onCloseAllTabs,
+  onReopenClosedTab,
+  canReopenClosedTab = false,
   onReorderTabs,
   onRegisterExportActions,
   draftCache = {},
@@ -234,6 +244,7 @@ export default function NoteEditor({
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const draggingTabIdRef = useRef<string | null>(null);
   const [tabDropHint, setTabDropHint] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
+  const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
 
   const clearTabDrag = useCallback(() => {
     draggingTabIdRef.current = null;
@@ -241,6 +252,25 @@ export default function NoteEditor({
     setTabDropHint(null);
     document.documentElement.classList.remove('tab-dragging');
   }, []);
+
+  useEffect(() => {
+    if (!tabContextMenu) return;
+    const closeMenu = () => setTabContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMenu();
+      }
+    };
+    window.addEventListener('mousedown', closeMenu);
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', closeMenu);
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [tabContextMenu]);
 
   useEffect(() => {
     const allowDrop = (e: DragEvent) => {
@@ -1722,6 +1752,17 @@ export default function NoteEditor({
                   draggable
                   className={`editor-tab ${isActive ? 'active' : ''} ${draggingTabId === tabId ? 'is-dragging' : ''} ${dropClass}`}
                   onClick={() => onSelectNote?.(tabId)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const menuWidth = 190;
+                    const menuHeight = 230;
+                    setTabContextMenu({
+                      tabId,
+                      x: Math.min(e.clientX, Math.max(8, window.innerWidth - menuWidth - 8)),
+                      y: Math.min(e.clientY, Math.max(8, window.innerHeight - menuHeight - 8)),
+                    });
+                  }}
                   onDragStart={(e) => {
                     if ((e.target as HTMLElement).closest('.tab-close-btn')) {
                       e.preventDefault();
@@ -1831,6 +1872,115 @@ export default function NoteEditor({
             </Tooltip>
           </div>
         </div>
+      )}
+
+      {tabContextMenu && createPortal(
+        (() => {
+          const tabIndex = openNoteIds.indexOf(tabContextMenu.tabId);
+          const hasOtherTabs = openNoteIds.length > 1;
+          const hasTabsToRight = tabIndex >= 0 && tabIndex < openNoteIds.length - 1;
+          const itemStyle = (disabled = false): CSSProperties => ({
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            padding: '8px 10px',
+            border: 'none',
+            borderRadius: 5,
+            background: 'transparent',
+            color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+            opacity: disabled ? 0.45 : 1,
+            cursor: disabled ? 'default' : 'pointer',
+            textAlign: 'left',
+            fontSize: 12,
+          });
+          const runAction = (action?: () => void) => {
+            if (!action) return;
+            setTabContextMenu(null);
+            action();
+          };
+
+          return (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 100000 }}
+                onMouseDown={() => setTabContextMenu(null)}
+              />
+              <div
+                className="glass-effect"
+                style={{
+                  position: 'fixed',
+                  left: tabContextMenu.x,
+                  top: tabContextMenu.y,
+                  zIndex: 100001,
+                  minWidth: 190,
+                  padding: 5,
+                  background: 'var(--bg-modal)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 7,
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+                }}
+                onMouseDown={event => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  disabled={!canReopenClosedTab}
+                  style={itemStyle(!canReopenClosedTab)}
+                  onClick={() => runAction(onReopenClosedTab)}
+                  onMouseEnter={event => { if (canReopenClosedTab) event.currentTarget.style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
+                >
+                  <RotateCcw size={14} />
+                  {language === 'es' ? 'Reabrir pestaña cerrada' : 'Reopen closed tab'}
+                </button>
+                <button
+                  type="button"
+                  style={itemStyle()}
+                  onClick={() => runAction(() => onCloseTab?.(tabContextMenu.tabId))}
+                  onMouseEnter={event => { event.currentTarget.style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
+                >
+                  <X size={14} />
+                  {language === 'es' ? 'Cerrar pestaña' : 'Close tab'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasOtherTabs}
+                  style={itemStyle(!hasOtherTabs)}
+                  onClick={() => runAction(() => onCloseOtherTabs?.(tabContextMenu.tabId))}
+                  onMouseEnter={event => { if (hasOtherTabs) event.currentTarget.style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
+                >
+                  <PanelLeft size={14} />
+                  {language === 'es' ? 'Cerrar otras pestañas' : 'Close other tabs'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasTabsToRight}
+                  style={itemStyle(!hasTabsToRight)}
+                  onClick={() => runAction(() => onCloseTabsToRight?.(tabContextMenu.tabId))}
+                  onMouseEnter={event => { if (hasTabsToRight) event.currentTarget.style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
+                >
+                  <PanelLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+                  {language === 'es' ? 'Cerrar a la derecha' : 'Close tabs to the right'}
+                </button>
+                <div style={{ height: 1, margin: '4px 6px', background: 'var(--border)' }} />
+                <button
+                  type="button"
+                  style={itemStyle()}
+                  onClick={() => runAction(onCloseAllTabs)}
+                  onMouseEnter={event => { event.currentTarget.style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
+                >
+                  <X size={14} />
+                  {language === 'es' ? 'Cerrar todas las pestañas' : 'Close all tabs'}
+                </button>
+              </div>
+            </>
+          );
+        })(),
+        document.body
       )}
 
       {/* Title Container (Moved from below) */}

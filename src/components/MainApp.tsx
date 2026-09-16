@@ -107,12 +107,14 @@ export default function MainApp({
   /** True mientras se pide content a disco (cambio de nota sin cache). */
   const [noteLoading, setNoteLoading] = useState(true);
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
+  const [closedTabHistory, setClosedTabHistory] = useState<string[]>([]);
   const [openStickyIds, setOpenStickyIds] = useState<string[]>([]);
   const [trashCount, setTrashCount] = useState(0);
   const [draftCache, setDraftCache] = useState<Record<string, DraftEntry>>({});
   const [draftRecoveryQueue, setDraftRecoveryQueue] = useState<NoteDraft[]>([]);
   const [draftRecoveryNonce, setDraftRecoveryNonce] = useState(0);
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
+  const [pendingBatchCloseIds, setPendingBatchCloseIds] = useState<string[] | null>(null);
   const [pendingNavNoteId, setPendingNavNoteId] = useState<string | null>(null);
   const [confirmLeaveDismissed, setConfirmLeaveDismissed] = useState(false);
   const [dontAskChecked, setDontAskChecked] = useState(false);
@@ -950,7 +952,23 @@ export default function MainApp({
     setOpenNoteIds(prev => reorderTabs(prev, fromId, toId, edge));
   }, []);
 
+  const executeCloseTabs = useCallback((ids: string[]) => {
+    const closingIds = new Set(ids);
+    setClosedTabHistory(prev => [
+      ...prev.filter(id => !closingIds.has(id)),
+      ...ids,
+    ].slice(-20));
+    setOpenNoteIds(prev => {
+      const filtered = prev.filter(noteId => !closingIds.has(noteId));
+      if (selectedNoteIdRef.current && closingIds.has(selectedNoteIdRef.current)) {
+        setSelectedNoteId(filtered[0] || null);
+      }
+      return filtered;
+    });
+  }, []);
+
   const executeCloseTab = useCallback((id: string) => {
+    setClosedTabHistory(prev => [...prev.filter(noteId => noteId !== id), id].slice(-20));
     setOpenNoteIds(prev => {
       const filtered = prev.filter(noteId => noteId !== id);
       
@@ -976,25 +994,93 @@ export default function MainApp({
     });
   }, [selectedNoteId, handleDiscardDraft]);
 
+  const requestCloseTabs = useCallback((ids: string[]) => {
+    const targets = Array.from(new Set(ids)).filter(id => openNoteIds.includes(id));
+    if (targets.length === 0) return;
+
+    const dirtyId = !autosaveEnabled
+      ? targets.find(id => draftCache[id] !== undefined)
+      : undefined;
+    if (dirtyId) {
+      const meta = allNotes.find(item => item.id === dirtyId);
+      if (meta) {
+        const draft = draftCache[dirtyId];
+        setPendingBatchCloseIds(targets);
+        setNoteToCloseWithDraft({
+          ...meta,
+          content: draft?.content ?? contentCacheRef.current[dirtyId] ?? '',
+          title: draft?.title ?? meta.title,
+        });
+        return;
+      }
+    }
+
+    executeCloseTabs(targets);
+  }, [openNoteIds, autosaveEnabled, draftCache, allNotes, executeCloseTabs]);
+
+  const handleReopenClosedTab = useCallback(() => {
+    const validHistory = closedTabHistory.filter(id => allNotes.some(note => note.id === id && !note.deleted_at));
+    const tabId = validHistory[validHistory.length - 1];
+    if (!tabId) {
+      setClosedTabHistory([]);
+      return;
+    }
+
+    const meta = allNotes.find(item => item.id === tabId);
+    if (!meta) return;
+    setClosedTabHistory(validHistory.slice(0, -1));
+    setOpenNoteIds(prev => prev.includes(tabId) ? prev : [...prev, tabId]);
+    setSelectedFolderId(prev => prev === 'sticky' ? prev : meta.folder_id);
+    setSelectedNoteId(tabId);
+  }, [closedTabHistory, allNotes]);
+
+  const handleCloseOtherTabs = useCallback((keepId: string) => {
+    requestCloseTabs(openNoteIds.filter(id => id !== keepId));
+  }, [openNoteIds, requestCloseTabs]);
+
+  const handleCloseTabsToRight = useCallback((fromId: string) => {
+    const index = openNoteIds.indexOf(fromId);
+    if (index >= 0) requestCloseTabs(openNoteIds.slice(index + 1));
+  }, [openNoteIds, requestCloseTabs]);
+
+  const handleCloseAllTabs = useCallback(() => {
+    requestCloseTabs(openNoteIds);
+  }, [openNoteIds, requestCloseTabs]);
+
   const saveAndCloseDraftTab = useCallback(async () => {
     if (!noteToCloseWithDraft) return;
+    const closedId = noteToCloseWithDraft.id;
+    const batchIds = pendingBatchCloseIds;
     const draft = draftCache[noteToCloseWithDraft.id];
     if (draft) {
       await handleSaveNote({ ...noteToCloseWithDraft, title: draft.title, content: draft.content });
     }
-    executeCloseTab(noteToCloseWithDraft.id);
+    executeCloseTab(closedId);
     setNoteToCloseWithDraft(null);
-  }, [noteToCloseWithDraft, draftCache, handleSaveNote, executeCloseTab]);
+    setPendingBatchCloseIds(null);
+    if (batchIds) {
+      void requestCloseTabs(batchIds.filter(id => id !== closedId));
+    }
+  }, [noteToCloseWithDraft, pendingBatchCloseIds, draftCache, handleSaveNote, executeCloseTab, requestCloseTabs]);
 
   const closeDraftTabWithoutSaving = useCallback(() => {
     if (!noteToCloseWithDraft) return;
-    executeCloseTab(noteToCloseWithDraft.id);
+    const closedId = noteToCloseWithDraft.id;
+    const batchIds = pendingBatchCloseIds;
+    executeCloseTab(closedId);
     setNoteToCloseWithDraft(null);
-  }, [noteToCloseWithDraft, executeCloseTab]);
+    setPendingBatchCloseIds(null);
+    if (batchIds) {
+      void requestCloseTabs(batchIds.filter(id => id !== closedId));
+    }
+  }, [noteToCloseWithDraft, pendingBatchCloseIds, executeCloseTab, requestCloseTabs]);
 
   useModalKeys({
     enabled: !!noteToCloseWithDraft && !pendingNavNoteId,
-    onEsc: () => setNoteToCloseWithDraft(null),
+    onEsc: () => {
+      setNoteToCloseWithDraft(null);
+      setPendingBatchCloseIds(null);
+    },
     onEnter: () => { void saveAndCloseDraftTab(); },
   });
 
@@ -1012,7 +1098,7 @@ export default function MainApp({
         return;
       }
     }
-    
+    setPendingBatchCloseIds(null);
     executeCloseTab(id);
   }, [draftCache, autosaveEnabled, allNotes, executeCloseTab]);
 
@@ -1021,6 +1107,7 @@ export default function MainApp({
     if (!movedToTrash) return;
     setTrashCount(prev => prev + 1);
     delete contentCacheRef.current[id];
+    setClosedTabHistory(prev => prev.filter(noteId => noteId !== id));
     const remaining = notes.filter(n => n.id !== id);
     setNotes(remaining);
     setAllNotes(prev => prev.filter(n => n.id !== id));
@@ -1610,6 +1697,11 @@ export default function MainApp({
           openStickyIds={openStickyIds}
           onSelectNote={handleAttemptSelectNote}
           onCloseTab={handleCloseTab}
+          onCloseOtherTabs={handleCloseOtherTabs}
+          onCloseTabsToRight={handleCloseTabsToRight}
+          onCloseAllTabs={handleCloseAllTabs}
+          onReopenClosedTab={handleReopenClosedTab}
+          canReopenClosedTab={closedTabHistory.length > 0}
           onReorderTabs={handleReorderTabs}
           onRegisterExportActions={registerEditorExportActions}
           draftCache={draftCache}
