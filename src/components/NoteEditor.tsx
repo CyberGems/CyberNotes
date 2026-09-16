@@ -21,7 +21,7 @@ import {
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
   Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
-  Undo, Redo, Save, Upload, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
+  Undo, Redo, Save, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
   CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow
 } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -56,6 +56,7 @@ interface Props {
   onSelectNote?: (id: string) => void;
   onCloseTab?: (id: string) => void;
   onReorderTabs?: (fromId: string, toId: string, edge: 'before' | 'after') => void;
+  onRegisterExportActions?: (actions: { markdown: () => void; html: () => void } | null) => void;
   draftCache?: Record<string, { title: string; content: string }>;
   onEditDraft?: (id: string, title: string, content: string) => void | Promise<void>;
   onDiscardDraft?: (id: string) => void;
@@ -201,6 +202,7 @@ export default function NoteEditor({
   onSelectNote,
   onCloseTab,
   onReorderTabs,
+  onRegisterExportActions,
   draftCache = {},
   onEditDraft,
   onDiscardDraft,
@@ -594,7 +596,6 @@ export default function NoteEditor({
   };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showLeaveEditorWarning, setShowLeaveEditorWarning] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [capsToast, setCapsToast] = useState<string | null>(null);
@@ -882,13 +883,6 @@ export default function NoteEditor({
       if (unregisterContext) unregisterContext();
     };
   }, []);
-
-  useEffect(() => {
-    if (!showExportMenu) return;
-    const close = () => setShowExportMenu(false);
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [showExportMenu]);
 
   // Reposiciona el menú contextual para que no se desborde de la ventana.
   // Mide el tamaño real (su ancho varía: sugerencias, "agregar al diccionario", etc.).
@@ -1339,7 +1333,6 @@ export default function NoteEditor({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setShowExportMenu(false);
   };
 
   const handleExportHtml = () => {
@@ -1405,8 +1398,16 @@ export default function NoteEditor({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setShowExportMenu(false);
   };
+
+  useEffect(() => {
+    if (!onRegisterExportActions) return;
+    onRegisterExportActions({
+      markdown: handleExportMarkdown,
+      html: handleExportHtml,
+    });
+    return () => onRegisterExportActions(null);
+  }, [handleExportHtml, handleExportMarkdown, onRegisterExportActions]);
 
   const handleSetLink = () => {
     if (!editor) return;
@@ -2007,99 +2008,6 @@ export default function NoteEditor({
             </button>
             </Tooltip>
 
-            <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
-
-            {/* Grupo 3: Exportar nota dropdown trigger */}
-            <div style={{ position: 'relative', display: 'flex' }}>
-              <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota (.md / .html)' : 'Export note (.md / .html)'}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowExportMenu(!showExportMenu);
-                }}
-                style={noteActionBtnStyle(showExportMenu)}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'var(--bg-hover)';
-                  e.currentTarget.style.color = 'var(--text-primary)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = showExportMenu ? 'var(--accent-dim)' : 'transparent';
-                  e.currentTarget.style.color = showExportMenu ? 'var(--accent-light)' : 'var(--text-muted)';
-                }}
-              >
-                <Upload size={15} />
-              </button>
-              </Tooltip>
-
-              <AnimatePresence>
-                {showExportMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      right: 0,
-                      marginTop: 6,
-                      background: 'var(--bg-modal)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-                      zIndex: 100,
-                      minWidth: 180,
-                      overflow: 'hidden',
-                      padding: 4,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 2,
-                    }}
-                    className="glass-effect"
-                  >
-                    <button
-                      onClick={handleExportMarkdown}
-                      style={{
-                        padding: '8px 12px',
-                        fontSize: 12,
-                        textAlign: 'left',
-                        background: 'transparent',
-                        color: 'var(--text-primary)',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        transition: 'background 0.2s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      {language === 'es' ? '📝 Exportar como Markdown (.md)' : '📝 Export as Markdown (.md)'}
-                    </button>
-                    <button
-                      onClick={handleExportHtml}
-                      style={{
-                        padding: '8px 12px',
-                        fontSize: 12,
-                        textAlign: 'left',
-                        background: 'transparent',
-                        color: 'var(--text-primary)',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        transition: 'background 0.2s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      {language === 'es' ? '🌐 Exportar como HTML (.html)' : '🌐 Export as HTML (.html)'}
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
         </div>
       </div>

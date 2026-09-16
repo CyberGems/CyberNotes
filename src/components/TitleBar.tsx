@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download } from 'lucide-react';
+import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 
@@ -10,6 +10,8 @@ interface Props {
   onOpenSettings?: () => void;
   onOpenAbout?: () => void;
   onOpenTrayPin?: () => void;
+  onExportMarkdown?: () => void;
+  onExportHtml?: () => void;
   onSelectNote?: (id: string) => void;
   onClearRecent?: () => void;
   recentNotes?: Note[];
@@ -52,6 +54,8 @@ export default function TitleBar({
   onOpenSettings,
   onOpenAbout,
   onOpenTrayPin,
+  onExportMarkdown,
+  onExportHtml,
   onSelectNote,
   onClearRecent,
   recentNotes = [],
@@ -80,6 +84,7 @@ export default function TitleBar({
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [recentSubOpen, setRecentSubOpen] = useState(false);
+  const [exportSubOpen, setExportSubOpen] = useState(false);
   const [helpSubOpen, setHelpSubOpen] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
 
@@ -94,6 +99,7 @@ export default function TitleBar({
       document.addEventListener('mousedown', close);
     } else {
       setRecentSubOpen(false);
+      setExportSubOpen(false);
       setHelpSubOpen(false);
       setExitConfirm(false);
     }
@@ -421,6 +427,47 @@ export default function TitleBar({
                   <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
                 </>
               )}
+
+              {/* Export Submenu */}
+              <button
+                className="menu-item"
+                onClick={() => setExportSubOpen(!exportSubOpen)}
+              >
+                <Upload size={14} style={{ opacity: 0.7 }} />
+                <span style={{ flex: 1 }}>{t('Exportar', 'Export')}</span>
+                <span style={{
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  transform: exportSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s',
+                }}>▶</span>
+              </button>
+              {exportSubOpen && (
+                <div style={{
+                  borderLeft: '2px solid var(--border)',
+                  marginLeft: 19,
+                  paddingLeft: 0,
+                }}>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportMarkdown?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <FileText size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Markdown (.md)', 'Markdown (.md)')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportHtml?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Globe size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('HTML (.html)', 'HTML (.html)')}</span>
+                  </button>
+                </div>
+              )}
+
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
               {/* Toggles */}
               <div

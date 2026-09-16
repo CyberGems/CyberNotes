@@ -79,6 +79,11 @@ type DraftEntry = Pick<NoteDraft, 'title' | 'content'> & {
   updatedAt: string;
 };
 
+type EditorExportActions = {
+  markdown: () => void;
+  html: () => void;
+};
+
 export default function MainApp({
   language,
   onLanguageChange,
@@ -166,6 +171,7 @@ export default function MainApp({
   const draftCacheRef = useRef<Record<string, DraftEntry>>({});
   const draftFlushRef = useRef<(() => Promise<void>) | null>(null);
   const draftWriteChainsRef = useRef<Record<string, Promise<boolean>>>({});
+  const editorExportActionsRef = useRef<EditorExportActions | null>(null);
   const persistedDraftsRef = useRef<NoteDraft[]>([]);
   const draftsLoadedRef = useRef(false);
   const allNotesLoadedRef = useRef(false);
@@ -175,6 +181,10 @@ export default function MainApp({
   notesRef.current = notes;
   openStickyIdsRef.current = openStickyIds;
   draftCacheRef.current = draftCache;
+
+  const registerEditorExportActions = useCallback((actions: EditorExportActions | null) => {
+    editorExportActionsRef.current = actions;
+  }, []);
 
   useEffect(() => {
     const trackMouse = (e: MouseEvent) => {
@@ -1412,6 +1422,8 @@ export default function MainApp({
           setIsTrayPinAutomatic(false);
           setShowTrayPin(true);
         }}
+        onExportMarkdown={() => editorExportActionsRef.current?.markdown()}
+        onExportHtml={() => editorExportActionsRef.current?.html()}
         onSelectNote={(id) => {
           setSelectedNoteId(id);
           const note = allNotes.find(n => n.id === id);
@@ -1569,6 +1581,7 @@ export default function MainApp({
           onSelectNote={handleAttemptSelectNote}
           onCloseTab={handleCloseTab}
           onReorderTabs={handleReorderTabs}
+          onRegisterExportActions={registerEditorExportActions}
           draftCache={draftCache}
           onEditDraft={handleEditDraft}
           onDiscardDraft={handleDiscardDraft}
