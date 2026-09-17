@@ -1595,10 +1595,11 @@ body.sticky-is-dragging * {
 }
 
 /* Sticky notes keep the editor's writing surface roomy and close to the chrome. */
+/* font-size inherits the zoomed container (13.5px * zoom set inline). */
 .sticky-note-window .ProseMirror {
   min-height: 100%;
   padding: 8px 4px;
-  font-size: 13.5px;
+  font-size: inherit;
   line-height: 1.55;
 }
 .sticky-note-window .ProseMirror p {

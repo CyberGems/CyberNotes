@@ -341,7 +341,9 @@ export default function StickyNoteApp({ noteId }: Props) {
   }, [noteId]);
 
   // Ctrl+rueda sobre el contenido: zoom (rueda abajo = aumentar, convención de la suite).
+  // Incluye `loading`: en el primer render el contenedor aun no existe (retorno temprano).
   useEffect(() => {
+    if (loading) return;
     const el = editorScrollRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
@@ -351,7 +353,7 @@ export default function StickyNoteApp({ noteId }: Props) {
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [applyZoom]);
+  }, [applyZoom, loading]);
 
   const showPasteNotice = useCallback((notice: 'too-large' | 'failed') => {
     setPasteNotice(notice);
