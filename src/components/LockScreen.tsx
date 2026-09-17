@@ -162,7 +162,7 @@ export default function LockScreen({
           -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
           mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
           filter: drop-shadow(0 0 6px var(--accent-glow));
-          animation: lockConicSpin 14s linear infinite;
+          animation: lockConicSpin 24s linear infinite;
           opacity: 0.85;
         }
         .lock-screen-icon {
