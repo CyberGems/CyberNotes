@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { Sunrise, Sun, MoonStar } from 'lucide-react';
+import { Coffee, Sun, MoonStar } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 
 interface WelcomeGreetingProps {
@@ -81,7 +81,7 @@ export default function WelcomeGreeting({
   const { time, date } = showDateTime ? getDateTimeParts(language, now) : { time: '', date: '' };
   const ariaLabel = showDateTime ? `${greeting}, ${time}, ${date}` : greeting;
   const timeOfDay = getTimeOfDay(now.getHours());
-  const TimeIcon = timeOfDay === 'morning' ? Sunrise : timeOfDay === 'afternoon' ? Sun : MoonStar;
+  const TimeIcon = timeOfDay === 'morning' ? Coffee : timeOfDay === 'afternoon' ? Sun : MoonStar;
 
   return (
     <div
