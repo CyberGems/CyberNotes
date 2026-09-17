@@ -132,13 +132,9 @@ export default function LockScreen({
       }}
     >
       <style>{`
-        @keyframes lockOrbit {
+        @keyframes lockConicSpin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
-        }
-        @keyframes lockOrbitReverse {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
         }
         @keyframes lockLogoPulse {
           0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px var(--accent-glow)); }
@@ -151,23 +147,23 @@ export default function LockScreen({
         .lock-screen-card {
           animation: lockCardIn 0.38s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .lock-screen-orbit {
+        .lock-screen-halo {
           position: absolute;
           inset: 0;
           border-radius: 50%;
           pointer-events: none;
-        }
-        .lock-screen-orbit-primary {
-          border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
-          border-top-color: var(--accent);
-          border-right-color: color-mix(in srgb, var(--accent) 58%, transparent);
-          box-shadow: 0 0 16px color-mix(in srgb, var(--accent-glow) 75%, transparent);
-          animation: lockOrbit 2.2s linear infinite;
-        }
-        .lock-screen-orbit-secondary {
-          inset: 6px;
-          border: 1px dashed color-mix(in srgb, var(--accent-light) 36%, transparent);
-          animation: lockOrbitReverse 7s linear infinite;
+          background: conic-gradient(from 0deg,
+            transparent 0deg,
+            color-mix(in srgb, var(--accent-light) 60%, transparent) 55deg,
+            transparent 125deg,
+            transparent 195deg,
+            color-mix(in srgb, var(--accent) 40%, transparent) 255deg,
+            transparent 320deg);
+          -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+          filter: drop-shadow(0 0 6px var(--accent-glow));
+          animation: lockConicSpin 14s linear infinite;
+          opacity: 0.85;
         }
         .lock-screen-icon {
           animation: lockLogoPulse 2.8s ease-in-out infinite;
@@ -191,7 +187,7 @@ export default function LockScreen({
         }
         @media (prefers-reduced-motion: reduce) {
           .lock-screen-card,
-          .lock-screen-orbit,
+          .lock-screen-halo,
           .lock-screen-icon {
             animation: none;
           }
@@ -306,8 +302,7 @@ export default function LockScreen({
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <div style={{ position: 'relative', width: 84, height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="lock-screen-orbit lock-screen-orbit-primary" />
-            <div className="lock-screen-orbit lock-screen-orbit-secondary" />
+            <div className="lock-screen-halo" aria-hidden="true" />
             <img
               src="icon.png"
               className="lock-screen-icon"
