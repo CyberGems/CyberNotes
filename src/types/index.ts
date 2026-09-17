@@ -56,6 +56,8 @@ declare global {
       windowForceClose: () => Promise<void>;
       openDevTools: () => Promise<void>;
       openDataFolder: () => Promise<void>;
+      openLogsFolder: () => Promise<void>;
+      reportRendererError: (message: string) => Promise<boolean>;
       // Auth
       hasPassword: () => Promise<boolean>;
       setPassword: (password: string) => Promise<boolean>;

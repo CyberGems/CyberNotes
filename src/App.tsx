@@ -8,6 +8,7 @@ import MainApp from './components/MainApp';
 import AppLoader from './components/AppLoader';
 import StickyNoteApp from './components/StickyNoteApp';
 import WelcomeNameModal from './components/WelcomeNameModal';
+import GlobalErrorToast from './components/GlobalErrorToast';
 import { formatDisplayName } from './components/WelcomeGreeting';
 
 type AppView = 'loading' | 'lock' | 'app';
@@ -279,13 +280,16 @@ export default function App() {
 
   if (view === 'lock') {
     return (
-      <LockScreen
-        language={language}
-        onUnlock={handleUnlock}
-        bgImage={bgImage}
-        glassBlur={glassBlur}
-        bgOpacity={bgOpacity}
-      />
+      <>
+        <LockScreen
+          language={language}
+          onUnlock={handleUnlock}
+          bgImage={bgImage}
+          glassBlur={glassBlur}
+          bgOpacity={bgOpacity}
+        />
+        <GlobalErrorToast language={language} />
+      </>
     );
   }
 
@@ -316,6 +320,7 @@ export default function App() {
       {privacyShield && (
         <AppLoader isShield={true} language={language} />
       )}
+      <GlobalErrorToast language={language} />
     </>
   );
 }

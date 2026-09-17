@@ -16,6 +16,7 @@ import { applyThemeVars } from '../themes';
 import { applyEditorFont } from '../fonts';
 import { extractPreview, extractThumb } from '../utils/notes';
 import Tooltip from './Tooltip';
+import GlobalErrorToast from './GlobalErrorToast';
 import {
   Pin,
   Palette,
@@ -1528,6 +1529,8 @@ export default function StickyNoteApp({ noteId }: Props) {
           </button>
         </div>
       )}
+
+      <GlobalErrorToast language={language} />
     </div>
   );
 }

@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   windowForceClose: () => ipcRenderer.invoke('window-force-close'),
   openDevTools: () => ipcRenderer.invoke('open-dev-tools'),
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
+  openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
+  reportRendererError: (message: string) => ipcRenderer.invoke('log:renderer-error', message),
   replaceMisspelling: (word: string) => ipcRenderer.invoke('replace-misspelling', word),
   addToDictionary: (word: string) => ipcRenderer.invoke('add-to-dictionary', word),
   writeImageToClipboard: (url: string) => ipcRenderer.invoke('clipboard:writeImage', url),

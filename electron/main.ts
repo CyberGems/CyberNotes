@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
 import { initUpdater, setAutoUpdate, setCanInstallChecker } from './updater';
+import { initLogger, writeLog, logRendererError } from './logger';
 import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
@@ -74,6 +75,7 @@ const bcrypt = require('bcryptjs');
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
 const imagesPath = path.join(userDataPath, 'images');
+initLogger(userDataPath);
 
 // ─── uuid ─────────────────────────────────────────────────────────────────
 const { v4: uuidv4 } = require('uuid');
@@ -1703,6 +1705,8 @@ ipcMain.handle('open-dev-tools', () => {
   return true;
 });
 ipcMain.handle('open-data-folder', () => shell.openPath(userDataPath));
+ipcMain.handle('open-logs-folder', () => shell.openPath(path.join(userDataPath, 'logs')));
+ipcMain.handle('log:renderer-error', (_e: any, message: string) => logRendererError(message));
 ipcMain.handle('replace-misspelling', (_e: any, word: string) => mainWindow?.webContents.replaceMisspelling(word));
 ipcMain.handle('add-to-dictionary', (_e: any, word: string) => {
   if (typeof word !== 'string') return false;
@@ -2561,6 +2565,7 @@ if (!gotTheLock) {
     // Habilitar diccionarios bilingües simultáneos (Español e Inglés)
     session.defaultSession.setSpellCheckerLanguages(['es-ES', 'en-US']);
 
+    writeLog('info', `CyberNotes ${app.getVersion()} started (packaged: ${app.isPackaged})`);
     await initDatabase();
     // Start locked whenever a password exists so tray restore never assumes an open session.
     sessionLocked = hasPasswordHash();
