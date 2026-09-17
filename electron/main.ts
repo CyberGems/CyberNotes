@@ -1942,7 +1942,36 @@ ipcMain.handle('auth:removePassword', () => {
 });
 
 // -- Settings --
+// Keys the renderer may read/write through the generic settings channel.
+// Security-critical keys (password_hash) and main-process-only keys
+// (auto_start, is_maximized, window_bounds) are excluded: they have
+// dedicated IPC channels and must never be reachable from the renderer.
+const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
+  'theme', 'colorIntensity', 'language', 'editor_font',
+  'welcome_name', 'welcome_name_prompt_dismissed',
+  'auto_lock_minutes', 'auto_check_updates',
+  'last_note_id', 'open_note_ids', 'opened_history', 'recent_cleared_at',
+  'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity',
+  'remember_last_note', 'minimize_to_tray', 'close_to_tray',
+  'show_line_counter', 'show_line_gutter', 'show_word_counter', 'show_minimap',
+  'autosave_enabled', 'confirm_leave_note_dismissed', 'confirm_move_note_to_trash_dismissed',
+  'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
+  'caps_lock_sound', 'caps_lock_sound_scope',
+  'tabs_width_mode', 'note_list_group_by_date', 'note_list_view_mode',
+  'note_list_collapsed_groups', 'note_list_floating_group_ready',
+  'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
+  'toggle_hotkey', 'toggle_hotkey_enabled',
+]);
+
+const SETTINGS_RESERVED_KEYS: ReadonlySet<string> = new Set([
+  'password_hash', 'auto_start', 'is_maximized', 'window_bounds',
+]);
+
+/** Max value size accepted from the renderer (opened_history JSON can be large). */
+const SETTINGS_MAX_VALUE_LENGTH = 100_000;
+
 ipcMain.handle('settings:get', (_e: any, key: string) => {
+  if (typeof key !== 'string' || SETTINGS_RESERVED_KEYS.has(key)) return null;
   const row = queryGet('SELECT value FROM settings WHERE key = ?', [key]);
   return row ? row.value : null;
 });
@@ -1951,6 +1980,10 @@ ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
   const result: Record<string, string | null> = {};
   if (!Array.isArray(keys)) return result;
   for (const key of keys) {
+    if (typeof key !== 'string' || SETTINGS_RESERVED_KEYS.has(key)) {
+      result[key] = null;
+      continue;
+    }
     const row = queryGet('SELECT value FROM settings WHERE key = ?', [key]);
     result[key] = row ? row.value : null;
   }
@@ -1958,13 +1991,27 @@ ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
 });
 
 ipcMain.handle('settings:reset', () => {
+  // Preserve the access password: resetting preferences must never unlock the app.
+  const hashRow = queryGet('SELECT value FROM settings WHERE key = ?', ['password_hash']);
   runQuery('DELETE FROM settings');
+  if (hashRow) {
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hashRow.value]);
+  }
   registerToggleHotkey();
   updateTrayMenu();
   return true;
 });
 
 ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
+  if (typeof key !== 'string' || typeof value !== 'string') return false;
+  if (SETTINGS_RESERVED_KEYS.has(key) || !RENDERER_WRITABLE_SETTINGS.has(key)) {
+    console.warn(`[settings] rejected write for key "${key}"`);
+    return false;
+  }
+  if (value.length > SETTINGS_MAX_VALUE_LENGTH) {
+    console.warn(`[settings] rejected oversized value for key "${key}" (${value.length} chars)`);
+    return false;
+  }
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
   const openWindows = [mainWindow, ...stickyWindows.values()];
   openWindows.forEach((win) => {
