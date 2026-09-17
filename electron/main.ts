@@ -2165,15 +2165,41 @@ ipcMain.handle('notes:getById', (_e: any, id: string) => {
   return queryGet('SELECT * FROM notes WHERE id = ?', [id]);
 });
 
+/** Topes de tamano para datos que llegan del renderer o de archivos (A6). */
+const NOTE_CONTENT_MAX_CHARS = 10_000_000;
+const NOTE_TITLE_MAX_CHARS = 500;
+const NOTE_PREVIEW_MAX_CHARS = 200_000;
+const THUMB_MAX_CHARS = 500_000;
+const IMPORT_FILE_MAX_BYTES = 100 * 1024 * 1024;
+const IMPORT_MAX_ROWS = 50_000;
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const PDF_HTML_MAX_CHARS = 5_000_000;
+
+function isThumbUrl(value: unknown): value is string {
+  return typeof value === 'string' && (
+    value === '' ||
+    value.startsWith('file:') ||
+    value.startsWith('data:image/') ||
+    /^https?:\/\//i.test(value)
+  );
+}
+
 ipcMain.handle('notes:save', (_e: any, note: any) => {
-  const thumb = typeof note.thumb === 'string' ? note.thumb : '';
+  if (!note || typeof note.id !== 'string' || !note.id || note.id.length > 100) return false;
+  if (typeof note.content === 'string' && note.content.length > NOTE_CONTENT_MAX_CHARS) return false;
+  const title = typeof note.title === 'string' ? note.title.slice(0, NOTE_TITLE_MAX_CHARS) : '';
+  const content = typeof note.content === 'string' ? note.content : '';
+  const preview = typeof note.preview === 'string' ? note.preview.slice(0, NOTE_PREVIEW_MAX_CHARS) : '';
+  const thumb = isThumbUrl(note.thumb) ? note.thumb.slice(0, THUMB_MAX_CHARS) : '';
+  const folderId = typeof note.folder_id === 'string' || note.folder_id === null ? note.folder_id : null;
+  const pinned = note.pinned ? 1 : 0;
   const exists = queryGet('SELECT id, deleted_at FROM notes WHERE id = ?', [note.id]);
   if (exists?.deleted_at) return note;
   if (exists) {
     runQueryBatch([
       {
         sql: 'UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, thumb = ?, pinned = ?, updated_at = ? WHERE id = ?',
-        params: [note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.updated_at, note.id],
+        params: [folderId, title, content, preview, thumb, pinned, note.updated_at, note.id],
       },
       { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [note.id] },
     ]);
@@ -2181,7 +2207,7 @@ ipcMain.handle('notes:save', (_e: any, note: any) => {
     runQueryBatch([
       {
         sql: 'INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        params: [note.id, note.folder_id, note.title, note.content, note.preview, thumb, note.pinned, note.created_at, note.updated_at],
+        params: [note.id, folderId, title, content, preview, thumb, pinned, note.created_at, note.updated_at],
       },
       { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [note.id] },
     ]);
@@ -2212,6 +2238,7 @@ ipcMain.handle('drafts:save', (_e: any, draft: any, flushNow = false) => {
   const baseUpdatedAt = typeof draft?.base_updated_at === 'string' ? draft.base_updated_at : '';
   const updatedAt = typeof draft?.updated_at === 'string' ? draft.updated_at : '';
   if (!noteId || !baseUpdatedAt || !updatedAt) return false;
+  if (content.length > NOTE_CONTENT_MAX_CHARS || title.length > NOTE_TITLE_MAX_CHARS) return false;
 
   const note = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NULL', [noteId]);
   if (!note) return false;
@@ -2401,7 +2428,15 @@ ipcMain.handle('images:selectAndSave', async () => {
   if (result.canceled || !result.filePaths.length) return null;
 
   const sourcePath = result.filePaths[0];
-  const ext = path.extname(sourcePath);
+  const ext = path.extname(sourcePath).toLowerCase();
+  if (!['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) return null;
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(sourcePath);
+  } catch {
+    return null;
+  }
+  if (!stat.isFile() || stat.size <= 0 || stat.size > IMAGE_MAX_BYTES) return null;
   const filename = `${uuidv4()}${ext}`;
   const destPath = path.join(imagesPath, filename);
   fs.copyFileSync(sourcePath, destPath);
@@ -2419,6 +2454,7 @@ ipcMain.handle('document:export-pdf', async (_e: any, payload: { title?: string;
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
   if (result.canceled || !result.filePath) return false;
+  if (typeof payload?.html === 'string' && payload.html.length > PDF_HTML_MAX_CHARS) return false;
 
   const printWindow = new BrowserWindow({
     show: false,
@@ -2440,6 +2476,7 @@ ipcMain.handle('document:export-pdf', async (_e: any, payload: { title?: string;
 });
 
 ipcMain.handle('document:print', async (_e: any, payload: { title?: string; html?: string }) => {
+  if (typeof payload?.html === 'string' && payload.html.length > PDF_HTML_MAX_CHARS) return false;
   const printWindow = new BrowserWindow({
     show: false,
     width: 900,
@@ -2489,26 +2526,51 @@ ipcMain.handle('data:import', async () => {
   if (result.canceled || !result.filePaths.length) return false;
 
   try {
+    const stat = fs.statSync(result.filePaths[0]);
+    if (!stat.isFile() || stat.size > IMPORT_FILE_MAX_BYTES) return false;
     const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
-    if (!data.folders || !data.notes) return false;
+    if (!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)) return false;
+    if (data.folders.length + data.notes.length > IMPORT_MAX_ROWS) return false;
 
     // Backup current DB
     flushDbNow();
     const backupPath = dbPath + '.backup-' + Date.now();
     if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
 
-    // Insert imported en un solo batch + un flush (evita N exports a disco)
+    const str = (v: unknown, max: number): string =>
+      typeof v === 'string' ? v.slice(0, max) : '';
+    const idStr = (v: unknown): string | null =>
+      typeof v === 'string' && v && v.length <= 100 ? v : null;
+
+    // Insert imported en un solo batch + un flush (evita N exports a disco).
+    // Filas invalidas se omiten en lugar de abortar todo el import.
     const ops: Array<{ sql: string; params?: any[] }> = [];
     for (const f of data.folders) {
+      const id = idStr(f?.id);
+      if (!id) continue;
       ops.push({
         sql: 'INSERT OR REPLACE INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        params: [f.id, f.name, f.icon, f.color, f.sort_order, f.created_at],
+        params: [id, str(f?.name, 200), str(f?.icon, 100), str(f?.color, 100), Number(f?.sort_order) || 0, str(f?.created_at, 100)],
       });
     }
     for (const n of data.notes) {
+      const id = idStr(n?.id);
+      if (!id) continue;
+      if (typeof n?.content === 'string' && n.content.length > NOTE_CONTENT_MAX_CHARS) continue;
       ops.push({
         sql: 'INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        params: [n.id, n.folder_id, n.title, n.content, n.preview, n.thumb || '', n.pinned, n.created_at, n.updated_at, n.deleted_at || null],
+        params: [
+          id,
+          typeof n?.folder_id === 'string' ? n.folder_id : null,
+          str(n?.title, NOTE_TITLE_MAX_CHARS),
+          str(n?.content, NOTE_CONTENT_MAX_CHARS),
+          str(n?.preview, NOTE_PREVIEW_MAX_CHARS),
+          isThumbUrl(n?.thumb) ? (n.thumb as string).slice(0, THUMB_MAX_CHARS) : '',
+          n?.pinned ? 1 : 0,
+          str(n?.created_at, 100),
+          str(n?.updated_at, 100),
+          typeof n?.deleted_at === 'string' ? n.deleted_at : null,
+        ],
       });
     }
     // Imported data replaces the saved baseline, so existing drafts could no longer
