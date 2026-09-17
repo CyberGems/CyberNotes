@@ -98,28 +98,55 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Storage:** SQL.js (SQLite compiled to WebAssembly)
 - **Security:** bcryptjs password hashing
 - **Animations:** Motion (Framer Motion)
+- **Testing:** Vitest unit tests (`npm test`)
 
 ```
 cyber-notes/
 ├── electron/
-│   ├── main.ts           Electron main process (window, tray, IPC handlers)
+│   ├── main.ts           Electron main process (window, tray, stickies, IPC handlers)
 │   ├── preload.ts        Context bridge (secure API exposure)
-│   └── updater.ts        Auto-update logic
+│   ├── updater.ts        Auto-update logic
+│   ├── logger.ts         File logger (userData/logs)
+│   └── OpenTaskbarSettings.cs  Helper source for the tray pin tool
+├── shared/               Code shared by main and renderer (no Electron/React APIs)
+│   ├── notes.ts          Thumbnail extraction
+│   ├── sticky.ts         Floating-note palette and ids
+│   ├── lang.ts           Language helpers
+│   └── backup.ts         Automatic backup logic (plus *.test.ts suites)
 ├── src/
 │   ├── components/
-│   │   ├── MainApp.tsx        Main application layout
-│   │   ├── TitleBar.tsx       Custom title bar with menu
-│   │   ├── Sidebar.tsx        Folder navigation
-│   │   ├── NoteList.tsx       Note list panel
-│   │   ├── NoteEditor.tsx     TipTap editor wrapper
-│   │   ├── SettingsModal.tsx  Settings panel
-│   │   ├── LockScreen.tsx     Password lock screen
-│   │   └── AboutModal.tsx     About dialog
-│  ├── types/             TypeScript interfaces
-│  ├── utils/             Utility functions
-│  ├── hooks/             Custom React hooks
-│  ├── themes.ts          Theme definitions
-│  └── languages.ts       i18n translations
+│   │   ├── MainApp.tsx         Main application layout
+│   │   ├── TitleBar.tsx        Custom title bar with menu and greeting
+│   │   ├── Sidebar.tsx         Folder navigation and recent notes
+│   │   ├── NoteList.tsx        Note list panel with search and trash
+│   │   ├── NoteEditor.tsx      TipTap editor, tabs and export
+│   │   ├── StickyNoteApp.tsx   Floating always-on-top note widget
+│   │   ├── SettingsModal.tsx   Settings with backup configuration
+│   │   ├── LockScreen.tsx      Password lock screen
+│   │   ├── AboutModal.tsx      About dialog and update status
+│   │   ├── UpdaterBanner.tsx   Auto-update progress banner
+│   │   ├── TrayPinModal.tsx    Tray pin helper dialog
+│   │   ├── AppLoader.tsx       Startup loader and privacy shield
+│   │   ├── WelcomeGreeting.tsx Time-aware greeting with date
+│   │   ├── WelcomeNameModal.tsx First-run name setup
+│   │   ├── FolderIcon.tsx      Folder icons and colors
+│   │   ├── ConfirmDialog.tsx   Reusable confirm/alert dialogs
+│   │   ├── ModalActions.tsx    Shared modal motion and helpers
+│   │   ├── Tooltip.tsx         Custom tooltips
+│   │   ├── ErrorBoundary.tsx   Render crash fallback
+│   │   └── GlobalErrorToast.tsx Global error toast
+│   ├── hooks/
+│   │   └── useInputContextMenu.tsx  Native-like input context menus
+│   ├── utils/
+│   │   ├── notes.ts      Note metadata, preview and thumbnail helpers
+│   │   └── audio.ts      Synthesized Caps Lock sounds
+│   ├── types/            TypeScript interfaces and API bridge types
+│   ├── themes.ts         Theme definitions
+│   ├── fonts.ts          Editor fonts
+│   └── languages.ts      i18n translations (English / Español)
+├── public/
+│   ├── tray-menu.html/.js/.css  Custom tray menu window
+│   └── fonts/            Self-hosted fonts (fully offline)
 └── package.json
 ```
 
@@ -263,6 +290,8 @@ Copyright (C) 2026 CyberGems
 ## ❓ FAQ
 
 For frequently asked questions, troubleshooting guides, and detailed configuration instructions, visit the [FAQ](https://github.com/CyberGems/CyberNotes/wiki/FAQ) or the [online documentation](https://cybergems.org/docs/cybernotes/FAQ).
+
+> Documentation source of truth: the [GitHub Wiki](https://github.com/CyberGems/CyberNotes/wiki) is canonical. The website mirrors it, and `docs/wiki/` is only a local, gitignored copy.
 
 ---
 
