@@ -356,6 +356,32 @@ body:has(.sticky-note-window),
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
+.welcome-greeting-icon {
+  flex: 0 0 auto;
+  color: var(--accent-light);
+  opacity: 0.9;
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+.welcome-greeting-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.welcome-greeting-datetime {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.welcome-greeting-sep {
+  opacity: 0.5;
+}
+
 @keyframes welcomeGreetingIn {
   from {
     opacity: 0;

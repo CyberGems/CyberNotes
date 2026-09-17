@@ -316,7 +316,7 @@ export default function TitleBar({
           style={{
             fontSize: 'calc(11px * var(--ui-scale))',
             fontWeight: 500,
-            maxWidth: 'min(260px, 34vw)',
+            maxWidth: 'min(460px, 46vw)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}
