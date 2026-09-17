@@ -22,7 +22,7 @@ import {
   Palette,
   Eye,
   ExternalLink,
-  X,
+  SquareArrowDownLeft,
   Bold,
   Italic,
   Underline as UnderlineIcon,
@@ -1206,7 +1206,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             </button>
           </Tooltip>
 
-          {/* Close Sticky Note */}
+          {/* Convert back to normal note */}
           <Tooltip label={t.editor.stickyClose} placement="bottom">
             <button
               className="sticky-note-button"
@@ -1223,7 +1223,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                 justifyContent: 'center',
               }}
             >
-              <X size={14} />
+              <SquareArrowDownLeft size={14} />
             </button>
           </Tooltip>
         </div>
