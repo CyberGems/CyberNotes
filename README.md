@@ -35,7 +35,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 | Keep notes private | Local-only SQL.js: no cloud, no accounts, no tracking |
 | Rich editing without bloat | TipTap editor with markdown shortcuts, images, code blocks |
 | Stay organized | Folders with icons & colors, multi-tabs, floating notes, drag & drop |
-| Protect sensitive notes | Master password (bcrypt) with auto-lock and privacy shield |
+| Protect sensitive notes | Master password (bcrypt-hashed access lock, notes stored unencrypted) with auto-lock and privacy shield |
 | Work efficiently | Autosave, session restore, global hotkey, system tray |
 | Make it yours | 6 themes, custom backgrounds, glass effects, UI scaling |
 
@@ -61,7 +61,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Session Restoration**: Remember open tabs, active note, and floating notes between sessions
 
 ### 🔐 Security
-- **Master Password**: Bcrypt-hashed password protection with lock screen
+- **Master Password**: Bcrypt-hashed access lock with lock screen (notes are stored unencrypted on your device)
 - **Auto-Lock**: Configurable inactivity timeout (1 min to 24 hours)
 - **Privacy Shield**: Screen shield when app is hidden or minimized
 - **Caps Lock Manager**: Auto-off after inactivity with visual countdown and sound notifications (5 synthesized presets)

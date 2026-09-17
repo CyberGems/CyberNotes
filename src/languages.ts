@@ -258,7 +258,7 @@ export const TRANSLATIONS = {
       installBtn: 'Instalar y reiniciar',
     },
     security: {
-      passwordDesc: 'La contraseña protege el acceso a la app. Deja los campos vacíos si no quieres contraseña.',
+      passwordDesc: 'La contraseña protege el acceso a la app (bloqueo con hash bcrypt, las notas se guardan sin cifrar). Deja los campos vacíos si no quieres contraseña.',
       placeholderCurrent: 'Contraseña actual (si tienes una)',
       placeholderNew: 'Nueva contraseña',
       placeholderConfirm: 'Confirmar nueva contraseña',
@@ -557,7 +557,7 @@ export const TRANSLATIONS = {
       installBtn: 'Install and restart',
     },
     security: {
-      passwordDesc: 'The password protects access to the app. Leave fields empty if you don\'t want a password.',
+      passwordDesc: 'The password protects access to the app (bcrypt-hashed lock, notes are stored unencrypted). Leave fields empty if you don\'t want a password.',
       placeholderCurrent: 'Current password (if you have one)',
       placeholderNew: 'New password',
       placeholderConfirm: 'Confirm new password',
