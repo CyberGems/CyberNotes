@@ -9,6 +9,8 @@ import TiptapImage from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Note, ThemeId } from '../types';
+import type { StickyColorId } from '../../shared/sticky';
+import { STICKY_BACKGROUNDS } from '../../shared/sticky';
 import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont } from '../fonts';
@@ -45,17 +47,6 @@ interface Props {
   noteId: string;
 }
 
-export type StickyColorId =
-  | 'cyber-yellow'
-  | 'neon-cyan'
-  | 'matrix-green'
-  | 'midnight-purple'
-  | 'cyber-pink'
-  | 'graphite'
-  | 'electric-blue'
-  | 'cyber-orange'
-  | 'acid-lime';
-
 interface StickyColorMeta {
   id: StickyColorId;
   nameKey: keyof typeof TRANSLATIONS.es.editor.stickyColors;
@@ -72,7 +63,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'yellow',
     accent: '#f59e0b',
     accentGlow: 'rgba(245, 158, 11, 0.4)',
-    bgDark: '#1c160c',
+    bgDark: STICKY_BACKGROUNDS['cyber-yellow'],
     border: 'rgba(245, 158, 11, 0.35)',
     headerBg: '#261e0e',
   },
@@ -81,7 +72,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'cyan',
     accent: '#06b6d4',
     accentGlow: 'rgba(6, 182, 212, 0.4)',
-    bgDark: '#0a1820',
+    bgDark: STICKY_BACKGROUNDS['neon-cyan'],
     border: 'rgba(6, 182, 212, 0.35)',
     headerBg: '#0c202a',
   },
@@ -90,7 +81,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'green',
     accent: '#10b981',
     accentGlow: 'rgba(16, 185, 129, 0.4)',
-    bgDark: '#0a1c12',
+    bgDark: STICKY_BACKGROUNDS['matrix-green'],
     border: 'rgba(16, 185, 129, 0.35)',
     headerBg: '#0c2416',
   },
@@ -99,7 +90,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'purple',
     accent: '#a855f7',
     accentGlow: 'rgba(168, 85, 247, 0.4)',
-    bgDark: '#180c22',
+    bgDark: STICKY_BACKGROUNDS['midnight-purple'],
     border: 'rgba(168, 85, 247, 0.35)',
     headerBg: '#20102e',
   },
@@ -108,7 +99,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'pink',
     accent: '#f43f5e',
     accentGlow: 'rgba(244, 63, 94, 0.4)',
-    bgDark: '#1e0c14',
+    bgDark: STICKY_BACKGROUNDS['cyber-pink'],
     border: 'rgba(244, 63, 94, 0.35)',
     headerBg: '#28101a',
   },
@@ -117,7 +108,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'dark',
     accent: '#38bdf8',
     accentGlow: 'rgba(56, 189, 248, 0.3)',
-    bgDark: '#121218',
+    bgDark: STICKY_BACKGROUNDS.graphite,
     border: 'rgba(255, 255, 255, 0.14)',
     headerBg: '#181820',
   },
@@ -126,7 +117,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'blue',
     accent: '#3b82f6',
     accentGlow: 'rgba(59, 130, 246, 0.4)',
-    bgDark: '#0a1226',
+    bgDark: STICKY_BACKGROUNDS['electric-blue'],
     border: 'rgba(59, 130, 246, 0.35)',
     headerBg: '#0e1a36',
   },
@@ -135,7 +126,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'orange',
     accent: '#f97316',
     accentGlow: 'rgba(249, 115, 22, 0.4)',
-    bgDark: '#24120a',
+    bgDark: STICKY_BACKGROUNDS['cyber-orange'],
     border: 'rgba(249, 115, 22, 0.35)',
     headerBg: '#34180c',
   },
@@ -144,7 +135,7 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     nameKey: 'lime',
     accent: '#a3e635',
     accentGlow: 'rgba(163, 230, 53, 0.4)',
-    bgDark: '#141e0a',
+    bgDark: STICKY_BACKGROUNDS['acid-lime'],
     border: 'rgba(163, 230, 53, 0.35)',
     headerBg: '#1c2a0c',
   },

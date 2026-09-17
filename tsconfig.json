@@ -20,6 +20,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "electron"],
+  "include": ["src", "electron", "shared"],
   "exclude": ["node_modules"]
 }

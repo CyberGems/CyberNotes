@@ -1,4 +1,5 @@
 import { Note } from '../types';
+import { extractThumbFromContent } from '../../shared/notes';
 
 /** Copia meta para listas: sin content HTML (ahorra memoria y re-renders pesados). */
 export function toNoteMeta(note: Note): Note {
@@ -18,29 +19,7 @@ export function toNoteMeta(note: Note): Note {
 
 /** Extrae la URL de la primera imagen del HTML/JSON TipTap (al guardar). */
 export function extractThumb(content: string | null | undefined): string {
-  if (!content || typeof content !== 'string') return '';
-
-  if (content.trim().startsWith('{')) {
-    try {
-      const doc = JSON.parse(content);
-      let foundSrc = '';
-      const walk = (node: any) => {
-        if (foundSrc) return;
-        if (node.type === 'image' && node.attrs?.src) {
-          foundSrc = node.attrs.src;
-          return;
-        }
-        if (Array.isArray(node.content)) node.content.forEach(walk);
-      };
-      if (Array.isArray(doc.content)) doc.content.forEach(walk);
-      if (foundSrc) return foundSrc;
-    } catch {
-      /* fallback HTML */
-    }
-  }
-
-  const match = content.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
-  return match?.[1] || '';
+  return extractThumbFromContent(content);
 }
 
 export function extractPreview(html: string): string {

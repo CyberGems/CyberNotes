@@ -6,6 +6,9 @@ import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
 import { initUpdater, setAutoUpdate, setCanInstallChecker } from './updater';
+import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId } from '../shared/sticky';
+import { extractThumbFromContent } from '../shared/notes';
+import { isSpanish } from '../shared/lang';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -223,7 +226,7 @@ async function initDatabase() {
 function seedInitialDemoContent() {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const sysLocale = app.getLocale() || '';
-  const isEs = langVal?.value === 'es' || (!langVal && sysLocale.toLowerCase().startsWith('es'));
+  const isEs = isSpanish(langVal?.value) || (!langVal && isSpanish(sysLocale));
 
   const now = new Date().toISOString();
 
@@ -326,33 +329,6 @@ console.log('Welcome to CyberNotes!', note);</code></pre><p>Enjoy writing with t
   // 6. Abrir pestañas iniciales y seleccionar la nota principal
   runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['open_note_ids', JSON.stringify([welcomeId, suiteId])]);
   runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['last_note_id', welcomeId]);
-}
-
-/** Extrae la primera imagen del content (HTML o JSON TipTap) en el main process. */
-function extractThumbFromContent(content: string | null | undefined): string {
-  if (!content || typeof content !== 'string') return '';
-
-  if (content.trim().startsWith('{')) {
-    try {
-      const doc = JSON.parse(content);
-      let foundSrc = '';
-      const walk = (node: any) => {
-        if (foundSrc) return;
-        if (node?.type === 'image' && node.attrs?.src) {
-          foundSrc = String(node.attrs.src);
-          return;
-        }
-        if (Array.isArray(node?.content)) node.content.forEach(walk);
-      };
-      if (Array.isArray(doc?.content)) doc.content.forEach(walk);
-      if (foundSrc) return foundSrc;
-    } catch {
-      /* fallback HTML */
-    }
-  }
-
-  const match = content.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
-  return match?.[1] || '';
 }
 
 /** Backfill de thumb sin re-guardar cada nota en el editor. */
@@ -601,18 +577,6 @@ const STICKY_MIN_WIDTH = 240;
 const STICKY_MIN_HEIGHT = 200;
 const STICKY_MAX_WIDTH = 720;
 const STICKY_MAX_HEIGHT = 640;
-const STICKY_WINDOW_BACKGROUNDS: Record<string, string> = {
-  'cyber-yellow': '#1c160c',
-  'neon-cyan': '#0a1820',
-  'matrix-green': '#0a1c12',
-  'midnight-purple': '#180c22',
-  'cyber-pink': '#1e0c14',
-  graphite: '#121218',
-  'electric-blue': '#0a1226',
-  'cyber-orange': '#24120a',
-  'acid-lime': '#141e0a',
-};
-
 function readNumericSetting(value: unknown, fallback: number): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -635,7 +599,7 @@ function clampStickyWindowOpacity(value: number): number {
 function applyStickyWindowChrome(win: BrowserWindow, color?: string, opacity?: number): void {
   if (win.isDestroyed()) return;
   if (color) {
-    win.setBackgroundColor(STICKY_WINDOW_BACKGROUNDS[color] || STICKY_WINDOW_BACKGROUNDS['cyber-yellow']);
+    win.setBackgroundColor(STICKY_BACKGROUNDS[asStickyColorId(color)]);
   }
   if (typeof opacity === 'number' && Number.isFinite(opacity)) {
     win.setOpacity(clampStickyWindowOpacity(opacity));
@@ -776,7 +740,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     minHeight: STICKY_MIN_HEIGHT,
     frame: false,
     transparent: false,
-    backgroundColor: STICKY_WINDOW_BACKGROUNDS[stickyConfig.color] || STICKY_WINDOW_BACKGROUNDS['cyber-yellow'],
+    backgroundColor: STICKY_BACKGROUNDS[asStickyColorId(stickyConfig.color)],
     hasShadow: false,
     roundedCorners: false,
     maximizable: false,
@@ -1017,7 +981,7 @@ function toggleAllStickyNotes(forceShow?: boolean): boolean {
 
 function createAndOpenStickyNote(centerOnMainWindow = false): string {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
-  const isEs = langVal?.value === 'es';
+  const isEs = isSpanish(langVal?.value);
   const newId = uuidv4();
   const now = new Date().toISOString();
   const defaultTitle = isEs ? 'Nota flotante' : 'Floating note';
@@ -1027,8 +991,7 @@ function createAndOpenStickyNote(centerOnMainWindow = false): string {
     [newId, null, defaultTitle, '', '', '', 0, now, now]
   );
 
-  const colorIds = Object.keys(STICKY_WINDOW_BACKGROUNDS);
-  const randomColor = colorIds[Math.floor(Math.random() * colorIds.length)] || 'cyber-yellow';
+  const randomColor = STICKY_COLOR_IDS[Math.floor(Math.random() * STICKY_COLOR_IDS.length)] || 'cyber-yellow';
   runQuery(
     `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open)
      VALUES (?, ?, 0.9, 1, 1)`,
@@ -1094,7 +1057,7 @@ function getActiveToggleHotkey(): string {
 function buildTrayMenuState() {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const lang = langVal?.value || 'en';
-  const isEs = lang === 'es';
+  const isEs = isSpanish(lang);
   const visible = isWindowShown();
   const activeHotkey = getActiveToggleHotkey();
   const hasPwd = hasPasswordHash();
