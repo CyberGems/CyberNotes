@@ -105,6 +105,11 @@ declare global {
       // Import / Export
       exportData: () => Promise<boolean>;
       importData: () => Promise<boolean>;
+      // Automatic backups
+      backupNow: () => Promise<{ ok: boolean; file?: string }>;
+      listBackups: () => Promise<Array<{ file: string; size: number; mtime: string }>>;
+      openBackupsFolder: () => Promise<void>;
+      onBackupCompleted: (callback: (info: { at: string; file: string }) => void) => () => void;
       exportNotePdf: (title: string, html: string) => Promise<boolean>;
       printDocument: (title: string, html: string) => Promise<boolean>;
       // Updates / About

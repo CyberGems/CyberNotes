@@ -136,6 +136,16 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Import / Export --
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),
+
+  // -- Automatic backups --
+  backupNow: () => ipcRenderer.invoke('backup:now'),
+  listBackups: () => ipcRenderer.invoke('backup:list'),
+  openBackupsFolder: () => ipcRenderer.invoke('backup:openFolder'),
+  onBackupCompleted: (callback: (info: { at: string; file: string }) => void) => {
+    const listener = (_e: any, info: any) => callback(info);
+    ipcRenderer.on('backup:completed', listener);
+    return () => ipcRenderer.removeListener('backup:completed', listener);
+  },
   exportNotePdf: (title: string, html: string) => ipcRenderer.invoke('document:export-pdf', { title, html }),
   printDocument: (title: string, html: string) => ipcRenderer.invoke('document:print', { title, html }),
 

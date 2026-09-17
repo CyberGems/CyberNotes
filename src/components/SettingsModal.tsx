@@ -158,6 +158,11 @@ export default function SettingsModal({
   const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
   const [stickyLockAction, setStickyLockAction] = useState<'hide' | 'shield'>('hide');
   const [dismissedConfirmationCount, setDismissedConfirmationCount] = useState(0);
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
+  const [autoBackupHours, setAutoBackupHours] = useState('24');
+  const [autoBackupKeep, setAutoBackupKeep] = useState('7');
+  const [autoBackupLast, setAutoBackupLast] = useState<string | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
   const hotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
@@ -185,6 +190,59 @@ export default function SettingsModal({
     setHasSavedChanges(true);
   };
 
+  const handleToggleAutoBackup = async (val: boolean) => {
+    setAutoBackupEnabled(val);
+    await window.cyberNotesAPI.setSetting('auto_backup_enabled', val ? 'true' : 'false');
+  };
+
+  const handleAutoBackupHours = async (val: string) => {
+    setAutoBackupHours(val);
+    await window.cyberNotesAPI.setSetting('auto_backup_hours', val);
+  };
+
+  const handleAutoBackupKeep = async (val: string) => {
+    setAutoBackupKeep(val);
+    await window.cyberNotesAPI.setSetting('auto_backup_keep', val);
+  };
+
+  const handleBackupNow = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const res = await window.cyberNotesAPI.backupNow();
+      if (res?.ok) {
+        await showDialog({
+          variant: 'success',
+          title: language === 'es' ? 'Respaldo completado' : 'Backup complete',
+          message: language === 'es'
+            ? `Copia guardada como ${res.file || 'respaldo.db'}.`
+            : `Backup saved as ${res.file || 'backup.db'}.`,
+        });
+      } else {
+        await showDialog({
+          variant: 'warning',
+          title: language === 'es' ? 'Respaldo fallido' : 'Backup failed',
+          message: language === 'es'
+            ? 'No se pudo crear la copia. Revisa el registro para más detalles.'
+            : 'Could not create the backup. Check the log for details.',
+        });
+      }
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const formatBackupDate = (iso: string | null): string => {
+    if (!iso) return language === 'es' ? 'Nunca' : 'Never';
+    try {
+      return new Intl.DateTimeFormat(language === 'es' ? 'es-ES' : 'en-US', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      }).format(new Date(iso));
+    } catch {
+      return iso;
+    }
+  };
+
   // Diálogo personalizado (reemplaza alert/confirm nativos)
   const [dialog, setDialog] = useState<DialogOptions | null>(null);
   const dialogResolver = useRef<((accepted: boolean) => void) | null>(null);
@@ -205,6 +263,13 @@ export default function SettingsModal({
   useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    const offBackup = window.cyberNotesAPI.onBackupCompleted?.((info) => {
+      setAutoBackupLast(info.at);
+    });
+    return () => { offBackup?.(); };
+  }, []);
 
   useEffect(() => {
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
@@ -243,6 +308,14 @@ export default function SettingsModal({
       setDismissedConfirmationCount(
         DISMISSIBLE_CONFIRMATION_KEYS.filter((key) => dismissedConfirmations[key] === 'true').length
       );
+
+      const backupSettings = await window.cyberNotesAPI.getSettings([
+        'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'auto_backup_last',
+      ]);
+      setAutoBackupEnabled(backupSettings.auto_backup_enabled !== 'false');
+      if (backupSettings.auto_backup_hours) setAutoBackupHours(backupSettings.auto_backup_hours);
+      if (backupSettings.auto_backup_keep) setAutoBackupKeep(backupSettings.auto_backup_keep);
+      setAutoBackupLast(backupSettings.auto_backup_last);
 
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
@@ -1598,7 +1671,148 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              {/* Card 2: Almacenamiento Local */}
+              {/* Card 2: Respaldo automático programado */}
+              <div className="settings-card">
+                <SettingsHeading icon={<Archive />}>
+                  {language === 'es' ? 'Respaldo automático' : 'Automatic backup'}
+                </SettingsHeading>
+                <p className="setting-desc" style={{ marginBottom: 16 }}>
+                  {language === 'es'
+                    ? 'Copia la base de datos a una carpeta local cada cierto tiempo y conserva las copias más recientes.'
+                    : 'Copies the database to a local folder on a schedule and keeps the most recent copies.'}
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
+                  }} onClick={() => handleToggleAutoBackup(!autoBackupEnabled)}>
+                    <SettingsOptionCopy icon={<Archive />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Respaldo programado' : 'Scheduled backup'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es' ? 'Crear copias automáticamente en segundo plano' : 'Create copies automatically in the background'}
+                      </span>
+                    </SettingsOptionCopy>
+                    <div className={`custom-switch ${autoBackupEnabled ? 'active' : ''}`} />
+                  </label>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Clock3 size={18} /></div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Frecuencia' : 'Frequency'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es' ? 'Cada cuánto se crea una copia' : 'How often a copy is created'}
+                      </span>
+                    </div>
+                    <select
+                      value={autoBackupHours}
+                      onChange={(e) => handleAutoBackupHours(e.target.value)}
+                      className="input"
+                      disabled={!autoBackupEnabled}
+                      style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                    >
+                      <option value="6">{language === 'es' ? 'Cada 6 horas' : 'Every 6 hours'}</option>
+                      <option value="12">{language === 'es' ? 'Cada 12 horas' : 'Every 12 hours'}</option>
+                      <option value="24">{language === 'es' ? 'Cada día' : 'Every day'}</option>
+                      <option value="168">{language === 'es' ? 'Cada semana' : 'Every week'}</option>
+                    </select>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Database size={18} /></div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {language === 'es' ? 'Copias conservadas' : 'Copies kept'}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {language === 'es' ? 'Las más antiguas se eliminan solas' : 'Oldest ones are deleted automatically'}
+                      </span>
+                    </div>
+                    <select
+                      value={autoBackupKeep}
+                      onChange={(e) => handleAutoBackupKeep(e.target.value)}
+                      className="input"
+                      disabled={!autoBackupEnabled}
+                      style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                    >
+                      <option value="3">3</option>
+                      <option value="5">5</option>
+                      <option value="7">7</option>
+                      <option value="14">14</option>
+                      <option value="30">30</option>
+                    </select>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                      <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {language === 'es' ? 'Último respaldo' : 'Last backup'}
+                      </span>
+                      <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
+                        {formatBackupDate(autoBackupLast)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => window.cyberNotesAPI.openBackupsFolder()}
+                        style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', padding: '8px 14px' }}
+                      >
+                        <FolderOpen size={15} />
+                        {language === 'es' ? 'Carpeta' : 'Folder'}
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={handleBackupNow}
+                        disabled={backupBusy}
+                        style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', padding: '8px 14px', color: 'var(--warning)' }}
+                      >
+                        <Upload size={15} />
+                        {backupBusy
+                          ? (language === 'es' ? 'Respaldando...' : 'Backing up...')
+                          : (language === 'es' ? 'Respaldar ahora' : 'Back up now')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Almacenamiento Local */}
               <div className="settings-card">
                 <SettingsHeading icon={<HardDrive />}>
                   {language === 'es' ? 'Almacenamiento Local' : 'Local Storage'}
@@ -1640,7 +1854,7 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              {/* Card 3: Restablecer Ajustes de Fábrica */}
+              {/* Card 4: Restablecer Ajustes de Fábrica */}
               <div className="settings-card">
                 <SettingsHeading icon={<RotateCcw />} tone="danger">
                   {language === 'es' ? 'Restablecer Ajustes' : 'Reset Settings'}

@@ -10,6 +10,7 @@ import { initLogger, writeLog, logRendererError } from './logger';
 import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
+import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -75,6 +76,7 @@ const bcrypt = require('bcryptjs');
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
 const imagesPath = path.join(userDataPath, 'images');
+const backupsDir = path.join(userDataPath, 'backups');
 initLogger(userDataPath);
 
 // ─── uuid ─────────────────────────────────────────────────────────────────
@@ -487,6 +489,71 @@ function startIdleLockWatcher(): void {
     if (!idleExceeded()) return;
     requestRendererLock();
   }, 5_000);
+}
+
+// ─── Respaldo automatico programado ─────────────────────────────────────
+// Copia cybernotes.db a userData/backups cada N horas y conserva las M
+// mas recientes. Activado por defecto: un backup que no existe no protege.
+let autoBackupTimer: ReturnType<typeof setInterval> | null = null;
+let autoBackupRunning = false;
+
+function getAutoBackupConfig(): { enabled: boolean; hours: number; keep: number } {
+  const enabledRow = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_backup_enabled']);
+  const hoursRow = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_backup_hours']);
+  const keepRow = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_backup_keep']);
+  return {
+    enabled: enabledRow ? enabledRow.value === 'true' : true,
+    hours: parseBackupHours(hoursRow?.value),
+    keep: parseBackupKeep(keepRow?.value),
+  };
+}
+
+function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): { ok: boolean; file?: string } {
+  if (autoBackupRunning) return { ok: false };
+  autoBackupRunning = true;
+  try {
+    flushDbNow();
+    if (!fs.existsSync(dbPath)) return { ok: false };
+    fs.mkdirSync(backupsDir, { recursive: true });
+    const file = backupFileName(new Date());
+    fs.copyFileSync(dbPath, path.join(backupsDir, file));
+
+    const keep = getAutoBackupConfig().keep;
+    const files = fs.readdirSync(backupsDir);
+    for (const old of selectBackupsToPrune(files, keep)) {
+      try {
+        fs.unlinkSync(path.join(backupsDir, old));
+      } catch {
+        /* conserva las demas */
+      }
+    }
+
+    const now = new Date().toISOString();
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auto_backup_last', now]);
+    writeLog('info', `Auto backup (${reason}) saved as ${file}`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('backup:completed', { at: now, file });
+    }
+    return { ok: true, file };
+  } catch (err) {
+    writeLog('error', `Auto backup (${reason}) failed: ${err instanceof Error ? err.message : String(err)}`);
+    return { ok: false };
+  } finally {
+    autoBackupRunning = false;
+  }
+}
+
+function startAutoBackupWatcher(): void {
+  if (autoBackupTimer) clearInterval(autoBackupTimer);
+  const check = (reason: 'schedule' | 'startup') => {
+    const cfg = getAutoBackupConfig();
+    if (!cfg.enabled) return;
+    const last = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_backup_last'])?.value || null;
+    if (isBackupDue(last, Date.now(), cfg.hours)) runAutoBackup(reason);
+  };
+  // Primera revision tras el arranque: cubre equipos que estuvieron apagados.
+  setTimeout(() => check('startup'), 30_000);
+  autoBackupTimer = setInterval(() => check('schedule'), 60_000);
 }
 let hasUnsavedChanges = false;
 let capsLockWorker: any = null;
@@ -1951,6 +2018,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'note_list_collapsed_groups', 'note_list_floating_group_ready',
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
+  'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
 ]);
 
 const SETTINGS_RESERVED_KEYS: ReadonlySet<string> = new Set([
@@ -1988,6 +2056,7 @@ ipcMain.handle('settings:reset', () => {
     runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hashRow.value]);
   }
   registerToggleHotkey();
+  startAutoBackupWatcher();
   updateTrayMenu();
   return true;
 });
@@ -2021,6 +2090,9 @@ ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   }
   if (key === 'auto_check_updates') {
     setAutoUpdate(value === 'true');
+  }
+  if (key === 'auto_backup_enabled' || key === 'auto_backup_hours' || key === 'auto_backup_keep') {
+    startAutoBackupWatcher();
   }
   return true;
 });
@@ -2558,6 +2630,40 @@ ipcMain.handle('data:import', async () => {
   }
 });
 
+// -- Respaldo automatico: control manual y consulta --
+ipcMain.handle('backup:now', () => runAutoBackup('manual'));
+
+ipcMain.handle('backup:list', () => {
+  try {
+    if (!fs.existsSync(backupsDir)) return [];
+    return fs
+      .readdirSync(backupsDir)
+      .filter(isBackupFile)
+      .sort()
+      .reverse()
+      .map((file) => {
+        try {
+          const stat = fs.statSync(path.join(backupsDir, file));
+          return { file, size: stat.size, mtime: stat.mtime.toISOString() };
+        } catch {
+          return null;
+        }
+      })
+      .filter((entry): entry is { file: string; size: number; mtime: string } => entry !== null);
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle('backup:openFolder', () => {
+  try {
+    fs.mkdirSync(backupsDir, { recursive: true });
+  } catch {
+    /* openPath informa el error */
+  }
+  return shell.openPath(backupsDir);
+});
+
 // ─── App lifecycle ─────────────────────────────────────────────────────────
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -2578,6 +2684,7 @@ if (!gotTheLock) {
     sessionLocked = hasPasswordHash();
     lastActivityAt = Date.now();
     startIdleLockWatcher();
+    startAutoBackupWatcher();
     createWindow();
     createTray();
     registerToggleHotkey();
@@ -2624,6 +2731,10 @@ if (!gotTheLock) {
     if (idleLockInterval) {
       clearInterval(idleLockInterval);
       idleLockInterval = null;
+    }
+    if (autoBackupTimer) {
+      clearInterval(autoBackupTimer);
+      autoBackupTimer = null;
     }
     stopCapsLockWorker();
     flushDbNow();
