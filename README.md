@@ -5,7 +5,7 @@
 <h1 align="center">CyberNotes: Secure Note-Taking</h1>
 
 <p align="center">
-  <strong>Premium, privacy-focused note-taking</strong>: high-performance Electron + React + SQL.js with a stunning Cyber aesthetic. Your data stays 100% local.
+  <strong>A privacy-focused note-taking app with rich text, folders, tabs, and floating notes</strong>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   <a href="https://github.com/CyberGems/CyberNotes/wiki"><img src="https://img.shields.io/badge/%F0%9F%93%96_Wiki-Documentation-222222?style=flat-square&logo=github&logoColor=white" alt="Wiki" height="24" /></a>
 </p>
 
-A modern, privacy-focused desktop note-taking application with a modern neon aesthetic. Built with **Electron + React + TypeScript**, it stores all data locally using **SQL.js (SQLite WASM)**: your notes never leave your device.
+A modern, privacy-focused desktop note-taking application with rich text, folders, tabs, and floating notes. Built with **Electron + React + TypeScript**, it stores all data locally using **SQL.js (SQLite WASM)**: your notes never leave your device.
 
 *Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
 
@@ -32,9 +32,9 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 
 | Need | Solution |
 |---|---|
-| Keep notes private | Local-only SQL.js — no cloud, no accounts, no tracking |
+| Keep notes private | Local-only SQL.js: no cloud, no accounts, no tracking |
 | Rich editing without bloat | TipTap editor with markdown shortcuts, images, code blocks |
-| Stay organized | Folders with icons & colors, favorites, multi-tabs, drag & drop |
+| Stay organized | Folders with icons & colors, multi-tabs, floating notes, drag & drop |
 | Protect sensitive notes | Master password (bcrypt) with auto-lock and privacy shield |
 | Work efficiently | Autosave, session restore, global hotkey, system tray |
 | Make it yours | 6 themes, custom backgrounds, glass effects, UI scaling |
@@ -44,48 +44,49 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 ## ✨ Key Features
 
 ### ✍️ Rich Text Editing
-- **TipTap Editor** — bold, italic, underline, strikethrough, headings (H1–H3), bullet/ordered lists, code blocks, blockquotes, horizontal rules, text highlighting
-- **Links & Images** — auto-link detection, image insertion with size and alignment controls, local thumbnail previews
-- **Markdown Shortcuts** — type `##`, `>`, `-`, `` ``` `` for instant formatting
-- **Document Tools** — line/column counter, word/character count, reading time, document minimap, line numbers
-- **Save Options** — autosave as you type, manual save with draft protection, confirm on close/navigation
+- **TipTap Editor**: Bold, italic, underline, strikethrough, headings (H1–H3), bullet/ordered lists, code blocks, blockquotes, horizontal rules, text highlighting
+- **Links & Images**: Auto-link detection, image insertion with size and alignment controls, local thumbnail previews
+- **Markdown Shortcuts**: Type `##`, `>`, `-`, `` ``` `` for instant formatting
+- **Document Tools**: Line/column counter, word/character count, reading time, document minimap, line numbers
+- **Save Options**: Autosave as you type, manual save with draft protection, confirm on close/navigation
 
 ### 📁 Organization
-- **Folders** — custom names, 20 icon options, 20 unique colors (enforced uniqueness)
-- **Multi-Tab Interface** — work with multiple notes simultaneously
-- **Favorites & Pinning** — pin important notes for quick access
-- **Drag & Drop** — move notes between folders effortlessly
-- **Instant Search** — full-text search across titles, previews, and content
-- **Recent Notes** — track edited, opened, and created notes with history
-- **Session Restoration** — remember open tabs and active note between sessions
+- **Folders**: Custom names, 20 icon options, 20 unique colors (enforced uniqueness)
+- **Floating Notes**: Detach notes as always-on-top desktop sticky widgets
+- **Multi-Tab Interface**: Work with multiple notes simultaneously
+- **Favorites & Pinning**: Pin important notes for quick access
+- **Drag & Drop**: Move notes between folders effortlessly
+- **Instant Search**: Full-text search across titles, previews, and content
+- **Recent Notes**: Track edited, opened, and created notes with history
+- **Session Restoration**: Remember open tabs, active note, and floating notes between sessions
 
 ### 🔐 Security
-- **Master Password** — bcrypt-hashed password protection with lock screen
-- **Auto-Lock** — configurable inactivity timeout (1 min to 24 hours)
-- **Privacy Shield** — screen shield when app is hidden or minimized
-- **Caps Lock Manager** — auto-off after inactivity with visual countdown and sound notifications (5 synthesized presets)
+- **Master Password**: Bcrypt-hashed password protection with lock screen
+- **Auto-Lock**: Configurable inactivity timeout (1 min to 24 hours)
+- **Privacy Shield**: Screen shield when app is hidden or minimized
+- **Caps Lock Manager**: Auto-off after inactivity with visual countdown and sound notifications (5 synthesized presets)
 
 ### 🎨 Customization
-- **6 Visual Themes** — Cyber Dark, Midnight, Forest, Cyber Neon, Light, Graphite
-- **Color Intensity** — adjustable 0–100% for colorful themes
-- **Custom Background** — set your own wallpaper image
-- **Glass Effects** — configurable blur intensity (0–40px) and overlay opacity (0–95%)
-- **UI Scaling** — adjust interface size to your preference
-- **Tab Width** — normal or wide, minimap toggle, density controls
+- **6 Visual Themes**: Cyber Dark, Midnight, Forest, Cyber Neon, Light, Graphite
+- **Color Intensity**: Adjustable 0–100% for colorful themes
+- **Custom Background**: Set your own wallpaper image
+- **Glass Effects**: Configurable blur intensity (0–40px) and overlay opacity (0–95%)
+- **UI Scaling**: Adjust interface size to your preference
+- **Tab Width**: Normal or wide, minimap toggle, density controls
 
 ### 🖥️ Desktop Integration
-- **System Tray** — minimize/close to tray, custom DPI-aware tray menu
-- **Global Hotkey** — show/hide with customizable shortcut (default: `Alt+Shift+N`)
-- **Auto-Start** — launch minimized with Windows
-- **Single Instance** — second launches focus the existing window
-- **Spell Check** — bilingual (English/Spanish) with right-click suggestions
-- **Context Menu** — formatting, spell suggestions, link/image controls
+- **System Tray**: Minimize/close to tray, custom DPI-aware tray menu
+- **Global Hotkey**: Show/hide with customizable shortcut (default: `Alt+Shift+N`)
+- **Auto-Start**: Launch minimized with Windows
+- **Single Instance**: Second launches focus the existing window
+- **Spell Check**: Bilingual (English/Spanish) with right-click suggestions
+- **Context Menu**: Formatting, spell suggestions, link/image controls
 
 ### 🔄 Updates & Data
-- **Auto-Updates** — background check on launch + every 6h, progress bar, auto-download and restart
-- **Export** — Markdown, HTML (styled), or full JSON backup
-- **Import** — restore from JSON backup (with automatic safety backup)
-- **Bilingual UI** — full English / Español with instant switching
+- **Auto-Updates**: Background check on launch + every 6h, progress bar, auto-download and restart
+- **Export**: Markdown, HTML (styled), or full JSON backup
+- **Import**: Restore from JSON backup (with automatic safety backup)
+- **Bilingual UI**: Full English / Español with instant switching
 
 ---
 
@@ -216,7 +217,7 @@ If you’d like to support future updates, I’d truly appreciate it. Your donat
 <div align="center">
 
 <details>
-<summary><b>Crypto donations (BTC, ETH, USDT, LTC) — click to view addresses</b></summary>
+<summary><b>Crypto donations (BTC, ETH, USDT, LTC): click to view addresses</b></summary>
 
 | Asset | Address | QR |
 |---|---|---|
