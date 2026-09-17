@@ -1641,10 +1641,11 @@ function createWindow() {
     }
   });
 
-  // Interceptar links para abrir en el navegador por defecto
+  // Interceptar links para abrir en el navegador por defecto.
+  // Misma validacion estricta que shell:openExternal (solo http/https).
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http')) {
-      shell.openExternal(url);
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
     }
     return { action: 'deny' };
   });
@@ -1727,18 +1728,36 @@ ipcMain.handle('window-close', () => mainWindow?.close());
 ipcMain.handle('window:unsavedChanges:set', (_e: any, val: boolean) => {
   hasUnsavedChanges = val;
 });
-ipcMain.handle('open-dev-tools', () => mainWindow?.webContents.openDevTools({ mode: 'detach' }));
+/** URLs que el renderer puede pedir abrir en el navegador (solo http/https). */
+function isSafeExternalUrl(url: unknown): url is string {
+  return typeof url === 'string' && /^https?:\/\/[^\\s]+$/i.test(url);
+}
+
+/** DevTools solo en desarrollo o con flag --debug: un renderer comprometido no debe abrirlas en prod. */
+ipcMain.handle('open-dev-tools', () => {
+  if (!isDev && !process.argv.includes('--debug')) return false;
+  mainWindow?.webContents.openDevTools({ mode: 'detach' });
+  return true;
+});
 ipcMain.handle('open-data-folder', () => shell.openPath(userDataPath));
 ipcMain.handle('replace-misspelling', (_e: any, word: string) => mainWindow?.webContents.replaceMisspelling(word));
 ipcMain.handle('add-to-dictionary', (_e: any, word: string) => {
-  session.defaultSession.addWordToSpellCheckerDictionary(word);
+  if (typeof word !== 'string') return false;
+  const clean = word.trim().slice(0, 100);
+  if (!clean) return false;
+  session.defaultSession.addWordToSpellCheckerDictionary(clean);
+  return true;
 });
+/** Limites para imagenes copiadas al portapapeles desde el renderer. */
+const CLIPBOARD_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const CLIPBOARD_DATA_URL_MAX_CHARS = 15 * 1024 * 1024;
 ipcMain.handle('clipboard:writeImage', async (_e: any, url: string) => {
   try {
     if (!url || typeof url !== 'string') return false;
     let img = nativeImage.createEmpty();
 
     if (url.startsWith('data:')) {
+      if (url.length > CLIPBOARD_DATA_URL_MAX_CHARS) return false;
       img = nativeImage.createFromDataURL(url);
     } else if (url.startsWith('file:')) {
       let filePath: string;
@@ -1750,9 +1769,12 @@ ipcMain.handle('clipboard:writeImage', async (_e: any, url: string) => {
       if (!fs.existsSync(filePath)) return false;
       img = nativeImage.createFromPath(filePath);
     } else {
+      // Solo http/https remotos: sin file:, sin protocolos exoticos, con tope de tamano.
+      if (!isSafeExternalUrl(url)) return false;
       const response = await net.fetch(url);
       if (!response.ok) return false;
       const buf = Buffer.from(await response.arrayBuffer());
+      if (buf.length > CLIPBOARD_IMAGE_MAX_BYTES) return false;
       img = nativeImage.createFromBuffer(buf);
     }
 
@@ -1829,7 +1851,7 @@ ipcMain.handle('app:getUserName', () => {
 });
 
 ipcMain.handle('shell:openExternal', (_e: any, url: string) => {
-  if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+  if (isSafeExternalUrl(url)) {
     return shell.openExternal(url);
   }
   return false;
