@@ -156,6 +156,7 @@ npm run build:electron
 | `npm run build:electron` | Full build: TypeScript → Vite → electron-builder installer |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run TypeScript type-checking without emitting files |
+| `npm test` | Run unit tests with Vitest |
 
 ### Distribution
 
