@@ -42,6 +42,7 @@ import {
   Blend,
   Lock,
   GripVertical,
+  Minus,
 } from 'lucide-react';
 
 interface Props {
@@ -294,6 +295,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [language, setLanguage] = useState<Language>('es');
   const [color, setColor] = useState<StickyColorId>('cyber-yellow');
   const [opacity, setOpacity] = useState<number>(DEFAULT_STICKY_OPACITY);
+  const [zoom, setZoom] = useState<number>(1);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showOpacityPicker, setShowOpacityPicker] = useState(false);
@@ -309,6 +311,9 @@ export default function StickyNoteApp({ noteId }: Props) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pasteNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const zoomPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorScrollRef = useRef<HTMLDivElement | null>(null);
+  const zoomRef = useRef(1);
   const editorContentRef = useRef<string>('');
   const noteRef = useRef<Note | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
@@ -317,6 +322,36 @@ export default function StickyNoteApp({ noteId }: Props) {
   const t = TRANSLATIONS[language];
   const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
   const previewOpacity = hoveredOpacity ?? opacity;
+
+  /** Mismo rango que la escala del editor principal (0.8–1.5). */
+  const clampZoom = (value: number): number => {
+    if (!Number.isFinite(value)) return 1;
+    return Math.min(1.5, Math.max(0.8, Math.round(value * 100) / 100));
+  };
+
+  const applyZoom = useCallback((next: number) => {
+    const clamped = clampZoom(next);
+    zoomRef.current = clamped;
+    setZoom(clamped);
+    if (zoomPersistTimerRef.current) clearTimeout(zoomPersistTimerRef.current);
+    zoomPersistTimerRef.current = setTimeout(() => {
+      zoomPersistTimerRef.current = null;
+      void window.cyberNotesAPI.saveStickyConfig(noteId, { zoom: clamped });
+    }, 400);
+  }, [noteId]);
+
+  // Ctrl+rueda sobre el contenido: zoom (rueda abajo = aumentar, convención de la suite).
+  useEffect(() => {
+    const el = editorScrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      applyZoom(zoomRef.current + (e.deltaY > 0 ? 0.05 : -0.05));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [applyZoom]);
 
   const showPasteNotice = useCallback((notice: 'too-large' | 'failed') => {
     setPasteNotice(notice);
@@ -403,6 +438,11 @@ export default function StickyNoteApp({ noteId }: Props) {
           if (typeof stickyConfig.pinned_top === 'boolean') {
             setIsAlwaysOnTop(stickyConfig.pinned_top);
           }
+          if (typeof stickyConfig.zoom === 'number' && Number.isFinite(stickyConfig.zoom)) {
+            const initial = clampZoom(stickyConfig.zoom);
+            zoomRef.current = initial;
+            setZoom(initial);
+          }
         }
 
         const fetched = await window.cyberNotesAPI.getNoteById(noteId);
@@ -442,6 +482,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       document.body.classList.remove('sticky-is-dragging');
       if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
       if (attentionTimerRef.current) clearTimeout(attentionTimerRef.current);
+      if (zoomPersistTimerRef.current) clearTimeout(zoomPersistTimerRef.current);
     };
   }, []);
 
@@ -1188,6 +1229,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
       {/* ── Editor Body ── */}
       <div
+        ref={editorScrollRef}
         onMouseDown={handleEditorBodyMouseDown}
         onMouseDownCapture={handleEditorMouseDownCapture}
         onContextMenu={handleEditorContextMenu}
@@ -1196,7 +1238,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           overflowY: 'auto',
           padding: '10px 10px',
           userSelect: 'text',
-          fontSize: 13.5,
+          fontSize: 13.5 * zoom,
           lineHeight: 1.55,
           color: '#f1f5f9',
           outline: 'none',
@@ -1412,6 +1454,44 @@ export default function StickyNoteApp({ noteId }: Props) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
+            <StickyFooterBtn
+              label={t.editor.stickyZoomOut}
+              onClick={() => applyZoom(zoom - 0.1)}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
+            >
+              <Minus size={12} />
+            </StickyFooterBtn>
+            <Tooltip label={t.editor.stickyZoomReset} placement="top" delay={STICKY_FOOTER_TIP_DELAY}>
+              <button
+                type="button"
+                onClick={() => applyZoom(1.0)}
+                aria-label={t.editor.stickyZoomReset}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'rgba(255, 255, 255, 0.55)',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  minWidth: 34,
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  padding: 4,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+            </Tooltip>
+            <StickyFooterBtn
+              label={t.editor.stickyZoomIn}
+              onClick={() => applyZoom(zoom + 0.1)}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
+            >
+              <Plus size={12} />
+            </StickyFooterBtn>
             <Tooltip
               label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
               placement="top"

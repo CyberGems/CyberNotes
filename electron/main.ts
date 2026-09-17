@@ -206,6 +206,7 @@ async function initDatabase() {
   ensureColumn('sticky_notes', 'pinned_top', "INTEGER DEFAULT 1");
   ensureColumn('sticky_notes', 'color', "TEXT DEFAULT 'cyber-yellow'");
   ensureColumn('sticky_notes', 'opacity', "REAL DEFAULT 0.9");
+  ensureColumn('sticky_notes', 'zoom', 'REAL DEFAULT 1.0');
   ensureColumn('sticky_notes', 'is_open', "INTEGER DEFAULT 1");
   purgeOldTrash();
 
@@ -989,26 +990,35 @@ function toggleStickyAlwaysOnTop(noteId: string): boolean {
   return nextVal;
 }
 
+/** Zoom del contenido: mismo rango que la escala del editor principal. */
+function clampStickyZoom(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return 1.0;
+  return Math.min(1.5, Math.max(0.8, Math.round(n * 100) / 100));
+}
+
 function getStickyConfig(noteId: string) {
-  const row = queryGet('SELECT color, opacity, pinned_top FROM sticky_notes WHERE note_id = ?', [noteId]);
+  const row = queryGet('SELECT color, opacity, pinned_top, zoom FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
     color: row?.color || 'cyber-yellow',
     opacity: clampStickyWindowOpacity(readNumericSetting(row?.opacity, 0.9)),
     pinned_top: row ? row.pinned_top !== 0 : true,
+    zoom: clampStickyZoom(row?.zoom ?? 1.0),
   };
 }
 
-function saveStickyConfig(noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean }) {
+function saveStickyConfig(noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean; zoom?: number }) {
   const current = getStickyConfig(noteId);
   const color = config.color !== undefined ? config.color : current.color;
   const opacity = config.opacity !== undefined ? config.opacity : current.opacity;
   const pinnedTop = config.pinned_top !== undefined ? (config.pinned_top ? 1 : 0) : (current.pinned_top ? 1 : 0);
+  const zoom = config.zoom !== undefined ? clampStickyZoom(config.zoom) : current.zoom;
 
   runQuery(
-    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open)
-     VALUES (?, ?, ?, ?, 1)
-     ON CONFLICT(note_id) DO UPDATE SET color = excluded.color, opacity = excluded.opacity, pinned_top = excluded.pinned_top`,
-    [noteId, color, opacity, pinnedTop]
+    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, zoom, is_open)
+     VALUES (?, ?, ?, ?, ?, 1)
+     ON CONFLICT(note_id) DO UPDATE SET color = excluded.color, opacity = excluded.opacity, pinned_top = excluded.pinned_top, zoom = excluded.zoom`,
+    [noteId, color, opacity, pinnedTop, zoom]
   );
 
   const win = stickyWindows.get(noteId);
@@ -1017,7 +1027,7 @@ function saveStickyConfig(noteId: string, config: { color?: string; opacity?: nu
       win.setAlwaysOnTop(config.pinned_top, config.pinned_top ? 'floating' : 'normal');
     }
     applyStickyWindowChrome(win, color, opacity);
-    win.webContents.send('sticky:config-updated', { color, opacity, pinned_top: pinnedTop !== 0 });
+    win.webContents.send('sticky:config-updated', { color, opacity, pinned_top: pinnedTop !== 0, zoom });
   }
   return true;
 }

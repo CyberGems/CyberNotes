@@ -93,6 +93,9 @@ export const TRANSLATIONS = {
       stickyImageTooLarge: 'La imagen supera el límite de 1.5 MB tras optimizarla.',
       stickyImagePasteError: 'No se pudo pegar la imagen.',
       stickySelectAll: 'Seleccionar todo',
+      stickyZoomOut: 'Reducir zoom',
+      stickyZoomIn: 'Aumentar zoom',
+      stickyZoomReset: 'Zoom actual (clic para restablecer al 100%)',
       stickyColors: {
         yellow: 'Amarillo Ciber',
         cyan: 'Cian Neón',
@@ -392,6 +395,9 @@ export const TRANSLATIONS = {
       stickyImageTooLarge: 'The image exceeds the 1.5 MB limit after optimization.',
       stickyImagePasteError: 'The image could not be pasted.',
       stickySelectAll: 'Select all',
+      stickyZoomOut: 'Zoom out',
+      stickyZoomIn: 'Zoom in',
+      stickyZoomReset: 'Current zoom (click to reset to 100%)',
       stickyColors: {
         yellow: 'Cyber Yellow',
         cyan: 'Neon Cyan',

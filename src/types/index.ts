@@ -162,8 +162,8 @@ declare global {
       openStickyNote: (noteId: string) => Promise<boolean>;
       closeStickyNote: (noteId: string) => Promise<boolean>;
       toggleStickyAlwaysOnTop: (noteId: string) => Promise<boolean>;
-      getStickyConfig: (noteId: string) => Promise<{ color: string; opacity: number; pinned_top: boolean }>;
-      saveStickyConfig: (noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean }) => Promise<boolean>;
+      getStickyConfig: (noteId: string) => Promise<{ color: string; opacity: number; pinned_top: boolean; zoom: number }>;
+      saveStickyConfig: (noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean; zoom?: number }) => Promise<boolean>;
       setStickyWindowChrome: (noteId: string, color: string, opacity: number) => void;
       beginStickyDrag: (noteId: string) => void;
       dragStickyWindow: (noteId: string) => void;
