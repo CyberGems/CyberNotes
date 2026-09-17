@@ -1074,6 +1074,7 @@ function buildTrayMenuState() {
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
+    lang: isEs ? 'es' : 'en',
     visible,
     canLock,
     stickyCount,
@@ -2386,10 +2387,16 @@ ipcMain.handle('notes:search', (_e: any, query: string) => {
 });
 
 // -- Images --
+/** Titulo de dialogo nativo segun el idioma guardado (por defecto ingles). */
+function dialogTitle(es: string, en: string): string {
+  const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
+  return isSpanish(langVal?.value) ? es : en;
+}
+
 ipcMain.handle('images:selectAndSave', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
-    title: 'Seleccionar imagen',
-    filters: [{ name: 'Imágenes', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
+    title: dialogTitle('Seleccionar imagen', 'Select image'),
+    filters: [{ name: dialogTitle('Imágenes', 'Images'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
     properties: ['openFile'],
   });
   if (result.canceled || !result.filePaths.length) return null;
@@ -2416,7 +2423,7 @@ ipcMain.handle('document:export-pdf', async (_e: any, payload: { title?: string;
     .replace(/[<>:"/\\|?*]/g, '-')
     .trim() || 'cybernotes-note';
   const result = await dialog.showSaveDialog(mainWindow!, {
-    title: 'Exportar nota como PDF',
+    title: dialogTitle('Exportar nota como PDF', 'Export note as PDF'),
     defaultPath: `${title}.pdf`,
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
@@ -2469,7 +2476,7 @@ ipcMain.handle('document:print', async (_e: any, payload: { title?: string; html
 // -- Import/Export --
 ipcMain.handle('data:export', async () => {
   const result = await dialog.showSaveDialog(mainWindow!, {
-    title: 'Exportar datos de CyberNotes',
+    title: dialogTitle('Exportar datos de CyberNotes', 'Export CyberNotes data'),
     defaultPath: 'cybernotes-export.json',
     filters: [{ name: 'JSON', extensions: ['json'] }]
   });
@@ -2486,7 +2493,7 @@ ipcMain.handle('data:export', async () => {
 
 ipcMain.handle('data:import', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
-    title: 'Importar datos a CyberNotes',
+    title: dialogTitle('Importar datos a CyberNotes', 'Import CyberNotes data'),
     filters: [{ name: 'JSON', extensions: ['json'] }],
     properties: ['openFile']
   });

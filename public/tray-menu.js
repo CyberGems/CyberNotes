@@ -28,6 +28,28 @@ const exitGroupEl = document.getElementById('exitGroup');
 let currentState = null;
 let currentView = 'main';
 
+// Textos de respaldo si el main aun no envio el estado completo.
+// Misma tabla en ambos idiomas: el main elige con `state.lang`.
+const FALLBACKS = {
+  es: {
+    back: 'Volver', help: 'Ayuda', newSticky: 'Nueva nota flotante',
+    pin: 'Mantener visible en la bandeja del sistema', setPassword: 'Configurar contraseña...',
+    docs: 'Documentación / Wiki', faq: 'Preguntas frecuentes', changelog: 'Registro de cambios',
+    website: 'Sitio web', donate: 'Donar', about: 'Acerca de...', updates: 'Buscar actualizaciones',
+  },
+  en: {
+    back: 'Back', help: 'Help', newSticky: 'New floating note',
+    pin: 'Keep visible in the system tray', setPassword: 'Set password...',
+    docs: 'Documentation / Wiki', faq: 'FAQ', changelog: 'Changelog',
+    website: 'Website', donate: 'Donate', about: 'About...', updates: 'Check for updates',
+  },
+};
+
+function t(key) {
+  const lang = (currentState && currentState.lang === 'es') ? 'es' : 'en';
+  return FALLBACKS[lang][key];
+}
+
 function makeSeparator() {
   const separator = document.createElement('div');
   separator.className = 'submenu-divider';
@@ -43,7 +65,7 @@ function renderHead() {
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'head-back';
-    back.setAttribute('aria-label', (currentState.help && currentState.help.backLabel) || 'Back');
+    back.setAttribute('aria-label', (currentState.help && currentState.help.backLabel) || t('back'));
     back.innerHTML = ICONS.back;
     back.addEventListener('pointerdown', (event) => {
       event.preventDefault();
@@ -53,7 +75,7 @@ function renderHead() {
     });
     headEl.appendChild(back);
     const title = document.createElement('span');
-    title.textContent = (currentState.help && currentState.help.label) || 'Help';
+    title.textContent = (currentState.help && currentState.help.label) || t('help');
     headEl.appendChild(title);
     return;
   }
@@ -128,7 +150,7 @@ function renderMainView() {
   }
 
   items.push(
-    makeItem({ action: 'new-sticky', icon: 'plus', label: currentState.newStickyLabel || 'New floating note' })
+    makeItem({ action: 'new-sticky', icon: 'plus', label: currentState.newStickyLabel || t('newSticky') })
   );
 
   if (currentState.canLock) {
@@ -137,7 +159,7 @@ function renderMainView() {
 
   items.push(
     makeItem({ action: 'settings', icon: 'settings', label: currentState.settingsLabel }),
-    makeItem({ localAction: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || 'Help', trailingIcon: 'chevron' })
+    makeItem({ localAction: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || t('help'), trailingIcon: 'chevron' })
   );
 
   groupEl.replaceChildren(...items);
@@ -149,17 +171,17 @@ function renderMainView() {
 function renderHelpView() {
   const help = currentState.help || {};
   groupEl.replaceChildren(
-    makeItem({ action: 'help-pin', icon: 'pin', label: help.pinLabel || 'Mantener visible en la bandeja del sistema' }),
-    makeItem({ action: 'help-set-password', icon: 'key', label: help.setPasswordLabel || 'Set password...' }),
+    makeItem({ action: 'help-pin', icon: 'pin', label: help.pinLabel || t('pin') }),
+    makeItem({ action: 'help-set-password', icon: 'key', label: help.setPasswordLabel || t('setPassword') }),
     makeSeparator(),
-    makeItem({ action: 'help-docs', icon: 'book', label: help.docsLabel || (help.label === 'Ayuda' ? 'Documentación / Wiki' : 'Documentation / Wiki') }),
-    makeItem({ action: 'help-faq', icon: 'help', label: help.faqLabel || 'FAQ' }),
-    makeItem({ action: 'help-changelog', icon: 'tag', label: help.changelogLabel || 'Changelog' }),
-    makeItem({ action: 'help-website', icon: 'globe', label: help.websiteLabel || 'Website' }),
-    makeItem({ action: 'help-donate', icon: 'heart', label: help.donateLabel || 'Donate', tone: 'donate' }),
+    makeItem({ action: 'help-docs', icon: 'book', label: help.docsLabel || t('docs') }),
+    makeItem({ action: 'help-faq', icon: 'help', label: help.faqLabel || t('faq') }),
+    makeItem({ action: 'help-changelog', icon: 'tag', label: help.changelogLabel || t('changelog') }),
+    makeItem({ action: 'help-website', icon: 'globe', label: help.websiteLabel || t('website') }),
+    makeItem({ action: 'help-donate', icon: 'heart', label: help.donateLabel || t('donate'), tone: 'donate' }),
     makeSeparator(),
-    makeItem({ action: 'help-about', icon: 'about', label: help.aboutLabel || 'About...' }),
-    makeItem({ action: 'help-check-updates', icon: 'download', label: help.updatesLabel || 'Check for updates' })
+    makeItem({ action: 'help-about', icon: 'about', label: help.aboutLabel || t('about') }),
+    makeItem({ action: 'help-check-updates', icon: 'download', label: help.updatesLabel || t('updates') })
   );
   exitGroupEl.replaceChildren();
 }
