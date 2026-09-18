@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type CSSProperties } from 'react';
+import { useState, useRef, useEffect, useMemo, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Folder, Note } from '../types';
@@ -229,9 +229,10 @@ export default function Sidebar({
     return () => window.removeEventListener('keydown', onKey);
   }, [showNewFolder, editingFolder, folderToDelete, newFolderName, newFolderIcon, newFolderColor, onDeleteFolder, onCreateFolder, onUpdateFolder]);
 
-  // Lista de notas recientes según la pestaña activa (Editadas / Abiertas / Creadas)
+  // Lista de notas recientes según la pestaña activa (Editadas / Abiertas / Creadas).
+  // Memoizada: antes se reordenaba con Date parsing en cada render (cada click de tab).
   const RECENT_LIMIT = 6;
-  const recentForTab = (() => {
+  const recentForTab = useMemo(() => {
     if (recentTab === 'opened') {
       return [...allNotes]
         .filter(n => openedHistory[n.id] && openedHistory[n.id] > recentClearedAt)
@@ -245,7 +246,7 @@ export default function Sidebar({
       .sort((a, b) => new Date(b[field]).getTime() - new Date(a[field]).getTime())
       .slice(0, RECENT_LIMIT)
       .map(n => ({ note: n, ts: n[field] }));
-  })();
+  }, [recentTab, allNotes, openedHistory, recentClearedAt]);
 
   const recentTabs: { id: 'edited' | 'opened' | 'created'; label: string }[] = [
     { id: 'edited', label: t.sidebar.recentEdited },

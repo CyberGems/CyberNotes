@@ -13,6 +13,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb } from '../utils/notes';
+import { tabSwitchStart, tabSwitchResolve } from '../utils/tabPerf';
 import UpdaterBanner from './UpdaterBanner';
 import { FILTER_COLORS } from './FolderIcon';
 
@@ -165,11 +166,15 @@ export default function MainApp({
   const statusBarUrlRef = useRef<string | null>(null);
   const rootStyleRef = useRef<HTMLDivElement | null>(null);
   const selectedNoteIdRef = useRef<string | null>(null);
+  const selectedNoteRef = useRef<Note | null>(null);
   const selectedFolderIdRef = useRef<string | null>(null);
   const allNotesRef = useRef<Note[]>([]);
   const notesRef = useRef<Note[]>([]);
   const openStickyIdsRef = useRef<string[]>([]);
   const draftCacheRef = useRef<Record<string, DraftEntry>>({});
+  const openedHistoryRef = useRef<Record<string, number>>({});
+  const openedHistoryPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const justRecordedHistoryRef = useRef<string | null>(null);
   const draftFlushRef = useRef<(() => Promise<void>) | null>(null);
   const draftWriteChainsRef = useRef<Record<string, Promise<boolean>>>({});
   const editorExportActionsRef = useRef<NoteExportActions | null>(null);
@@ -177,11 +182,13 @@ export default function MainApp({
   const draftsLoadedRef = useRef(false);
   const allNotesLoadedRef = useRef(false);
   selectedNoteIdRef.current = selectedNoteId;
+  selectedNoteRef.current = selectedNote;
   selectedFolderIdRef.current = selectedFolderId;
   allNotesRef.current = allNotes;
   notesRef.current = notes;
   openStickyIdsRef.current = openStickyIds;
   draftCacheRef.current = draftCache;
+  openedHistoryRef.current = openedHistory;
 
   const registerEditorExportActions = useCallback((actions: NoteExportActions | null) => {
     editorExportActionsRef.current = actions;
@@ -413,15 +420,37 @@ export default function MainApp({
     }
   }, [selectedNoteId, selectedFolderId]);
 
-  // Registrar el momento en que se abre cada nota (para el panel de recientes → "Abiertas")
+  // Registrar el momento en que se abre cada nota (para el panel de recientes → "Abiertas").
+  // El estado se actualiza de inmediato (la UI lo necesita), pero el stringify +
+  // escritura a disco va con debounce fuera del camino crítico de cada click.
+  // El click ya registra en su propio batch; este efecto cubre las demás vías
+  // (restaurar sesión, cerrar pestaña, lista) y se salta el caso ya registrado.
   useEffect(() => {
     if (!isLoadedRef.current || !selectedNoteId || selectedFolderId === 'trash') return;
-    setOpenedHistory(prev => {
-      const next = { ...prev, [selectedNoteId]: Date.now() };
-      window.cyberNotesAPI.setSetting('opened_history', JSON.stringify(next));
-      return next;
-    });
+    if (justRecordedHistoryRef.current === selectedNoteId) {
+      justRecordedHistoryRef.current = null;
+      return;
+    }
+    setOpenedHistory(prev => ({ ...prev, [selectedNoteId]: Date.now() }));
+    if (openedHistoryPersistTimer.current) clearTimeout(openedHistoryPersistTimer.current);
+    openedHistoryPersistTimer.current = setTimeout(() => {
+      openedHistoryPersistTimer.current = null;
+      window.cyberNotesAPI
+        .setSetting('opened_history', JSON.stringify(openedHistoryRef.current))
+        .catch(() => {});
+    }, 1500);
   }, [selectedNoteId, selectedFolderId]);
+
+  // Al cerrar la app, vaciar un persist pendiente para no perder el último tramo.
+  useEffect(() => () => {
+    if (openedHistoryPersistTimer.current) {
+      clearTimeout(openedHistoryPersistTimer.current);
+      openedHistoryPersistTimer.current = null;
+      window.cyberNotesAPI
+        .setSetting('opened_history', JSON.stringify(openedHistoryRef.current))
+        .catch(() => {});
+    }
+  }, []);
 
   const loadSettings = async () => {
     await loadDrafts();
@@ -616,15 +645,56 @@ export default function MainApp({
     setNoteLoading(false);
   }, []);
 
+  /** Intento síncrono de resolver la nota desde cache (borrador o contenido de
+      pestañas abiertas). Devuelve cómo se resolvió (o null si hay que ir a disco),
+      para que el click no pase por el estado de loading intermedio. */
+  const applyCachedNote = useCallback((id: string | null): 'draft' | 'cache' | 'cleared' | null => {
+    if (!id) {
+      setSelectedNote(null);
+      setNoteLoading(false);
+      return 'cleared';
+    }
+    const meta = allNotesRef.current.find(n => n.id === id) || notesRef.current.find(n => n.id === id);
+    if (!meta) return null;
+    const activeDraft = draftCacheRef.current[id];
+    if (activeDraft) {
+      contentCacheRef.current[id] = activeDraft.content;
+      setSelectedNote({ ...meta, title: activeDraft.title, content: activeDraft.content });
+      setNoteLoading(false);
+      return 'draft';
+    }
+    const cached = contentCacheRef.current[id];
+    if (cached !== undefined) {
+      setSelectedNote({ ...meta, content: cached });
+      setNoteLoading(false);
+      return 'cache';
+    }
+    return null;
+  }, []);
+
   // useLayoutEffect: con cache, actualiza selectedNote antes del paint (sin flash a bienvenida)
+  // Fast path síncrono para pestañas abiertas: evita el render intermedio con
+  // overlay de loading (backdrop-blur) cuando el contenido ya está en memoria.
   useLayoutEffect(() => {
+    if (selectedNoteRef.current?.id === selectedNoteId) {
+      if (!selectedNoteId) setSelectedNote(null);
+      setNoteLoading(false);
+      if (selectedNoteId) tabSwitchResolve(selectedNoteId, 'sync-other');
+      return;
+    }
+    const applied = applyCachedNote(selectedNoteId);
+    if (applied) {
+      if (selectedNoteId) tabSwitchResolve(selectedNoteId, applied);
+      return;
+    }
+    if (selectedNoteId) tabSwitchResolve(selectedNoteId, 'async-miss');
     let cancelled = false;
     (async () => {
       if (cancelled) return;
       await loadFullNote(selectedNoteId);
     })();
     return () => { cancelled = true; };
-  }, [selectedNoteId, loadFullNote]);
+  }, [selectedNoteId, applyCachedNote, loadFullNote]);
 
   const queueDraftWrite = useCallback((id: string, draft: DraftEntry) => {
     const note = allNotesRef.current.find(item => item.id === id);
@@ -946,8 +1016,24 @@ export default function MainApp({
       setPendingNavNoteId(targetId);
       return;
     }
+    // Fast path: contenido en cache (pestañas abiertas) se resuelve en el mismo
+    // batch del click, un solo render sin overlay de loading intermedio.
+    // El historial de recientes también entra al batch para no pagar otro render.
+    const applied = applyCachedNote(targetId);
+    if (isLoadedRef.current && selectedFolderId !== 'trash') {
+      setOpenedHistory(prev => ({ ...prev, [targetId]: Date.now() }));
+      justRecordedHistoryRef.current = targetId;
+      if (openedHistoryPersistTimer.current) clearTimeout(openedHistoryPersistTimer.current);
+      openedHistoryPersistTimer.current = setTimeout(() => {
+        openedHistoryPersistTimer.current = null;
+        window.cyberNotesAPI
+          .setSetting('opened_history', JSON.stringify(openedHistoryRef.current))
+          .catch(() => {});
+      }, 1500);
+    }
+    tabSwitchStart(targetId, applied ?? 'pending');
     setSelectedNoteId(targetId);
-  }, [selectedNoteId, autosaveEnabled, draftCache, confirmLeaveDismissed]);
+  }, [selectedNoteId, selectedFolderId, autosaveEnabled, draftCache, confirmLeaveDismissed, applyCachedNote]);
 
   const dismissLeaveNav = useCallback(() => setPendingNavNoteId(null), []);
 
