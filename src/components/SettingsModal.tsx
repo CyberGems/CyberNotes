@@ -58,6 +58,9 @@ interface Props {
 
 type Tab = 'general' | 'appearance' | 'security' | 'maintenance';
 
+/** Atajo global por defecto (misma fuente que electron/main.ts). */
+const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
+
 const DISMISSIBLE_CONFIRMATION_KEYS = [
   'confirm_move_note_to_trash_dismissed',
   'confirm_leave_note_dismissed',
@@ -153,7 +156,7 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
-  const [toggleHotkey, setToggleHotkey] = useState('Alt+Shift+N');
+  const [toggleHotkey, setToggleHotkey] = useState(DEFAULT_TOGGLE_HOTKEY);
   const [stickyRestoreOnStartup, setStickyRestoreOnStartup] = useState(true);
   const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
   const [stickyLockAction, setStickyLockAction] = useState<'hide' | 'shield'>('hide');
@@ -164,6 +167,7 @@ export default function SettingsModal({
   const [autoBackupLast, setAutoBackupLast] = useState<string | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
   const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
+  const [hotkeyError, setHotkeyError] = useState<string | null>(null);
   const hotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -422,16 +426,23 @@ export default function SettingsModal({
   };
 
   const handleSetHotkey = async (val: string) => {
+    setHotkeyError(null);
     setToggleHotkey(val);
     await window.cyberNotesAPI.setSetting('toggle_hotkey', val.trim() || 'disabled');
     await window.cyberNotesAPI.setSetting('toggle_hotkey_enabled', val.trim() ? 'true' : 'false');
   };
 
   const handleClearHotkey = async () => {
+    setHotkeyError(null);
     setToggleHotkey('');
     setIsCapturingHotkey(false);
     await window.cyberNotesAPI.setSetting('toggle_hotkey', 'disabled');
     await window.cyberNotesAPI.setSetting('toggle_hotkey_enabled', 'false');
+  };
+
+  const handleRestoreHotkey = async () => {
+    setIsCapturingHotkey(false);
+    await handleSetHotkey(DEFAULT_TOGGLE_HOTKEY);
   };
 
   const handleHotkeyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -440,6 +451,7 @@ export default function SettingsModal({
     e.stopPropagation();
 
     if (e.key === 'Escape') {
+      setHotkeyError(null);
       setIsCapturingHotkey(false);
       return;
     }
@@ -461,6 +473,18 @@ export default function SettingsModal({
     let key = e.key;
     if (key.length === 1) key = key.toUpperCase();
     else if (key.startsWith('Arrow')) key = key.replace('Arrow', '');
+    else if (key === ' ') key = 'Space';
+
+    // Un atajo global sin Ctrl/Alt/Win secuestra teclas de todas las apps.
+    // Shift solo se acepta con teclas no imprimibles (F1-F12, flechas, etc.).
+    const hasStrongModifier = e.ctrlKey || e.altKey || e.metaKey;
+    const isNonPrintable = /^(F\d{1,2}|Up|Down|Left|Right|Home|End|PageUp|PageDown|Insert|Tab|Enter|Space)$/.test(key);
+    if (!hasStrongModifier && !isNonPrintable) {
+      setHotkeyError(language === 'es'
+        ? 'Agrega Ctrl, Alt o Win: Shift solo no vale para un atajo global.'
+        : 'Add Ctrl, Alt or Win: Shift alone is not valid for a global shortcut.');
+      return;
+    }
 
     const parts = mods.concat(key);
     const acc = parts.join('+');
@@ -677,9 +701,15 @@ export default function SettingsModal({
                       style={{
                         flex: '0 1 180px',
                         minWidth: 120,
+                        maxWidth: 200,
+                        height: 32,
+                        alignSelf: 'center',
                         background: 'var(--bg-app)',
                         padding: '7px 10px',
                         fontSize: 12,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}
                     />
                   </div>
@@ -806,10 +836,10 @@ export default function SettingsModal({
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                         {language === 'es' ? 'Atajo global de ventana' : 'Global window shortcut'}
                       </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {language === 'es'
+                      <span style={{ fontSize: 11, color: hotkeyError ? 'var(--danger)' : 'var(--text-muted)' }}>
+                        {hotkeyError ?? (language === 'es'
                           ? 'Atajo global para mostrar/ocultar CyberNotes. Clic para asignar, Esc para cancelar.'
-                          : 'Global shortcut to show/hide CyberNotes. Click to set, Esc to cancel.'}
+                          : 'Global shortcut to show/hide CyberNotes. Click to set, Esc to cancel.')}
                       </span>
                     </SettingsOptionCopy>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -823,7 +853,7 @@ export default function SettingsModal({
                             ? (language === 'es' ? 'Pulsa las teclas…' : 'Press keys…')
                             : (toggleHotkey ? toggleHotkey : (language === 'es' ? 'Desactivado' : 'Disabled'))
                         }
-                        onClick={() => setIsCapturingHotkey(true)}
+                        onClick={() => { setHotkeyError(null); setIsCapturingHotkey(true); }}
                         onKeyDown={handleHotkeyKeyDown}
                         style={{
                           background: 'var(--bg-app)',
@@ -844,6 +874,23 @@ export default function SettingsModal({
                           transition: 'all 0.15s ease',
                         }}
                       />
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handleRestoreHotkey}
+                        title={`${language === 'es' ? 'Restaurar predeterminada' : 'Restore default'} (${DEFAULT_TOGGLE_HOTKEY})`}
+                        style={{
+                          fontSize: 11.5,
+                          padding: '6px 8px',
+                          color: 'var(--text-muted)',
+                          background: 'var(--bg-app)',
+                          border: '1px solid var(--border)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                      >
+                        <RotateCcw size={14} />
+                      </button>
                       <button
                         type="button"
                         className="btn btn-ghost"

@@ -227,6 +227,36 @@ body:has(.sticky-note-window),
   color: var(--text-primary);
 }
 
+/* Botones de la barra del editor: hover/press por CSS en vez de motion,
+   para que cada render no pague layout effects de 20+ botones animados. */
+.toolbar-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, border-color 0.2s, background 0.2s, transform 0.12s;
+}
+.toolbar-btn.is-active {
+  background: var(--accent-dim);
+  color: var(--accent-light);
+  border-color: var(--accent);
+}
+.toolbar-btn:not(:disabled):hover {
+  background: var(--bg-hover);
+  transform: scale(1.05);
+}
+.toolbar-btn:not(:disabled):active {
+  transform: scale(0.95);
+}
+.toolbar-btn:disabled {
+  cursor: default;
+  transform: none;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

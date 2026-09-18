@@ -14,7 +14,9 @@ import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb } from '../utils/notes';
+import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import Tooltip from './Tooltip';
+import WelcomeGreeting from './WelcomeGreeting';
 import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
@@ -22,8 +24,9 @@ import {
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
   Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
-  CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw
-} from 'lucide-react';
+   CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
+   NotebookText, Keyboard, ArrowRight
+ } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 
 export interface NoteExportActions {
@@ -132,28 +135,15 @@ const ToolbarBtn = ({
   onClick, active = false, title, children, disabled = false,
 }: { onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean }) => (
   <Tooltip label={title} placement="bottom">
-    <motion.button
-      whileHover={{ scale: 1.05, background: 'var(--bg-hover)' }}
-      whileTap={{ scale: 0.95 }}
+    <button
       onMouseDown={(e) => e.preventDefault()} // CRÍTICO: Previene pérdida de foco
       onClick={onClick}
       disabled={disabled}
-      className="btn-icon"
-      style={{
-        background: active ? 'var(--accent-dim)' : 'transparent',
-        color: active ? 'var(--accent-light)' : 'var(--text-muted)',
-        border: active ? '1px solid var(--accent)' : '1px solid transparent',
-        borderRadius: 6,
-        padding: '6px 8px',
-        transition: 'color 0.2s, border 0.2s',
-        opacity: disabled ? 0.4 : 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      className={`btn-icon toolbar-btn${active ? ' is-active' : ''}`}
+      style={{ opacity: disabled ? 0.4 : 1 }}
     >
       {children}
-    </motion.button>
+    </button>
   </Tooltip>
 );
 
@@ -557,18 +547,27 @@ export default function NoteEditor({
       el.style.transition = '';
       el.style.transform = '';
     };
-  }, [openNoteIds, note?.id]);
+  }, [openNoteIds]);
 
-  // Scroll a la pestaña activa cuando se selecciona una nota desde la lista
-  // (incluso si la pestaña ya estaba abierta pero fuera de vista)
+  // Llevar la pestaña activa a la vista solo cuando está fuera de vista.
+  // Centrado manual e instantáneo: sin animación smooth que compita con la
+  // hidratación del editor, y sin mover contenedores ancestros (scrollIntoView
+  // los arrastra). Si la pestaña ya se ve completa, no se toca el scroll.
   useEffect(() => {
     if (!note?.id) return;
     const strip = tabStripRef.current;
     if (!strip) return;
+    if (strip.scrollWidth <= strip.clientWidth + 1) return;
     const tab = strip.querySelector(`[data-note-id="${note.id}"]`) as HTMLElement | null;
-    if (tab) {
-      tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
+    if (!tab) return;
+    const stripRect = strip.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    const MARGIN = 8;
+    const fullyVisible =
+      tabRect.left >= stripRect.left - MARGIN && tabRect.right <= stripRect.right + MARGIN;
+    if (fullyVisible) return;
+    const delta = tabRect.left + tabRect.width / 2 - (stripRect.left + stripRect.width / 2);
+    strip.scrollLeft += delta;
   }, [note?.id]);
 
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
@@ -1247,7 +1246,8 @@ export default function NoteEditor({
 
     hydratedNoteIdRef.current = null;
     if (!editor || !note) return;
-    
+    tabHydrationStart(note.id);
+
     // Set selection changing flag to true to ignore programmatic updates
     isSelectionChangingRef.current = true;
     isDirtyRef.current = false;
@@ -1259,6 +1259,8 @@ export default function NoteEditor({
     loadEditorContent(editor, content);
     hydratedNoteIdRef.current = note.id;
 
+    // Métricas aquí mismo: la sonda mostró hidratación de ~2ms, así que no
+    // tiene sentido pagar un render pasivo extra por estos números.
     updateTextMetrics(editor);
     updateLineInfo(editor);
 
@@ -1277,6 +1279,8 @@ export default function NoteEditor({
       editor.commands.focus('start');
     }
     setIsRaw(false);
+
+    tabHydrationEnd();
 
     // Reset selection changing flag after all synchronous & immediate asynchronous updates
     const timeoutId = setTimeout(() => {
@@ -1695,28 +1699,106 @@ export default function NoteEditor({
         </div>
       );
     }
+    const totalNotes = notes.length;
+    const favoriteCount = notes.filter(n => n.pinned === 1).length;
+    const numberLocale = language === 'es' ? 'es-ES' : 'en-US';
+    const fmtCount = (n: number) => new Intl.NumberFormat(numberLocale).format(n);
+    const kbdChip: CSSProperties = {
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      minWidth: 26, padding: '3px 8px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+      color: 'var(--text-primary)', background: 'rgba(255, 255, 255, 0.06)',
+      border: '1px solid var(--border)',
+    };
+    const cardStyle: CSSProperties = {
+      width: '100%', borderRadius: 14, padding: '18px 20px',
+      background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', gap: 12,
+    };
+    const cardLabelStyle: CSSProperties = {
+      display: 'flex', alignItems: 'center', gap: 10,
+      fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-muted)',
+    };
+    const cardIconTile: CSSProperties = {
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 34, height: 34, borderRadius: 9, color: 'var(--text-secondary)',
+      background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
+    };
+    const shortcuts: { keys: string[]; label: string }[] = [
+      { keys: ['Ctrl', 'N'], label: language === 'es' ? 'Nueva nota' : 'New note' },
+      { keys: ['Ctrl', 'F'], label: language === 'es' ? 'Buscar notas' : 'Search notes' },
+      { keys: ['Ctrl', 'S'], label: language === 'es' ? 'Guardar nota' : 'Save note' },
+    ];
     return (
       <div className="glass-effect editor-glass" style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', background: 'var(--bg-editor)', gap: 16, color: 'var(--text-muted)',
+        background: 'var(--bg-editor)', overflowY: 'auto', color: 'var(--text-muted)',
       }}>
-        <motion.span 
-          animate={{ y: [0, -10, 0] }} 
-          transition={{ repeat: Infinity, duration: 3 }}
-          style={{ fontSize: 48, opacity: 0.2 }}
-        >✏️</motion.span>
-        <p style={{ fontSize: 15 }}>{language === 'es' ? 'Selecciona o crea una nota' : 'Select or create a note'}</p>
-        <button className="btn btn-primary" onClick={onCreateNote} style={{ gap: 6 }}>
-          <Plus size={15} /> {language === 'es' ? 'Nueva nota' : 'New note'}
-        </button>
-        {canReopenClosedTab && (
-          <button className="btn btn-ghost" onClick={onReopenClosedTab} style={{ gap: 6 }}>
-            <RotateCcw size={15} /> {language === 'es' ? 'Reabrir pestaña cerrada' : 'Reopen closed tab'}
+        <div style={{
+          margin: 'auto', width: '100%', maxWidth: 600, display: 'flex',
+          flexDirection: 'column', alignItems: 'center', gap: 14, padding: '40px 28px',
+        }}>
+          <WelcomeGreeting language={language} showName={false} />
+          <h1 style={{
+            margin: 0, fontSize: 30, fontWeight: 700, letterSpacing: '-0.01em',
+            color: 'var(--text-primary)', textAlign: 'center',
+          }}>
+            {language === 'es' ? 'Tu espacio de notas' : 'Your notes space'}
+          </h1>
+          <p style={{ margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--text-secondary)', maxWidth: 460 }}>
+            {language === 'es'
+              ? 'Selecciona una nota de la lista para empezar a escribir, o crea una nueva y organiza tus ideas.'
+              : 'Select a note from the list to start writing, or create a new one and organize your ideas.'}
+          </p>
+          <div style={cardStyle}>
+            <div style={cardLabelStyle}>
+              <span style={cardIconTile}><NotebookText size={17} /></span>
+              {language === 'es' ? 'NOTAS' : 'NOTES'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 34, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                {fmtCount(totalNotes)}
+              </span>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                {language === 'es' ? 'notas en total' : 'total notes'}
+                {favoriteCount > 0 && (language === 'es'
+                  ? ` · ${fmtCount(favoriteCount)} favoritas`
+                  : ` · ${fmtCount(favoriteCount)} favorites`)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={onCreateNote} style={{ gap: 6 }}>
+                <Plus size={15} /> {language === 'es' ? 'Nueva nota' : 'New note'} <ArrowRight size={14} />
+              </button>
+              {canReopenClosedTab && (
+                <button className="btn btn-ghost" onClick={onReopenClosedTab} style={{ gap: 6 }}>
+                  <RotateCcw size={15} /> {language === 'es' ? 'Reabrir pestaña cerrada' : 'Reopen closed tab'}
+                </button>
+              )}
+            </div>
+          </div>
+          <div style={cardStyle}>
+            <div style={cardLabelStyle}>
+              <span style={cardIconTile}><Keyboard size={17} /></span>
+              {language === 'es' ? 'ATAJOS DE TECLADO' : 'KEYBOARD SHORTCUTS'}
+            </div>
+            {shortcuts.map((s) => (
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {s.keys.map((k, i) => (
+                    <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      {i > 0 && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>+</span>}
+                      <kbd style={kbdChip}>{k}</kbd>
+                    </span>
+                  ))}
+                </span>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+          <button className="btn btn-ghost" onClick={onToggleLayout} style={{ gap: 6 }}>
+            <PanelLeft size={15} /> {language === 'es' ? 'Cambiar vista' : 'Switch view'}
           </button>
-        )}
-        <button className="btn btn-ghost" onClick={onToggleLayout} style={{ gap: 6, marginTop: 12 }}>
-          <PanelLeft size={15} /> {language === 'es' ? 'Cambiar vista' : 'Switch view'}
-        </button>
+        </div>
       </div>
     );
   }
