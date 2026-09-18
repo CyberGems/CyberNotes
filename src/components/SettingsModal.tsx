@@ -723,10 +723,12 @@ export default function SettingsModal({
                       placeholder={language === 'es' ? 'Tu nombre' : 'Your name'}
                       aria-label={language === 'es' ? 'Nombre para saludos' : 'Greeting name'}
                       style={{
-                        flex: '0 1 180px',
-                        minWidth: 120,
-                        maxWidth: 200,
+                        flex: '0 0 auto',
+                        width: 180,
+                        maxWidth: '100%',
                         height: 32,
+                        minHeight: 32,
+                        maxHeight: 32,
                         alignSelf: 'center',
                         background: 'var(--bg-app)',
                         padding: '7px 10px',
