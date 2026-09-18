@@ -58,6 +58,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Drag & Drop**: Move notes between folders effortlessly
 - **Instant Search**: Full-text search across titles, previews, and content
 - **Recent Notes**: Track edited, opened, and created notes with history
+- **Welcome Space**: Time-based greeting, notes stats, and keyboard shortcuts when no note is open
 - **Session Restoration**: Remember open tabs, active note, and floating notes between sessions
 
 ### 🔐 Security
@@ -73,6 +74,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Glass Effects**: Configurable blur intensity (0–40px) and overlay opacity (0–95%)
 - **UI Scaling**: Adjust interface size to your preference
 - **Tab Width**: Normal or wide, minimap toggle, density controls
+- **Greeting Name**: Personalize time-based greetings
 
 ### 🖥️ Desktop Integration
 - **System Tray**: Minimize/close to tray, custom DPI-aware tray menu
