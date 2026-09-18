@@ -716,6 +716,7 @@ export default function SettingsModal({
                           : 'Used to personalize CyberNotes greetings'}
                       </span>
                     </SettingsOptionCopy>
+                    <div style={{ flex: '0 0 auto', alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                     <input
                       className="input"
                       value={displayName || ''}
@@ -723,13 +724,11 @@ export default function SettingsModal({
                       placeholder={language === 'es' ? 'Tu nombre' : 'Your name'}
                       aria-label={language === 'es' ? 'Nombre para saludos' : 'Greeting name'}
                       style={{
-                        flex: '0 0 auto',
                         width: 180,
                         maxWidth: '100%',
                         height: 32,
                         minHeight: 32,
                         maxHeight: 32,
-                        alignSelf: 'center',
                         background: 'var(--bg-app)',
                         padding: '7px 10px',
                         fontSize: 12,
@@ -738,6 +737,7 @@ export default function SettingsModal({
                         textOverflow: 'ellipsis',
                       }}
                     />
+                    </div>
                   </div>
 
                   <label style={{ 
@@ -1998,7 +1998,7 @@ export default function SettingsModal({
         >
           <div className="config-brand-line">
             <img className="config-brand-icon" src="icon.png" alt="" aria-hidden="true" draggable={false} />
-            <span>CyberNotes <span className="config-brand-version">v{appVersion || '1.9.0'}</span></span>
+            <span>CyberNotes <span className="config-brand-version">v{appVersion || '1.10.0'}</span></span>
           </div>
           <span className="config-brand-copyright">© 2026 CyberGems</span>
         </button>

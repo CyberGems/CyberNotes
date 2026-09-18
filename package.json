@@ -1,7 +1,7 @@
 {
   "name": "cyber-notes",
   "private": true,
-  "version": "1.9.0",
+  "version": "1.10.0",
   "author": "CyberGems",
   "type": "module",
   "main": "dist-electron/main.js",
