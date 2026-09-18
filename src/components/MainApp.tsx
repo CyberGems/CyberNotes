@@ -726,9 +726,15 @@ export default function MainApp({
     draftFlushRef.current = flush;
   }, []);
 
-  const clearDraftState = useCallback((id: string, removeFromRecoveryQueue = true) => {
+  const clearDraftState = useCallback((id: string, removeFromRecoveryQueue = true, keepContentCache = false) => {
     delete draftCacheRef.current[id];
-    delete contentCacheRef.current[id];
+    // OJO: al guardar (keepContentCache) se conserva contentCache porque ya trae
+    // lo recién persistido. Evictarla ahí forzaba recarga desde disco + loader
+    // con blur cada vez que se volvía a una pestaña ya visitada. Al descartar,
+    // cerrar o eliminar se evicta para no servir contenido obsoleto.
+    if (!keepContentCache) {
+      delete contentCacheRef.current[id];
+    }
     persistedDraftsRef.current = persistedDraftsRef.current.filter(draft => draft.note_id !== id);
     setDraftCache(prev => {
       if (!(id in prev)) return prev;
@@ -925,7 +931,8 @@ export default function MainApp({
     }
     
     // Al guardar exitosamente, eliminamos la nota del caché de borradores sucios
-    clearDraftState(updated.id);
+    // (conservando el contenido en cache: la pestaña sigue abierta).
+    clearDraftState(updated.id, true, true);
   }, [clearDraftState, patchNoteMeta, selectedFolderId, searchQuery]);
 
   const handleEditDraft = useCallback((id: string, title: string, content: string) => {

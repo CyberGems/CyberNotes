@@ -168,6 +168,7 @@ export default function SettingsModal({
   const [backupBusy, setBackupBusy] = useState(false);
   const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
   const [hotkeyError, setHotkeyError] = useState<string | null>(null);
+  const [hotkeyPreview, setHotkeyPreview] = useState<string | null>(null);
   const hotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -364,6 +365,7 @@ export default function SettingsModal({
     const handleClickOutside = (e: MouseEvent) => {
       if (hotkeyInputRef.current && !hotkeyInputRef.current.contains(e.target as Node)) {
         setIsCapturingHotkey(false);
+        setHotkeyPreview(null);
       }
     };
     window.addEventListener('mousedown', handleClickOutside);
@@ -427,6 +429,7 @@ export default function SettingsModal({
 
   const handleSetHotkey = async (val: string) => {
     setHotkeyError(null);
+    setHotkeyPreview(null);
     setToggleHotkey(val);
     await window.cyberNotesAPI.setSetting('toggle_hotkey', val.trim() || 'disabled');
     await window.cyberNotesAPI.setSetting('toggle_hotkey_enabled', val.trim() ? 'true' : 'false');
@@ -434,6 +437,7 @@ export default function SettingsModal({
 
   const handleClearHotkey = async () => {
     setHotkeyError(null);
+    setHotkeyPreview(null);
     setToggleHotkey('');
     setIsCapturingHotkey(false);
     await window.cyberNotesAPI.setSetting('toggle_hotkey', 'disabled');
@@ -445,6 +449,17 @@ export default function SettingsModal({
     await handleSetHotkey(DEFAULT_TOGGLE_HOTKEY);
   };
 
+  /** Texto en vivo de los modificadores retenidos durante la captura. */
+  const formatHeldHotkeyPreview = (e: React.KeyboardEvent<HTMLInputElement>): string | null => {
+    const mods: string[] = [];
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey) mods.push('Shift');
+    if (e.metaKey) mods.push('Meta');
+    if (mods.length === 0) return null;
+    return `${mods.join(' + ')} + …`;
+  };
+
   const handleHotkeyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isCapturingHotkey) return;
     e.preventDefault();
@@ -452,6 +467,7 @@ export default function SettingsModal({
 
     if (e.key === 'Escape') {
       setHotkeyError(null);
+      setHotkeyPreview(null);
       setIsCapturingHotkey(false);
       return;
     }
@@ -462,7 +478,10 @@ export default function SettingsModal({
     }
 
     const modKeys = ['Control', 'Alt', 'Shift', 'Meta', 'OS'];
-    if (modKeys.includes(e.key)) return;
+    if (modKeys.includes(e.key)) {
+      setHotkeyPreview(formatHeldHotkeyPreview(e));
+      return;
+    }
 
     const mods: string[] = [];
     if (e.ctrlKey) mods.push('Ctrl');
@@ -490,6 +509,11 @@ export default function SettingsModal({
     const acc = parts.join('+');
     handleSetHotkey(acc);
     setIsCapturingHotkey(false);
+  };
+
+  const handleHotkeyKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isCapturingHotkey) return;
+    setHotkeyPreview(formatHeldHotkeyPreview(e));
   };
 
   const handleSetPassword = async () => {
@@ -847,14 +871,15 @@ export default function SettingsModal({
                         ref={hotkeyInputRef}
                         type="text"
                         readOnly
-                        value={isCapturingHotkey ? '' : (toggleHotkey || '')}
+                        value={isCapturingHotkey ? (hotkeyPreview ?? '') : (toggleHotkey || '')}
                         placeholder={
                           isCapturingHotkey
                             ? (language === 'es' ? 'Pulsa las teclas…' : 'Press keys…')
                             : (toggleHotkey ? toggleHotkey : (language === 'es' ? 'Desactivado' : 'Disabled'))
                         }
-                        onClick={() => { setHotkeyError(null); setIsCapturingHotkey(true); }}
+                        onClick={() => { setHotkeyError(null); setHotkeyPreview(null); setIsCapturingHotkey(true); }}
                         onKeyDown={handleHotkeyKeyDown}
+                        onKeyUp={handleHotkeyKeyUp}
                         style={{
                           background: 'var(--bg-app)',
                           color: toggleHotkey ? 'var(--accent-light)' : 'var(--text-muted)',
