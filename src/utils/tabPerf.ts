@@ -1,12 +1,10 @@
 /**
  * Sonda de diagnóstico temporal para el cambio de pestañas.
  *
- * Mide en la máquina real: click → inicio de hidratación → fin de hidratación
- * → paint aproximado. Cada switch deja una línea en consola y un registro en
- * `window.__cybernotesTabPerf` para analizar dónde se va el tiempo.
- *
- * Costo despreciable (4 performance.now por switch). Quitar cuando se cierre
- * el caso de lentitud.
+ * DESACTIVADA por defecto: solo registra en el buffer en memoria
+ * (`window.__cybernotesTabPerf`). Para ver las líneas en consola mientras se
+ * vuelve al tema, guardar `localStorage.setItem('cybernotes:tab-perf', 'on')`
+ * y recargar. Quitar este archivo cuando se cierre el caso de lentitud.
  */
 
 export type TabSwitchSource =
@@ -106,12 +104,18 @@ export function tabHydrationEnd(): void {
         at: new Date().toISOString(),
       };
       getBuffer().push(record);
-      // eslint-disable-next-line no-console
-      console.info(
-        `[tab-perf] ${record.noteId.slice(0, 8)} src=${record.source} ` +
-          `click→hidrat=${record.clickToHydrationMs}ms hidrat=${record.hydrationMs}ms ` +
-          `click→paint≈${record.clickToPaintMs}ms`,
-      );
+      try {
+        if (localStorage.getItem('cybernotes:tab-perf') === 'on') {
+          // eslint-disable-next-line no-console
+          console.info(
+            `[tab-perf] ${record.noteId.slice(0, 8)} src=${record.source} ` +
+              `click→hidrat=${record.clickToHydrationMs}ms hidrat=${record.hydrationMs}ms ` +
+              `click→paint≈${record.clickToPaintMs}ms`,
+          );
+        }
+      } catch {
+        /* almacenamiento no disponible: consola silenciada */
+      }
     });
   });
 }

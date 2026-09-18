@@ -6,6 +6,9 @@ const { autoUpdater } = require('electron-updater') as typeof import('electron-u
 
 let autoUpdateEnabled = false;
 let manualCheck = false;
+// true = ciclo automático (startup/periódico): descarga e instalación
+// desatendidas. false = el usuario pidió/confirmó: nada automático.
+let autoCycle = true;
 let isDownloading = false;
 let downloadedVersion: string | null = null;
 let periodicTimer: ReturnType<typeof setInterval> | null = null;
@@ -146,6 +149,9 @@ export function initUpdater(autoUpdate: boolean): void {
     autoUpdater.on('update-available', async (info) => {
       downloadedVersion = null;
       clearAutoInstallTimer();
+      // manualCheck sigue activo durante checkForUpdates: un chequeo manual
+      // solo debe mostrar opciones, nunca descargar solo.
+      autoCycle = !manualCheck;
       const details = await fetchReleaseDetails(info.version, info.releaseNotes);
       broadcast({
         state: 'available',
@@ -153,7 +159,7 @@ export function initUpdater(autoUpdate: boolean): void {
         releaseNotes: details.notes,
         releaseUrl: details.url,
       });
-      if (autoUpdateEnabled && !isDownloading) {
+      if (autoUpdateEnabled && autoCycle && !isDownloading) {
         isDownloading = true;
         autoUpdater.downloadUpdate().catch((err) => {
           isDownloading = false;
@@ -176,7 +182,7 @@ export function initUpdater(autoUpdate: boolean): void {
       isDownloading = false;
       downloadedVersion = info.version;
       broadcast({ state: 'downloaded', version: info.version });
-      if (autoUpdateEnabled && canInstallChecker()) {
+      if (autoUpdateEnabled && autoCycle && canInstallChecker()) {
         clearAutoInstallTimer();
         pendingAutoInstallTimer = setTimeout(() => {
           pendingAutoInstallTimer = null;
@@ -250,6 +256,9 @@ function registerUpdateIpc(): void {
   ipcMain.handle('update:download', async () => {
     try {
       if (downloadedVersion) return { ok: true };
+      // Descarga iniciada por el usuario: el ciclo pasa a manual, sin
+      // instalación automática al terminar (el banner ofrece Reiniciar).
+      autoCycle = false;
       isDownloading = true;
       await autoUpdater.downloadUpdate();
       return { ok: true };

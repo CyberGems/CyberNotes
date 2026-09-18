@@ -144,6 +144,9 @@ export default function UpdaterBanner({ language }: { language: Language }) {
   const lastVersionRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // true cuando la descarga en curso la inició el usuario (botón Descargar):
+  // en ese caso no hay reinicio automático, solo botón Reiniciar ahora.
+  const userDownloadRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
@@ -162,6 +165,7 @@ export default function UpdaterBanner({ language }: { language: Language }) {
       }
       if (next.state === 'available') {
         if (readSkippedVersion() === next.version) return;
+        userDownloadRef.current = false;
         lastVersionRef.current = next.version;
         setReleaseNotes(next.releaseNotes);
         setReleaseUrl(next.releaseUrl || `https://github.com/${RELEASES_REPO}/releases/tag/v${next.version}`);
@@ -204,7 +208,9 @@ export default function UpdaterBanner({ language }: { language: Language }) {
   }, [status, releaseNotes]);
 
   useEffect(() => {
-    if (status.state !== 'downloaded' || dismissed) {
+    // Sin countdown cuando la descarga la pidió el usuario: él decide cuándo
+    // reiniciar con los botones. El countdown solo corre en ciclos automáticos.
+    if (status.state !== 'downloaded' || dismissed || userDownloadRef.current) {
       clearTimers();
       return;
     }
@@ -250,6 +256,7 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     try {
       localStorage.removeItem(SKIP_KEY);
     } catch { /* ignore */ }
+    userDownloadRef.current = true;
     const version = currentVersion;
     setStatus({ state: 'downloading', percent: 0, version });
     void window.cyberNotesAPI.downloadUpdate();
@@ -297,7 +304,9 @@ export default function UpdaterBanner({ language }: { language: Language }) {
         position: 'fixed',
         bottom: 24,
         right: 24,
-        zIndex: 9999,
+        // Sobre los modales de la app (20000) para seguir visible y clicable
+        // cuando se consulta desde Acerca de; bajo menús y confirmaciones.
+        zIndex: 25000,
         width: 390,
         maxWidth: 'calc(100vw - 48px)',
         background: 'linear-gradient(145deg, var(--bg-modal), var(--bg-surface))',
@@ -364,7 +373,7 @@ export default function UpdaterBanner({ language }: { language: Language }) {
                 </span>
               )}
             </div>
-            {status.state === 'downloaded' && (
+            {status.state === 'downloaded' && !userDownloadRef.current && (
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                 {t.restartingIn.replace('{sec}', String(countdown))}
               </div>
