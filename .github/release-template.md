@@ -6,14 +6,12 @@ Welcome to the official **CyberNotes {{VERSION}}** release. CyberNotes is a prem
 
 ### ✨ Key Features & Highlights
 
-- 🪟 **Floating sticky notes**:
-  - Describe always-on-top, colors, opacity, tray, drag, resize, or restore changes in this release.
-- 🗂️ **Organization: tabs, folders, and the note list**:
-  - Describe tab, folder, trash, favorites, date grouping, or sidebar changes in this release.
-- 🔄 **Updates & reliability**:
-  - Describe updater, startup, packaging, or stability improvements in this release.
-- 🎨 **Interface polish**:
-  - Describe visual refinements, dialogs, editor, or Save button changes in this release.
+<!-- Maintainer: replace the bullets below with this version's highlights before tagging. This fallback is publish-ready as-is. -->
+
+- 🪟 **Floating sticky notes**: independent always-on-top stickies with tray controls, colors, opacity, and size persistence.
+- 🗂️ **Organization: tabs, folders, and the note list**: drag tabs to reorder, date grouping with collapsible headers, trash, favorites, and sidebar filters.
+- 🔄 **Updates & reliability**: update card with changelog peek, skip-version and download actions, plus unattended download and restart.
+- 🎨 **Interface polish**: faster confirmation dialogs, bilingual interface (English/Spanish), and editor refinements.
 
 ---
 
