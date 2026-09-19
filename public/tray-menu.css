@@ -19,7 +19,7 @@ html, body {
 }
 
 .card {
-  width: 268px;
+  width: 300px;
   overflow: hidden;
   border-radius: 16px;
   background: #1c1c1e;
@@ -161,7 +161,8 @@ html, body {
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
 }
-.shell.help-view .label {
+.shell.help-view .label,
+.shell.suite-view .label {
   white-space: normal;
   line-height: 1.3;
 }
@@ -199,11 +200,24 @@ html, body {
 }
 .item:hover .shortcut { color: rgba(255, 255, 255, 0.62); }
 
+.desc {
+  flex: 0 0 auto;
+  padding-left: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.48);
+  white-space: nowrap;
+}
+.item:hover .desc { color: rgba(255, 255, 255, 0.75); }
+
 .item.danger .icon { color: #e8796a; }
 .item.danger:hover .icon { color: #f08c7d; }
 
-.shell.help-view .divider:last-of-type { display: none; }
-.shell.help-view .card {
+.shell.help-view .divider:last-of-type,
+.shell.suite-view .divider:last-of-type { display: none; }
+.shell.help-view .card,
+.shell.suite-view .card {
   background: #202226;
   border-color: rgba(255, 255, 255, 0.1);
 }
@@ -217,4 +231,10 @@ html, body {
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.icon img.app-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
 }

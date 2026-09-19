@@ -201,6 +201,11 @@ body:has(.sticky-note-window),
   color: var(--text-primary);
 }
 
+/* Microanimación de click: confirma el press en todos los botones. */
+.btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
 .btn-danger {
   background: var(--danger-dim);
   color: var(--danger);
@@ -225,6 +230,9 @@ body:has(.sticky-note-window),
 .btn-icon:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+.btn-icon:not(:disabled):active {
+  transform: scale(0.92);
 }
 
 /* Botones de la barra del editor: hover/press por CSS en vez de motion,

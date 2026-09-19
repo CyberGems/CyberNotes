@@ -1104,7 +1104,7 @@ function focusMainWindowWithNote(noteId: string): void {
 }
 
 const TRAY_MENU_SHADOW_PAD = 26;
-const TRAY_MENU_WIDTH = 268;
+const TRAY_MENU_WIDTH = 300;
 const TRAY_MENU_EST_HEIGHT = 220;
 let trayMenuWin: BrowserWindow | null = null;
 let trayMenuAnchor: any = null;
@@ -1133,6 +1133,72 @@ function getActiveToggleHotkey(): string {
   return resolveToggleHotkey(row.value);
 }
 
+type SuiteApp = { slug: string; name: string; site: string };
+
+// Submenú "Más de CyberGems": se lee de public/suite/suite.json (copia local
+// generada con _Website/scripts/build-suite-json.mjs; sin red en runtime).
+// Si el archivo falta, se usan estas 4 hermanas como respaldo.
+let suiteAppsCache: SuiteApp[] | null = null;
+function loadSuiteApps(): SuiteApp[] {
+  if (suiteAppsCache) return suiteAppsCache;
+  const fallback: SuiteApp[] = [
+    { slug: 'cyberpaste', name: 'CyberPaste', site: 'https://cybergems.org/apps/cyberpaste/' },
+    { slug: 'cyberfeeds', name: 'CyberFeeds', site: 'https://cybergems.org/apps/cyberfeeds/' },
+    { slug: 'cybersnap', name: 'CyberSnap', site: 'https://cybergems.org/apps/cybersnap/' },
+    { slug: 'cyberviewer', name: 'CyberViewer', site: 'https://cybergems.org/apps/cyberviewer/' },
+  ];
+  try {
+    const candidates = [
+      path.join(app.getAppPath(), 'dist', 'suite', 'suite.json'),
+      path.join(__dirname, '..', 'public', 'suite', 'suite.json'),
+    ];
+    for (const candidate of candidates) {
+      if (!fs.existsSync(candidate)) continue;
+      const parsed = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+      if (Array.isArray(parsed?.apps) && parsed.apps.length > 0) {
+        suiteAppsCache = (parsed.apps as any[])
+          .filter((a) => a && typeof a.slug === 'string' && typeof a.name === 'string')
+          .map((a) => ({
+            slug: a.slug as string,
+            name: String(a.name),
+            site: typeof a.site === 'string' && a.site ? a.site : `https://cybergems.org/apps/${a.slug}/`,
+          }));
+        return suiteAppsCache;
+      }
+    }
+  } catch { /* respaldo */ }
+  suiteAppsCache = fallback;
+  return suiteAppsCache;
+}
+
+function suiteIconFile(slug: string): string | undefined {
+  try {
+    const candidates = [
+      path.join(app.getAppPath(), 'dist', 'suite', `${slug}.png`),
+      path.join(__dirname, '..', 'public', 'suite', `${slug}.png`),
+    ];
+    if (candidates.some((c) => { try { return fs.existsSync(c); } catch { return false; } })) {
+      return `suite/${slug}.png`;
+    }
+  } catch { /* sin icono */ }
+  return undefined;
+}
+
+// Descripciones cortas del submenú "Más de CyberGems" (bilingües aquí porque
+// el tray las pide ya resueltas según el idioma).
+const SUITE_SHORT: Record<string, { es: string; en: string }> = {
+  cyberclock: { es: 'Reloj de escritorio', en: 'Desktop Clock' },
+  cyberfeeds: { es: 'Lector RSS', en: 'RSS Reader' },
+  cyberlauncher: { es: 'Lanzador de apps', en: 'App Launcher' },
+  cybermanager: { es: 'Administrador de tareas', en: 'Task Manager' },
+  cybernotes: { es: 'Notas', en: 'Note Taking' },
+  cyberpaste: { es: 'Portapapeles', en: 'Clipboard Manager' },
+  cybersnap: { es: 'Captura de pantalla', en: 'Screen Capture' },
+  cybertray: { es: 'Accesos directos', en: 'Shortcut Manager' },
+  cyberviewer: { es: 'Visor de imágenes', en: 'Image Viewer' },
+  cyberwall: { es: 'Firewall', en: 'Firewall' },
+};
+
 function buildTrayMenuState() {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const lang = langVal?.value || 'en';
@@ -1156,7 +1222,7 @@ function buildTrayMenuState() {
     canLock,
     stickyCount,
     anyStickyVisible,
-    showLabel: visible ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Abrir CyberNotes' : 'Open CyberNotes'),
+    showLabel: visible ? (isEs ? 'Ocultar CyberNotes' : 'Hide CyberNotes') : (isEs ? 'Mostrar CyberNotes' : 'Show CyberNotes'),
     newStickyLabel: isEs ? 'Nueva nota flotante' : 'New floating note',
     toggleStickyLabel: anyStickyVisible
       ? (isEs ? 'Ocultar notas flotantes' : 'Hide floating notes')
@@ -1166,6 +1232,16 @@ function buildTrayMenuState() {
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Exit',
     shortcut: activeHotkey,
+    suite: {
+      label: isEs ? 'Más de CyberGems' : 'More from CyberGems',
+      viewAllLabel: isEs ? 'Más detalles online…' : 'More details online…',
+      apps: loadSuiteApps().map((a) => ({
+        name: a.name,
+        action: `suite-${a.slug}`,
+        img: suiteIconFile(a.slug),
+        desc: (SUITE_SHORT[a.slug] || { es: '', en: '' })[isEs ? 'es' : 'en'],
+      })),
+    },
     help: {
       label: isEs ? 'Ayuda' : 'Help',
       backLabel: isEs ? 'Volver' : 'Back',
@@ -1369,6 +1445,16 @@ function createTray() {
 
 ipcMain.on('tray-menu-action', (_event, action) => {
   hideTrayMenu();
+  if (typeof action === 'string' && action.startsWith('suite-')) {
+    const slug = action.slice('suite-'.length);
+    if (slug === 'view-all') {
+      void shell.openExternal('https://cybergems.org/#apps');
+    } else {
+      const app = loadSuiteApps().find((a) => a.slug === slug);
+      if (app) void shell.openExternal(app.site);
+    }
+    return;
+  }
   switch (action) {
     case 'toggle':
       if (isWindowShown()) {
@@ -1773,7 +1859,7 @@ ipcMain.handle('window:unsavedChanges:set', (_e: any, val: boolean) => {
 });
 /** URLs que el renderer puede pedir abrir en el navegador (solo http/https). */
 function isSafeExternalUrl(url: unknown): url is string {
-  return typeof url === 'string' && /^https?:\/\/[^\\s]+$/i.test(url);
+  return typeof url === 'string' && /^https?:\/\/[^\s]+$/i.test(url);
 }
 
 /** DevTools solo en desarrollo o con flag --debug: un renderer comprometido no debe abrirlas en prod. */

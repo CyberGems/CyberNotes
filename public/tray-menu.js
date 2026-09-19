@@ -9,6 +9,7 @@ const ICONS = {
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.2 9a3 3 0 1 1 5.6 1c0 2-2.8 2.3-2.8 4"/><path d="M12 18h.01"/></svg>',
   key: '<svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 2.5 2.5"/><path d="m18.5 4.5 2 2"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
+  arrowRight: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H11v18H5.5A2.5 2.5 0 0 0 3 22.5z"/><path d="M21 4.5A2.5 2.5 0 0 0 18.5 2H13v18h5.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1"/></svg>',
   globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
@@ -18,6 +19,7 @@ const ICONS = {
   back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/><path d="M9 12h11"/></svg>',
   sticky: '<svg viewBox="0 0 24 24"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8l-5-5z"/><path d="M15 3v5h5"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  apps: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
 };
 
 const api = window.trayMenu;
@@ -36,12 +38,14 @@ const FALLBACKS = {
     pin: 'Mantener visible en la bandeja del sistema', setPassword: 'Configurar contraseña...',
     docs: 'Documentación / Wiki', faq: 'Preguntas frecuentes', changelog: 'Registro de cambios',
     website: 'Sitio web', donate: 'Donar', about: 'Acerca de...', updates: 'Buscar actualizaciones',
+    suite: 'Más de CyberGems', viewAll: 'Más detalles online…',
   },
   en: {
     back: 'Back', help: 'Help', newSticky: 'New floating note',
     pin: 'Keep visible in the system tray', setPassword: 'Set password...',
     docs: 'Documentation / Wiki', faq: 'FAQ', changelog: 'Changelog',
     website: 'Website', donate: 'Donate', about: 'About...', updates: 'Check for updates',
+    suite: 'More from CyberGems', viewAll: 'More details online…',
   },
 };
 
@@ -61,7 +65,7 @@ function renderHead() {
   headEl.replaceChildren();
   headEl.classList.toggle('help-head', currentView === 'help');
 
-  if (currentView === 'help') {
+  if (currentView === 'help' || currentView === 'suite') {
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'head-back';
@@ -75,7 +79,9 @@ function renderHead() {
     });
     headEl.appendChild(back);
     const title = document.createElement('span');
-    title.textContent = (currentState.help && currentState.help.label) || t('help');
+    title.textContent = currentView === 'suite'
+      ? ((currentState.suite && currentState.suite.label) || t('suite'))
+      : ((currentState.help && currentState.help.label) || t('help'));
     headEl.appendChild(title);
     return;
   }
@@ -98,7 +104,16 @@ function makeItem(def) {
 
   const iconSpan = document.createElement('span');
   iconSpan.className = 'icon';
-  iconSpan.innerHTML = ICONS[def.icon] || '';
+  if (def.img) {
+    const img = document.createElement('img');
+    img.className = 'app-icon';
+    img.src = def.img;
+    img.alt = '';
+    img.draggable = false;
+    iconSpan.appendChild(img);
+  } else {
+    iconSpan.innerHTML = ICONS[def.icon] || '';
+  }
 
   const label = document.createElement('span');
   label.className = 'label';
@@ -122,11 +137,18 @@ function makeItem(def) {
     btn.appendChild(sc);
   }
 
+  if (def.desc && String(def.desc).trim()) {
+    const desc = document.createElement('span');
+    desc.className = 'desc';
+    desc.textContent = String(def.desc).trim();
+    btn.appendChild(desc);
+  }
+
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (def.localAction === 'help') {
-      currentView = 'help';
+    if (def.localAction === 'help' || def.localAction === 'suite') {
+      currentView = def.localAction;
       renderView();
     } else if (def.localAction === 'back') {
       currentView = 'main';
@@ -159,7 +181,8 @@ function renderMainView() {
 
   items.push(
     makeItem({ action: 'settings', icon: 'settings', label: currentState.settingsLabel }),
-    makeItem({ localAction: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || t('help'), trailingIcon: 'chevron' })
+    makeItem({ localAction: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || t('help'), trailingIcon: 'chevron' }),
+    makeItem({ localAction: 'suite', icon: 'apps', label: (currentState.suite && currentState.suite.label) || t('suite'), trailingIcon: 'chevron' })
   );
 
   groupEl.replaceChildren(...items);
@@ -186,11 +209,24 @@ function renderHelpView() {
   exitGroupEl.replaceChildren();
 }
 
+function renderSuiteView() {
+  const suite = currentState.suite || {};
+  const apps = Array.isArray(suite.apps) ? suite.apps : [];
+  groupEl.replaceChildren(
+    ...apps.map((a) => makeItem({ action: a.action, img: a.img, icon: 'apps', label: a.name, desc: a.desc })),
+    makeSeparator(),
+    makeItem({ action: 'suite-view-all', icon: 'arrowRight', label: suite.viewAllLabel || t('viewAll') })
+  );
+  exitGroupEl.replaceChildren();
+}
+
 function renderView() {
   if (!currentState) return;
   root.classList.toggle('help-view', currentView === 'help');
+  root.classList.toggle('suite-view', currentView === 'suite');
   renderHead();
   if (currentView === 'help') renderHelpView();
+  else if (currentView === 'suite') renderSuiteView();
   else renderMainView();
   reportReady();
 }
@@ -210,7 +246,7 @@ function reportReady() {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     e.preventDefault();
-    if (currentView === 'help') {
+    if (currentView !== 'main') {
       currentView = 'main';
       renderView();
     } else {
@@ -230,7 +266,7 @@ if (api) {
 headEl.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   e.stopPropagation();
-  if (currentView === 'help') {
+  if (currentView !== 'main') {
     currentView = 'main';
     renderView();
   } else {

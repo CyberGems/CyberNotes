@@ -10,6 +10,8 @@ const REPO_URL = 'https://github.com/CyberGems/CyberNotes';
 const WIKI_URL = `${REPO_URL}/wiki`;
 const DONATE_URL = `${REPO_URL}#%EF%B8%8F-donate`;
 const DONATE_HEART = '#F43F5E';
+const SITE_URL = 'https://cybergems.org';
+const SUITE_URL = `${SITE_URL}/#apps`;
 
 type AppVersions = {
   app: string;
@@ -130,6 +132,18 @@ export default function AboutModal({ language, onClose }: Props) {
     }
   }, [versions, language]);
 
+  // Tira "Suite": iconos en copias LOCALES (public/suite/) porque la app es
+  // offline y no descarga nada en runtime. Si una hermana actualiza su icono,
+  // copiarlo de nuevo desde su repo (ver rutas en el commit que los trajo) y
+  // reconstruir; lo peor de no hacerlo es un icono desactualizado, los links
+  // siguen válidos.
+  const suiteApps = [
+    { slug: 'cyberpaste', icon: 'suite/cyberpaste.png', pitch: t.suitePaste },
+    { slug: 'cyberfeeds', icon: 'suite/cyberfeeds.png', pitch: t.suiteFeeds },
+    { slug: 'cybersnap', icon: 'suite/cybersnap.png', pitch: t.suiteSnap },
+    { slug: 'cyberviewer', icon: 'suite/cyberviewer.png', pitch: t.suiteViewer },
+  ];
+
   return (
     <div className="modal-overlay" onClick={() => handleClose()}>
       <div
@@ -245,6 +259,44 @@ export default function AboutModal({ language, onClose }: Props) {
                   {(t as any).autoUpdatesHint}
                 </div>
               )}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'left', marginTop: 16 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent)',
+              marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <div style={{ height: 1, flex: 1, background: 'var(--accent-dim)' }} />
+              {t.suiteTitle}
+              <div style={{ height: 1, flex: 1, background: 'var(--accent-dim)' }} />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {suiteApps.map((app) => (
+                <Tooltip key={app.slug} label={app.pitch} placement="top">
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    style={{ width: 44, height: 44, borderRadius: 10 }}
+                    onClick={() => window.cyberNotesAPI.openExternal(`${SITE_URL}/apps/${app.slug}/`)}
+                    aria-label={app.pitch}
+                  >
+                    <img src={app.icon} alt="" style={{ width: 28, height: 28, borderRadius: 6, display: 'block' }} />
+                  </button>
+                </Tooltip>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ padding: '3px 10px', fontSize: 11, height: 26 }}
+                onClick={() => window.cyberNotesAPI.openExternal(SUITE_URL)}
+              >
+                {t.suiteMore} →
+              </button>
             </div>
           </div>
         </div>
