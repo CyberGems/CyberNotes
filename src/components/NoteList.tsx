@@ -586,9 +586,15 @@ export default function NoteList({
     return groups;
   }, [floatingNotes, regularNotes, isGroupingActive, showFloatingSection, sortBy, language, isFavoriteFolder, isUnfiledFolder, t.sidebar.stickyNotes, t.sidebar.favorites]);
 
-  // Si la nota seleccionada está en un grupo colapsado, expandirlo automáticamente
+  // Si la nota seleccionada está en un grupo colapsado, expandirlo automáticamente.
+  // Solo al CAMBIAR de selección: si el usuario contrae a mano el grupo que
+  // contiene la nota actual, su decisión se respeta (sin este guard, el efecto
+  // re-expandía de inmediato y el toggle parecía no hacer nada).
+  const lastAutoExpandNoteRef = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedNoteId || !useGroupLayout) return;
+    if (lastAutoExpandNoteRef.current === selectedNoteId) return;
+    lastAutoExpandNoteRef.current = selectedNoteId;
     for (const g of noteGroups) {
       if (g.key === FLOATING_GROUP_KEY) continue;
       if (g.notes.some(n => n.id === selectedNoteId)) {
