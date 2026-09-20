@@ -7,6 +7,7 @@ import { Language } from '../languages';
 import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
+import Tooltip from './Tooltip';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
 interface Props {
@@ -162,6 +163,7 @@ export default function SettingsModal({
   const [recError, setRecError] = useState(false);
   const [recLoading, setRecLoading] = useState(false);
   const [authMethod, setAuthMethod] = useState<'password' | 'pin'>('password');
+  const [storedMethod, setStoredMethod] = useState<'password' | 'pin' | null>(null);
   const [showRecDialog, setShowRecDialog] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
@@ -290,7 +292,7 @@ export default function SettingsModal({
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
     window.cyberNotesAPI.hasRecoveryCode?.().then(setRecHas).catch(() => {});
     window.cyberNotesAPI.getSetting('password_hint').then(v => { if (v) setRecHint(v); }).catch(() => {});
-    window.cyberNotesAPI.getSetting('auth_method').then(v => { if (v === 'pin' || v === 'password') setAuthMethod(v); }).catch(() => {});
+    window.cyberNotesAPI.getSetting('auth_method').then(v => { if (v === 'pin' || v === 'password') { setAuthMethod(v); setStoredMethod(v); } }).catch(() => {});
     window.cyberNotesAPI.getVersions?.().then(v => {
       if (v?.app) setAppVersion(v.app);
     }).catch(() => {});
@@ -569,12 +571,28 @@ export default function SettingsModal({
         }
       }
 
+      // Mismo método y mismo secreto: no hay nada que cambiar (y no se
+      // genera otro código). Cambiar de método con el mismo secreto sí procede.
+      const candidate = authMethod === 'pin' ? newPwd.trim() : newPwd;
+      if (storedMethod === authMethod && hasPassword && await window.cyberNotesAPI.verifyPassword(candidate)) {
+        setPwdMessage(authMethod === 'pin'
+          ? (language === 'es' ? 'Ya estás usando este PIN' : 'Already using this PIN')
+          : (language === 'es' ? 'Ya estás usando esta contraseña' : 'Already using this password'));
+        setPwdError(false);
+        setCurrentPwd('');
+        setNewPwd('');
+        setConfirmPwd('');
+        setPwdLoading(false);
+        return;
+      }
+
       const saved = await window.cyberNotesAPI.setPassword(newPwd, authMethod);
       if (!saved) {
         setPwdMessage(language === 'es' ? 'No se pudo guardar (revisa el formato)' : 'Could not save (check the format)');
         setPwdError(true);
         return;
       }
+      setStoredMethod(authMethod);
       setHasPassword(true);
       setPwdMessage(language === 'es' ? '✓ Contraseña guardada correctamente' : '✓ Password saved successfully');
       setHasSavedChanges(true);
@@ -620,6 +638,7 @@ export default function SettingsModal({
     }
     await window.cyberNotesAPI.removePassword();
     setHasPassword(false);
+    setStoredMethod(null);
     setRecHas(false);
     setRecCode(null);
     setRecAck(false);
@@ -1643,8 +1662,11 @@ export default function SettingsModal({
                     <input
                       type={showPwd ? 'text' : 'password'}
                       value={currentPwd}
-                      onChange={e => setCurrentPwd(e.target.value)}
-                      placeholder={language === 'es' ? 'Contraseña actual' : 'Current password'}
+                      onChange={e => setCurrentPwd(storedMethod === 'pin' ? e.target.value.replace(/\D/g, '').slice(0, 8) : e.target.value)}
+                      inputMode={storedMethod === 'pin' ? 'numeric' : undefined}
+                      placeholder={storedMethod === 'pin'
+                        ? (language === 'es' ? 'PIN actual' : 'Current PIN')
+                        : (language === 'es' ? 'Contraseña actual' : 'Current password')}
                       className="input"
                       style={{ paddingRight: 36 }}
                       onContextMenu={inputMenu.onContextMenu}
@@ -1706,20 +1728,27 @@ export default function SettingsModal({
                     style={{ flex: 1, gap: 6 }}
                   >
                     <Lock size={14} />
-                    {pwdLoading 
-                      ? (language === 'es' ? 'Guardando...' : 'Saving...') 
-                      : (language === 'es' ? 'Guardar contraseña' : 'Save password')}
+                    {pwdLoading
+                      ? (language === 'es' ? 'Guardando...' : 'Saving...')
+                      : (authMethod === 'pin'
+                        ? (language === 'es' ? 'Guardar PIN' : 'Save PIN')
+                        : (language === 'es' ? 'Guardar contraseña' : 'Save password'))}
                   </button>
                   {hasPassword && (
+                    <Tooltip
+                      label={language === 'es' ? 'Eliminar contraseña' : 'Delete password'}
+                      placement="top"
+                    >
                     <button
                       className="btn btn-danger"
                       onClick={handleRemovePassword}
-                      title={language === 'es' ? 'Eliminar contraseña' : 'Delete password'}
+                      aria-label={language === 'es' ? 'Eliminar contraseña' : 'Delete password'}
                       style={{ gap: 6 }}
                     >
                       <Trash2 size={14} />
                       {language === 'es' ? 'Quitar' : 'Remove'}
                     </button>
+                    </Tooltip>
                   )}
                 </div>
               </div>
