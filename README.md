@@ -20,7 +20,11 @@
   <a href="https://github.com/CyberGems/CyberNotes/wiki"><img src="https://img.shields.io/badge/Wiki-Documentation-1F2428?style=flat-square&logo=gitbook&logoColor=white&color=2E7D32" alt="Wiki" /></a>
 </p>
 
-A modern, privacy-focused desktop note-taking application with rich text, folders, tabs, and floating notes. It stores all data locally using **SQL.js (SQLite WASM)**: your notes never leave your device. Built with **Electron + React + TypeScript**.
+---
+
+## What is CyberNotes?
+
+CyberNotes is a sleek, privacy-focused note-taking application for Windows that keeps writing and organization entirely on your device. Create rich notes with formatting, images, code blocks, and markdown shortcuts; arrange them in colorful folders; work across multiple tabs; and detach important notes into floating windows. Instant search, autosave, session restore, customizable themes, and an optional master-password access lock support both quick ideas and longer projects. Data is stored locally with **SQL.js (SQLite WASM)**. Built with **Electron + React + TypeScript**.
 
 *Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
 
