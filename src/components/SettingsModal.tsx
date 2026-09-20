@@ -4,7 +4,7 @@ import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -165,6 +165,7 @@ export default function SettingsModal({
   const [authMethod, setAuthMethod] = useState<'password' | 'pin'>('password');
   const [storedMethod, setStoredMethod] = useState<'password' | 'pin' | null>(null);
   const [showRecDialog, setShowRecDialog] = useState(false);
+  const [recDialogMode, setRecDialogMode] = useState<'first' | 'regen'>('first');
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
@@ -189,6 +190,13 @@ export default function SettingsModal({
   const handleToggleStickyRestore = async (val: boolean) => {
     setStickyRestoreOnStartup(val);
     await window.cyberNotesAPI.setSetting('sticky_restore_on_startup', val ? 'true' : 'false');
+  };
+
+  const [showSuitePromo, setShowSuitePromo] = useState(true);
+
+  const handleToggleSuitePromo = async (val: boolean) => {
+    setShowSuitePromo(val);
+    await window.cyberNotesAPI.setSetting('show_suite_promo', val ? 'true' : 'false');
   };
 
   const handleToggleStickySkipTaskbar = async (val: boolean) => {
@@ -302,10 +310,11 @@ export default function SettingsModal({
     const loadSettings = async () => {
       const val = await window.cyberNotesAPI.getSetting('close_to_tray');
       const ctt = val === 'true';
-      setCloseToTray(ctt);
-      const minVal = await window.cyberNotesAPI.getSetting('minimize_to_tray');
+      setCloseToTray(ctt);      const minVal = await window.cyberNotesAPI.getSetting('minimize_to_tray');
       const mtt = minVal === 'true';
       setMinimizeToTray(mtt);
+      const suiteVal = await window.cyberNotesAPI.getSetting('show_suite_promo');
+      setShowSuitePromo(suiteVal !== 'false');
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
       const hkVal = await window.cyberNotesAPI.getSetting('toggle_hotkey');
@@ -608,6 +617,7 @@ export default function SettingsModal({
           const code = await window.cyberNotesAPI.generateRecoveryCode();
           setRecCode(code);
           setRecAck(false);
+          setRecDialogMode('first');
           setShowRecDialog(true);
         } catch {
           /* el centro de recuperación de la tarjeta queda disponible */
@@ -671,6 +681,8 @@ export default function SettingsModal({
       const code = await window.cyberNotesAPI.generateRecoveryCode();
       setRecCode(code);
       setRecAck(false);
+      setRecDialogMode(recHas ? 'regen' : 'first');
+      setShowRecDialog(true);
     } catch {
       setRecMessage(language === 'es' ? 'No se pudo generar el código' : 'Could not generate the code');
       setRecError(true);
@@ -896,9 +908,9 @@ export default function SettingsModal({
                     <div className={`custom-switch ${closeToTray ? 'active' : ''}`} />
                   </label>
 
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '12px 16px',
                     background: 'var(--bg-surface)',
@@ -911,6 +923,23 @@ export default function SettingsModal({
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Al minimizar, ocultar la app de la barra de tareas' : 'Minimizing hides the app from the taskbar'}</span>
                     </SettingsOptionCopy>
                     <div className={`custom-switch ${minimizeToTray ? 'active' : ''}`} />
+                  </label>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer'
+                  }} onClick={() => handleToggleSuitePromo(!showSuitePromo)}>
+                    <SettingsOptionCopy icon={<Sparkles />}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Recomendaciones de la suite' : 'Suite recommendations'}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Tira en Acerca de y entrada en el menú de bandeja' : 'About strip and tray menu entry'}</span>
+                    </SettingsOptionCopy>
+                    <div className={`custom-switch ${showSuitePromo ? 'active' : ''}`} />
                   </label>
 
                   {(closeToTray || minimizeToTray) && (
@@ -1251,7 +1280,7 @@ export default function SettingsModal({
               </SettingsHeading>
               <div className="settings-option-stack">
                 <label className="settings-option-row" onClick={() => handleToggleStickyRestore(!stickyRestoreOnStartup)}>
-                  <SettingsOptionCopy icon={<StickyNote />}>
+                  <SettingsOptionCopy icon={<History />}>
                     <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                       {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore floating notes on startup'}
                     </span>
@@ -1263,7 +1292,7 @@ export default function SettingsModal({
                 </label>
 
                 <label className="settings-option-row" onClick={() => handleToggleStickySkipTaskbar(!stickySkipTaskbar)}>
-                  <SettingsOptionCopy icon={<StickyNote />}>
+                  <SettingsOptionCopy icon={<LayoutGrid />}>
                     <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                       {language === 'es' ? 'Notas flotantes en modo widget' : 'Floating notes as desktop widgets'}
                     </span>
@@ -1275,7 +1304,7 @@ export default function SettingsModal({
                 </label>
 
                 <div className="settings-option-row">
-                  <SettingsOptionCopy icon={<StickyNote />}>
+                  <SettingsOptionCopy icon={<ShieldCheck />}>
                     <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                       {language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
                     </span>
@@ -1780,7 +1809,15 @@ export default function SettingsModal({
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {!recHas && !recCode && (
+                {!hasPassword && (
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                    {language === 'es'
+                      ? 'Define primero una contraseña o PIN arriba para poder generar un código.'
+                      : 'Set a password or PIN above first to generate a code.'}
+                  </p>
+                )}
+
+                {hasPassword && !recHas && (
                   <button
                     className="btn btn-ghost"
                     onClick={handleGenerateRecoveryCode}
@@ -1792,70 +1829,22 @@ export default function SettingsModal({
                   </button>
                 )}
 
-                {recCode && (
+                {recHas && (
                   <>
-                    <div style={{
-                      padding: '12px 14px', borderRadius: 'var(--radius-sm)',
-                      background: 'var(--bg-app)', border: '1px dashed var(--accent)',
-                      fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 700,
-                      letterSpacing: '0.08em', textAlign: 'center', color: 'var(--text-primary)',
-                      userSelect: 'text', WebkitUserSelect: 'text',
-                    }}>
-                      {recCode}
+                    <div style={{ fontSize: 12, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Check size={14} />
+                      {language === 'es' ? 'Código de recuperación configurado' : 'Recovery code configured'}
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-ghost" onClick={handleCopyRecoveryCode} style={{ gap: 6, flex: 1 }}>
-                        <Copy size={14} />
-                        {language === 'es' ? 'Copiar' : 'Copy'}
-                      </button>
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleSaveRecoveryCode}
-                        disabled={!recAck || recLoading}
-                        style={{ gap: 6, flex: 1 }}
-                      >
-                        <Check size={14} />
-                        {language === 'es' ? 'Guardar código' : 'Save code'}
-                      </button>
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={recAck}
-                        onChange={e => setRecAck(e.target.checked)}
-                        style={{ marginTop: 2, accentColor: 'var(--accent)' }}
-                      />
-                      {language === 'es'
-                        ? 'Lo guardé en un lugar seguro fuera de este equipo. Entiendo que sin él no podré recuperar el acceso.'
-                        : 'I stored it somewhere safe away from this computer. I understand access cannot be recovered without it.'}
-                    </label>
                     <button
                       className="btn btn-ghost"
-                      onClick={() => { setRecCode(null); setRecAck(false); }}
-                      style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                      onClick={handleGenerateRecoveryCode}
+                      disabled={recLoading}
+                      style={{ gap: 6, justifyContent: 'flex-start', fontSize: 12 }}
                     >
-                      {language === 'es' ? 'Cancelar' : 'Cancel'}
+                      <RotateCcw size={14} />
+                      {language === 'es' ? 'Regenerar código' : 'Regenerate code'}
                     </button>
                   </>
-                )}
-
-                {recHas && !recCode && (
-                  <div style={{ fontSize: 12, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Check size={14} />
-                    {language === 'es' ? 'Código de recuperación configurado' : 'Recovery code configured'}
-                  </div>
-                )}
-
-                {(recHas || recCode) && (
-                  <button
-                    className="btn btn-ghost"
-                    onClick={handleGenerateRecoveryCode}
-                    disabled={recLoading}
-                    style={{ gap: 6, justifyContent: 'flex-start', fontSize: 12 }}
-                  >
-                    <RotateCcw size={14} />
-                    {language === 'es' ? 'Regenerar código' : 'Regenerate code'}
-                  </button>
                 )}
 
                 <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
@@ -2302,20 +2291,37 @@ export default function SettingsModal({
           role="dialog"
           aria-modal="true"
           aria-label={language === 'es' ? 'Código de recuperación' : 'Recovery code'}
-          onClick={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation();
+            if (recDialogMode === 'regen') { setRecCode(null); setRecAck(false); setShowRecDialog(false); }
+          }}
           style={{
             position: 'fixed', inset: 0, zIndex: 50000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'rgba(4, 4, 10, 0.72)', padding: 20,
           }}
         >
-          <div style={{
-            width: '100%', maxWidth: 420, borderRadius: 14, padding: 24,
-            background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
-            border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-            boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
-            display: 'flex', flexDirection: 'column', gap: 12,
-          }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 420, borderRadius: 14, padding: 24,
+              background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
+              border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
+              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
+              display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
+            }}
+          >
+            {recDialogMode === 'regen' && (
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => { setRecCode(null); setRecAck(false); setShowRecDialog(false); }}
+                aria-label={language === 'es' ? 'Cerrar' : 'Close'}
+                style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28 }}
+              >
+                <X size={15} />
+              </button>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -2330,9 +2336,13 @@ export default function SettingsModal({
               </h3>
             </div>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              {language === 'es'
-                ? 'Es la única forma de volver a entrar si olvidas tu contraseña. No se volverá a mostrar.'
-                : 'It is the only way back in if you forget your password. It will not be shown again.'}
+              {recDialogMode === 'regen'
+                ? (language === 'es'
+                  ? 'Este código reemplazará al anterior al continuar.'
+                  : 'This code will replace the previous one on continue.')
+                : (language === 'es'
+                  ? 'Es la única forma de volver a entrar si olvidas tu contraseña. No se volverá a mostrar.'
+                  : 'It is the only way back in if you forget your password. It will not be shown again.')}
             </p>
             <div style={{
               padding: '12px 14px', borderRadius: 'var(--radius-sm)',

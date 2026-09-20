@@ -435,6 +435,7 @@ export default function LockScreen({
                 : t.lockScreen.recoveryNewPassword}
               aria-label={t.lockScreen.recoveryNewPassword}
               className="input"
+              style={authMethod === 'pin' ? { textAlign: 'center' } : undefined}
               onContextMenu={inputMenu.onContextMenu}
             />
             <input
@@ -528,7 +529,7 @@ export default function LockScreen({
                     : t.lockScreen.placeholderPassword}
                   autoFocus
                   className="input"
-                  style={{ paddingRight: 40, fontSize: 15, userSelect: 'text', WebkitUserSelect: 'text' }}
+                  style={{ paddingRight: 40, fontSize: 15, userSelect: 'text', WebkitUserSelect: 'text', textAlign: authMethod === 'pin' ? 'center' : undefined }}
                   disabled={loading}
                   onKeyDown={e => {
                     if (e.getModifierState) setCapsOn(e.getModifierState('CapsLock'));

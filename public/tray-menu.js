@@ -201,9 +201,13 @@ function renderMainView() {
 
   items.push(
     makeItem({ action: 'settings', icon: 'settings', label: currentState.settingsLabel }),
-    makeItem({ localAction: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || t('help'), trailingIcon: 'chevron' }),
-    makeItem({ localAction: 'suite', icon: 'apps', label: (currentState.suite && currentState.suite.label) || t('suite'), trailingIcon: 'chevron' })
+    makeItem({ localAction: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || t('help'), trailingIcon: 'chevron' })
   );
+  if (currentState.suite && Array.isArray(currentState.suite.apps) && currentState.suite.apps.length > 0) {
+    items.push(
+      makeItem({ localAction: 'suite', icon: 'apps', label: currentState.suite.label || t('suite'), trailingIcon: 'chevron' })
+    );
+  }
 
   groupEl.replaceChildren(...items);
   exitGroupEl.replaceChildren(

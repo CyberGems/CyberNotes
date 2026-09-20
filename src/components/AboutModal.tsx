@@ -51,10 +51,12 @@ export default function AboutModal({ language, onClose }: Props) {
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' });
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [diagCopied, setDiagCopied] = useState(false);
+  const [showSuite, setShowSuite] = useState(true);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     window.cyberNotesAPI.getVersions().then((v) => setVersions(v as AppVersions));
+    window.cyberNotesAPI.getSetting('show_suite_promo').then((v) => setShowSuite(v !== 'false')).catch(() => {});
     window.cyberNotesAPI.getSetting('auto_check_updates').then((val) => {
       // Default on when unset (matches CyberFeeds / first-run UX)
       setAutoUpdate(val !== 'false');
@@ -262,6 +264,7 @@ export default function AboutModal({ language, onClose }: Props) {
             </div>
           </div>
 
+          {showSuite && (
           <div style={{ textAlign: 'left', marginTop: 16 }}>
             <div style={{
               fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent)',
@@ -299,6 +302,7 @@ export default function AboutModal({ language, onClose }: Props) {
               </button>
             </div>
           </div>
+          )}
         </div>
 
         <div className="about-modal-footer">

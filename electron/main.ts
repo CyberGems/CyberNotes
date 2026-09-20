@@ -1234,18 +1234,22 @@ function buildTrayMenuState() {
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Exit',
     shortcut: activeHotkey,
-    suite: {
-      label: isEs ? 'Más de CyberGems' : 'More from CyberGems',
-      viewAllLabel: isEs ? 'Más detalles online…' : 'More details online…',
-      apps: loadSuiteApps()
-        .filter((a) => a.slug !== SELF_SLUG)
-        .map((a) => ({
-        name: a.name,
-        action: `suite-${a.slug}`,
-        img: suiteIconFile(a.slug),
-        desc: (SUITE_SHORT[a.slug] || { es: '', en: '' })[isEs ? 'es' : 'en'],
-      })),
-    },
+    ...(queryGet('SELECT value FROM settings WHERE key = ?', ['show_suite_promo'])?.value !== 'false'
+      ? {
+          suite: {
+            label: isEs ? 'Más de CyberGems' : 'More from CyberGems',
+            viewAllLabel: isEs ? 'Más detalles online…' : 'More details online…',
+            apps: loadSuiteApps()
+              .filter((a) => a.slug !== SELF_SLUG)
+              .map((a) => ({
+              name: a.name,
+              action: `suite-${a.slug}`,
+              img: suiteIconFile(a.slug),
+              desc: (SUITE_SHORT[a.slug] || { es: '', en: '' })[isEs ? 'es' : 'en'],
+            })),
+          },
+        }
+      : {}),
     help: {
       label: isEs ? 'Ayuda' : 'Help',
       backLabel: isEs ? 'Volver' : 'Back',
@@ -2204,7 +2208,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'note_list_collapsed_groups', 'note_list_floating_group_ready',
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
-  'auth_method',
+  'auth_method', 'show_suite_promo',
   'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
 ]);
 
