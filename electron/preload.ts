@@ -98,6 +98,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   hasRecoveryCode: () => ipcRenderer.invoke('auth:hasRecoveryCode'),
   setRecoveryCode: (code: string) => ipcRenderer.invoke('auth:setRecoveryCode', code),
   verifyRecoveryCode: (code: string) => ipcRenderer.invoke('auth:verifyRecoveryCode', code),
+  getUsageStats: () => ipcRenderer.invoke('stats:getUsage'),
+  purgeUsageStats: () => ipcRenderer.invoke('stats:purgeUsage'),
 
   // -- Unsaved Changes --
   setUnsavedChanges: (val: boolean) => ipcRenderer.invoke('window:unsavedChanges:set', val),

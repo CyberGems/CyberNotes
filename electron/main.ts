@@ -198,6 +198,11 @@ async function initDatabase() {
       opacity     REAL DEFAULT 0.9,
       is_open     INTEGER DEFAULT 1
     );
+
+    CREATE TABLE IF NOT EXISTS usage_days (
+      day   TEXT PRIMARY KEY,
+      opens INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   // Migración: DBs antiguas sin columnas nuevas o sticky_notes
@@ -391,8 +396,7 @@ function runQuery(sql: string, params: any[] = [], opts?: { flushNow?: boolean }
 }
 
 /** Varias mutaciones sin flush intermedio; un solo schedule al final. */
-function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>, opts?: { flushNow?: boolean }) {
-  if (!db) throw new Error('Base de datos no inicializada');
+function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>, opts?: { flushNow?: boolean }) {  if (!db) throw new Error('Base de datos no inicializada');
   for (const op of ops) {
     db.run(op.sql, op.params ?? []);
   }
@@ -416,6 +420,112 @@ function purgeOldTrash(): void {
   ]);
   runQueryBatch(ops);
   console.log(`[CyberNotes] Purged ${expired.length} expired trash note(s)`);
+}
+
+// ─── Estadísticas de uso (100% locales, opcionales) ─────────────────────────
+// Un renglón por día con aperturas. Todo lo demás (rachas, totales, palabras)
+// se deriva al consultar. Si el usuario lo desactiva, no se registra nada.
+function localDayString(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function isUsageStatsEnabled(): boolean {
+  try {
+    const row = queryGet('SELECT value FROM settings WHERE key = ?', ['usage_stats_enabled']);
+    return !row || row.value !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function recordAppOpen(): void {
+  try {
+    if (!db || !isUsageStatsEnabled()) return;
+    const day = localDayString(new Date());
+    // INSERT + UPDATE separados (compatible con cualquier SQLite, sin UPSERT).
+    runQuery('INSERT OR IGNORE INTO usage_days (day, opens) VALUES (?, 0)', [day]);
+    runQuery('UPDATE usage_days SET opens = opens + 1 WHERE day = ?', [day]);
+  } catch {
+    /* nunca romper el arranque por estadísticas */
+  }
+}
+
+function stripHtmlToWords(html: unknown): string[] {
+  if (typeof html !== 'string' || !html) return [];
+  const noImages = html.replace(/<img\b[^>]*>/gi, ' ');
+  const text = noImages.replace(/<[^>]*>/g, ' ');
+  return text.split(/\s+/).filter(Boolean);
+}
+
+function computeUsageStats() {
+  const dayRows = queryAll('SELECT day, opens FROM usage_days ORDER BY day ASC') as { day: string; opens: number }[];
+  const days = dayRows.map((r) => r.day);
+  const daySet = new Set(days);
+  const totalOpens = dayRows.reduce((acc, r) => acc + (Number(r.opens) || 0), 0);
+
+  const toDate = (dayStr: string) => {
+    const [y, m, d] = dayStr.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+  const todayStr = localDayString(new Date());
+  const stepBack = (dayStr: string) => {
+    const d = toDate(dayStr);
+    d.setDate(d.getDate() - 1);
+    return localDayString(d);
+  };
+
+  let currentStreak = 0;
+  let cursor = daySet.has(todayStr) ? todayStr : stepBack(todayStr);
+  while (daySet.has(cursor)) {
+    currentStreak++;
+    cursor = stepBack(cursor);
+  }
+
+  let longestStreak = 0;
+  let run = 0;
+  let prev = '';
+  for (const day of days) {
+    if (prev) {
+      const expected = toDate(prev);
+      expected.setDate(expected.getDate() + 1);
+      run = localDayString(expected) === day ? run + 1 : 1;
+    } else {
+      run = 1;
+    }
+    if (run > longestStreak) longestStreak = run;
+    prev = day;
+  }
+
+  const notes = queryAll(
+    'SELECT content, folder_id, pinned, created_at FROM notes WHERE deleted_at IS NULL',
+  ) as { content: string; folder_id: string | null; pinned: number; created_at: string }[];
+  let words = 0;
+  let images = 0;
+  let favorites = 0;
+  for (const n of notes) {
+    words += stripHtmlToWords(n.content).length;
+    const imgs = typeof n.content === 'string' ? n.content.match(/<img\b/gi) : null;
+    if (imgs) images += imgs.length;
+    if (Number(n.pinned) === 1) favorites++;
+  }
+  const folderRows = queryAll('SELECT COUNT(*) as count FROM folders') as { count: number }[];
+
+  return {
+    firstOpen: days.length > 0 ? days[0] : null,
+    totalOpens,
+    activeDays: days.length,
+    currentStreak,
+    longestStreak,
+    totals: {
+      notes: notes.length,
+      words,
+      folders: folderRows.length > 0 ? Number(folderRows[0].count) || 0 : 0,
+      favorites,
+      images,
+    },
+  };
 }
 
 // ─── Ventana y Tray ────────────────────────────────────────────────────────
@@ -2188,6 +2298,24 @@ ipcMain.handle('auth:verifyRecoveryCode', async (_e: any, code: string) => {
   return { ok: false, retryAfterMs: 0 };
 });
 
+// -- Estadísticas de uso (solo lectura agregada + purga; ver helpers arriba) --
+ipcMain.handle('stats:getUsage', () => {
+  try {
+    return { ok: true, stats: computeUsageStats() };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
+ipcMain.handle('stats:purgeUsage', () => {
+  try {
+    runQuery('DELETE FROM usage_days');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
 // -- Settings --
 // Keys the renderer may read/write through the generic settings channel.
 // Security-critical keys (password_hash) and main-process-only keys
@@ -2208,7 +2336,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'note_list_collapsed_groups', 'note_list_floating_group_ready',
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
-  'auth_method', 'show_suite_promo',
+  'auth_method', 'show_suite_promo', 'usage_stats_enabled',
   'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
 ]);
 
@@ -2876,6 +3004,7 @@ if (!gotTheLock) {
 
     writeLog('info', `CyberNotes ${app.getVersion()} started (packaged: ${app.isPackaged})`);
     await initDatabase();
+    recordAppOpen();
     // Start locked whenever a password exists so tray restore never assumes an open session.
     sessionLocked = hasPasswordHash();
     lastActivityAt = Date.now();

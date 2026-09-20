@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ThemeId } from '../types';
+import { ThemeId, type UsageStats } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3 } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -125,6 +125,61 @@ function SettingsOptionCopy({
   );
 }
 
+function UsageTiles({ stats, language }: { stats: UsageStats; language: Language }) {
+  const fmt = (n: number) => new Intl.NumberFormat(language === 'es' ? 'es-ES' : 'en-US').format(n);
+  const tiles = [
+    { value: fmt(stats.totals.notes), label: language === 'es' ? 'Notas' : 'Notes' },
+    { value: fmt(stats.totals.words), label: language === 'es' ? 'Palabras' : 'Words' },
+    { value: fmt(stats.totals.folders), label: language === 'es' ? 'Carpetas' : 'Folders' },
+    { value: fmt(stats.totals.favorites), label: language === 'es' ? 'Favoritas' : 'Favorites' },
+    { value: fmt(stats.totals.images), label: language === 'es' ? 'Imágenes' : 'Images' },
+    {
+      value: fmt(stats.currentStreak),
+      label: language === 'es' ? 'Racha (días)' : 'Streak (days)',
+      sub: language === 'es' ? `récord ${fmt(stats.longestStreak)}` : `best ${fmt(stats.longestStreak)}`,
+    },
+  ];
+  const firstOpen = stats.firstOpen ? new Date(`${stats.firstOpen}T12:00:00`) : null;
+  const firstOpenText = firstOpen && !Number.isNaN(firstOpen.getTime())
+    ? firstOpen.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {tiles.map((tile) => (
+          <div
+            key={tile.label}
+            style={{
+              background: 'var(--bg-app)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)', padding: '10px 8px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            }}
+          >
+            <span style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+              {tile.value}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+              {tile.label}
+            </span>
+            {tile.sub && (
+              <span style={{ fontSize: 9.5, color: 'var(--text-muted)', opacity: 0.8 }}>
+                {tile.sub}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+        {language === 'es' ? 'En uso desde' : 'In use since'} {firstOpenText}
+        {' · '}
+        {language === 'es'
+          ? `${fmt(stats.activeDays)} días activos · ${fmt(stats.totalOpens)} aperturas`
+          : `${fmt(stats.activeDays)} active days · ${fmt(stats.totalOpens)} opens`}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsModal({ 
   language, displayName, onDisplayNameChange, onLanguageChange,
   currentTheme, onThemeChange, colorIntensity, onIntensityChange, 
@@ -197,6 +252,37 @@ export default function SettingsModal({
   const handleToggleSuitePromo = async (val: boolean) => {
     setShowSuitePromo(val);
     await window.cyberNotesAPI.setSetting('show_suite_promo', val ? 'true' : 'false');
+  };
+
+  const [usageStatsOn, setUsageStatsOn] = useState(true);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [usageError, setUsageError] = useState(false);
+
+  const handleToggleUsageStats = async (val: boolean) => {
+    setUsageStatsOn(val);
+    await window.cyberNotesAPI.setSetting('usage_stats_enabled', val ? 'true' : 'false');
+    if (!val) {
+      await window.cyberNotesAPI.purgeUsageStats().catch(() => {});
+      setUsageStats(null);
+    }
+  };
+
+  const handleLoadUsageStats = async () => {
+    setUsageLoading(true);
+    setUsageError(false);
+    try {
+      const res = await window.cyberNotesAPI.getUsageStats();
+      if (res?.ok && res.stats) {
+        setUsageStats(res.stats);
+      } else {
+        setUsageError(true);
+      }
+    } catch {
+      setUsageError(true);
+    } finally {
+      setUsageLoading(false);
+    }
   };
 
   const handleToggleStickySkipTaskbar = async (val: boolean) => {
@@ -315,6 +401,8 @@ export default function SettingsModal({
       setMinimizeToTray(mtt);
       const suiteVal = await window.cyberNotesAPI.getSetting('show_suite_promo');
       setShowSuitePromo(suiteVal !== 'false');
+      const usageVal = await window.cyberNotesAPI.getSetting('usage_stats_enabled');
+      setUsageStatsOn(usageVal !== 'false');
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
       const hkVal = await window.cyberNotesAPI.getSetting('toggle_hotkey');
@@ -1273,6 +1361,65 @@ export default function SettingsModal({
                     )}
                   </div>
                 </div>
+            </div>
+            <div className="settings-card">
+              <SettingsHeading icon={<BarChart3 />}>
+                {language === 'es' ? 'Estadísticas de uso' : 'Usage statistics'}
+              </SettingsHeading>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                background: 'var(--bg-surface)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                marginBottom: 10,
+              }} onClick={() => handleToggleUsageStats(!usageStatsOn)}>
+                <SettingsOptionCopy icon={<BarChart3 />}>
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Contar estadísticas' : 'Count statistics'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Aperturas y días activos, solo en este equipo' : 'Opens and active days, only on this computer'}</span>
+                </SettingsOptionCopy>
+                <div className={`custom-switch ${usageStatsOn ? 'active' : ''}`} />
+              </label>
+
+              {usageStatsOn && (
+                !usageStats ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={handleLoadUsageStats}
+                      disabled={usageLoading}
+                      style={{ gap: 6 }}
+                    >
+                      <BarChart3 size={14} />
+                      {usageLoading
+                        ? (language === 'es' ? 'Calculando...' : 'Calculating...')
+                        : (language === 'es' ? 'Mostrar estadísticas' : 'Show statistics')}
+                    </button>
+                    {usageError && (
+                      <div style={{
+                        padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                        background: 'var(--danger-dim)', color: 'var(--danger)', fontSize: 12,
+                      }}>
+                        {language === 'es' ? 'No se pudieron calcular' : 'Could not calculate'}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <UsageTiles stats={usageStats} language={language} />
+                )
+              )}
+
+              {!usageStatsOn && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  {language === 'es'
+                    ? 'Desactivado: no se registra nada y se borró el historial guardado.'
+                    : 'Disabled: nothing is recorded and saved history was deleted.'}
+                </p>
+              )}
             </div>
             <div className="settings-card settings-floating-card">
               <SettingsHeading icon={<StickyNote />}>

@@ -1,5 +1,20 @@
 // ─── Tipos compartidos de CyberNotes ──────────────────────────────────────
 
+export interface UsageStats {
+  firstOpen: string | null;
+  totalOpens: number;
+  activeDays: number;
+  currentStreak: number;
+  longestStreak: number;
+  totals: {
+    notes: number;
+    words: number;
+    folders: number;
+    favorites: number;
+    images: number;
+  };
+}
+
 export interface Folder {
   id: string;
   name: string;
@@ -67,6 +82,8 @@ declare global {
       hasRecoveryCode: () => Promise<boolean>;
       setRecoveryCode: (code: string) => Promise<boolean>;
       verifyRecoveryCode: (code: string) => Promise<{ ok: boolean; retryAfterMs: number }>;
+      getUsageStats: () => Promise<{ ok: boolean; stats?: UsageStats; error?: string }>;
+      purgeUsageStats: () => Promise<{ ok: boolean; error?: string }>;
       // Unsaved Changes
       setUnsavedChanges: (val: boolean) => Promise<void>;
       // Session lock
