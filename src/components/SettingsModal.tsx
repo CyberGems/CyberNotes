@@ -3,7 +3,7 @@ import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -153,6 +153,13 @@ export default function SettingsModal({
   const [pwdMessage, setPwdMessage] = useState('');
   const [pwdError, setPwdError] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
+  const [recHas, setRecHas] = useState(false);
+  const [recCode, setRecCode] = useState<string | null>(null);
+  const [recAck, setRecAck] = useState(false);
+  const [recHint, setRecHint] = useState('');
+  const [recMessage, setRecMessage] = useState('');
+  const [recError, setRecError] = useState(false);
+  const [recLoading, setRecLoading] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
@@ -278,6 +285,8 @@ export default function SettingsModal({
 
   useEffect(() => {
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
+    window.cyberNotesAPI.hasRecoveryCode?.().then(setRecHas).catch(() => {});
+    window.cyberNotesAPI.getSetting('password_hint').then(v => { if (v) setRecHint(v); }).catch(() => {});
     window.cyberNotesAPI.getVersions?.().then(v => {
       if (v?.app) setAppVersion(v.app);
     }).catch(() => {});
@@ -582,10 +591,90 @@ export default function SettingsModal({
     }
     await window.cyberNotesAPI.removePassword();
     setHasPassword(false);
+    setRecHas(false);
+    setRecCode(null);
+    setRecAck(false);
+    setRecHint('');
     setPwdMessage(language === 'es' ? '✓ Contraseña eliminada' : '✓ Password removed');
     setHasSavedChanges(true);
     setPwdError(false);
     setCurrentPwd('');
+  };
+
+  const handleGenerateRecoveryCode = async () => {
+    setRecMessage('');
+    setRecError(false);
+    // El código abre la app entera: si hay contraseña, exigirla primero.
+    if (hasPassword) {
+      if (!currentPwd) {
+        setRecMessage(language === 'es' ? 'Ingresa tu contraseña actual primero' : 'Enter your current password first');
+        setRecError(true);
+        return;
+      }
+      const ok = await window.cyberNotesAPI.verifyPassword(currentPwd);
+      if (!ok) {
+        setRecMessage(language === 'es' ? 'Contraseña actual incorrecta' : 'Incorrect current password');
+        setRecError(true);
+        return;
+      }
+    }
+    setRecLoading(true);
+    try {
+      const code = await window.cyberNotesAPI.generateRecoveryCode();
+      setRecCode(code);
+      setRecAck(false);
+    } catch {
+      setRecMessage(language === 'es' ? 'No se pudo generar el código' : 'Could not generate the code');
+      setRecError(true);
+    } finally {
+      setRecLoading(false);
+    }
+  };
+
+  const handleSaveRecoveryCode = async () => {
+    if (!recCode || !recAck) return;
+    setRecLoading(true);
+    try {
+      const ok = await window.cyberNotesAPI.setRecoveryCode(recCode);
+      if (!ok) throw new Error('save failed');
+      setRecHas(true);
+      setRecCode(null);
+      setRecAck(false);
+      setRecMessage(language === 'es' ? '✓ Código de recuperación guardado' : '✓ Recovery code saved');
+      setRecError(false);
+      setHasSavedChanges(true);
+    } catch {
+      setRecMessage(language === 'es' ? 'Error al guardar el código' : 'Error saving the code');
+      setRecError(true);
+    } finally {
+      setRecLoading(false);
+    }
+  };
+
+  const handleCopyRecoveryCode = async () => {
+    if (!recCode) return;
+    try {
+      await navigator.clipboard.writeText(recCode);
+      setRecMessage(language === 'es' ? '✓ Código copiado' : '✓ Code copied');
+      setRecError(false);
+    } catch {
+      /* portapapeles no disponible: el código sigue visible para copiarlo a mano */
+    }
+  };
+
+  const handleSaveHint = async () => {
+    setRecLoading(true);
+    try {
+      await window.cyberNotesAPI.setSetting('password_hint', recHint.trim());
+      setRecMessage(language === 'es' ? '✓ Pista guardada' : '✓ Hint saved');
+      setRecError(false);
+      setHasSavedChanges(true);
+    } catch {
+      setRecMessage(language === 'es' ? 'Error al guardar la pista' : 'Error saving the hint');
+      setRecError(true);
+    } finally {
+      setRecLoading(false);
+    }
   };
 
   return (
@@ -1173,7 +1262,7 @@ export default function SettingsModal({
                     const ledColor = getPreviewColor(theme.id, isCurrent ? colorIntensity : 65);
                     const themeName = language === 'es' ? (theme.nameEs || theme.name) : (theme.nameEn || theme.name);
 
-                    return (
+  return (
                       <button
                         key={theme.id}
                         onClick={() => onThemeChange(theme.id as ThemeId)}
@@ -1600,6 +1689,130 @@ export default function SettingsModal({
                   </button>
                 </>
               )}
+            </div>
+
+            <div className="settings-card">
+              <SettingsHeading icon={<KeyRound />}>
+                {language === 'es' ? 'Código de recuperación' : 'Recovery code'}
+              </SettingsHeading>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
+                {language === 'es'
+                  ? 'Si olvidas tu contraseña, este código es la única forma de volver a entrar. Guárdalo fuera de este equipo.'
+                  : 'If you forget your password, this code is the only way back in. Store it away from this computer.'}
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {!recHas && !recCode && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={handleGenerateRecoveryCode}
+                    disabled={recLoading}
+                    style={{ gap: 6, justifyContent: 'flex-start' }}
+                  >
+                    <KeyRound size={14} />
+                    {language === 'es' ? 'Generar código de recuperación' : 'Generate recovery code'}
+                  </button>
+                )}
+
+                {recCode && (
+                  <>
+                    <div style={{
+                      padding: '12px 14px', borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-app)', border: '1px dashed var(--accent)',
+                      fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 700,
+                      letterSpacing: '0.08em', textAlign: 'center', color: 'var(--text-primary)',
+                      userSelect: 'text', WebkitUserSelect: 'text',
+                    }}>
+                      {recCode}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost" onClick={handleCopyRecoveryCode} style={{ gap: 6, flex: 1 }}>
+                        <Copy size={14} />
+                        {language === 'es' ? 'Copiar' : 'Copy'}
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleSaveRecoveryCode}
+                        disabled={!recAck || recLoading}
+                        style={{ gap: 6, flex: 1 }}
+                      >
+                        <Check size={14} />
+                        {language === 'es' ? 'Guardar código' : 'Save code'}
+                      </button>
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={recAck}
+                        onChange={e => setRecAck(e.target.checked)}
+                        style={{ marginTop: 2, accentColor: 'var(--accent)' }}
+                      />
+                      {language === 'es'
+                        ? 'Lo guardé en un lugar seguro fuera de este equipo. Entiendo que sin él no podré recuperar el acceso.'
+                        : 'I stored it somewhere safe away from this computer. I understand access cannot be recovered without it.'}
+                    </label>
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => { setRecCode(null); setRecAck(false); }}
+                      style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                    >
+                      {language === 'es' ? 'Cancelar' : 'Cancel'}
+                    </button>
+                  </>
+                )}
+
+                {recHas && !recCode && (
+                  <div style={{ fontSize: 12, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Check size={14} />
+                    {language === 'es' ? 'Código de recuperación configurado' : 'Recovery code configured'}
+                  </div>
+                )}
+
+                {(recHas || recCode) && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={handleGenerateRecoveryCode}
+                    disabled={recLoading}
+                    style={{ gap: 6, justifyContent: 'flex-start', fontSize: 12 }}
+                  >
+                    <RotateCcw size={14} />
+                    {language === 'es' ? 'Regenerar código' : 'Regenerate code'}
+                  </button>
+                )}
+
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+
+                <input
+                  value={recHint}
+                  onChange={e => setRecHint(e.target.value)}
+                  maxLength={120}
+                  placeholder={language === 'es' ? 'Pista opcional (visible en el login)' : 'Optional hint (shown at login)'}
+                  aria-label={language === 'es' ? 'Pista de contraseña' : 'Password hint'}
+                  className="input"
+                  onContextMenu={inputMenu.onContextMenu}
+                />
+                <button
+                  className="btn btn-ghost"
+                  onClick={handleSaveHint}
+                  disabled={recLoading}
+                  style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                >
+                  <Save size={14} />
+                  {language === 'es' ? 'Guardar pista' : 'Save hint'}
+                </button>
+
+                {recMessage && (
+                  <div style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: recError ? 'var(--danger-dim)' : 'rgba(34,197,94,0.12)',
+                    color: recError ? 'var(--danger)' : 'var(--success)',
+                    fontSize: 12,
+                  }}>
+                    {recMessage}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="settings-card">

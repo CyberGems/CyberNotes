@@ -1134,6 +1134,8 @@ function getActiveToggleHotkey(): string {
 }
 
 type SuiteApp = { slug: string; name: string; site: string };
+// Slug de esta app: se excluye del submenú (promociona hermanas, no a sí misma).
+const SELF_SLUG = 'cybernotes';
 
 // Submenú "Más de CyberGems": se lee de public/suite/suite.json (copia local
 // generada con _Website/scripts/build-suite-json.mjs; sin red en runtime).
@@ -1235,7 +1237,9 @@ function buildTrayMenuState() {
     suite: {
       label: isEs ? 'Más de CyberGems' : 'More from CyberGems',
       viewAllLabel: isEs ? 'Más detalles online…' : 'More details online…',
-      apps: loadSuiteApps().map((a) => ({
+      apps: loadSuiteApps()
+        .filter((a) => a.slug !== SELF_SLUG)
+        .map((a) => ({
         name: a.name,
         action: `suite-${a.slug}`,
         img: suiteIconFile(a.slug),
@@ -1249,7 +1253,7 @@ function buildTrayMenuState() {
         ? (isEs ? 'Cambiar contraseña...' : 'Change password...')
         : (isEs ? 'Configurar contraseña...' : 'Set password...'),
       pinLabel: isEs ? 'Mantener visible en la bandeja del sistema' : 'Keep visible in the system tray',
-      docsLabel: isEs ? 'Documentación / Wiki' : 'Documentation / Wiki',
+      docsLabel: isEs ? 'Documentación online' : 'Online documentation',
       faqLabel: isEs ? 'Preguntas frecuentes' : 'FAQ',
       changelogLabel: isEs ? 'Registro de cambios' : 'Changelog',
       websiteLabel: isEs ? 'Sitio web' : 'Website',
@@ -2087,11 +2091,86 @@ ipcMain.handle('auth:verifyPassword', async (_e: any, password: string) => {
 
 ipcMain.handle('auth:removePassword', () => {
   runQuery('DELETE FROM settings WHERE key = ?', ['password_hash']);
+  // Sin contraseña no hay nada que recuperar: limpiar código y pista también.
+  runQuery('DELETE FROM settings WHERE key = ?', ['recovery_code_hash']);
+  runQuery('DELETE FROM settings WHERE key = ?', ['password_hint']);
   handleSessionUnlocked();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('setting-changed', { key: 'password_hash', value: 'removed' });
   }
   return true;
+});
+
+// -- Códigos de recuperación --
+// Solo vive el hash bcrypt en disco, nunca el código. verify con rate limit
+// local (fuerza bruta tecleando en el equipo).
+const RECOVERY_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const RECOVERY_CODE_GROUPS = 4;
+const RECOVERY_CODE_GROUP_LEN = 4;
+const RECOVERY_MAX_ATTEMPTS = 5;
+const RECOVERY_WINDOW_MS = 10 * 60 * 1000;
+const RECOVERY_LOCK_MS = 30 * 1000;
+let recoveryAttempts: number[] = [];
+let recoveryLockedUntil = 0;
+
+function normalizeRecoveryCode(code: unknown): string {
+  if (typeof code !== 'string') return '';
+  return code.trim().toUpperCase().replace(/[^A-Z2-9]/g, '');
+}
+
+function formatRecoveryCode(randomBytes: Buffer): string {
+  const groups: string[] = [];
+  let i = 0;
+  for (let g = 0; g < RECOVERY_CODE_GROUPS; g++) {
+    let part = '';
+    for (let k = 0; k < RECOVERY_CODE_GROUP_LEN; k++, i++) {
+      part += RECOVERY_CODE_ALPHABET[randomBytes[i % randomBytes.length] % RECOVERY_CODE_ALPHABET.length];
+    }
+    groups.push(part);
+  }
+  return groups.join('-');
+}
+
+ipcMain.handle('auth:generateRecoveryCode', () => {
+  const crypto = require('crypto');
+  return formatRecoveryCode(crypto.randomBytes(32));
+});
+
+ipcMain.handle('auth:hasRecoveryCode', () => {
+  return !!queryGet('SELECT value FROM settings WHERE key = ?', ['recovery_code_hash']);
+});
+
+ipcMain.handle('auth:setRecoveryCode', async (_e: any, code: string) => {
+  const clean = normalizeRecoveryCode(code);
+  if (clean.length < 16) return false;
+  const hash = await bcrypt.hash(clean, 10);
+  runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['recovery_code_hash', hash]);
+  recoveryAttempts = [];
+  recoveryLockedUntil = 0;
+  return true;
+});
+
+ipcMain.handle('auth:verifyRecoveryCode', async (_e: any, code: string) => {
+  const now = Date.now();
+  if (now < recoveryLockedUntil) {
+    return { ok: false, retryAfterMs: recoveryLockedUntil - now };
+  }
+  recoveryAttempts = recoveryAttempts.filter((t) => now - t < RECOVERY_WINDOW_MS);
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', ['recovery_code_hash']);
+  const clean = normalizeRecoveryCode(code);
+  const ok = !!row && clean.length >= 16 && (await bcrypt.compare(clean, row.value));
+  if (ok) {
+    recoveryAttempts = [];
+    recoveryLockedUntil = 0;
+    return { ok: true, retryAfterMs: 0 };
+  }
+  recoveryAttempts.push(now);
+  if (recoveryAttempts.length >= RECOVERY_MAX_ATTEMPTS) {
+    recoveryLockedUntil = now + RECOVERY_LOCK_MS;
+    recoveryAttempts = [];
+    return { ok: false, retryAfterMs: RECOVERY_LOCK_MS };
+  }
+  return { ok: false, retryAfterMs: 0 };
 });
 
 // -- Settings --
@@ -2115,10 +2194,11 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
   'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
+  'password_hint',
 ]);
 
 const SETTINGS_RESERVED_KEYS: ReadonlySet<string> = new Set([
-  'password_hash', 'auto_start', 'is_maximized', 'window_bounds',
+  'password_hash', 'recovery_code_hash', 'auto_start', 'is_maximized', 'window_bounds',
 ]);
 
 /** Max value size accepted from the renderer (opened_history JSON can be large). */
@@ -2145,11 +2225,16 @@ ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
 });
 
 ipcMain.handle('settings:reset', () => {
-  // Preserve the access password: resetting preferences must never unlock the app.
+  // Preserve the access password and recovery code: resetting preferences
+  // must never unlock the app or destroy the recovery path.
   const hashRow = queryGet('SELECT value FROM settings WHERE key = ?', ['password_hash']);
+  const recRow = queryGet('SELECT value FROM settings WHERE key = ?', ['recovery_code_hash']);
   runQuery('DELETE FROM settings');
   if (hashRow) {
     runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hashRow.value]);
+  }
+  if (recRow) {
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['recovery_code_hash', recRow.value]);
   }
   registerToggleHotkey();
   startAutoBackupWatcher();

@@ -63,6 +63,10 @@ declare global {
       setPassword: (password: string) => Promise<boolean>;
       verifyPassword: (password: string) => Promise<boolean>;
       removePassword: () => Promise<boolean>;
+      generateRecoveryCode: () => Promise<string>;
+      hasRecoveryCode: () => Promise<boolean>;
+      setRecoveryCode: (code: string) => Promise<boolean>;
+      verifyRecoveryCode: (code: string) => Promise<{ ok: boolean; retryAfterMs: number }>;
       // Unsaved Changes
       setUnsavedChanges: (val: boolean) => Promise<void>;
       // Session lock

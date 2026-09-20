@@ -32,9 +32,19 @@ export default function LockScreen({
   const [isMaximized, setIsMaximized] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const inputMenu = useInputContextMenu(language);
+  const [view, setView] = useState<'login' | 'recover'>('login');
+  const [recHasCode, setRecHasCode] = useState(false);
+  const [recHint, setRecHint] = useState('');
+  const [recCode, setRecCode] = useState('');
+  const [recNew, setRecNew] = useState('');
+  const [recConfirm, setRecConfirm] = useState('');
+  const [recShow, setRecShow] = useState(false);
+  const [recCooldown, setRecCooldown] = useState(0);
 
   useEffect(() => {
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
+    window.cyberNotesAPI.hasRecoveryCode?.().then(setRecHasCode).catch(() => {});
+    window.cyberNotesAPI.getSetting('password_hint').then(v => { if (v) setRecHint(v); }).catch(() => {});
     window.cyberNotesAPI.getVersions().then(v => setAppVersion(v?.app || '')).catch(() => {});
     window.cyberNotesAPI.isMaximized?.().then(setIsMaximized).catch(() => {});
     const unsub = window.cyberNotesAPI.onMaximizedState?.((max) => setIsMaximized(max));
@@ -63,6 +73,47 @@ export default function LockScreen({
       window.removeEventListener('focus', syncCaps);
     };
   }, []);
+
+  // Cuenta regresiva del bloqueo por intentos fallidos de recuperación.
+  useEffect(() => {
+    if (recCooldown <= 0) return;
+    const timer = setTimeout(() => setRecCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [recCooldown]);
+
+  const handleRecover = async (e: FormEvent) => {
+    e.preventDefault();
+    if (recCooldown > 0) return;
+    if (!recCode.trim()) return;
+    if (recNew.length < 4) {
+      setError(t.lockScreen.recoveryWeakPassword);
+      return;
+    }
+    if (recNew !== recConfirm) {
+      setError(t.lockScreen.recoveryMismatch);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await window.cyberNotesAPI.verifyRecoveryCode(recCode);
+      if (!res?.ok) {
+        if (res && res.retryAfterMs > 0) {
+          setRecCooldown(Math.ceil(res.retryAfterMs / 1000));
+        } else {
+          setError(t.lockScreen.recoveryInvalidCode);
+        }
+        setRecCode('');
+        return;
+      }
+      await window.cyberNotesAPI.setPassword(recNew);
+      onUnlock();
+    } catch {
+      setError(t.lockScreen.verifyError);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -124,6 +175,10 @@ export default function LockScreen({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        // Nada seleccionable en el login (etiquetas, errores, versión).
+        // El campo de contraseña re-activa selección explícitamente.
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
         background: 'radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 42%), radial-gradient(circle at 15% 18%, color-mix(in srgb, var(--accent-light) 7%, transparent) 0%, transparent 28%), var(--bg-app)',
         position: 'relative',
         overflow: 'hidden',
@@ -341,6 +396,103 @@ export default function LockScreen({
         />
 
         {/* Form */}
+        {view === 'recover' ? (
+          <form onSubmit={handleRecover} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>
+              {language === 'es'
+                ? 'Ingresa tu código de recuperación para definir una contraseña nueva.'
+                : 'Enter your recovery code to set a new password.'}
+            </p>
+            {recHint && (
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, textAlign: 'center' }}>
+                {t.lockScreen.recoveryHintLabel}: {recHint}
+              </p>
+            )}
+            <input
+              value={recCode}
+              onChange={e => setRecCode(e.target.value)}
+              placeholder={t.lockScreen.recoveryCodePlaceholder}
+              aria-label={t.lockScreen.recoveryCodePlaceholder}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              className="input"
+              style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textAlign: 'center', userSelect: 'text', WebkitUserSelect: 'text' }}
+              onContextMenu={inputMenu.onContextMenu}
+            />
+            <input
+              type={recShow ? 'text' : 'password'}
+              value={recNew}
+              onChange={e => setRecNew(e.target.value)}
+              placeholder={t.lockScreen.recoveryNewPassword}
+              aria-label={t.lockScreen.recoveryNewPassword}
+              className="input"
+              onContextMenu={inputMenu.onContextMenu}
+            />
+            <input
+              type={recShow ? 'text' : 'password'}
+              value={recConfirm}
+              onChange={e => setRecConfirm(e.target.value)}
+              placeholder={t.lockScreen.recoveryConfirmPassword}
+              aria-label={t.lockScreen.recoveryConfirmPassword}
+              className="input"
+              onContextMenu={inputMenu.onContextMenu}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', alignSelf: 'flex-start' }}>
+              <input
+                type="checkbox"
+                checked={recShow}
+                onChange={e => setRecShow(e.target.checked)}
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              {t.lockScreen.showPassword}
+            </label>
+
+            {recCooldown > 0 && (
+              <div style={{
+                color: 'var(--danger)', fontSize: 12, textAlign: 'center',
+                background: 'var(--danger-dim)', padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+              }}>
+                {t.lockScreen.recoveryCooldown.replace('{sec}', String(recCooldown))}
+              </div>
+            )}
+
+            {error && recCooldown <= 0 && (
+              <div style={{
+                color: 'var(--danger)', fontSize: 12, textAlign: 'center',
+                background: 'var(--danger-dim)', padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+              }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || recCooldown > 0}
+              style={{ width: '100%', padding: '10px', fontSize: 14, fontWeight: 600 }}
+            >
+              {loading ? (
+                <span style={{ opacity: 0.7 }}>{t.lockScreen.verifying}</span>
+              ) : (
+                <>
+                  <Lock size={15} />
+                  {t.lockScreen.recoveryReset}
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => { setView('login'); setError(''); }}
+              style={{ gap: 6, fontSize: 13 }}
+            >
+              {t.lockScreen.backToLogin}
+            </button>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {!hasPassword && (
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>
@@ -362,7 +514,7 @@ export default function LockScreen({
                   placeholder={t.lockScreen.placeholderPassword}
                   autoFocus
                   className="input"
-                  style={{ paddingRight: 40, fontSize: 15 }}
+                  style={{ paddingRight: 40, fontSize: 15, userSelect: 'text', WebkitUserSelect: 'text' }}
                   disabled={loading}
                   onKeyDown={e => {
                     if (e.getModifierState) setCapsOn(e.getModifierState('CapsLock'));
@@ -446,7 +598,18 @@ export default function LockScreen({
               </>
             )}
           </button>
+          {hasPassword && recHasCode && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => { setView('recover'); setError(''); }}
+              style={{ gap: 6, fontSize: 13, alignSelf: 'center' }}
+            >
+              {t.lockScreen.forgotPassword}
+            </button>
+          )}
         </form>
+        )}
 
         {appVersion && (
           <div style={{
