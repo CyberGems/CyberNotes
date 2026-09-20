@@ -27,6 +27,7 @@ export default function LockScreen({
   const [loading, setLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
   const [hasPassword, setHasPassword] = useState(true);
+  const [authMethod, setAuthMethod] = useState<'password' | 'pin'>('password');
   const [capsOn, setCapsOn] = useState(false);
   const [appVersion, setAppVersion] = useState('');
   const [isMaximized, setIsMaximized] = useState(false);
@@ -43,6 +44,7 @@ export default function LockScreen({
 
   useEffect(() => {
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
+    window.cyberNotesAPI.getSetting('auth_method').then(v => { if (v === 'pin') setAuthMethod('pin'); }).catch(() => {});
     window.cyberNotesAPI.hasRecoveryCode?.().then(setRecHasCode).catch(() => {});
     window.cyberNotesAPI.getSetting('password_hint').then(v => { if (v) setRecHint(v); }).catch(() => {});
     window.cyberNotesAPI.getVersions().then(v => setAppVersion(v?.app || '')).catch(() => {});
@@ -85,8 +87,11 @@ export default function LockScreen({
     e.preventDefault();
     if (recCooldown > 0) return;
     if (!recCode.trim()) return;
-    if (recNew.length < 4) {
-      setError(t.lockScreen.recoveryWeakPassword);
+    const isPin = authMethod === 'pin';
+    if (isPin ? !/^\d{4,8}$/.test(recNew.trim()) : recNew.length < 4) {
+      setError(isPin
+        ? (language === 'es' ? 'El PIN debe tener de 4 a 8 dígitos' : 'PIN must be 4 to 8 digits')
+        : t.lockScreen.recoveryWeakPassword);
       return;
     }
     if (recNew !== recConfirm) {
@@ -106,7 +111,7 @@ export default function LockScreen({
         setRecCode('');
         return;
       }
-      await window.cyberNotesAPI.setPassword(recNew);
+      await window.cyberNotesAPI.setPassword(recNew, authMethod);
       onUnlock();
     } catch {
       setError(t.lockScreen.verifyError);
@@ -423,8 +428,11 @@ export default function LockScreen({
             <input
               type={recShow ? 'text' : 'password'}
               value={recNew}
-              onChange={e => setRecNew(e.target.value)}
-              placeholder={t.lockScreen.recoveryNewPassword}
+              onChange={e => setRecNew(authMethod === 'pin' ? e.target.value.replace(/\D/g, '').slice(0, 8) : e.target.value)}
+              inputMode={authMethod === 'pin' ? 'numeric' : undefined}
+              placeholder={authMethod === 'pin'
+                ? (language === 'es' ? 'Nuevo PIN (4 a 8 dígitos)' : 'New PIN (4 to 8 digits)')
+                : t.lockScreen.recoveryNewPassword}
               aria-label={t.lockScreen.recoveryNewPassword}
               className="input"
               onContextMenu={inputMenu.onContextMenu}
@@ -432,8 +440,11 @@ export default function LockScreen({
             <input
               type={recShow ? 'text' : 'password'}
               value={recConfirm}
-              onChange={e => setRecConfirm(e.target.value)}
-              placeholder={t.lockScreen.recoveryConfirmPassword}
+              onChange={e => setRecConfirm(authMethod === 'pin' ? e.target.value.replace(/\D/g, '').slice(0, 8) : e.target.value)}
+              inputMode={authMethod === 'pin' ? 'numeric' : undefined}
+              placeholder={authMethod === 'pin'
+                ? (language === 'es' ? 'Confirmar PIN' : 'Confirm PIN')
+                : t.lockScreen.recoveryConfirmPassword}
               aria-label={t.lockScreen.recoveryConfirmPassword}
               className="input"
               onContextMenu={inputMenu.onContextMenu}
@@ -509,9 +520,12 @@ export default function LockScreen({
                   ref={inputRef}
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  onChange={e => setPassword(authMethod === 'pin' ? e.target.value.replace(/\D/g, '').slice(0, 8) : e.target.value)}
+                  inputMode={authMethod === 'pin' ? 'numeric' : undefined}
                   onContextMenu={inputMenu.onContextMenu}
-                  placeholder={t.lockScreen.placeholderPassword}
+                  placeholder={authMethod === 'pin'
+                    ? (language === 'es' ? 'PIN' : 'PIN')
+                    : t.lockScreen.placeholderPassword}
                   autoFocus
                   className="input"
                   style={{ paddingRight: 40, fontSize: 15, userSelect: 'text', WebkitUserSelect: 'text' }}

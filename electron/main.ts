@@ -1230,7 +1230,7 @@ function buildTrayMenuState() {
       ? (isEs ? 'Ocultar notas flotantes' : 'Hide floating notes')
       : (isEs ? 'Mostrar notas flotantes' : 'Show floating notes'),
     lockLabel: isEs ? 'Bloquear' : 'Lock',
-    settingsLabel: isEs ? 'Configuración' : 'Settings',
+    settingsLabel: isEs ? 'Configuración...' : 'Settings...',
     aboutLabel: isEs ? 'Acerca de...' : 'About...',
     exitLabel: isEs ? 'Salir' : 'Exit',
     shortcut: activeHotkey,
@@ -2071,9 +2071,20 @@ ipcMain.on('session:locked', () => {
   updateTrayMenu();
 });
 
-ipcMain.handle('auth:setPassword', async (_e: any, password: string) => {
-  const hash = await bcrypt.hash(password, 10);
+ipcMain.handle('auth:setPassword', async (_e: any, password: string, method?: string) => {
+  // El PIN es solo una contraseña corta numérica por la misma puerta bcrypt.
+  // Se valida aquí (el renderer no es de fiar) y se guarda el método junto al
+  // hash para que nunca queden desincronizados.
+  const mode = method === 'pin' ? 'pin' : 'password';
+  const secret = typeof password === 'string' ? password : '';
+  if (mode === 'pin') {
+    if (!/^\d{4,8}$/.test(secret.trim())) return false;
+  } else if (secret.length < 4) {
+    return false;
+  }
+  const hash = await bcrypt.hash(mode === 'pin' ? secret.trim() : password, 10);
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hash]);
+  runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auth_method', mode]);
   sessionLocked = false;
   lastActivityAt = Date.now();
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2193,8 +2204,8 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'note_list_collapsed_groups', 'note_list_floating_group_ready',
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
+  'auth_method',
   'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
-  'password_hint',
 ]);
 
 const SETTINGS_RESERVED_KEYS: ReadonlySet<string> = new Set([

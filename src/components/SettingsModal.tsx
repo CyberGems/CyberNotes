@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ThemeId } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
@@ -160,6 +161,8 @@ export default function SettingsModal({
   const [recMessage, setRecMessage] = useState('');
   const [recError, setRecError] = useState(false);
   const [recLoading, setRecLoading] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'password' | 'pin'>('password');
+  const [showRecDialog, setShowRecDialog] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
@@ -287,6 +290,7 @@ export default function SettingsModal({
     window.cyberNotesAPI.hasPassword().then(setHasPassword);
     window.cyberNotesAPI.hasRecoveryCode?.().then(setRecHas).catch(() => {});
     window.cyberNotesAPI.getSetting('password_hint').then(v => { if (v) setRecHint(v); }).catch(() => {});
+    window.cyberNotesAPI.getSetting('auth_method').then(v => { if (v === 'pin' || v === 'password') setAuthMethod(v); }).catch(() => {});
     window.cyberNotesAPI.getVersions?.().then(v => {
       if (v?.app) setAppVersion(v.app);
     }).catch(() => {});
@@ -529,7 +533,14 @@ export default function SettingsModal({
     setPwdMessage('');
     setPwdError(false);
 
-    if (newPwd.length < 4) {
+    const isPin = authMethod === 'pin';
+    if (isPin) {
+      if (!/^\d{4,8}$/.test(newPwd.trim())) {
+        setPwdMessage(language === 'es' ? 'El PIN debe tener de 4 a 8 dígitos' : 'PIN must be 4 to 8 digits');
+        setPwdError(true);
+        return;
+      }
+    } else if (newPwd.length < 4) {
       setPwdMessage(language === 'es' ? 'La contraseña debe tener al menos 4 caracteres' : 'Password must be at least 4 characters long');
       setPwdError(true);
       return;
@@ -558,7 +569,12 @@ export default function SettingsModal({
         }
       }
 
-      await window.cyberNotesAPI.setPassword(newPwd);
+      const saved = await window.cyberNotesAPI.setPassword(newPwd, authMethod);
+      if (!saved) {
+        setPwdMessage(language === 'es' ? 'No se pudo guardar (revisa el formato)' : 'Could not save (check the format)');
+        setPwdError(true);
+        return;
+      }
       setHasPassword(true);
       setPwdMessage(language === 'es' ? '✓ Contraseña guardada correctamente' : '✓ Password saved successfully');
       setHasSavedChanges(true);
@@ -566,6 +582,19 @@ export default function SettingsModal({
       setCurrentPwd('');
       setNewPwd('');
       setConfirmPwd('');
+      // Sin código de recuperación: mostrarlo en grande de una vez, como CyberPaste.
+      const hasCode = await window.cyberNotesAPI.hasRecoveryCode?.().catch(() => false);
+      setRecHas(!!hasCode);
+      if (!hasCode) {
+        try {
+          const code = await window.cyberNotesAPI.generateRecoveryCode();
+          setRecCode(code);
+          setRecAck(false);
+          setShowRecDialog(true);
+        } catch {
+          /* el centro de recuperación de la tarjeta queda disponible */
+        }
+      }
     } catch {
       setPwdMessage(language === 'es' ? 'Error al guardar la contraseña' : 'Error saving password');
       setPwdError(true);
@@ -631,8 +660,8 @@ export default function SettingsModal({
     }
   };
 
-  const handleSaveRecoveryCode = async () => {
-    if (!recCode || !recAck) return;
+  const handleSaveRecoveryCode = async (): Promise<boolean> => {
+    if (!recCode || !recAck) return false;
     setRecLoading(true);
     try {
       const ok = await window.cyberNotesAPI.setRecoveryCode(recCode);
@@ -643,9 +672,11 @@ export default function SettingsModal({
       setRecMessage(language === 'es' ? '✓ Código de recuperación guardado' : '✓ Recovery code saved');
       setRecError(false);
       setHasSavedChanges(true);
+      return true;
     } catch {
       setRecMessage(language === 'es' ? 'Error al guardar el código' : 'Error saving the code');
       setRecError(true);
+      return false;
     } finally {
       setRecLoading(false);
     }
@@ -1595,6 +1626,18 @@ export default function SettingsModal({
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {language === 'es' ? 'Método de desbloqueo' : 'Unlock method'}
+                  <select
+                    value={authMethod}
+                    onChange={e => setAuthMethod(e.target.value === 'pin' ? 'pin' : 'password')}
+                    className="input"
+                    style={{ background: 'var(--bg-app)', cursor: 'pointer' }}
+                  >
+                    <option value="password">{language === 'es' ? 'Contraseña' : 'Password'}</option>
+                    <option value="pin">{language === 'es' ? 'PIN (4 a 8 dígitos)' : 'PIN (4 to 8 digits)'}</option>
+                  </select>
+                </label>
                 {hasPassword && (
                   <div style={{ position: 'relative' }}>
                     <input
@@ -1621,8 +1664,11 @@ export default function SettingsModal({
                 <input
                   type={showPwd ? 'text' : 'password'}
                   value={newPwd}
-                  onChange={e => setNewPwd(e.target.value)}
-                  placeholder={language === 'es' ? 'Nueva contraseña' : 'New password'}
+                  onChange={e => setNewPwd(authMethod === 'pin' ? e.target.value.replace(/\D/g, '').slice(0, 8) : e.target.value)}
+                  inputMode={authMethod === 'pin' ? 'numeric' : undefined}
+                  placeholder={authMethod === 'pin'
+                    ? (language === 'es' ? 'Nuevo PIN (4 a 8 dígitos)' : 'New PIN (4 to 8 digits)')
+                    : (language === 'es' ? 'Nueva contraseña' : 'New password')}
                   className="input"
                   onContextMenu={inputMenu.onContextMenu}
                 />
@@ -1630,8 +1676,11 @@ export default function SettingsModal({
                 <input
                   type={showPwd ? 'text' : 'password'}
                   value={confirmPwd}
-                  onChange={e => setConfirmPwd(e.target.value)}
-                  placeholder={language === 'es' ? 'Confirmar nueva contraseña' : 'Confirm new password'}
+                  onChange={e => setConfirmPwd(authMethod === 'pin' ? e.target.value.replace(/\D/g, '').slice(0, 8) : e.target.value)}
+                  inputMode={authMethod === 'pin' ? 'numeric' : undefined}
+                  placeholder={authMethod === 'pin'
+                    ? (language === 'es' ? 'Confirmar PIN' : 'Confirm PIN')
+                    : (language === 'es' ? 'Confirmar nueva contraseña' : 'Confirm new password')}
                   className="input"
                   onKeyDown={e => { if (e.key === 'Enter') handleSetPassword(); }}
                   onContextMenu={inputMenu.onContextMenu}
@@ -2219,6 +2268,85 @@ export default function SettingsModal({
     </div>
 
       <DialogHost language={language} options={dialog} onResolve={resolveDialog} />
+      {showRecDialog && recCode && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={language === 'es' ? 'Código de recuperación' : 'Recovery code'}
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(4, 4, 10, 0.72)', padding: 20,
+          }}
+        >
+          <div style={{
+            width: '100%', maxWidth: 420, borderRadius: 14, padding: 24,
+            background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
+            border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
+            boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
+            display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                color: 'var(--accent-light)', flexShrink: 0,
+              }}>
+                <KeyRound size={17} />
+              </span>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {language === 'es' ? 'Guarda tu código de recuperación' : 'Save your recovery code'}
+              </h3>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {language === 'es'
+                ? 'Es la única forma de volver a entrar si olvidas tu contraseña. No se volverá a mostrar.'
+                : 'It is the only way back in if you forget your password. It will not be shown again.'}
+            </p>
+            <div style={{
+              padding: '12px 14px', borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-app)', border: '1px dashed var(--accent)',
+              fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 700,
+              letterSpacing: '0.08em', textAlign: 'center', color: 'var(--text-primary)',
+              userSelect: 'text', WebkitUserSelect: 'text',
+            }}>
+              {recCode}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost" onClick={handleCopyRecoveryCode} style={{ gap: 6, flex: 1 }}>
+                <Copy size={14} />
+                {language === 'es' ? 'Copiar' : 'Copy'}
+              </button>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={recAck}
+                onChange={e => setRecAck(e.target.checked)}
+                style={{ marginTop: 2, accentColor: 'var(--accent)' }}
+              />
+              {language === 'es'
+                ? 'Lo guardé en un lugar seguro fuera de este equipo.'
+                : 'I stored it somewhere safe away from this computer.'}
+            </label>
+            <button
+              className="btn btn-primary"
+              disabled={!recAck || recLoading}
+              onClick={async () => {
+                const ok = await handleSaveRecoveryCode();
+                if (ok) setShowRecDialog(false);
+              }}
+              style={{ gap: 6, width: '100%' }}
+            >
+              <Check size={14} />
+              {language === 'es' ? 'Continuar' : 'Continue'}
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
       {inputMenu.menu}
     </>
   );

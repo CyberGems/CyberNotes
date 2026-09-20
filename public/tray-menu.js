@@ -36,14 +36,14 @@ const FALLBACKS = {
   es: {
     back: 'Volver', help: 'Ayuda', newSticky: 'Nueva nota flotante',
     pin: 'Mantener visible en la bandeja del sistema', setPassword: 'Configurar contraseña...',
-    docs: 'Documentación / Wiki', faq: 'Preguntas frecuentes', changelog: 'Registro de cambios',
+    docs: 'Documentación online', faq: 'Preguntas frecuentes', changelog: 'Registro de cambios',
     website: 'Sitio web', donate: 'Donar', about: 'Acerca de...', updates: 'Buscar actualizaciones',
     suite: 'Más de CyberGems', viewAll: 'Más detalles online…',
   },
   en: {
     back: 'Back', help: 'Help', newSticky: 'New floating note',
     pin: 'Keep visible in the system tray', setPassword: 'Set password...',
-    docs: 'Documentation / Wiki', faq: 'FAQ', changelog: 'Changelog',
+    docs: 'Online documentation', faq: 'FAQ', changelog: 'Changelog',
     website: 'Website', donate: 'Donate', about: 'About...', updates: 'Check for updates',
     suite: 'More from CyberGems', viewAll: 'More details online…',
   },
@@ -157,6 +157,26 @@ function makeItem(def) {
       api.action(def.action);
     }
   });
+
+  // Submenús también en hover (con retardo anti-roce); el click sigue valiendo.
+  if (def.localAction === 'help' || def.localAction === 'suite') {
+    let hoverTimer = null;
+    btn.addEventListener('pointerenter', () => {
+      if (currentView === def.localAction) return;
+      if (hoverTimer) clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => {
+        hoverTimer = null;
+        currentView = def.localAction;
+        renderView();
+      }, 250);
+    });
+    btn.addEventListener('pointerleave', () => {
+      if (hoverTimer) {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+      }
+    });
+  }
   return btn;
 }
 
