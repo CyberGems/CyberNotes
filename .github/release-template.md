@@ -1,6 +1,13 @@
-## 📰 CyberNotes {{VERSION}} - Release Notes
+## 📰 CyberNotes {{VERSION}}: Release Notes
 
-Welcome to the official **CyberNotes {{VERSION}}** release. CyberNotes is a premium, privacy-focused notes app for Windows: floating sticky notes always on top, tabs and folders to stay organized, and your data stays 100% local and private.
+### 🚀 What's new in this release
+
+<!-- Maintainer: Rewrite the marked paragraph for every release. Use 25-45 words, lead with user-facing changes, and do not repeat the app name or version. -->
+<!-- changelog-summary:start -->
+Floating notes, organization, update controls, and editor interactions come together in a more dependable daily workflow, with stronger persistence, faster confirmations, and bilingual refinements throughout the interface.
+<!-- changelog-summary:end -->
+
+> **New to CyberNotes?** A privacy-focused Windows notes app with rich text, folders, tabs, floating notes, and fully local data.
 
 ---
 
