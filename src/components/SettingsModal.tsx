@@ -285,6 +285,21 @@ export default function SettingsModal({
     }
   };
 
+  const handleResetUsageStats = async () => {
+    const proceed = await showDialog({
+      variant: 'warning',
+      confirm: true,
+      title: language === 'es' ? 'Restablecer estadísticas' : 'Reset statistics',
+      message: language === 'es'
+        ? 'Se borrarán aperturas, días, rachas y totales acumulados. Esta acción no se puede deshacer.'
+        : 'Opens, days, streaks and accumulated totals will be deleted. This cannot be undone.',
+      confirmLabel: language === 'es' ? 'Restablecer' : 'Reset',
+    });
+    if (!proceed) return;
+    await window.cyberNotesAPI.purgeUsageStats().catch(() => {});
+    setUsageStats(null);
+  };
+
   const handleToggleStickySkipTaskbar = async (val: boolean) => {
     setStickySkipTaskbar(val);
     await window.cyberNotesAPI.setSetting('sticky_skip_taskbar', val ? 'true' : 'false');
@@ -2085,6 +2100,18 @@ export default function SettingsModal({
                     ? 'Desactivado: no se registra nada y se borró el historial guardado.'
                     : 'Disabled: nothing is recorded and saved history was deleted.'}
                 </p>
+              )}
+
+              {usageStatsOn && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={handleResetUsageStats}
+                  style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                >
+                  <RotateCcw size={14} />
+                  {language === 'es' ? 'Restablecer estadísticas' : 'Reset statistics'}
+                </button>
               )}
             </div>
             </>

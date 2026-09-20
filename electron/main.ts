@@ -2370,14 +2370,20 @@ ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
 ipcMain.handle('settings:reset', () => {
   // Preserve the access password and recovery code: resetting preferences
   // must never unlock the app or destroy the recovery path.
+  // usage_stats_enabled también sobrevive: el reset no debe reactivar
+  // algo que el usuario apagó a propósito (la tabla usage_days ni se toca).
   const hashRow = queryGet('SELECT value FROM settings WHERE key = ?', ['password_hash']);
   const recRow = queryGet('SELECT value FROM settings WHERE key = ?', ['recovery_code_hash']);
+  const usageRow = queryGet('SELECT value FROM settings WHERE key = ?', ['usage_stats_enabled']);
   runQuery('DELETE FROM settings');
   if (hashRow) {
     runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hashRow.value]);
   }
   if (recRow) {
     runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['recovery_code_hash', recRow.value]);
+  }
+  if (usageRow) {
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['usage_stats_enabled', usageRow.value]);
   }
   registerToggleHotkey();
   startAutoBackupWatcher();
@@ -2881,7 +2887,8 @@ ipcMain.handle('data:export', async () => {
   flushDbNow();
   const folders = queryAll('SELECT * FROM folders');
   const notes = queryAll('SELECT * FROM notes');
-  const exportData = { folders, notes, version: 1 };
+  const usageDays = queryAll('SELECT day, opens FROM usage_days ORDER BY day ASC');
+  const exportData = { folders, notes, usage_days: usageDays, version: 1 };
   
   fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2));
   return true;
@@ -2946,6 +2953,22 @@ ipcMain.handle('data:import', async () => {
     // Imported data replaces the saved baseline, so existing drafts could no longer
     // be safely associated with their original versions.
     ops.push({ sql: 'DELETE FROM note_drafts' });
+    // Uso: fusionar días válidos (fecha real + aperturas sanas, con tope).
+    // Si el usuario lo tiene desactivado, no resucitar historial importado.
+    const usageEnabledRow = queryGet('SELECT value FROM settings WHERE key = ?', ['usage_stats_enabled']);
+    if ((!usageEnabledRow || usageEnabledRow.value !== 'false') && Array.isArray((data as any)?.usage_days)) {
+      const usageRows = (data as any).usage_days.slice(0, 4000);
+      for (const u of usageRows) {
+        if (typeof u?.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(u.day)) continue;
+        const d = new Date(`${u.day}T12:00:00`);
+        if (Number.isNaN(d.getTime())) continue;
+        const opens = Math.max(0, Math.min(100000, Math.floor(Number(u?.opens) || 0)));
+        ops.push({
+          sql: 'INSERT OR REPLACE INTO usage_days (day, opens) VALUES (?, ?)',
+          params: [u.day, opens],
+        });
+      }
+    }
     runQueryBatch(ops, { flushNow: true });
     return true;
   } catch (e) {
