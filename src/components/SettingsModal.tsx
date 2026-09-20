@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ThemeId, type UsageStats } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
@@ -58,7 +58,7 @@ interface Props {
   initialTab?: Tab;
 }
 
-type Tab = 'general' | 'appearance' | 'security' | 'maintenance';
+type Tab = 'general' | 'appearance' | 'security' | 'maintenance' | 'stats';
 
 /** Atajo global por defecto (misma fuente que electron/main.ts). */
 const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
@@ -517,11 +517,12 @@ export default function SettingsModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, isCapturingHotkey, dialog]);
 
-  const navItems: { id: Tab; label: string; icon: ReactNode }[] = [
+  const navItems: { id: Tab; label: string; icon: ReactNode; separator?: boolean }[] = [
     { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <SlidersHorizontal size={13} /> },
     { id: 'appearance', label: language === 'es' ? 'Apariencia' : 'Appearance', icon: <Palette size={13} /> },
     { id: 'security', label: language === 'es' ? 'Seguridad' : 'Security', icon: <Shield size={13} /> },
     { id: 'maintenance', label: language === 'es' ? 'Respaldo y Datos' : 'Backup & Data', icon: <Database size={13} /> },
+    { id: 'stats', label: language === 'es' ? 'Estadísticas' : 'Statistics', icon: <BarChart3 size={13} />, separator: true },
   ];
 
   const handleToggleTray = async (val: boolean) => {
@@ -856,15 +857,19 @@ export default function SettingsModal({
           <aside className="settings-nav">
             <div className="settings-nav-items">
               {navItems.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`settings-nav-btn${tab === item.id ? ' active' : ''}`}
-                  onClick={() => setTab(item.id)}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
+                <Fragment key={item.id}>
+                  {item.separator && (
+                    <div style={{ height: 1, background: 'var(--border)', margin: '6px 10px', opacity: 0.7 }} />
+                  )}
+                  <button
+                    type="button"
+                    className={`settings-nav-btn${tab === item.id ? ' active' : ''}`}
+                    onClick={() => setTab(item.id)}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                </Fragment>
               ))}
             </div>
             <div className="settings-nav-footer">
@@ -1361,65 +1366,6 @@ export default function SettingsModal({
                     )}
                   </div>
                 </div>
-            </div>
-            <div className="settings-card">
-              <SettingsHeading icon={<BarChart3 />}>
-                {language === 'es' ? 'Estadísticas de uso' : 'Usage statistics'}
-              </SettingsHeading>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                background: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                cursor: 'pointer',
-                marginBottom: 10,
-              }} onClick={() => handleToggleUsageStats(!usageStatsOn)}>
-                <SettingsOptionCopy icon={<BarChart3 />}>
-                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Contar estadísticas' : 'Count statistics'}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Aperturas y días activos, solo en este equipo' : 'Opens and active days, only on this computer'}</span>
-                </SettingsOptionCopy>
-                <div className={`custom-switch ${usageStatsOn ? 'active' : ''}`} />
-              </label>
-
-              {usageStatsOn && (
-                !usageStats ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={handleLoadUsageStats}
-                      disabled={usageLoading}
-                      style={{ gap: 6 }}
-                    >
-                      <BarChart3 size={14} />
-                      {usageLoading
-                        ? (language === 'es' ? 'Calculando...' : 'Calculating...')
-                        : (language === 'es' ? 'Mostrar estadísticas' : 'Show statistics')}
-                    </button>
-                    {usageError && (
-                      <div style={{
-                        padding: '8px 12px', borderRadius: 'var(--radius-sm)',
-                        background: 'var(--danger-dim)', color: 'var(--danger)', fontSize: 12,
-                      }}>
-                        {language === 'es' ? 'No se pudieron calcular' : 'Could not calculate'}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <UsageTiles stats={usageStats} language={language} />
-                )
-              )}
-
-              {!usageStatsOn && (
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-                  {language === 'es'
-                    ? 'Desactivado: no se registra nada y se borró el historial guardado.'
-                    : 'Disabled: nothing is recorded and saved history was deleted.'}
-                </p>
-              )}
             </div>
             <div className="settings-card settings-floating-card">
               <SettingsHeading icon={<StickyNote />}>
@@ -2065,10 +2011,74 @@ export default function SettingsModal({
             </>
           )}
 
+          {/* ── ESTADÍSTICAS / STATISTICS ── */}
+          {tab === 'stats' && (
+            <>
+            <div className="settings-card">
+              <SettingsHeading icon={<BarChart3 />}>
+                {language === 'es' ? 'Estadísticas de uso' : 'Usage statistics'}
+              </SettingsHeading>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                background: 'var(--bg-surface)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                marginBottom: 10,
+              }} onClick={() => handleToggleUsageStats(!usageStatsOn)}>
+                <SettingsOptionCopy icon={<BarChart3 />}>
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Contar estadísticas' : 'Count statistics'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Aperturas y días activos, solo en este equipo' : 'Opens and active days, only on this computer'}</span>
+                </SettingsOptionCopy>
+                <div className={`custom-switch ${usageStatsOn ? 'active' : ''}`} />
+              </label>
+
+              {usageStatsOn && (
+                !usageStats ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={handleLoadUsageStats}
+                      disabled={usageLoading}
+                      style={{ gap: 6 }}
+                    >
+                      <BarChart3 size={14} />
+                      {usageLoading
+                        ? (language === 'es' ? 'Calculando...' : 'Calculating...')
+                        : (language === 'es' ? 'Mostrar estadísticas' : 'Show statistics')}
+                    </button>
+                    {usageError && (
+                      <div style={{
+                        padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                        background: 'var(--danger-dim)', color: 'var(--danger)', fontSize: 12,
+                      }}>
+                        {language === 'es' ? 'No se pudieron calcular' : 'Could not calculate'}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <UsageTiles stats={usageStats} language={language} />
+                )
+              )}
+
+              {!usageStatsOn && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  {language === 'es'
+                    ? 'Desactivado: no se registra nada y se borró el historial guardado.'
+                    : 'Disabled: nothing is recorded and saved history was deleted.'}
+                </p>
+              )}
+            </div>
+            </>
+          )}
+
           {/* ── RESPALDO Y DATOS / BACKUP & DATA ── */}
           {tab === 'maintenance' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Card 1: Copias de seguridad (Exportar / Importar) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>              {/* Card 1: Copias de seguridad (Exportar / Importar) */}
               <div className="settings-card">
                 <SettingsHeading icon={<Database />}>
                   {language === 'es' ? 'Copias de Seguridad' : 'Backups'}
