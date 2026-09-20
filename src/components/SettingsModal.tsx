@@ -4,7 +4,7 @@ import { ThemeId, type UsageStats } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3 } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -2017,6 +2017,20 @@ export default function SettingsModal({
             <div className="settings-card">
               <SettingsHeading icon={<BarChart3 />}>
                 {language === 'es' ? 'Estadísticas de uso' : 'Usage statistics'}
+                <Tooltip
+                  label={language === 'es'
+                    ? 'Tus estadísticas nunca salen de esta app: sin cuentas, sin red, sin telemetría.'
+                    : 'Your stats never leave this app: no accounts, no network, no telemetry.'}
+                  placement="top"
+                >
+                  <span
+                    style={{ display: 'inline-flex', marginLeft: 7, color: 'var(--text-muted)', cursor: 'help', verticalAlign: '1px' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-light)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                  >
+                    <Info size={13} />
+                  </span>
+                </Tooltip>
               </SettingsHeading>
               <label style={{
                 display: 'flex',
@@ -2031,7 +2045,7 @@ export default function SettingsModal({
               }} onClick={() => handleToggleUsageStats(!usageStatsOn)}>
                 <SettingsOptionCopy icon={<BarChart3 />}>
                   <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Contar estadísticas' : 'Count statistics'}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Aperturas y días activos, solo en este equipo' : 'Opens and active days, only on this computer'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Aperturas y días activos' : 'Opens and active days'}</span>
                 </SettingsOptionCopy>
                 <div className={`custom-switch ${usageStatsOn ? 'active' : ''}`} />
               </label>
