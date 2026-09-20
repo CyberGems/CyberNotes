@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState, useLayoutEffect, type CSSProp
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
-import { useEditor, EditorContent, Editor } from '@tiptap/react';
+import { useEditor, EditorContent, Editor, BubbleMenu } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -10,6 +10,7 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
+import TextStyle from '@tiptap/extension-text-style';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
@@ -22,10 +23,10 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
-  Plus, Star, CaseSensitive, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
+  Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
-   NotebookText, Keyboard, ArrowRight
+   NotebookText, Keyboard, ArrowRight, ALargeSmall
  } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 
@@ -108,11 +109,53 @@ const CustomImage = Image.extend({
 });
 
 /**
+ * Marca de tamaño de letra estilo Word (span con font-size). TextStyle no la
+ * trae por defecto, así que se extiende con los comandos estándar set/unset.
+ * Se persiste sola en el HTML y el minimapa la hereda al clonar el DOM.
+ */
+export const FontSize = TextStyle.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      fontSize: {
+        default: null,
+        parseHTML: (element) => (element as HTMLElement).style.fontSize || null,
+        renderHTML: (attributes) => {
+          if (!attributes.fontSize) return {};
+          return { style: `font-size: ${attributes.fontSize}` };
+        },
+      },
+    };
+  },
+  addCommands() {
+    return {
+      ...this.parent?.(),
+      setFontSize:
+        (fontSize: string) =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontSize }).run(),
+      unsetFontSize:
+        () =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run(),
+    };
+  },
+});
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    fontSize: {
+      setFontSize: (fontSize: string) => ReturnType;
+      unsetFontSize: () => ReturnType;
+    };
+  }
+}
+
+/**
  * Carga contenido en TipTap sin contaminar el historial de Undo/Redo.
  * Sin esto, Ctrl+Z / Deshacer puede restaurar el contenido de otra nota.
  */
-function loadEditorContent(editor: Editor, raw: string) {
-  let content: string | object = raw || '';
+function loadEditorContent(editor: Editor, raw: string) {  let content: string | object = raw || '';
   if (typeof content === 'string' && content.trim().startsWith('{')) {
     try {
       content = JSON.parse(content);
@@ -171,6 +214,9 @@ const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProp
 });
 
 const TAB_DRAG_MIME = 'application/x-cybernotes-tab';
+
+/** Tamaños del desplegable de letra (px), estilo Word. Compartido con stickies. */
+export const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32'];
 
 function tabDropEdge(e: ReactDragEvent<HTMLElement>): 'before' | 'after' {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -609,6 +655,7 @@ export default function NoteEditor({
     canUndo: boolean;
     canRedo: boolean;
   } | null>(null);
+  const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const linkInputMenu = useInputContextMenu(language);
   const [editLinkData, setEditLinkData] = useState<{ href: string } | null>(null);
@@ -988,6 +1035,7 @@ export default function NoteEditor({
       }),
       Underline,
       Highlight.configure({ multicolor: false }),
+      FontSize,
     ],
     editorProps: {
       attributes: {
@@ -1279,6 +1327,7 @@ export default function NoteEditor({
       editor.commands.focus('start');
     }
     setIsRaw(false);
+    setShowFontSizeMenu(false);
 
     tabHydrationEnd();
 
@@ -1648,6 +1697,8 @@ export default function NoteEditor({
   }, [editor, readOnly]);
 
   const t = TRANSLATIONS[language];
+
+  const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
 
   const noteLoader = (
     <div
@@ -2441,6 +2492,72 @@ export default function NoteEditor({
               <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado' : 'Underline'}><UnderlineIcon size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title={language === 'es' ? 'Tachado' : 'Strikethrough'}><Strikethrough size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title={language === 'es' ? 'Resaltar' : 'Highlight'}><Highlighter size={15} /></ToolbarBtn>
+
+              <div style={{ position: 'relative' }}>
+                <ToolbarBtn
+                  onClick={() => setShowFontSizeMenu((v) => !v)}
+                  active={!!activeFontSize}
+                  title={t.editor.fontSize}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <ALargeSmall size={19} />
+                    {activeFontSize && (
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent-light)', minWidth: 16, textAlign: 'left' }}>
+                        {parseInt(activeFontSize, 10)}
+                      </span>
+                    )}
+                  </span>
+                </ToolbarBtn>
+                {showFontSizeMenu && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 100 }}
+                      onClick={() => setShowFontSizeMenu(false)}
+                    />
+                    <div style={{
+                      position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 101,
+                      minWidth: 132, padding: 5, borderRadius: 9,
+                      background: 'rgba(10, 10, 18, 0.96)',
+                      border: '1px solid var(--border)',
+                      boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+                      display: 'flex', flexDirection: 'column', gap: 1,
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => { editor.chain().focus().unsetFontSize().run(); setShowFontSizeMenu(false); }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                          padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                          background: !activeFontSize ? 'var(--accent-dim)' : 'transparent',
+                          color: !activeFontSize ? 'var(--accent-light)' : 'var(--text-secondary)',
+                          border: 'none', textAlign: 'left',
+                        }}
+                      >
+                        {t.editor.fontSizeNormal}
+                      </button>
+                      {FONT_SIZE_OPTIONS.map((size) => {
+                        const isCurrent = activeFontSize === `${size}px`;
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => { editor.chain().focus().setFontSize(`${size}px`).run(); setShowFontSizeMenu(false); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                              padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+                              background: isCurrent ? 'var(--accent-dim)' : 'transparent',
+                              color: isCurrent ? 'var(--accent-light)' : 'var(--text-primary)',
+                              border: 'none', textAlign: 'left', fontSize: Math.min(Number(size), 22),
+                            }}
+                          >
+                            {size} px
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
               
               <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
               
@@ -2463,6 +2580,56 @@ export default function NoteEditor({
             </>
           )}
         </div>
+
+        {/* Barra flotante de formato (estilo Word): solo ante selección de
+            texto. Convive con la barra fija y el menú de click derecho. */}
+        {editor && !readOnly && (
+          <BubbleMenu
+            editor={editor}
+            tippyOptions={{ placement: 'top', offset: [0, 8], arrow: false }}
+            shouldShow={({ editor: e, state }) => {
+              if (!e.isEditable) return false;
+              const { selection } = state;
+              if (selection.empty) return false;
+              if ('node' in selection && selection.node) return false;
+              return true;
+            }}
+          >
+            <div
+              onMouseDown={(e) => e.preventDefault()}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 2, padding: 5,
+                borderRadius: 10, background: 'rgba(10, 10, 18, 0.96)',
+                border: '1px solid var(--border)',
+                boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+              }}
+            >
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={language === 'es' ? 'Negrita' : 'Bold'}><Bold size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={language === 'es' ? 'Cursiva' : 'Italic'}><Italic size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado' : 'Underline'}><UnderlineIcon size={14} /></ToolbarBtn>
+              <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 3px' }} />
+              <ToolbarBtn
+                onClick={() => {
+                  const values: (string | null)[] = [null, ...FONT_SIZE_OPTIONS.map((s) => `${s}px`)];
+                  const next = values[(values.indexOf(activeFontSize) + 1) % values.length];
+                  if (next) editor.chain().focus().setFontSize(next).run();
+                  else editor.chain().focus().unsetFontSize().run();
+                }}
+                active={!!activeFontSize}
+                title={t.editor.fontSize}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                  <ALargeSmall size={16} />
+                  {activeFontSize && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-light)', minWidth: 14, textAlign: 'left' }}>
+                      {parseInt(activeFontSize, 10)}
+                    </span>
+                  )}
+                </span>
+              </ToolbarBtn>
+            </div>
+          </BubbleMenu>
+        )}
 
         {/* Barra de imagen flotante: posicionada absolutamente para no desplazar el contenido */}
         <AnimatePresence>

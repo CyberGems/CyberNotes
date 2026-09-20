@@ -15,6 +15,7 @@ import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont } from '../fonts';
 import { extractPreview, extractThumb } from '../utils/notes';
+import { FontSize, FONT_SIZE_OPTIONS } from './NoteEditor';
 import Tooltip from './Tooltip';
 import GlobalErrorToast from './GlobalErrorToast';
 import {
@@ -43,6 +44,7 @@ import {
   Lock,
   GripVertical,
   Minus,
+  ALargeSmall,
 } from 'lucide-react';
 
 interface Props {
@@ -373,6 +375,9 @@ export default function StickyNoteApp({ noteId }: Props) {
       TiptapImage.configure({ allowBase64: true, inline: false }),
       Underline,
       Highlight.configure({ multicolor: false }),
+      // Necesario para leer y escribir tamaños de letra (misma marca que el
+      // editor principal; sin esto, el sticky los borraría al guardar).
+      FontSize,
       Link.configure({ openOnClick: false }),
       Placeholder.configure({
         placeholder: t.editor.placeholderBody,
@@ -407,6 +412,17 @@ export default function StickyNoteApp({ noteId }: Props) {
       scheduleSave();
     },
   });
+
+  // Tamaño de letra por ciclos (ventana pequeña: sin desplegable). Comparte
+  // marca y presets con el editor principal.
+  const stickyFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
+  const cycleStickyFontSize = () => {
+    if (!editor) return;
+    const values: (string | null)[] = [null, ...FONT_SIZE_OPTIONS.map((s) => `${s}px`)];
+    const next = values[(values.indexOf(stickyFontSize) + 1) % values.length];
+    if (next) editor.chain().focus().setFontSize(next).run();
+    else editor.chain().focus().unsetFontSize().run();
+  };
 
   // Load note and initial settings
   useEffect(() => {
@@ -1424,6 +1440,20 @@ export default function StickyNoteApp({ noteId }: Props) {
               accentGlow={colorMeta.accentGlow}
             >
               <Highlighter size={12} />
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={t.editor.fontSize}
+              onClick={cycleStickyFontSize}
+              active={!!stickyFontSize}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                <ALargeSmall size={14} />
+                {stickyFontSize && (
+                  <span style={{ fontSize: 10, fontWeight: 800 }}>{parseInt(stickyFontSize, 10)}</span>
+                )}
+              </span>
             </StickyFooterBtn>
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <StickyFooterBtn
