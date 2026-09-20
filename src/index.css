@@ -939,7 +939,7 @@ body:has(.sticky-note-window),
   border: 1px solid var(--border);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  cursor: grab;
+  cursor: pointer;
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
