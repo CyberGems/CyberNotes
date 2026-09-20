@@ -157,26 +157,6 @@ function makeItem(def) {
       api.action(def.action);
     }
   });
-
-  // Submenús también en hover (con retardo anti-roce); el click sigue valiendo.
-  if (def.localAction === 'help' || def.localAction === 'suite') {
-    let hoverTimer = null;
-    btn.addEventListener('pointerenter', () => {
-      if (currentView === def.localAction) return;
-      if (hoverTimer) clearTimeout(hoverTimer);
-      hoverTimer = setTimeout(() => {
-        hoverTimer = null;
-        currentView = def.localAction;
-        renderView();
-      }, 250);
-    });
-    btn.addEventListener('pointerleave', () => {
-      if (hoverTimer) {
-        clearTimeout(hoverTimer);
-        hoverTimer = null;
-      }
-    });
-  }
   return btn;
 }
 

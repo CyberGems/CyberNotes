@@ -149,7 +149,7 @@ declare global {
       onSettingChanged: (callback: (data: { key: string, value: string }) => void) => () => void;
       onGlobalCapsLockChanged: (callback: (active: boolean) => void) => () => void;
       onOpenSettings: (callback: (tab?: string) => void) => () => void;
-      onOpenAbout: (callback: () => void) => () => void;
+      onOpenAbout: (callback: (opts?: { checkUpdates?: boolean }) => void) => () => void;
       onOpenTrayPin: (callback: () => void) => () => void;
       openTaskbarSettings: () => Promise<{ success: boolean; method: 'native' | 'uri' }>;
       onConfirmUnsavedExit: (callback: () => void) => () => void;

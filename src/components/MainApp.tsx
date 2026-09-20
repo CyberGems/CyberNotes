@@ -123,6 +123,7 @@ export default function MainApp({
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'general' | 'appearance' | 'security' | 'maintenance'>('general');
   const [showAbout, setShowAbout] = useState(false);
+  const [aboutCheckNonce, setAboutCheckNonce] = useState(0);
   const [showTrayPin, setShowTrayPin] = useState(false);
   const [isTrayPinAutomatic, setIsTrayPinAutomatic] = useState(false);
   const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
@@ -269,9 +270,10 @@ export default function MainApp({
       setShowSettings(true);
     });
 
-    const unregisterOpenAbout = window.cyberNotesAPI.onOpenAbout(() => {
-      setShowAbout(true);
-    });
+  const unregisterOpenAbout = window.cyberNotesAPI.onOpenAbout((opts) => {
+    setShowAbout(true);
+    if (opts?.checkUpdates) setAboutCheckNonce((n) => n + 1);
+  });
 
     const unregisterOpenTrayPin = window.cyberNotesAPI.onOpenTrayPin?.(() => {
       setIsTrayPinAutomatic(false);
@@ -1905,6 +1907,7 @@ export default function MainApp({
         <AboutModal
           language={language}
           onClose={() => setShowAbout(false)}
+          autoCheckNonce={aboutCheckNonce}
         />
       )}
 

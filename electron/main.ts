@@ -1516,7 +1516,7 @@ ipcMain.on('tray-menu-action', (_event, action) => {
       break;
     case 'help-check-updates':
       restoreWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-about');
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-about', { checkUpdates: true });
       break;
     case 'toggle-sticky':
       toggleAllStickyNotes();

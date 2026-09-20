@@ -50,8 +50,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     ipcRenderer.on('open-settings', listener);
     return () => ipcRenderer.removeListener('open-settings', listener);
   },
-  onOpenAbout: (callback: () => void) => {
-    const listener = () => callback();
+  onOpenAbout: (callback: (opts?: { checkUpdates?: boolean }) => void) => {
+    const listener = (_e: any, opts?: { checkUpdates?: boolean }) => callback(opts);
     ipcRenderer.on('open-about', listener);
     return () => ipcRenderer.removeListener('open-about', listener);
   },

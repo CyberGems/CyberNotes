@@ -43,9 +43,10 @@ function platformLabel(platform: string): string {
 interface Props {
   language: Language;
   onClose: () => void;
+  autoCheckNonce?: number;
 }
 
-export default function AboutModal({ language, onClose }: Props) {
+export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Props) {
   const t = TRANSLATIONS[language].about;
   const [versions, setVersions] = useState<AppVersions | null>(null);
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' });
@@ -103,6 +104,14 @@ export default function AboutModal({ language, onClose }: Props) {
   const handleInstall = () => {
     window.cyberNotesAPI.installUpdate();
   };
+
+  // El menú del tray puede pedir abrir + consultar de una vez.
+  useEffect(() => {
+    if (autoCheckNonce > 0) {
+      void handleCheck();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCheckNonce]);
 
   const handleToggleAutoUpdate = async (val: boolean) => {
     setAutoUpdate(val);
@@ -176,7 +185,7 @@ export default function AboutModal({ language, onClose }: Props) {
           </Tooltip>
         </div>
 
-        <div className="modal-body about-modal-body" style={{ textAlign: 'center', padding: '0 28px 20px', overflowY: 'auto' }}>
+        <div className="modal-body about-modal-body" style={{ textAlign: 'center', padding: '0 28px 16px', overflowY: 'auto' }}>
           <div style={{ margin: '0 auto 16px', display: 'flex', justifyContent: 'center' }}>
             <img
               src="icon.png"
@@ -265,7 +274,7 @@ export default function AboutModal({ language, onClose }: Props) {
           </div>
 
           {showSuite && (
-          <div style={{ textAlign: 'left', marginTop: 16 }}>
+          <div style={{ textAlign: 'left', marginTop: 12 }}>
             <div style={{
               fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent)',
               marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8,
@@ -281,17 +290,17 @@ export default function AboutModal({ language, onClose }: Props) {
                   <button
                     type="button"
                     className="btn-icon"
-                    style={{ width: 44, height: 44, borderRadius: 10 }}
+                    style={{ width: 40, height: 40, borderRadius: 10 }}
                     onClick={() => window.cyberNotesAPI.openExternal(`${SITE_URL}/apps/${app.slug}/`)}
                     aria-label={app.pitch}
                   >
-                    <img src={app.icon} alt="" style={{ width: 28, height: 28, borderRadius: 6, display: 'block' }} />
+                    <img src={app.icon} alt="" style={{ width: 26, height: 26, borderRadius: 6, display: 'block' }} />
                   </button>
                 </Tooltip>
               ))}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 4 }}>
               <button
                 type="button"
                 className="btn btn-ghost"
