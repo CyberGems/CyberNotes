@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, Menu, Settings, Save, CaseSensitive, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer } from 'lucide-react';
+import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
@@ -440,9 +440,9 @@ export default function TitleBar({
           </button>
         </Tooltip>
 
-        {/* Burger Menu */}
+        {/* More Menu */}
         <div style={{ position: 'relative' }}>
-          <Tooltip placement="bottom" label={t('Menú (Ctrl+Shift+M)', 'Menu (Ctrl+Shift+M)')}>
+          <Tooltip placement="bottom" label={t('Más opciones (Ctrl+Shift+M)', 'More options (Ctrl+Shift+M)')}>
           <button
             ref={burgerRef}
             className="btn-icon titlebar-btn"
@@ -455,12 +455,12 @@ export default function TitleBar({
             }}
             style={{ width: 28, height: 28 }}
           >
-            <Menu size={14} />
+            <MoreHorizontal size={14} />
           </button>
           </Tooltip>
 
           {menuOpen && createPortal(
-            <div ref={menuRef} role="menu" aria-label={t('Menú principal', 'Main menu')} style={{
+            <div ref={menuRef} role="menu" aria-label={t('Más opciones', 'More options')} style={{
               position: 'fixed',
               top: menuPos.top,
               right: menuPos.right,
@@ -733,7 +733,7 @@ export default function TitleBar({
                     style={{ padding: '4px 10px', fontSize: 11 }}
                   >
                     <BookOpen size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Documentación / Wiki', 'Documentation / Wiki')}</span>
+                    <span>{t('Documentación online', 'Online documentation')}</span>
                   </button>
                   <button
                     className="menu-item"
