@@ -60,7 +60,7 @@ declare global {
       reportRendererError: (message: string) => Promise<boolean>;
       // Auth
       hasPassword: () => Promise<boolean>;
-      setPassword: (password: string) => Promise<boolean>;
+      setPassword: (password: string, method?: string) => Promise<boolean>;
       verifyPassword: (password: string) => Promise<boolean>;
       removePassword: () => Promise<boolean>;
       generateRecoveryCode: () => Promise<string>;

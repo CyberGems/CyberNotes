@@ -91,7 +91,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
 
   // -- Auth --
   hasPassword: () => ipcRenderer.invoke('auth:hasPassword'),
-  setPassword: (password: string) => ipcRenderer.invoke('auth:setPassword', password),
+  setPassword: (password: string, method?: string) => ipcRenderer.invoke('auth:setPassword', password, method),
   verifyPassword: (password: string) => ipcRenderer.invoke('auth:verifyPassword', password),
   removePassword: () => ipcRenderer.invoke('auth:removePassword'),
   generateRecoveryCode: () => ipcRenderer.invoke('auth:generateRecoveryCode'),
