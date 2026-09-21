@@ -9,6 +9,7 @@ const ICONS = {
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.2 9a3 3 0 1 1 5.6 1c0 2-2.8 2.3-2.8 4"/><path d="M12 18h.01"/></svg>',
   key: '<svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 2.5 2.5"/><path d="m18.5 4.5 2 2"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
+  chevronLeft: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
   arrowRight: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
   diamond: '<svg viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/><path d="M9 3l3 6 3-6"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H11v18H5.5A2.5 2.5 0 0 0 3 22.5z"/><path d="M21 4.5A2.5 2.5 0 0 0 18.5 2H13v18h5.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>',
@@ -68,11 +69,11 @@ function renderHead() {
 
   if (currentView === 'help' || currentView === 'suite') {
     if (currentView === 'suite') {
-      // Encabezado estilo familia (como CyberPaste): atrás con texto + marca.
+      // Encabezado estilo familia: atrás con texto + marca clicable a la derecha.
       const back = document.createElement('button');
       back.type = 'button';
       back.className = 'head-suite-back';
-      back.innerHTML = ICONS.chevron;
+      back.innerHTML = ICONS.chevronLeft;
       const backText = document.createElement('span');
       backText.textContent = t('back');
       back.appendChild(backText);
@@ -84,12 +85,28 @@ function renderHead() {
         renderView();
       });
       headEl.appendChild(back);
-      const brand = document.createElement('span');
+      const brand = document.createElement('button');
+      brand.type = 'button';
       brand.className = 'head-brand';
-      brand.innerHTML = ICONS.diamond;
+      brand.setAttribute('aria-label', 'CyberGems');
+      brand.title = 'CyberGems';
+      const logo = document.createElement('img');
+      logo.className = 'brand-logo';
+      logo.src = 'cybergems-logo.svg';
+      logo.alt = '';
+      logo.draggable = false;
+      logo.addEventListener('error', () => {
+        if (!logo.src.endsWith('.png')) logo.src = 'cybergems-logo.png';
+      }, { once: true });
+      brand.appendChild(logo);
       const brandText = document.createElement('span');
       brandText.textContent = 'CyberGems';
       brand.appendChild(brandText);
+      brand.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        api.action('suite-home');
+      });
       headEl.appendChild(brand);
       return;
     }
@@ -217,7 +234,7 @@ function renderMainView() {
   );
   if (currentState.suite && Array.isArray(currentState.suite.apps) && currentState.suite.apps.length > 0) {
     items.push(
-      makeItem({ localAction: 'suite', icon: 'apps', label: currentState.suite.label || t('suite'), trailingIcon: 'chevron' })
+      makeItem({ localAction: 'suite', icon: 'diamond', label: currentState.suite.label || t('suite'), trailingIcon: 'chevron' })
     );
   }
 

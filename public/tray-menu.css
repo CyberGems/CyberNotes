@@ -116,24 +116,43 @@ html, body {
   stroke-linejoin: round;
 }
 .head-brand {
-  flex: 1;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  margin-left: auto;
+  padding: 2px 14px 2px 6px;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
   color: #b3adff;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
+  cursor: default;
 }
-.head-brand svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.head-brand:hover { color: #ffffff; }
+.brand-logo {
+  width: 18px;
+  height: 18px;
+  display: block;
+  filter: drop-shadow(0 0 4px rgba(150, 143, 255, 0.45));
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.head-brand:hover .brand-logo {
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 7px rgba(150, 143, 255, 0.7));
+}
+
+/* Glow sutil en todos los iconos del menú (estilo familia, tenue). */
+.icon svg {
+  filter: drop-shadow(0 0 3px rgba(150, 143, 255, 0.35));
+}
+.icon img.app-icon {
+  filter: drop-shadow(0 0 3px rgba(150, 143, 255, 0.3));
+}
+.item.donate .icon svg,
+.item.danger .icon svg {
+  filter: none;
 }
 
 .head-icon {

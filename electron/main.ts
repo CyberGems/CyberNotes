@@ -1567,6 +1567,8 @@ ipcMain.on('tray-menu-action', (_event, action) => {
     const slug = action.slice('suite-'.length);
     if (slug === 'view-all') {
       void shell.openExternal('https://cybergems.org/#apps');
+    } else if (slug === 'home') {
+      void shell.openExternal('https://cybergems.org');
     } else {
       const app = loadSuiteApps().find((a) => a.slug === slug);
       if (app) void shell.openExternal(app.site);
