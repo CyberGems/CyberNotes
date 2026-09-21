@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CyberGems/CyberNotes/main/public/icon.png" width="120" alt="CyberNotes">
+</p>
+
 ## 📰 CyberNotes {{VERSION}}: Release Notes
 
 ### 🚀 What's new in this release
