@@ -45,6 +45,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 
 ### ✍️ Rich Text Editing
 - **TipTap Editor**: Bold, italic, underline, strikethrough, headings (H1–H3), bullet/ordered lists, code blocks, blockquotes, horizontal rules, text highlighting
+- **Word-Style Font Sizes**: Size dropdown and floating bubble in the editor, one-tap cycling in floating notes
 - **Links & Images**: Auto-link detection, image insertion with size and alignment controls, local thumbnail previews
 - **Markdown Shortcuts**: Type `##`, `>`, `-`, `` ``` `` for instant formatting
 - **Document Tools**: Line/column counter, word/character count, reading time, document minimap, line numbers
@@ -62,7 +63,8 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Session Restoration**: Remember open tabs, active note, and floating notes between sessions
 
 ### 🔐 Security
-- **Master Password**: Bcrypt-hashed access lock with lock screen (notes are stored unencrypted on your device)
+- **Master Password or PIN**: Bcrypt-hashed access lock with lock screen (notes are stored unencrypted on your device)
+- **Offline Recovery**: One-time recovery code with hint and rate-limited reset from the lock screen
 - **Auto-Lock**: Configurable inactivity timeout (1 min to 24 hours)
 - **Privacy Shield**: Screen shield when app is hidden or minimized
 - **Caps Lock Manager**: Auto-off after inactivity with visual countdown and sound notifications (5 synthesized presets)
@@ -79,6 +81,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 ### 🖥️ Desktop Integration
 - **System Tray**: Minimize/close to tray, custom DPI-aware tray menu
 - **Global Hotkey**: Show/hide with customizable shortcut (default: `Alt+Shift+N`)
+- **Suite Recommendations**: More from CyberGems in About and tray (optional)
 - **Auto-Start**: Launch minimized with Windows
 - **Single Instance**: Second launches focus the existing window
 - **Spell Check**: Bilingual (English/Spanish) with right-click suggestions
@@ -86,6 +89,8 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 
 ### 🔄 Updates & Data
 - **Auto-Updates**: Background check on launch + every 6h, progress bar, auto-download and restart
+- **Manual Checks Stay Manual**: On-demand checks only check; downloads and restarts need your tap
+- **Usage Statistics**: Optional local stats with streaks, reset and purge
 - **Export**: Markdown, HTML (styled), or full JSON backup
 - **Import**: Restore from JSON backup (with automatic safety backup)
 - **Bilingual UI**: Full English / Español with instant switching
