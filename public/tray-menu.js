@@ -37,14 +37,14 @@ const FALLBACKS = {
     back: 'Volver', help: 'Ayuda', newSticky: 'Nueva nota flotante',
     pin: 'Mantener visible en la bandeja del sistema', setPassword: 'Configurar contraseña...',
     docs: 'Documentación online', faq: 'Preguntas frecuentes', changelog: 'Registro de cambios',
-    website: 'Sitio web', donate: 'Donar', about: 'Acerca de...', updates: 'Buscar actualizaciones',
+    website: 'Sitio web', donate: 'Donar', about: 'Acerca de CyberNotes...', updates: 'Buscar actualizaciones...',
     suite: 'Más de CyberGems', viewAll: 'Más detalles online…',
   },
   en: {
     back: 'Back', help: 'Help', newSticky: 'New floating note',
     pin: 'Keep visible in the system tray', setPassword: 'Set password...',
     docs: 'Online documentation', faq: 'FAQ', changelog: 'Changelog',
-    website: 'Website', donate: 'Donate', about: 'About...', updates: 'Check for updates',
+    website: 'Website', donate: 'Donate', about: 'About CyberNotes...', updates: 'Check for updates...',
     suite: 'More from CyberGems', viewAll: 'More details online…',
   },
 };

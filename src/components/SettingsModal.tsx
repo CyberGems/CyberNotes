@@ -1138,6 +1138,9 @@ export default function SettingsModal({
                         fontSize: 'calc(12px * var(--ui-scale))',
                         flexShrink: 0,
                         padding: '7px 11px',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-surface)',
                       }}
                     >
                       <RotateCcw size={14} />
@@ -1372,7 +1375,7 @@ export default function SettingsModal({
                           <button
                             className="btn btn-ghost"
                             onClick={() => playSynthSound(capsLockSound)}
-                            style={{ gap: 4, fontSize: 12, padding: '6px 10px' }}
+                            style={{ gap: 4, fontSize: 12, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                             title={language === 'es' ? 'Probar sonido' : 'Test sound'}
                           >
                             <Volume2 size={14} />
@@ -1918,7 +1921,7 @@ export default function SettingsModal({
                   <button
                     className="btn btn-ghost"
                     onClick={() => { onClose(); onLock(); }}
-                    style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))', justifyContent: 'flex-start', width: '100%' }}
+                    style={{ gap: 8, fontSize: 'calc(13px * var(--ui-scale))', justifyContent: 'flex-start', width: '100%', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                   >
                     <Lock size={14} />
                     {language === 'es' ? 'Bloquear ahora' : 'Lock now'}
@@ -1951,7 +1954,7 @@ export default function SettingsModal({
                     className="btn btn-ghost"
                     onClick={handleGenerateRecoveryCode}
                     disabled={recLoading}
-                    style={{ gap: 6, justifyContent: 'flex-start' }}
+                    style={{ gap: 6, justifyContent: 'flex-start', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                   >
                     <KeyRound size={14} />
                     {language === 'es' ? 'Generar código de recuperación' : 'Generate recovery code'}
@@ -1968,7 +1971,7 @@ export default function SettingsModal({
                       className="btn btn-ghost"
                       onClick={handleGenerateRecoveryCode}
                       disabled={recLoading}
-                      style={{ gap: 6, justifyContent: 'flex-start', fontSize: 12 }}
+                      style={{ gap: 6, justifyContent: 'flex-start', fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                     >
                       <RotateCcw size={14} />
                       {language === 'es' ? 'Regenerar código' : 'Regenerate code'}
@@ -1991,7 +1994,7 @@ export default function SettingsModal({
                   className="btn btn-ghost"
                   onClick={handleSaveHint}
                   disabled={recLoading}
-                  style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                  style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '6px 12px' }}
                 >
                   <Save size={14} />
                   {language === 'es' ? 'Guardar pista' : 'Save hint'}
@@ -2094,7 +2097,7 @@ export default function SettingsModal({
                       className="btn btn-ghost"
                       onClick={handleLoadUsageStats}
                       disabled={usageLoading}
-                      style={{ gap: 6 }}
+                      style={{ gap: 6, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                     >
                       <BarChart3 size={14} />
                       {usageLoading
@@ -2117,7 +2120,7 @@ export default function SettingsModal({
                       type="button"
                       className="btn btn-ghost"
                       onClick={handleHideUsageStats}
-                      style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                      style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '6px 12px' }}
                     >
                       {language === 'es' ? 'Ocultar' : 'Hide'}
                     </button>
@@ -2138,7 +2141,7 @@ export default function SettingsModal({
                   type="button"
                   className="btn btn-ghost"
                   onClick={handleResetUsageStats}
-                  style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                  style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '6px 12px' }}
                 >
                   <RotateCcw size={14} />
                   {language === 'es' ? 'Restablecer estadísticas' : 'Reset statistics'}
@@ -2193,7 +2196,7 @@ export default function SettingsModal({
                           message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
                         });
                       }}
-                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)' }}
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                     >
                       <Upload size={15} />
                       {language === 'es' ? 'Exportar' : 'Export'}
@@ -2223,7 +2226,7 @@ export default function SettingsModal({
                     </div>
                     <button
                       className="btn btn-ghost"
-                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)' }}
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                       onClick={async () => {
                         const proceed = await showDialog({
                           variant: 'warning',
@@ -2387,10 +2390,10 @@ export default function SettingsModal({
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                       <button
-                        className="btn btn-ghost"
-                        onClick={handleBackupNow}
-                        disabled={backupBusy}
-                        style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', padding: '8px 14px', color: 'var(--warning)' }}
+                      className="btn btn-ghost"
+                      onClick={handleBackupNow}
+                      disabled={backupBusy}
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', padding: '8px 14px', color: 'var(--warning)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                       >
                         <Upload size={15} />
                         {backupBusy
@@ -2436,7 +2439,7 @@ export default function SettingsModal({
                   <button
                     className="btn btn-ghost"
                     onClick={() => window.cyberNotesAPI.openDataFolder()}
-                    style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px' }}
+                    style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
                   >
                     <FolderOpen size={15} />
                     {language === 'es' ? 'Abrir carpeta' : 'Open folder'}
@@ -2502,6 +2505,10 @@ export default function SettingsModal({
 
           </div>
         </div>
+        <Tooltip
+          label={language === 'es' ? 'Acerca de CyberNotes' : 'About CyberNotes'}
+          placement="top"
+        >
         <button
           type="button"
           className="config-brand-footer"
@@ -2509,7 +2516,6 @@ export default function SettingsModal({
             onClose();
             onOpenAbout?.();
           }}
-          title={language === 'es' ? 'Acerca de CyberNotes' : 'About CyberNotes'}
           aria-label={language === 'es' ? 'Acerca de CyberNotes' : 'About CyberNotes'}
         >
           <div className="config-brand-line">
@@ -2518,6 +2524,7 @@ export default function SettingsModal({
           </div>
           <span className="config-brand-copyright">© 2026 CyberGems</span>
         </button>
+        </Tooltip>
       </div>
     </div>
 
@@ -2590,7 +2597,7 @@ export default function SettingsModal({
               {recCode}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-ghost" onClick={handleCopyRecoveryCode} style={{ gap: 6, flex: 1 }}>
+              <button className="btn btn-ghost" onClick={handleCopyRecoveryCode} style={{ gap: 6, flex: 1, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '8px 12px' }}>
                 <Copy size={14} />
                 {language === 'es' ? 'Copiar' : 'Copy'}
               </button>

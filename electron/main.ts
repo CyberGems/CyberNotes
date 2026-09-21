@@ -1341,7 +1341,7 @@ function buildTrayMenuState() {
       : (isEs ? 'Mostrar notas flotantes' : 'Show floating notes'),
     lockLabel: isEs ? 'Bloquear' : 'Lock',
     settingsLabel: isEs ? 'Configuración...' : 'Settings...',
-    aboutLabel: isEs ? 'Acerca de...' : 'About...',
+    aboutLabel: isEs ? 'Acerca de CyberNotes...' : 'About CyberNotes...',
     exitLabel: isEs ? 'Salir' : 'Exit',
     shortcut: activeHotkey,
     ...(queryGet('SELECT value FROM settings WHERE key = ?', ['show_suite_promo'])?.value !== 'false'
@@ -1372,8 +1372,8 @@ function buildTrayMenuState() {
       changelogLabel: isEs ? 'Registro de cambios' : 'Changelog',
       websiteLabel: isEs ? 'Sitio web' : 'Website',
       donateLabel: isEs ? 'Donar' : 'Donate',
-      aboutLabel: isEs ? 'Acerca de...' : 'About...',
-      updatesLabel: isEs ? 'Buscar actualizaciones' : 'Check for updates',
+      aboutLabel: isEs ? 'Acerca de CyberNotes...' : 'About CyberNotes...',
+      updatesLabel: isEs ? 'Buscar actualizaciones...' : 'Check for updates...',
     },
   };
 }
