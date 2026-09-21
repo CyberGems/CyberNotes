@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Pin, X, ExternalLink, Check } from 'lucide-react';
+import { ChevronUp, Pin, X, ExternalLink, Check } from 'lucide-react';
 import { Language } from '../languages';
+import Tooltip from './Tooltip';
 
 interface Props {
   language: Language;
@@ -64,6 +65,16 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
     }
   };
 
+  const description = isEs
+    ? 'Windows puede colocar los iconos nuevos detrás del menú de desbordamiento (^). Usa la Configuración de Windows para que CyberNotes permanezca siempre visible junto al reloj.'
+    : 'Windows may place new tray icons behind the overflow menu (^). Use Windows Settings to choose whether CyberNotes stays visible next to the clock.';
+  const markerIndex = description.indexOf('(^)');
+  const beforeMarker = description.slice(0, markerIndex);
+  const afterMarker = description.slice(markerIndex + 3);
+  const overflowLeadMatch = beforeMarker.match(/^(.*\s)(\S+\s+\S+\s*)$/s);
+  const descriptionPrefix = overflowLeadMatch?.[1] ?? beforeMarker;
+  const overflowLead = overflowLeadMatch?.[2]?.trimEnd() ?? '';
+
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div
@@ -99,15 +110,16 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
             <Pin size={16} style={{ color: 'var(--accent)' }} />
             <span>{isEs ? 'Mantener visible en la bandeja del sistema' : 'Keep visible in the system tray'}</span>
           </div>
-          <button
-            type="button"
-            className="settings-header-close"
-            onClick={handleClose}
-            aria-label={isEs ? 'Cerrar' : 'Close'}
-            title={isEs ? 'Cerrar' : 'Close'}
-          >
-            <X size={15} />
-          </button>
+          <Tooltip label={isEs ? 'Cerrar' : 'Close'} placement="bottom">
+            <button
+              type="button"
+              className="settings-header-close"
+              onClick={handleClose}
+              aria-label={isEs ? 'Cerrar' : 'Close'}
+            >
+              <X size={15} />
+            </button>
+          </Tooltip>
         </div>
 
         {/* Body */}
@@ -140,9 +152,32 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
               <Pin size={20} />
             </div>
             <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-primary)' }}>
-              {isEs
-                ? 'Windows puede colocar los iconos nuevos detrás del menú desplegable de la barra de tareas. Usa la Configuración de Windows para que CyberNotes permanezca siempre visible junto al reloj.'
-                : 'Windows may place new tray icons behind the overflow menu. Use Windows Settings to choose whether CyberNotes stays visible next to the clock.'}
+              {descriptionPrefix}
+              <span style={{ whiteSpace: 'nowrap' }}>
+                {overflowLead}
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-flex',
+                    width: '1.2em',
+                    height: '1.2em',
+                    margin: '0 0.2em',
+                    transform: 'translateY(-0.04em)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    verticalAlign: 'middle',
+                    border: '1px solid color-mix(in srgb, var(--text-primary) 20%, transparent)',
+                    borderRadius: 4,
+                    background: 'rgba(255, 255, 255, 0.07)',
+                    color: 'var(--text-primary)',
+                    opacity: 0.75,
+                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <ChevronUp size={11} strokeWidth={2.5} />
+                </span>
+              </span>
+              {afterMarker}
             </p>
           </div>
 
