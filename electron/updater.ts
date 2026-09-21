@@ -192,7 +192,9 @@ export function initUpdater(autoUpdate: boolean): void {
           }
           broadcast({ state: 'installing', version: info.version });
           setTimeout(() => {
-            try { autoUpdater.quitAndInstall(false, true); } catch { /* ignore */ }
+            // Silencioso + force-run: el template NSIS asistido solo relanza
+            // la app si instala en silencio (la página final se salta en /S).
+            try { autoUpdater.quitAndInstall(true, true); } catch { /* ignore */ }
           }, 400);
         }, AUTO_INSTALL_DELAY_MS);
       }
@@ -270,7 +272,9 @@ function registerUpdateIpc(): void {
 
   ipcMain.handle('update:install', () => {
     clearAutoInstallTimer();
-    try { autoUpdater.quitAndInstall(false, true); } catch { /* ignore */ }
+    // Silencioso + force-run: ver nota arriba, si no el usuario queda
+    // mirando el asistente NSIS en vez de la app reiniciada.
+    try { autoUpdater.quitAndInstall(true, true); } catch { /* ignore */ }
   });
 
   ipcMain.handle('update:cancelAutoInstall', () => {
