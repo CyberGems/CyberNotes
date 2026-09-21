@@ -99,7 +99,7 @@ function renderHead() {
 function makeItem(def) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'item' + (def.danger ? ' danger' : '') + (def.tone ? ' ' + def.tone : '');
+  btn.className = 'item' + (def.danger ? ' danger' : '') + (def.tone ? ' ' + def.tone : '') + (def.pill ? ' pill-action' : '');
   btn.setAttribute('role', 'menuitem');
 
   const iconSpan = document.createElement('span');
@@ -116,8 +116,20 @@ function makeItem(def) {
   }
 
   const label = document.createElement('span');
-  label.className = 'label';
-  label.textContent = def.label;
+  if (def.stacked && def.desc && String(def.desc).trim()) {
+    label.className = 'stacked-label';
+    const name = document.createElement('span');
+    name.className = 'label';
+    name.textContent = def.label;
+    const sub = document.createElement('span');
+    sub.className = 'sub-desc';
+    sub.textContent = String(def.desc).trim();
+    label.appendChild(name);
+    label.appendChild(sub);
+  } else {
+    label.className = 'label';
+    label.textContent = def.label;
+  }
 
   btn.appendChild(iconSpan);
   btn.appendChild(label);
@@ -217,9 +229,9 @@ function renderSuiteView() {
   const suite = currentState.suite || {};
   const apps = Array.isArray(suite.apps) ? suite.apps : [];
   groupEl.replaceChildren(
-    ...apps.map((a) => makeItem({ action: a.action, img: a.img, icon: 'apps', label: a.name, desc: a.desc })),
+    ...apps.map((a) => makeItem({ action: a.action, img: a.img, icon: 'apps', label: a.name, desc: a.desc, stacked: true })),
     makeSeparator(),
-    makeItem({ action: 'suite-view-all', icon: 'arrowRight', label: suite.viewAllLabel || t('viewAll') })
+    makeItem({ action: 'suite-view-all', icon: 'arrowRight', label: suite.viewAllLabel || t('viewAll'), pill: true })
   );
   exitGroupEl.replaceChildren();
 }
