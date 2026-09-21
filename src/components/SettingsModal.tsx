@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ThemeId, type UsageStats } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
@@ -258,6 +258,7 @@ export default function SettingsModal({
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState(false);
+  const [usageExpanded, setUsageExpanded] = useState(false);
 
   const handleToggleUsageStats = async (val: boolean) => {
     setUsageStatsOn(val);
@@ -268,7 +269,9 @@ export default function SettingsModal({
     }
   };
 
-  const handleLoadUsageStats = async () => {
+  const handleLoadUsageStats = useCallback(async () => {
+    setUsageExpanded(true);
+    await window.cyberNotesAPI.setSetting('usage_stats_expanded', 'true').catch(() => {});
     setUsageLoading(true);
     setUsageError(false);
     try {
@@ -283,7 +286,13 @@ export default function SettingsModal({
     } finally {
       setUsageLoading(false);
     }
-  };
+  }, []);
+
+  const handleHideUsageStats = useCallback(async () => {
+    setUsageExpanded(false);
+    setUsageStats(null);
+    await window.cyberNotesAPI.setSetting('usage_stats_expanded', 'false').catch(() => {});
+  }, []);
 
   const handleResetUsageStats = async () => {
     const proceed = await showDialog({
@@ -297,8 +306,18 @@ export default function SettingsModal({
     });
     if (!proceed) return;
     await window.cyberNotesAPI.purgeUsageStats().catch(() => {});
+    usageAutoRef.current = true;
     setUsageStats(null);
   };
+
+  // Auto-mostrar al entrar a la pestaña si así quedó la última vez.
+  const usageAutoRef = useRef(false);
+  useEffect(() => {
+    if (tab === 'stats' && usageStatsOn && usageExpanded && !usageStats && !usageLoading && !usageAutoRef.current) {
+      usageAutoRef.current = true;
+      void handleLoadUsageStats();
+    }
+  }, [tab, usageStatsOn, usageExpanded, usageStats, usageLoading, handleLoadUsageStats]);
 
   const handleToggleStickySkipTaskbar = async (val: boolean) => {
     setStickySkipTaskbar(val);
@@ -418,6 +437,8 @@ export default function SettingsModal({
       setShowSuitePromo(suiteVal !== 'false');
       const usageVal = await window.cyberNotesAPI.getSetting('usage_stats_enabled');
       setUsageStatsOn(usageVal !== 'false');
+      const usageExpandedVal = await window.cyberNotesAPI.getSetting('usage_stats_expanded');
+      if (usageExpandedVal === 'true') setUsageExpanded(true);
       const isAutoStart = await window.cyberNotesAPI.getAutoStart();
       setAutoStart(isAutoStart);
       const hkVal = await window.cyberNotesAPI.getSetting('toggle_hotkey');
@@ -2090,7 +2111,17 @@ export default function SettingsModal({
                     )}
                   </div>
                 ) : (
-                  <UsageTiles stats={usageStats} language={language} />
+                  <>
+                    <UsageTiles stats={usageStats} language={language} />
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={handleHideUsageStats}
+                      style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12 }}
+                    >
+                      {language === 'es' ? 'Ocultar' : 'Hide'}
+                    </button>
+                  </>
                 )
               )}
 
@@ -2234,6 +2265,21 @@ export default function SettingsModal({
                     : 'Copies the database to a local folder on a schedule and keeps the most recent copies.'}
                 </p>
 
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => window.cyberNotesAPI.openBackupsFolder()}
+                  style={{
+                    gap: 8, justifyContent: 'flex-start',
+                    padding: '9px 14px', fontSize: 'calc(12.5px * var(--ui-scale))',
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-surface)', marginBottom: 12,
+                  }}
+                >
+                  <FolderOpen size={15} style={{ color: 'var(--accent)' }} />
+                  <span>{language === 'es' ? 'Abrir carpeta de respaldos' : 'Open backups folder'}</span>
+                </button>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <label style={{
                     display: 'flex',
@@ -2340,14 +2386,6 @@ export default function SettingsModal({
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => window.cyberNotesAPI.openBackupsFolder()}
-                        style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', padding: '8px 14px' }}
-                      >
-                        <FolderOpen size={15} />
-                        {language === 'es' ? 'Carpeta' : 'Folder'}
-                      </button>
                       <button
                         className="btn btn-ghost"
                         onClick={handleBackupNow}

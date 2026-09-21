@@ -2336,7 +2336,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'note_list_collapsed_groups', 'note_list_floating_group_ready',
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
-  'auth_method', 'show_suite_promo', 'usage_stats_enabled',
+  'auth_method', 'show_suite_promo', 'usage_stats_enabled', 'usage_stats_expanded',
   'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
 ]);
 
