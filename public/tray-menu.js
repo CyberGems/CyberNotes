@@ -10,6 +10,7 @@ const ICONS = {
   key: '<svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 2.5 2.5"/><path d="m18.5 4.5 2 2"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
   arrowRight: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+  diamond: '<svg viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/><path d="M9 3l3 6 3-6"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H11v18H5.5A2.5 2.5 0 0 0 3 22.5z"/><path d="M21 4.5A2.5 2.5 0 0 0 18.5 2H13v18h5.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1"/></svg>',
   globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
@@ -38,7 +39,7 @@ const FALLBACKS = {
     pin: 'Mantener visible en la bandeja del sistema', setPassword: 'Configurar contraseña...',
     docs: 'Documentación online', faq: 'Preguntas frecuentes', changelog: 'Registro de cambios',
     website: 'Sitio web', donate: 'Donar', about: 'Acerca de CyberNotes...', updates: 'Buscar actualizaciones...',
-    suite: 'Más de CyberGems', viewAll: 'Más detalles online…',
+    back: 'Atrás', suite: 'Más de CyberGems', viewAll: 'Más detalles online…',
   },
   en: {
     back: 'Back', help: 'Help', newSticky: 'New floating note',
@@ -66,6 +67,32 @@ function renderHead() {
   headEl.classList.toggle('help-head', currentView === 'help');
 
   if (currentView === 'help' || currentView === 'suite') {
+    if (currentView === 'suite') {
+      // Encabezado estilo familia (como CyberPaste): atrás con texto + marca.
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'head-suite-back';
+      back.innerHTML = ICONS.chevron;
+      const backText = document.createElement('span');
+      backText.textContent = t('back');
+      back.appendChild(backText);
+      back.setAttribute('aria-label', t('back'));
+      back.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        currentView = 'main';
+        renderView();
+      });
+      headEl.appendChild(back);
+      const brand = document.createElement('span');
+      brand.className = 'head-brand';
+      brand.innerHTML = ICONS.diamond;
+      const brandText = document.createElement('span');
+      brandText.textContent = 'CyberGems';
+      brand.appendChild(brandText);
+      headEl.appendChild(brand);
+      return;
+    }
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'head-back';
@@ -147,13 +174,6 @@ function makeItem(def) {
     sc.className = 'shortcut';
     sc.textContent = String(def.shortcut).trim();
     btn.appendChild(sc);
-  }
-
-  if (def.desc && String(def.desc).trim()) {
-    const desc = document.createElement('span');
-    desc.className = 'desc';
-    desc.textContent = String(def.desc).trim();
-    btn.appendChild(desc);
   }
 
   btn.addEventListener('pointerdown', (e) => {
