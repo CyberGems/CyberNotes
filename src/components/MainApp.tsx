@@ -158,6 +158,7 @@ export default function MainApp({
   const [editorFont, setEditorFont] = useState<EditorFontId>(DEFAULT_EDITOR_FONT);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showWordCounter, setShowWordCounter] = useState(false);
+  const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
   const [triggerNewFolderSignal, setTriggerNewFolderSignal] = useState(0);
@@ -461,7 +462,7 @@ export default function MainApp({
       'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
-      'show_word_counter', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
+      'show_word_counter', 'show_floating_toolbar', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
       'editor_font',
     ]);
 
@@ -491,6 +492,8 @@ export default function MainApp({
     }
     if (s.show_minimap) setShowMinimap(s.show_minimap === 'true');
     setShowWordCounter(s.show_word_counter === 'true');
+    if (s.show_floating_toolbar === null) setShowFloatingToolbar(true);
+    else setShowFloatingToolbar(s.show_floating_toolbar === 'true');
     if (s.recent_cleared_at) setRecentClearedAt(parseInt(s.recent_cleared_at));
     if (s.opened_history) {
       try { setOpenedHistory(JSON.parse(s.opened_history)); } catch { /* ignorar JSON corrupto */ }
@@ -1539,6 +1542,11 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('show_line_gutter', v.toString());
   };
 
+  const handleShowFloatingToolbarChange = async (v: boolean) => {
+    setShowFloatingToolbar(v);
+    await window.cyberNotesAPI.setSetting('show_floating_toolbar', v.toString());
+  };
+
   const handleAutosaveEnabledChange = async (val: boolean) => {
     setAutosaveEnabled(val);
     await window.cyberNotesAPI.setSetting('autosave_enabled', val.toString());
@@ -1695,6 +1703,8 @@ export default function MainApp({
         onShowLineGutterChange={handleShowLineGutterChange}
         showWordCounter={showWordCounter}
         onShowWordCounterChange={(v) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
+        showFloatingToolbar={showFloatingToolbar}
+        onShowFloatingToolbarChange={handleShowFloatingToolbarChange}
         rememberLastNote={rememberLastNote}
         onRememberLastNoteChange={handleRememberLastNoteChange}
         minimizeToTray={minimizeToTray}
@@ -1844,6 +1854,7 @@ export default function MainApp({
           showLineGutter={showLineGutter}
           onShowLineGutterChange={handleShowLineGutterChange}
           showWordCounter={showWordCounter}
+          showFloatingToolbar={showFloatingToolbar}
         />
       </div>
 
@@ -1900,6 +1911,8 @@ export default function MainApp({
           onShowMinimapChange={handleShowMinimapChange}
           showWordCounter={showWordCounter}
           onShowWordCounterChange={(v: boolean) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
+          showFloatingToolbar={showFloatingToolbar}
+          onShowFloatingToolbarChange={handleShowFloatingToolbarChange}
         />
       )}
 

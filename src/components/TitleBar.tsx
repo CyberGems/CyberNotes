@@ -33,6 +33,8 @@ interface Props {
   onShowLineGutterChange?: (v: boolean) => void;
   showWordCounter?: boolean;
   onShowWordCounterChange?: (v: boolean) => void;
+  showFloatingToolbar?: boolean;
+  onShowFloatingToolbarChange?: (v: boolean) => void;
   rememberLastNote?: boolean;
   onRememberLastNoteChange?: (v: boolean) => void;
   minimizeToTray?: boolean;
@@ -81,6 +83,8 @@ export default function TitleBar({
   onShowLineGutterChange,
   showWordCounter = true,
   onShowWordCounterChange,
+  showFloatingToolbar = true,
+  onShowFloatingToolbarChange,
   rememberLastNote = true,
   onRememberLastNoteChange,
   minimizeToTray = false,
@@ -681,6 +685,19 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Contador palabras', 'Word counter')}</span>
                 <div style={toggleStyle(showWordCounter)}>
                   <div style={{ ...toggleDot, left: showWordCounter ? 16 : 2 }} />
+                </div>
+              </div>
+              <div
+                className="menu-item"
+                role="menuitem"
+                tabIndex={0}
+                onClick={() => onShowFloatingToolbarChange?.(!showFloatingToolbar)}
+                onKeyDown={e => activateMenuItem(e, () => onShowFloatingToolbarChange?.(!showFloatingToolbar))}
+              >
+                <MoreHorizontal size={14} style={{ opacity: 0.7 }} />
+                <span style={{ flex: 1 }}>{t('Barra flotante', 'Floating toolbar')}</span>
+                <div style={toggleStyle(showFloatingToolbar)}>
+                  <div style={{ ...toggleDot, left: showFloatingToolbar ? 16 : 2 }} />
                 </div>
               </div>
               <div

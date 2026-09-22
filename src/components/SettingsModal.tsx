@@ -55,6 +55,8 @@ interface Props {
   onShowMinimapChange: (v: boolean) => void;
   showWordCounter: boolean;
   onShowWordCounterChange: (v: boolean) => void;
+  showFloatingToolbar: boolean;
+  onShowFloatingToolbarChange: (v: boolean) => void;
   initialTab?: Tab;
 }
 
@@ -198,6 +200,7 @@ export default function SettingsModal({
   editorFont = 'inter', onEditorFontChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
+  showFloatingToolbar, onShowFloatingToolbarChange,
   initialTab = 'general',
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -1707,6 +1710,18 @@ export default function SettingsModal({
                   </SettingsOptionCopy>
                   <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
                 </label>
+
+                <label className="settings-option-row" onClick={() => onShowFloatingToolbarChange(!showFloatingToolbar)}>
+                  <SettingsOptionCopy icon={<Sparkles />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Barra flotante de formato' : 'Floating format toolbar'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra la mini barra al seleccionar texto en el editor' : 'Show the mini toolbar when selecting text in the editor'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showFloatingToolbar ? 'active' : ''}`} />
+                </label>
               </div>
             </div>
 
@@ -1714,76 +1729,104 @@ export default function SettingsModal({
               <SettingsHeading icon={<Type />}>
                 {language === 'es' ? 'Tipografía del Editor' : 'Editor Typography'}
               </SettingsHeading>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {EDITOR_FONTS.map(font => {
-                  const isCurrent = (editorFont || 'inter') === font.id;
-                  const fontName = language === 'es' ? font.nameEs : font.nameEn;
-                  const categoryLabel = language === 'es' ? font.categoryLabelEs : font.categoryLabelEn;
-                  const description = language === 'es' ? font.descriptionEs : font.descriptionEn;
+              {(() => {
+                const activeFont = EDITOR_FONTS.find(f => f.id === (editorFont || 'inter')) || EDITOR_FONTS[0];
+                return (
+                  <>
+                    <div role="radiogroup" aria-label={language === 'es' ? 'Tipografía del Editor' : 'Editor Typography'} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {EDITOR_FONTS.map(font => {
+                        const isCurrent = (editorFont || 'inter') === font.id;
+                        const fontName = language === 'es' ? font.nameEs : font.nameEn;
+                        const categoryLabel = language === 'es' ? font.categoryLabelEs : font.categoryLabelEn;
 
-                  return (
-                    <button
-                      key={font.id}
-                      type="button"
-                      onClick={() => onEditorFontChange?.(font.id)}
-                      style={{
-                        padding: '12px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border)',
-                        background: isCurrent ? 'var(--accent-dim)' : 'var(--bg-surface)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                        textAlign: 'left',
-                        transition: 'all var(--transition)',
-                        boxShadow: isCurrent ? '0 0 12px var(--accent-glow)' : 'none',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {fontName}
-                          </span>
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '1px 6px',
-                            borderRadius: 4,
-                            background: isCurrent ? 'var(--accent)' : 'rgba(255, 255, 255, 0.08)',
-                            color: isCurrent ? 'var(--text-on-accent)' : 'var(--text-muted)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                          }}>
-                            {categoryLabel}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: 11, color: isCurrent ? 'var(--accent-light)' : 'var(--text-muted)' }}>
-                          {isCurrent ? (language === 'es' ? '● Activa' : '● Active') : (language === 'es' ? 'Elegir' : 'Select')}
-                        </span>
+                        return (
+                          <button
+                            key={font.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={isCurrent}
+                            onClick={() => onEditorFontChange?.(font.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              width: '100%',
+                              padding: '8px 12px',
+                              borderRadius: 'var(--radius-md)',
+                              border: isCurrent ? '1px solid var(--accent)' : '1px solid var(--border)',
+                              background: isCurrent ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                              boxShadow: isCurrent ? '0 0 10px var(--accent-glow)' : 'none',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all var(--transition)',
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 8,
+                                height: 8,
+                                flexShrink: 0,
+                                borderRadius: '50%',
+                                background: isCurrent ? 'var(--accent-light)' : 'transparent',
+                                border: isCurrent ? 'none' : '1px solid var(--text-muted)',
+                                boxShadow: isCurrent ? '0 0 6px var(--accent-glow)' : 'none',
+                              }}
+                            />
+                            <span style={{
+                              flex: 1,
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontFamily: font.family,
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: 'var(--text-primary)',
+                            }}>
+                              {fontName}
+                            </span>
+                            <span style={{
+                              flexShrink: 0,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              background: isCurrent ? 'var(--accent)' : 'rgba(255, 255, 255, 0.08)',
+                              color: isCurrent ? 'var(--text-on-accent)' : 'var(--text-muted)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                            }}>
+                              {categoryLabel}
+                            </span>
+                            <span style={{ flexShrink: 0, fontSize: 11, color: isCurrent ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                              {isCurrent ? (language === 'es' ? '● Activa' : '● Active') : (language === 'es' ? 'Elegir' : 'Select')}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{
+                      marginTop: 10,
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border)',
+                      background: 'rgba(0, 0, 0, 0.25)',
+                    }}>
+                      <div style={{
+                        fontFamily: activeFont.family,
+                        fontSize: 16,
+                        color: 'var(--text-primary)',
+                      }}>
+                        {activeFont.sample}
                       </div>
-
-                      <div
-                        style={{
-                          fontFamily: font.family,
-                          fontSize: 14,
-                          color: isCurrent ? 'var(--accent-light)' : 'var(--text-secondary)',
-                          background: 'rgba(0, 0, 0, 0.25)',
-                          padding: '6px 10px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid rgba(255, 255, 255, 0.05)',
-                        }}
-                      >
-                        {font.sample}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4, marginTop: 6 }}>
+                        {language === 'es' ? activeFont.descriptionEs : activeFont.descriptionEn}
                       </div>
-
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>
-                        {description}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             </>
           )}

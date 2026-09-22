@@ -52,6 +52,8 @@ interface Props {
   showLineGutter?: boolean;
   onShowLineGutterChange?: (v: boolean) => void;
   showWordCounter?: boolean;
+  /** Barra flotante ante selección de texto (default on). */
+  showFloatingToolbar?: boolean;
   autosaveEnabled?: boolean;
   autoUnlockCapsLock?: boolean;
   autoUnlockCapsLockTimeout?: number;
@@ -148,8 +150,46 @@ declare module '@tiptap/core' {
       setFontSize: (fontSize: string) => ReturnType;
       unsetFontSize: () => ReturnType;
     };
+    fontFamily: {
+      setFontFamily: (fontFamily: string) => ReturnType;
+      unsetFontFamily: () => ReturnType;
+    };
   }
 }
+
+/**
+ * Marca de familia tipográfica por selección (span con font-family).
+ * Aplica solo al rango seleccionado, no es el ajuste global de Ajustes.
+ * Se persiste en el HTML igual que FontSize.
+ */
+export const FontFamily = TextStyle.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      fontFamily: {
+        default: null,
+        parseHTML: (element) => (element as HTMLElement).style.fontFamily || null,
+        renderHTML: (attributes) => {
+          if (!attributes.fontFamily) return {};
+          return { style: `font-family: ${attributes.fontFamily}` };
+        },
+      },
+    };
+  },
+  addCommands() {
+    return {
+      ...this.parent?.(),
+      setFontFamily:
+        (fontFamily: string) =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontFamily }).run(),
+      unsetFontFamily:
+        () =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontFamily: null }).removeEmptyTextStyle().run(),
+    };
+  },
+});
 
 /**
  * Carga contenido en TipTap sin contaminar el historial de Undo/Redo.
@@ -190,6 +230,319 @@ const ToolbarBtn = ({
   </Tooltip>
 );
 
+/** z-index por encima del BubbleMenu de TipTap (tippy usa 9999). */
+const WORD_MENU_OVERLAY_Z = 10000;
+const WORD_MENU_Z = 10001;
+
+/**
+ * Calcula la posición fija del menú (portal en body) a partir del botón.
+ * Escapa de contenedores con overflow (footer del mini) y pinta por
+ * encima de la barra flotante, que nunca se desmonta (desmontar el
+ * BubbleMenu de TipTap con el tippy visible rompe su DOM y tumba la app).
+ */
+function useWordMenuPosition(
+  open: boolean,
+  anchorRef: React.RefObject<HTMLElement | null>,
+  opts: { dropUp: boolean; minWidth: number; align?: 'left' | 'right'; width?: number },
+): CSSProperties | null {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setStyle(null);
+      return;
+    }
+    const update = () => {
+      const r = anchorRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const menuWidth = opts.width ?? Math.max(r.width, opts.minWidth);
+      const left = opts.align === 'right'
+        ? Math.max(8, Math.min(r.right - menuWidth, window.innerWidth - menuWidth - 8))
+        : Math.max(8, Math.min(r.left, window.innerWidth - menuWidth - 8));
+      const below = window.innerHeight - r.bottom - 14;
+      const above = r.top - 14;
+      const up = opts.dropUp || (below < 180 && above > below);
+      const maxH = Math.max(140, Math.min(260, up ? above : below));
+      setStyle({
+        position: 'fixed',
+        left,
+        width: menuWidth,
+        maxHeight: maxH,
+        zIndex: WORD_MENU_Z,
+        ...(up ? { bottom: Math.max(8, window.innerHeight - r.top + 6) } : { top: r.bottom + 6 }),
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, anchorRef, opts.dropUp, opts.minWidth, opts.align, opts.width]);
+  return style;
+}
+
+const wordMenuBoxStyle: CSSProperties = {
+  overflowY: 'auto',
+  padding: 5,
+  borderRadius: 9,
+  background: 'rgba(10, 10, 18, 0.97)',
+  border: '1px solid var(--border)',
+  boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1,
+};
+
+/** Combo de fuente estilo Word: muestra la fuente de la selección y aplica solo a ella. */
+export function WordFontFamilySelect({
+  editor, language, compact = false, tooltipSide = 'bottom', dropUp = false,
+}: {
+  editor: Editor | null; language: Language; compact?: boolean; tooltipSide?: 'bottom' | 'top'; dropUp?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+  const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: compact ? 150 : 200 });
+  const activeFamily = (editor?.getAttributes('textStyle')?.fontFamily as string | null) || null;
+  const matched = matchFontFamilyOption(activeFamily);
+  const t = TRANSLATIONS[language];
+  // Ancho ceñido al contenido (sin cortar el nombre): el mini mantiene 76 fijos.
+  const buttonWidth: number | string = compact ? 76 : 'auto';
+
+  if (!editor) return null;
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <Tooltip label={t.editor.fontFamily} placement={tooltipSide}>
+        <button
+          ref={anchorRef}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+            width: buttonWidth, maxWidth: compact ? 76 : 200,
+            height: compact ? 24 : 30, padding: compact ? '0 6px' : '0 8px',
+            background: open || matched ? 'var(--accent-dim)' : 'var(--bg-surface)',
+            border: open || matched ? '1px solid var(--accent)' : '1px solid var(--border)',
+            borderRadius: 6, cursor: 'pointer', color: 'var(--text-primary)',
+            fontSize: compact ? 11 : 12,
+          }}
+        >
+          <span
+            style={{
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left',
+              fontFamily: matched ? matched.family : 'inherit',
+            }}
+          >
+            {matched ? matched.label : (compact ? t.editor.fontFamily : t.editor.fontFamilyDefault)}
+          </span>
+          <span style={{ color: 'var(--text-muted)', display: 'inline-flex', flexShrink: 0 }}>▾</span>
+        </button>
+      </Tooltip>
+      {open && createPortal(
+        <>
+          <div
+            data-word-menu="true"
+            style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setOpen(false)}
+          />
+          <div data-word-menu="true" style={{ ...wordMenuBoxStyle, ...menuStyle }}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { editor.chain().focus().unsetFontFamily().run(); setOpen(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                background: !matched ? 'var(--accent-dim)' : 'transparent',
+                color: !matched ? 'var(--accent-light)' : 'var(--text-secondary)',
+                border: 'none', textAlign: 'left',
+              }}
+            >
+              {t.editor.fontFamilyDefault}
+              {!matched && <span>✓</span>}
+            </button>
+            {FONT_FAMILY_OPTIONS.map((opt) => {
+              const isCurrent = matched?.label === opt.label;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { editor.chain().focus().setFontFamily(opt.family).run(); setOpen(false); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                    padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
+                    background: isCurrent ? 'var(--accent-dim)' : 'transparent',
+                    color: isCurrent ? 'var(--accent-light)' : 'var(--text-primary)',
+                    border: 'none', textAlign: 'left',
+                    fontFamily: opt.family, fontSize: compact ? 12 : 14,
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+                  {isCurrent && <span style={{ fontFamily: 'inherit' }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+/** Combo de tamaño estilo Word: input editable + lista (8-72). Aplica solo a la selección. */
+export function WordFontSizeSelect({
+  editor, language, compact = false, tooltipSide = 'bottom', dropUp = false, defaultSize = 15,
+}: {
+  editor: Editor | null; language: Language; compact?: boolean; tooltipSide?: 'bottom' | 'top'; dropUp?: boolean;
+  /** Tamaño base a mostrar cuando el cursor no tiene formato (p. ej. 15 * uiScale). */
+  defaultSize?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
+  const justFocusedRef = useRef(false);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: 72, align: 'right', width: 120 });
+  const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
+  const directNum = parseFontSizeNumber(activeFontSize);
+  // Tamaño "actual": marca directa, vecino del caret o base. Siempre hay
+  // un número visible aunque no haya texto seleccionado.
+  const neighborNum = editor && !directNum ? getCaretNeighborFontSize(editor) : null;
+  const docNum = directNum ?? neighborNum;
+  const displayNum = docNum ?? defaultSize;
+  const t = TRANSLATIONS[language];
+
+  useEffect(() => {
+    if (!focused) setDraft(null);
+  }, [activeFontSize, focused]);
+
+  if (!editor) return null;
+  const shown = draft ?? String(displayNum);
+
+  const commit = (raw: string) => {
+    const n = parseInt(raw, 10);
+    if (!raw.trim()) {
+      setDraft(null);
+      setOpen(false);
+      return;
+    }
+    if (!Number.isFinite(n)) {
+      setDraft(null);
+      return;
+    }
+    const clamped = clampWordFontSize(n);
+    editor.chain().focus().setFontSize(`${clamped}px`).run();
+    setDraft(null);
+    setOpen(false);
+  };
+
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <Tooltip label={t.editor.fontSize} placement={tooltipSide}>
+          <div
+          ref={anchorRef}
+          style={{
+            display: 'flex', alignItems: 'stretch',
+            width: compact ? 52 : 62, height: compact ? 24 : 30,
+            background: open || docNum ? 'var(--accent-dim)' : 'var(--bg-surface)',
+            border: open || docNum ? '1px solid var(--accent)' : '1px solid var(--border)',
+            borderRadius: 6, overflow: 'hidden',
+          }}
+        >
+          <input
+            value={shown}
+            inputMode="numeric"
+            aria-label={t.editor.fontSize}
+            placeholder="—"
+            onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+            onFocus={(e) => { setFocused(true); justFocusedRef.current = true; e.target.select(); }}
+            onMouseUp={(e) => {
+              // El mouseup del mismo clic colapsaría el select() del focus:
+              // se conserva la selección lista para reemplazar.
+              if (justFocusedRef.current) {
+                justFocusedRef.current = false;
+                e.preventDefault();
+                (e.target as HTMLInputElement).select();
+              }
+            }}
+            onBlur={() => { justFocusedRef.current = false; setFocused(false); if (draft !== null) commit(draft); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); }
+              else if (e.key === 'Escape') { setDraft(null); setOpen(false); (e.target as HTMLInputElement).blur(); }
+              else if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); }
+            }}
+            style={{
+              width: '100%', minWidth: 0, flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              color: 'var(--text-primary)', fontSize: compact ? 11 : 12, fontWeight: 600,
+              textAlign: 'center', padding: 0, fontVariantNumeric: 'tabular-nums',
+            }}
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setOpen((v) => !v)}
+            aria-label={t.editor.fontSize}
+            style={{
+              flexShrink: 0, width: compact ? 16 : 20, border: 'none', cursor: 'pointer',
+              background: 'transparent', color: 'var(--text-muted)', fontSize: 10,
+            }}
+          >
+            ▾
+          </button>
+        </div>
+      </Tooltip>
+      {open && createPortal(
+        <>
+          <div
+            data-word-menu="true"
+            style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { setOpen(false); setDraft(null); }}
+          />
+          <div data-word-menu="true" style={{ ...wordMenuBoxStyle, ...menuStyle }}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { editor.chain().focus().unsetFontSize().run(); setOpen(false); setDraft(null); }}
+              style={{
+                padding: '6px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', textAlign: 'center',
+                background: !docNum ? 'var(--accent-dim)' : 'transparent',
+                color: !docNum ? 'var(--accent-light)' : 'var(--text-secondary)', border: 'none',
+              }}
+            >
+              {t.editor.fontSizeNormal}
+            </button>
+            {WORD_FONT_SIZE_OPTIONS.map((size) => {
+              const isCurrent = docNum === Number(size);
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { editor.chain().focus().setFontSize(`${size}px`).run(); setOpen(false); setDraft(null); }}
+                  style={{
+                    padding: '4px 10px', borderRadius: 6, cursor: 'pointer', textAlign: 'center',
+                    background: isCurrent ? 'var(--accent-dim)' : 'transparent',
+                    color: isCurrent ? 'var(--accent-light)' : 'var(--text-primary)',
+                    border: 'none', fontSize: 12, fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {size}
+                </button>
+              );
+            })}
+          </div>
+        </>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 /** Misma huella táctil que ToolbarBtn (barra de formato del editor). */
 const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProperties => ({
   background: active ? (opts?.warn ? 'rgba(239, 68, 68, 0.12)' : 'var(--accent-dim)') : 'transparent',
@@ -218,6 +571,81 @@ const TAB_DRAG_MIME = 'application/x-cybernotes-tab';
 /** Tamaños del desplegable de letra (px), estilo Word. Compartido con stickies. */
 export const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32'];
 
+/** Lista Word para el combo editable (incluye 8-11 como en la captura). */
+export const WORD_FONT_SIZE_OPTIONS = ['8', '9', '10', '11', '12', '14', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
+
+export interface FontFamilyOption {
+  label: string;
+  family: string;
+}
+
+/** Familias del combo estilo Word. El `family` se guarda inline en la selección. */
+export const FONT_FAMILY_OPTIONS: FontFamilyOption[] = [
+  { label: 'Aptos', family: "'Aptos', 'Segoe UI', system-ui, sans-serif" },
+  { label: 'Arial', family: "Arial, 'Helvetica Neue', sans-serif" },
+  { label: 'Calibri', family: "Calibri, 'Segoe UI', sans-serif" },
+  { label: 'Cambria', family: "Cambria, Georgia, serif" },
+  { label: 'Courier New', family: "'Courier New', Courier, monospace" },
+  { label: 'Georgia', family: "Georgia, 'Times New Roman', serif" },
+  { label: 'Inter', family: "'Inter', system-ui, sans-serif" },
+  { label: 'JetBrains Mono', family: "'JetBrains Mono', 'Fira Code', monospace" },
+  { label: 'Merriweather', family: "'Merriweather', Georgia, serif" },
+  { label: 'Outfit', family: "'Outfit', system-ui, sans-serif" },
+  { label: 'Segoe UI', family: "'Segoe UI', system-ui, sans-serif" },
+  { label: 'Tahoma', family: "Tahoma, Geneva, sans-serif" },
+  { label: 'Times New Roman', family: "'Times New Roman', Times, serif" },
+  { label: 'Trebuchet MS', family: "'Trebuchet MS', Verdana, sans-serif" },
+  { label: 'Verdana', family: "Verdana, Geneva, sans-serif" },
+];
+
+export function parseFontSizeNumber(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function clampWordFontSize(n: number): number {
+  if (!Number.isFinite(n)) return 11;
+  return Math.min(96, Math.max(8, Math.round(n)));
+}
+
+function normalizeFamily(value: string | null | undefined): string {
+  return (value || '').replace(/["']/g, '').trim().toLowerCase();
+}
+
+export function matchFontFamilyOption(activeFamily: string | null | undefined): FontFamilyOption | null {
+  if (!activeFamily) return null;
+  const norm = normalizeFamily(activeFamily);
+  if (!norm) return null;
+  return FONT_FAMILY_OPTIONS.find((opt) => {
+    const optNorm = normalizeFamily(opt.family);
+    const firstName = normalizeFamily(opt.label);
+    return norm.includes(firstName) || optNorm.split(',')[0].trim() === norm.split(',')[0].trim();
+  }) || null;
+}
+
+/**
+ * Tamaño al cursor estilo Word cuando no hay marca directa: mira los nodos
+ * vecinos del caret (p. ej. cursor al final de un texto de 14px). Solo con
+ * selección colapsada; con rango se usa getAttributes.
+ */
+function getCaretNeighborFontSize(editor: Editor): number | null {
+  try {
+    const { selection } = editor.state;
+    if (!selection.empty) return null;
+    const { $from } = selection;
+    const neighbors = [$from.nodeBefore, $from.nodeAfter];
+    for (const node of neighbors) {
+      const mark = node?.marks.find((m) => m.type.name === 'textStyle');
+      const n = parseFontSizeNumber(mark?.attrs.fontSize as string | undefined);
+      if (n) return n;
+    }
+  } catch {
+    /* selección no válida: sin tamaño heredado */
+  }
+  return null;
+}
+
 function tabDropEdge(e: ReactDragEvent<HTMLElement>): 'before' | 'after' {
   const rect = e.currentTarget.getBoundingClientRect();
   return e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
@@ -236,6 +664,7 @@ export default function NoteEditor({
   showLineGutter = true,
   onShowLineGutterChange,
   showWordCounter = false,
+  showFloatingToolbar = true,
   autosaveEnabled = true,
   autoUnlockCapsLock = false,
   autoUnlockCapsLockTimeout = 8,
@@ -332,6 +761,11 @@ export default function NoteEditor({
   const minimapPanRef = useRef<HTMLDivElement>(null);
   const showMinimapRef = useRef(showMinimap);
   showMinimapRef.current = showMinimap; // mantener actualizado para callbacks estables
+  // El BubbleMenu de TipTap mueve su nodo al popper de tippy: desmontarlo
+  // con el editor vivo rompe el DOM (NotFoundError). Nunca se desmonta;
+  // su visibilidad se gobierna con shouldShow mediante este ref.
+  const showFloatingToolbarRef = useRef(showFloatingToolbar);
+  showFloatingToolbarRef.current = showFloatingToolbar;
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
   const [minimapScale, setMinimapScale] = useState(0.075);
   const minimapScaleRef = useRef(0.075);
@@ -655,7 +1089,6 @@ export default function NoteEditor({
     canUndo: boolean;
     canRedo: boolean;
   } | null>(null);
-  const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const linkInputMenu = useInputContextMenu(language);
   const [editLinkData, setEditLinkData] = useState<{ href: string } | null>(null);
@@ -1036,6 +1469,7 @@ export default function NoteEditor({
       Underline,
       Highlight.configure({ multicolor: false }),
       FontSize,
+      FontFamily,
     ],
     editorProps: {
       attributes: {
@@ -1168,7 +1602,10 @@ export default function NoteEditor({
         const goesInsideEditor = !!target && !!editorRootRef.current?.contains(target);
         const goesToNav = !!target && !!target.closest?.('[data-leave-guard="nav"]');
         const goesToAppChrome = !!target && !!target.closest?.('.titlebar-glass');
-        if (target && !goesToTitle && !goesInsideEditor && !goesToNav && !goesToAppChrome) {
+        // Los menús de fuente/tamaño viven en un portal (fuera del editor),
+        // pero son parte de él: tocarlos no es abandonar la nota.
+        const goesToWordMenu = !!target && !!target.closest?.('[data-word-menu="true"]');
+        if (target && !goesToTitle && !goesInsideEditor && !goesToNav && !goesToAppChrome && !goesToWordMenu) {
           setShowLeaveEditorWarning(true);
         }
       }
@@ -1178,6 +1615,14 @@ export default function NoteEditor({
   useEffect(() => {
     editor?.setEditable(!readOnly);
   }, [editor, readOnly]);
+
+  // Al desactivar la barra flotante se suelta el foco: el plugin la esconde
+  // en el blur del editor y no puede quedar visible tras el cambio.
+  useEffect(() => {
+    if (!showFloatingToolbar && editor && editor.view.hasFocus()) {
+      editor.commands.blur();
+    }
+  }, [showFloatingToolbar, editor]);
 
   // Sincronizar editorRef después de que useEditor lo haya inicializado
   editorRef.current = editor;
@@ -1327,7 +1772,6 @@ export default function NoteEditor({
       editor.commands.focus('start');
     }
     setIsRaw(false);
-    setShowFontSizeMenu(false);
 
     tabHydrationEnd();
 
@@ -2487,78 +2931,17 @@ export default function NoteEditor({
               
               <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
 
+              <WordFontFamilySelect editor={editor} language={language} />
+              <WordFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
+
+              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+
               <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={language === 'es' ? 'Negrita' : 'Bold'}><Bold size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={language === 'es' ? 'Cursiva' : 'Italic'}><Italic size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado' : 'Underline'}><UnderlineIcon size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title={language === 'es' ? 'Tachado' : 'Strikethrough'}><Strikethrough size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title={language === 'es' ? 'Resaltar' : 'Highlight'}><Highlighter size={15} /></ToolbarBtn>
-
-              <div style={{ position: 'relative' }}>
-                <ToolbarBtn
-                  onClick={() => setShowFontSizeMenu((v) => !v)}
-                  active={!!activeFontSize}
-                  title={t.editor.fontSize}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <ALargeSmall size={19} />
-                    {activeFontSize && (
-                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent-light)', minWidth: 16, textAlign: 'left' }}>
-                        {parseInt(activeFontSize, 10)}
-                      </span>
-                    )}
-                  </span>
-                </ToolbarBtn>
-                {showFontSizeMenu && (
-                  <>
-                    <div
-                      style={{ position: 'fixed', inset: 0, zIndex: 100 }}
-                      onClick={() => setShowFontSizeMenu(false)}
-                    />
-                    <div style={{
-                      position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 101,
-                      minWidth: 132, padding: 5, borderRadius: 9,
-                      background: 'rgba(10, 10, 18, 0.96)',
-                      border: '1px solid var(--border)',
-                      boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
-                      display: 'flex', flexDirection: 'column', gap: 1,
-                    }}>
-                      <button
-                        type="button"
-                        onClick={() => { editor.chain().focus().unsetFontSize().run(); setShowFontSizeMenu(false); }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                          padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-                          background: !activeFontSize ? 'var(--accent-dim)' : 'transparent',
-                          color: !activeFontSize ? 'var(--accent-light)' : 'var(--text-secondary)',
-                          border: 'none', textAlign: 'left',
-                        }}
-                      >
-                        {t.editor.fontSizeNormal}
-                      </button>
-                      {FONT_SIZE_OPTIONS.map((size) => {
-                        const isCurrent = activeFontSize === `${size}px`;
-                        return (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => { editor.chain().focus().setFontSize(`${size}px`).run(); setShowFontSizeMenu(false); }}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                              padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
-                              background: isCurrent ? 'var(--accent-dim)' : 'transparent',
-                              color: isCurrent ? 'var(--accent-light)' : 'var(--text-primary)',
-                              border: 'none', textAlign: 'left', fontSize: Math.min(Number(size), 22),
-                            }}
-                          >
-                            {size} px
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-              
+               
               <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
               
               <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title={language === 'es' ? 'Título 1' : 'Heading 1'}><Heading1 size={15} /></ToolbarBtn>
@@ -2582,12 +2965,15 @@ export default function NoteEditor({
         </div>
 
         {/* Barra flotante de formato (estilo Word): solo ante selección de
-            texto. Convive con la barra fija y el menú de click derecho. */}
+            texto. Convive con la barra fija y el menú de click derecho.
+            Los desplegables de fuente/tamaño usan portal con z-index
+            superior, así que la tapan sin necesidad de desmontarla. */}
         {editor && !readOnly && (
           <BubbleMenu
             editor={editor}
             tippyOptions={{ placement: 'top', offset: [0, 8], arrow: false }}
             shouldShow={({ editor: e, state }) => {
+              if (!showFloatingToolbarRef.current) return false;
               if (!e.isEditable) return false;
               const { selection } = state;
               if (selection.empty) return false;

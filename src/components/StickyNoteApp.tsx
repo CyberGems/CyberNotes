@@ -15,7 +15,7 @@ import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont } from '../fonts';
 import { extractPreview, extractThumb } from '../utils/notes';
-import { FontSize, FONT_SIZE_OPTIONS } from './NoteEditor';
+import { FontSize, FontFamily, WordFontFamilySelect, WordFontSizeSelect } from './NoteEditor';
 import Tooltip from './Tooltip';
 import GlobalErrorToast from './GlobalErrorToast';
 import {
@@ -43,8 +43,6 @@ import {
   Blend,
   Lock,
   GripVertical,
-  Minus,
-  ALargeSmall,
 } from 'lucide-react';
 
 interface Props {
@@ -375,9 +373,10 @@ export default function StickyNoteApp({ noteId }: Props) {
       TiptapImage.configure({ allowBase64: true, inline: false }),
       Underline,
       Highlight.configure({ multicolor: false }),
-      // Necesario para leer y escribir tamaños de letra (misma marca que el
-      // editor principal; sin esto, el sticky los borraría al guardar).
+      // Necesario para leer y escribir tamaños y fuentes por selección (misma
+      // marca que el editor principal; sin esto, el sticky los borraría al guardar).
       FontSize,
+      FontFamily,
       Link.configure({ openOnClick: false }),
       Placeholder.configure({
         placeholder: t.editor.placeholderBody,
@@ -413,16 +412,8 @@ export default function StickyNoteApp({ noteId }: Props) {
     },
   });
 
-  // Tamaño de letra por ciclos (ventana pequeña: sin desplegable). Comparte
-  // marca y presets con el editor principal.
-  const stickyFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
-  const cycleStickyFontSize = () => {
-    if (!editor) return;
-    const values: (string | null)[] = [null, ...FONT_SIZE_OPTIONS.map((s) => `${s}px`)];
-    const next = values[(values.indexOf(stickyFontSize) + 1) % values.length];
-    if (next) editor.chain().focus().setFontSize(next).run();
-    else editor.chain().focus().unsetFontSize().run();
-  };
+  // Los combos Word del footer leen el estado directo del editor en cada
+  // render (igual que los botones bold/italic), sin estado local aquí.
 
   // Load note and initial settings
   useEffect(() => {
@@ -840,7 +831,7 @@ export default function StickyNoteApp({ noteId }: Props) {
 
     const margin = 8;
     const menuWidth = 184;
-    const menuHeight = 214;
+    const menuHeight = 252;
     setContextMenu({
       x: Math.min(e.clientX, Math.max(margin, window.innerWidth - menuWidth - margin)),
       y: Math.min(e.clientY, Math.max(margin, window.innerHeight - menuHeight - margin)),
@@ -1337,6 +1328,16 @@ export default function StickyNoteApp({ noteId }: Props) {
             <span>{t.editor.stickySelectAll}</span>
             <kbd>Ctrl+A</kbd>
           </button>
+          <div className="sticky-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            onMouseDown={() => { setContextMenu(null); setShowDeleteConfirm(true); }}
+            style={{ color: '#fca5a5' }}
+          >
+            <Trash2 size={13} style={{ color: '#f87171' }} />
+            <span>{t.general.delete}</span>
+          </button>
         </div>
       )}
 
@@ -1441,20 +1442,9 @@ export default function StickyNoteApp({ noteId }: Props) {
             >
               <Highlighter size={12} />
             </StickyFooterBtn>
-            <StickyFooterBtn
-              label={t.editor.fontSize}
-              onClick={cycleStickyFontSize}
-              active={!!stickyFontSize}
-              accent={colorMeta.accent}
-              accentGlow={colorMeta.accentGlow}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                <ALargeSmall size={14} />
-                {stickyFontSize && (
-                  <span style={{ fontSize: 10, fontWeight: 800 }}>{parseInt(stickyFontSize, 10)}</span>
-                )}
-              </span>
-            </StickyFooterBtn>
+            <div style={{ width: 1, height: 15, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
+            <WordFontFamilySelect editor={editor} language={language} compact tooltipSide="top" dropUp />
+            <WordFontSizeSelect editor={editor} language={language} compact tooltipSide="top" dropUp defaultSize={Math.round(13.5 * zoom)} />
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <StickyFooterBtn
               label={t.editor.bulletList}
@@ -1487,43 +1477,6 @@ export default function StickyNoteApp({ noteId }: Props) {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
-            <StickyFooterBtn
-              label={t.editor.stickyZoomOut}
-              onClick={() => applyZoom(zoom - 0.1)}
-              accent={colorMeta.accent}
-              accentGlow={colorMeta.accentGlow}
-            >
-              <Minus size={12} />
-            </StickyFooterBtn>
-            <Tooltip label={t.editor.stickyZoomReset} placement="top" delay={STICKY_FOOTER_TIP_DELAY}>
-              <button
-                type="button"
-                onClick={() => applyZoom(1.0)}
-                aria-label={t.editor.stickyZoomReset}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'rgba(255, 255, 255, 0.55)',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  minWidth: 34,
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  padding: 4,
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {Math.round(zoom * 100)}%
-              </button>
-            </Tooltip>
-            <StickyFooterBtn
-              label={t.editor.stickyZoomIn}
-              onClick={() => applyZoom(zoom + 0.1)}
-              accent={colorMeta.accent}
-              accentGlow={colorMeta.accentGlow}
-            >
-              <Plus size={12} />
-            </StickyFooterBtn>
             <Tooltip
               label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
               placement="top"
