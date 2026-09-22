@@ -1729,6 +1729,11 @@ export default function SettingsModal({
               <SettingsHeading icon={<Type />}>
                 {language === 'es' ? 'Tipografía del Editor' : 'Editor Typography'}
               </SettingsHeading>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
+                {language === 'es'
+                  ? 'Fuente base de todo el editor. Aplica a las notas completas, salvo el texto con fuente elegida desde la barra.'
+                  : 'Base font for the whole editor. Applies to entire notes, except text with a font picked from the toolbar.'}
+              </p>
               {(() => {
                 const activeFont = EDITOR_FONTS.find(f => f.id === (editorFont || 'inter')) || EDITOR_FONTS[0];
                 return (

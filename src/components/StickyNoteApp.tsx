@@ -5,6 +5,7 @@ import { EditorView } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
+import TextAlign from '@tiptap/extension-text-align';
 import TiptapImage from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -43,6 +44,10 @@ import {
   Blend,
   Lock,
   GripVertical,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
 } from 'lucide-react';
 
 interface Props {
@@ -373,6 +378,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       TiptapImage.configure({ allowBase64: true, inline: false }),
       Underline,
       Highlight.configure({ multicolor: false }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
       // Necesario para leer y escribir tamaños y fuentes por selección (misma
       // marca que el editor principal; sin esto, el sticky los borraría al guardar).
       FontSize,
@@ -1333,7 +1339,6 @@ export default function StickyNoteApp({ noteId }: Props) {
             type="button"
             role="menuitem"
             onMouseDown={() => { setContextMenu(null); setShowDeleteConfirm(true); }}
-            style={{ color: '#fca5a5' }}
           >
             <Trash2 size={13} style={{ color: '#f87171' }} />
             <span>{t.general.delete}</span>
@@ -1464,6 +1469,44 @@ export default function StickyNoteApp({ noteId }: Props) {
             >
               <ListOrdered size={12} />
             </StickyFooterBtn>
+            <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
+            <StickyFooterBtn
+              label={language === 'es' ? 'Alinear a la izquierda' : 'Align left'}
+              onClick={() => editor.chain().focus().setTextAlign('left').run()}
+              active={editor.isActive({ textAlign: 'left' })}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
+            >
+              <AlignLeft size={12} />
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={language === 'es' ? 'Centrar' : 'Center'}
+              onClick={() => editor.chain().focus().setTextAlign('center').run()}
+              active={editor.isActive({ textAlign: 'center' })}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
+            >
+              <AlignCenter size={12} />
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={language === 'es' ? 'Alinear a la derecha' : 'Align right'}
+              onClick={() => editor.chain().focus().setTextAlign('right').run()}
+              active={editor.isActive({ textAlign: 'right' })}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
+            >
+              <AlignRight size={12} />
+            </StickyFooterBtn>
+            <StickyFooterBtn
+              label={language === 'es' ? 'Justificar' : 'Justify'}
+              onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+              active={editor.isActive({ textAlign: 'justify' })}
+              accent={colorMeta.accent}
+              accentGlow={colorMeta.accentGlow}
+            >
+              <AlignJustify size={12} />
+            </StickyFooterBtn>
+            <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <StickyFooterBtn
               label={t.editor.codeBlock}
               onClick={() => editor.chain().focus().toggleCodeBlock().run()}

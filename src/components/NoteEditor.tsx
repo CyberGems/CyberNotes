@@ -11,6 +11,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
+import TextAlign from '@tiptap/extension-text-align';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
@@ -26,8 +27,8 @@ import {
   Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
-   NotebookText, Keyboard, ArrowRight, ALargeSmall
- } from 'lucide-react';
+    NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify
+  } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 
 export interface NoteExportActions {
@@ -1468,6 +1469,7 @@ export default function NoteEditor({
       }),
       Underline,
       Highlight.configure({ multicolor: false }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
       FontSize,
       FontFamily,
     ],
@@ -2951,6 +2953,16 @@ export default function NoteEditor({
               
               <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title={language === 'es' ? 'Lista' : 'Bullet List'}><List size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title={language === 'es' ? 'Lista numerada' : 'Numbered List'}><ListOrdered size={15} /></ToolbarBtn>
+
+              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+
+              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title={language === 'es' ? 'Alinear a la izquierda' : 'Align left'}><AlignLeft size={15} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title={language === 'es' ? 'Centrar' : 'Center'}><AlignCenter size={15} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title={language === 'es' ? 'Alinear a la derecha' : 'Align right'}><AlignRight size={15} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} title={language === 'es' ? 'Justificar' : 'Justify'}><AlignJustify size={15} /></ToolbarBtn>
+
+              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+
               <ToolbarBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title={language === 'es' ? 'Cita' : 'Blockquote'}><Quote size={15} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title={t.editor.codeBlock}><Code size={15} /></ToolbarBtn>
 
