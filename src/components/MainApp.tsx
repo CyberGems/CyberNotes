@@ -127,6 +127,8 @@ export default function MainApp({
   const [showTrayPin, setShowTrayPin] = useState(false);
   const [isTrayPinAutomatic, setIsTrayPinAutomatic] = useState(false);
   const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
+  const [showFirstCloseDialog, setShowFirstCloseDialog] = useState(false);
+  const [firstCloseRemember, setFirstCloseRemember] = useState(false);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [noteListWidth, setNoteListWidth] = useState(300);
@@ -286,6 +288,11 @@ export default function MainApp({
       setShowUnsavedExitDialog(true);
     });
 
+    const unregisterFirstClose = window.cyberNotesAPI.onConfirmFirstClose(() => {
+      setFirstCloseRemember(false);
+      setShowFirstCloseDialog(true);
+    });
+
     const unregisterNoteUpdated = window.cyberNotesAPI.onNoteUpdated?.((updatedNote) => {
       if (updatedNote.deleted_at) return;
       const meta = toNoteMeta(updatedNote);
@@ -361,6 +368,7 @@ export default function MainApp({
       if (unregisterOpenAbout) unregisterOpenAbout();
       if (unregisterOpenTrayPin) unregisterOpenTrayPin();
       if (unregisterUnsavedExit) unregisterUnsavedExit();
+      if (unregisterFirstClose) unregisterFirstClose();
       if (unregisterNoteUpdated) unregisterNoteUpdated();
       if (unregisterNoteDeleted) unregisterNoteDeleted();
       if (unregisterStickyFocus) unregisterStickyFocus();
@@ -1968,6 +1976,60 @@ export default function MainApp({
             window.cyberNotesAPI.respondUnsavedExit(accepted);
           }}
         />
+      )}
+
+      {showFirstCloseDialog && (
+        <div className="modal-overlay">
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="first-close-title" style={{ width: 520 }}>
+            <div className="modal-header">
+              <h2 id="first-close-title" style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {language === 'es' ? 'Cerrar ventana' : 'Close window'}
+              </h2>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                {language === 'es'
+                  ? '¿Qué te gustaría hacer al cerrar la ventana? Minimizar a la bandeja mantiene CyberNotes en segundo plano; salir la cierra por completo.'
+                  : 'What would you like to do when closing the window? Minimizing to tray keeps CyberNotes in the background; quitting closes it completely.'}
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={firstCloseRemember}
+                  onChange={(e) => setFirstCloseRemember(e.target.checked)}
+                  style={{ width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {language === 'es' ? 'Recordar mi elección' : 'Remember my choice'}
+                </span>
+              </label>
+              <div className="modal-actions" style={{ marginTop: 2 }}>
+                <button
+                  type="button"
+                  className="modal-action-btn is-cancel"
+                  onClick={() => {
+                    setShowFirstCloseDialog(false);
+                    if (firstCloseRemember) setCloseToTray(true);
+                    void window.cyberNotesAPI.respondFirstClose('tray', firstCloseRemember);
+                  }}
+                >
+                  {language === 'es' ? 'Minimizar a la bandeja' : 'Minimize to tray'}
+                </button>
+                <button
+                  type="button"
+                  className="modal-action-btn is-danger"
+                  onClick={() => {
+                    setShowFirstCloseDialog(false);
+                    if (firstCloseRemember) setCloseToTray(false);
+                    void window.cyberNotesAPI.respondFirstClose('quit', firstCloseRemember);
+                  }}
+                >
+                  {language === 'es' ? 'Salir de CyberNotes' : 'Quit CyberNotes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <AnimatePresence>

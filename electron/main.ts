@@ -532,6 +532,8 @@ function computeUsageStats() {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+/** Salta la pregunta de primer cierre una sola vez (tras elegir "Salir" sin recordar). */
+let bypassFirstClose = false;
 /** True while the UI should show LockScreen (password session). */
 let sessionLocked = false;
 /** Wall-clock last user activity — survives Chromium timer throttling while hidden. */
@@ -1863,7 +1865,22 @@ function createWindow() {
   });
 
   // Manejar cierre (Bandeja de sistema)
+  // Primera vez: preguntar qué hacer (estilo CyberPaste) salvo elección recordada.
+  // `bypassFirstClose` evita repreguntar cuando el usuario ya eligió "Salir"
+  // sin recordar y el cierre continúa hacia el diálogo de cambios sin guardar.
   mainWindow.on('close', (event) => {
+    if (!isQuitting && !bypassFirstClose) {
+      const remembered = queryGet('SELECT value FROM settings WHERE key = ?', ['close_choice_remembered']);
+      if (remembered?.value !== 'true') {
+        event.preventDefault();
+        // Restore window so the user can see the custom dialog
+        restoreWindow();
+        mainWindow?.webContents.send('confirm-first-close');
+        return false;
+      }
+    }
+    bypassFirstClose = false;
+
     const closeToTray = queryGet('SELECT value FROM settings WHERE key = ?', ['close_to_tray']);
     if (closeToTray?.value === 'true' && !isQuitting) {
       event.preventDefault();
@@ -2080,6 +2097,24 @@ ipcMain.handle('check-num-lock', async () => {
     });
   });
 });
+
+function sendSyntheticLockKey(key: 'CAPSLOCK' | 'NUMLOCK'): Promise<boolean> {
+  if (process.platform !== 'win32') return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const psScript = `Add-Type -AssemblyName System.Windows.Forms; (New-Object -ComObject WScript.Shell).SendKeys('{${key}}'); Write-Host 'sent'`;
+    exec(`powershell -Command "${psScript}"`, (err, stdout) => {
+      if (err) {
+        console.error(`Failed to send synthetic ${key} key:`, err);
+        resolve(false);
+      } else {
+        resolve(stdout.trim() === 'sent');
+      }
+    });
+  });
+}
+
+ipcMain.handle('toggle-caps-lock', () => sendSyntheticLockKey('CAPSLOCK'));
+ipcMain.handle('toggle-num-lock', () => sendSyntheticLockKey('NUMLOCK'));
 
 // -- Updates (handled by electron/updater.ts via update:check|download|install) --
 ipcMain.handle('app:getVersions', () => ({
@@ -3095,6 +3130,28 @@ if (!gotTheLock) {
 ipcMain.handle('window-force-close', () => {
   isQuitting = true;
   mainWindow?.close();
+});
+
+// ─── First-close choice (estilo CyberPaste) ────────────────────────────
+ipcMain.handle('first-close-choice', (_e: any, action: string, remember: boolean) => {
+  if (action !== 'tray' && action !== 'quit') return false;
+  if (remember) {
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['close_choice_remembered', 'true']);
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['close_to_tray', action === 'tray' ? 'true' : 'false']);
+  }
+  if (action === 'tray') {
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['close_to_tray', 'true']);
+    if (hasPasswordHash()) {
+      mainWindow?.webContents.send('session:shield-enable');
+    }
+    mainWindow?.hide();
+    return true;
+  }
+  // Salir: reintentar el cierre; el bypass evita repreguntar y el flujo
+  // existente (bandeja / cambios sin guardar / salir) sigue su curso.
+  bypassFirstClose = true;
+  mainWindow?.close();
+  return true;
 });
 
 ipcMain.handle('confirm-unsaved-exit-response', (_e: any, discard: boolean) => {

@@ -171,6 +171,8 @@ declare global {
       openTaskbarSettings: () => Promise<{ success: boolean; method: 'native' | 'uri' }>;
       onConfirmUnsavedExit: (callback: () => void) => () => void;
       respondUnsavedExit: (discard: boolean) => Promise<void>;
+      onConfirmFirstClose: (callback: () => void) => () => void;
+      respondFirstClose: (action: 'tray' | 'quit', remember: boolean) => Promise<boolean>;
       // Spellcheck
       replaceMisspelling: (word: string) => Promise<void>;
       addToDictionary: (word: string) => Promise<void>;
@@ -179,6 +181,8 @@ declare global {
       unlockCapsLock: () => Promise<boolean>;
       checkCapsLock: () => Promise<boolean>;
       checkNumLock: () => Promise<boolean>;
+      toggleCapsLock: () => Promise<boolean>;
+      toggleNumLock: () => Promise<boolean>;
       // Sticky Notes
       openStickyNote: (noteId: string) => Promise<boolean>;
       closeStickyNote: (noteId: string) => Promise<boolean>;

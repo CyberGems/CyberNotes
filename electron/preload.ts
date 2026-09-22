@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   unlockCapsLock: () => ipcRenderer.invoke('unlock-caps-lock'),
   checkCapsLock: () => ipcRenderer.invoke('check-caps-lock'),
   checkNumLock: () => ipcRenderer.invoke('check-num-lock'),
+  toggleCapsLock: () => ipcRenderer.invoke('toggle-caps-lock'),
+  toggleNumLock: () => ipcRenderer.invoke('toggle-num-lock'),
   onContextMenuData: (callback: (data: any) => void) => {
     const listener = (_e: any, data: any) => callback(data);
     ipcRenderer.on('context-menu-data', listener);
@@ -67,6 +69,13 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
     return () => ipcRenderer.removeListener('confirm-unsaved-exit', listener);
   },
   respondUnsavedExit: (discard: boolean) => ipcRenderer.invoke('confirm-unsaved-exit-response', discard),
+  onConfirmFirstClose: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('confirm-first-close', listener);
+    return () => ipcRenderer.removeListener('confirm-first-close', listener);
+  },
+  respondFirstClose: (action: 'tray' | 'quit', remember: boolean) =>
+    ipcRenderer.invoke('first-close-choice', action, remember),
 
   // -- Session lock (privacy: no note flash from tray after idle) --
   reportActivity: () => ipcRenderer.invoke('session:activity'),

@@ -1189,8 +1189,42 @@ export default function NoteEditor({
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
   const [isNumLockActive, setIsNumLockActive] = useState(false);
   /** Sobreescritura (tecla INS): al escribir reemplaza el carácter siguiente. */
+  /** Sobreescritura (tecla INS): al escribir reemplaza el carácter siguiente. */
   const [isOvertype, setIsOvertype] = useState(false);
   const isOvertypeRef = useRef(false);
+
+  // Relee Bloq Mayús / Bloq Num del sistema (tras un toggle por clic).
+  const refreshLockBadges = useCallback(async () => {
+    if (!window.cyberNotesAPI) return;
+    try {
+      const [caps, num] = await Promise.all([
+        window.cyberNotesAPI.checkCapsLock?.() ?? Promise.resolve(false),
+        window.cyberNotesAPI.checkNumLock?.() ?? Promise.resolve(false),
+      ]);
+      setIsCapsLockActive(!!caps);
+      setIsNumLockActive(!!num);
+      if (!caps) setTimeLeft(0);
+    } catch {
+      /* ignorar */
+    }
+  }, []);
+
+  const handleCapsBadgeClick = useCallback(async () => {
+    await window.cyberNotesAPI?.toggleCapsLock?.().catch(() => false);
+    setTimeout(() => { void refreshLockBadges(); }, 250);
+  }, [refreshLockBadges]);
+
+  const handleNumBadgeClick = useCallback(async () => {
+    await window.cyberNotesAPI?.toggleNumLock?.().catch(() => false);
+    setTimeout(() => { void refreshLockBadges(); }, 250);
+  }, [refreshLockBadges]);
+
+  const handleInsBadgeClick = useCallback(() => {
+    setIsOvertype((v) => {
+      isOvertypeRef.current = !v;
+      return !v;
+    });
+  }, []);
   const [timeLeft, setTimeLeft] = useState(0);
   const [capsToast, setCapsToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -3824,19 +3858,21 @@ export default function NoteEditor({
           </Tooltip>
         </div>
 
-        {/* Indicadores físicos de bloqueo de teclado */}
+        {/* Indicadores de teclado (clic para cambiar) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <Tooltip
             placement="top"
             label={language === 'es'
-              ? (isCapsLockActive ? 'Bloq Mayús activado' : 'Bloq Mayús desactivado')
-              : (isCapsLockActive ? 'Caps Lock on' : 'Caps Lock off')}
+              ? (isCapsLockActive ? 'Bloq Mayús activado (clic para cambiar)' : 'Bloq Mayús desactivado (clic para cambiar)')
+              : (isCapsLockActive ? 'Caps Lock on (click to change)' : 'Caps Lock off (click to change)')}
           >
             <span
+              className="kb-badge"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { void handleCapsBadgeClick(); }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
                 padding: '2px 6px',
                 borderRadius: 999,
                 border: `1px solid ${isCapsLockActive ? 'var(--accent)' : 'var(--border)'}`,
@@ -3847,6 +3883,7 @@ export default function NoteEditor({
                 letterSpacing: 0.2,
                 opacity: isCapsLockActive ? 1 : 0.72,
                 userSelect: 'none',
+                cursor: 'pointer',
               }}
             >
               <span>CAPS</span>
@@ -3855,10 +3892,13 @@ export default function NoteEditor({
           <Tooltip
             placement="top"
             label={language === 'es'
-              ? (isNumLockActive ? 'Bloq Num activado' : 'Bloq Num desactivado')
-              : (isNumLockActive ? 'Num Lock on' : 'Num Lock off')}
+              ? (isNumLockActive ? 'Bloq Num activado (clic para cambiar)' : 'Bloq Num desactivado (clic para cambiar)')
+              : (isNumLockActive ? 'Num Lock on (click to change)' : 'Num Lock off (click to change)')}
           >
             <span
+              className="kb-badge"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { void handleNumBadgeClick(); }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -3872,6 +3912,7 @@ export default function NoteEditor({
                 letterSpacing: 0.2,
                 opacity: isNumLockActive ? 1 : 0.72,
                 userSelect: 'none',
+                cursor: 'pointer',
               }}
             >
               <span>NUM</span>
@@ -3880,10 +3921,13 @@ export default function NoteEditor({
           <Tooltip
             placement="top"
             label={language === 'es'
-              ? (isOvertype ? 'Sobreescritura activada (INS para volver a insertar)' : 'Inserción (INS para sobreescribir)')
-              : (isOvertype ? 'Overtype on (INS to insert again)' : 'Insert mode (INS to overtype)')}
+              ? (isOvertype ? 'Sobreescritura activada (clic para cambiar)' : 'Inserción (clic para cambiar)')
+              : (isOvertype ? 'Overtype on (click to change)' : 'Insert (click to change)')}
           >
             <span
+              className="kb-badge"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleInsBadgeClick}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -3897,6 +3941,7 @@ export default function NoteEditor({
                 letterSpacing: 0.2,
                 opacity: isOvertype ? 1 : 0.72,
                 userSelect: 'none',
+                cursor: 'pointer',
               }}
             >
               <span>INS</span>
