@@ -326,6 +326,7 @@ export function WordFontFamilySelect({
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => setOpen((v) => !v)}
+          className="word-combo"
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
             width: buttonWidth, maxWidth: compact ? 76 : 200,
@@ -360,11 +361,10 @@ export function WordFontFamilySelect({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => { editor.chain().focus().unsetFontFamily().run(); setOpen(false); }}
+              className={`word-menu-item${!matched ? ' is-active' : ' is-muted'}`}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
                 padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-                background: !matched ? 'var(--accent-dim)' : 'transparent',
-                color: !matched ? 'var(--accent-light)' : 'var(--text-secondary)',
                 border: 'none', textAlign: 'left',
               }}
             >
@@ -379,11 +379,10 @@ export function WordFontFamilySelect({
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => { editor.chain().focus().setFontFamily(opt.family).run(); setOpen(false); }}
+                  className={`word-menu-item${isCurrent ? ' is-active' : ''}`}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
                     padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
-                    background: isCurrent ? 'var(--accent-dim)' : 'transparent',
-                    color: isCurrent ? 'var(--accent-light)' : 'var(--text-primary)',
                     border: 'none', textAlign: 'left',
                     fontFamily: opt.family, fontSize: compact ? 12 : 14,
                   }}
@@ -451,8 +450,9 @@ export function WordFontSizeSelect({
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
       <Tooltip label={t.editor.fontSize} placement={tooltipSide}>
-          <div
+        <div
           ref={anchorRef}
+          className="word-combo"
           style={{
             display: 'flex', alignItems: 'stretch',
             width: compact ? 52 : 62, height: compact ? 24 : 30,
@@ -516,10 +516,10 @@ export function WordFontSizeSelect({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => { editor.chain().focus().unsetFontSize().run(); setOpen(false); setDraft(null); }}
+              className={`word-menu-item${!docNum ? ' is-active' : ' is-muted'}`}
               style={{
                 padding: '6px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', textAlign: 'center',
-                background: !docNum ? 'var(--accent-dim)' : 'transparent',
-                color: !docNum ? 'var(--accent-light)' : 'var(--text-secondary)', border: 'none',
+                border: 'none',
               }}
             >
               {t.editor.fontSizeNormal}
@@ -532,10 +532,9 @@ export function WordFontSizeSelect({
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => { editor.chain().focus().setFontSize(`${size}px`).run(); setOpen(false); setDraft(null); }}
+                  className={`word-menu-item${isCurrent ? ' is-active' : ''}`}
                   style={{
                     padding: '4px 10px', borderRadius: 6, cursor: 'pointer', textAlign: 'center',
-                    background: isCurrent ? 'var(--accent-dim)' : 'transparent',
-                    color: isCurrent ? 'var(--accent-light)' : 'var(--text-primary)',
                     border: 'none', fontSize: 12, fontVariantNumeric: 'tabular-nums',
                   }}
                 >
@@ -1189,6 +1188,9 @@ export default function NoteEditor({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
   const [isNumLockActive, setIsNumLockActive] = useState(false);
+  /** Sobreescritura (tecla INS): al escribir reemplaza el carácter siguiente. */
+  const [isOvertype, setIsOvertype] = useState(false);
+  const isOvertypeRef = useRef(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [capsToast, setCapsToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1610,6 +1612,33 @@ export default function NoteEditor({
         },
       },
       handleKeyDown: (_view, event) => {
+        // INS = alternar sobreescritura (el badge INS lo refleja)
+        if (event.key === 'Insert') {
+          event.preventDefault();
+          setIsOvertype((v) => {
+            isOvertypeRef.current = !v;
+            return !v;
+          });
+          return true;
+        }
+
+        // Sobreescritura: al escribir un carácter simple con cursor colapsado,
+        // se elimina el carácter siguiente y se deja insertar el nuevo.
+        if (
+          isOvertypeRef.current
+          && !event.ctrlKey && !event.metaKey && !event.altKey
+          && event.key.length === 1 && !event.isComposing
+        ) {
+          const { state, dispatch } = _view;
+          if (state.selection.empty) {
+            const { $from } = state.selection;
+            const after = $from.nodeAfter;
+            if (after && after.isText && after.text && $from.parentOffset < $from.parent.content.size) {
+              dispatch(state.tr.delete($from.pos, $from.pos + 1));
+            }
+          }
+        }
+
         // Tab = sangría / espacios; evita saltar el foco a otros controles de la UI
         if (event.key === 'Tab') {
           event.preventDefault();
@@ -3153,6 +3182,7 @@ export default function NoteEditor({
                         borderRadius: 10, background: 'rgba(10, 10, 18, 0.97)',
                         border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
                         display: 'flex', flexDirection: 'column', gap: 2,
+                        userSelect: 'none', WebkitUserSelect: 'none',
                       }}>
                         {hiddenToolbarItems.map((def) => (
                           <div
@@ -3173,6 +3203,20 @@ export default function NoteEditor({
                             </span>
                           </div>
                         ))}
+                        <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }} />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={resetToolbarItems}
+                          className="word-menu-item is-muted"
+                          style={{
+                            display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
+                            fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                            border: 'none', textAlign: 'left',
+                          }}
+                        >
+                          {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
+                        </button>
                       </div>
                     </>
                   )}
@@ -3194,6 +3238,7 @@ export default function NoteEditor({
               minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(10, 10, 18, 0.97)',
               border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
               display: 'flex', flexDirection: 'column', gap: 1,
+              userSelect: 'none', WebkitUserSelect: 'none',
             }}>
               <div style={{ padding: '6px 10px 4px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
                 {toolbarItemLabel(toolbarMenu.id)}
@@ -3203,10 +3248,11 @@ export default function NoteEditor({
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => showToolbarItem(toolbarMenu.id)}
+                  className="word-menu-item"
                   style={{
                     display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
-                    fontSize: 12, borderRadius: 6, cursor: 'pointer', background: 'transparent',
-                    color: 'var(--text-primary)', border: 'none', textAlign: 'left',
+                    fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                    border: 'none', textAlign: 'left',
                   }}
                 >
                   {language === 'es' ? 'Mostrar en la barra' : 'Show in toolbar'}
@@ -3216,10 +3262,11 @@ export default function NoteEditor({
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => hideToolbarItem(toolbarMenu.id)}
+                  className="word-menu-item"
                   style={{
                     display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
-                    fontSize: 12, borderRadius: 6, cursor: 'pointer', background: 'transparent',
-                    color: 'var(--text-primary)', border: 'none', textAlign: 'left',
+                    fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                    border: 'none', textAlign: 'left',
                   }}
                 >
                   {language === 'es' ? 'Ocultar (mover a Más)' : 'Hide (move to More)'}
@@ -3229,13 +3276,14 @@ export default function NoteEditor({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={resetToolbarItems}
+                className="word-menu-item is-muted"
                 style={{
                   display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
-                  fontSize: 12, borderRadius: 6, cursor: 'pointer', background: 'transparent',
-                  color: 'var(--text-secondary)', border: 'none', textAlign: 'left',
+                  fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                  border: 'none', textAlign: 'left',
                 }}
               >
-                {language === 'es' ? 'Restablecer barra' : 'Reset toolbar'}
+                {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
               </button>
             </div>
           </>,
@@ -3801,7 +3849,6 @@ export default function NoteEditor({
                 userSelect: 'none',
               }}
             >
-              <span aria-hidden="true">⇪</span>
               <span>CAPS</span>
             </span>
           </Tooltip>
@@ -3815,7 +3862,6 @@ export default function NoteEditor({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
                 padding: '2px 6px',
                 borderRadius: 999,
                 border: `1px solid ${isNumLockActive ? 'var(--accent)' : 'var(--border)'}`,
@@ -3828,8 +3874,32 @@ export default function NoteEditor({
                 userSelect: 'none',
               }}
             >
-              <span aria-hidden="true">#</span>
               <span>NUM</span>
+            </span>
+          </Tooltip>
+          <Tooltip
+            placement="top"
+            label={language === 'es'
+              ? (isOvertype ? 'Sobreescritura activada (INS para volver a insertar)' : 'Inserción (INS para sobreescribir)')
+              : (isOvertype ? 'Overtype on (INS to insert again)' : 'Insert mode (INS to overtype)')}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '2px 6px',
+                borderRadius: 999,
+                border: `1px solid ${isOvertype ? 'var(--accent)' : 'var(--border)'}`,
+                background: isOvertype ? 'var(--accent-dim)' : 'rgba(255,255,255,0.03)',
+                color: isOvertype ? 'var(--accent-light)' : 'var(--text-muted)',
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: 0.2,
+                opacity: isOvertype ? 1 : 0.72,
+                userSelect: 'none',
+              }}
+            >
+              <span>INS</span>
             </span>
           </Tooltip>
         </div>

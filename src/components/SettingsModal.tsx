@@ -1772,7 +1772,7 @@ export default function SettingsModal({
                   style={{ alignSelf: 'flex-end', fontSize: 12, opacity: hiddenToolbarIds.length === 0 ? 0.4 : 1 }}
                 >
                   <RotateCcw size={13} />
-                  {language === 'es' ? 'Restablecer barra' : 'Reset toolbar'}
+                  {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
                 </button>
               </div>
             </div>
