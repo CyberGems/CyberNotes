@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useLayoutEffect, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
+import { useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
@@ -27,7 +27,7 @@ import {
   Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
-    NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify
+    NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify, MoreHorizontal
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 
@@ -55,6 +55,9 @@ interface Props {
   showWordCounter?: boolean;
   /** Barra flotante ante selección de texto (default on). */
   showFloatingToolbar?: boolean;
+  /** Ids de botones ocultos hacia el menú "Más" (persistido en Ajustes). */
+  hiddenToolbarIds?: string[];
+  onHiddenToolbarIdsChange?: (ids: string[]) => void;
   autosaveEnabled?: boolean;
   autoUnlockCapsLock?: boolean;
   autoUnlockCapsLockTimeout?: number;
@@ -216,12 +219,16 @@ function loadEditorContent(editor: Editor, raw: string) {  let content: string |
 }
 
 const ToolbarBtn = ({
-  onClick, active = false, title, children, disabled = false,
-}: { onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean }) => (
+  onClick, active = false, title, children, disabled = false, toolbarId, onToolbarContextMenu,
+}: {
+  onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean;
+  toolbarId?: ToolbarItemId; onToolbarContextMenu?: (e: React.MouseEvent, id: ToolbarItemId) => void;
+}) => (
   <Tooltip label={title} placement="bottom">
     <button
       onMouseDown={(e) => e.preventDefault()} // CRÍTICO: Previene pérdida de foco
       onClick={onClick}
+      onContextMenu={toolbarId && onToolbarContextMenu ? (e) => onToolbarContextMenu(e, toolbarId) : undefined}
       disabled={disabled}
       className={`btn-icon toolbar-btn${active ? ' is-active' : ''}`}
       style={{ opacity: disabled ? 0.4 : 1 }}
@@ -626,6 +633,68 @@ export function matchFontFamilyOption(activeFamily: string | null | undefined): 
 }
 
 /**
+ * Registro de botones de la barra del editor. Cada control tiene un id
+ * estable para poder ocultarlo hacia el menú "Más" y sincronizarlo con Ajustes.
+ */
+export type ToolbarItemId =
+  | 'undo' | 'redo' | 'copy' | 'paste'
+  | 'fontFamily' | 'fontSize'
+  | 'bold' | 'italic' | 'underline' | 'strike' | 'highlight'
+  | 'h1' | 'h2'
+  | 'bullet' | 'ordered'
+  | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
+  | 'quote' | 'code'
+  | 'link' | 'image';
+
+export interface ToolbarItemDef {
+  id: ToolbarItemId;
+  labelEs: string;
+  labelEn: string;
+}
+
+export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
+  { id: 'undo', labelEs: 'Deshacer', labelEn: 'Undo' },
+  { id: 'redo', labelEs: 'Rehacer', labelEn: 'Redo' },
+  { id: 'copy', labelEs: 'Copiar', labelEn: 'Copy' },
+  { id: 'paste', labelEs: 'Pegar', labelEn: 'Paste' },
+  { id: 'fontFamily', labelEs: 'Fuente', labelEn: 'Font' },
+  { id: 'fontSize', labelEs: 'Tamaño de letra', labelEn: 'Font size' },
+  { id: 'bold', labelEs: 'Negrita', labelEn: 'Bold' },
+  { id: 'italic', labelEs: 'Cursiva', labelEn: 'Italic' },
+  { id: 'underline', labelEs: 'Subrayado', labelEn: 'Underline' },
+  { id: 'strike', labelEs: 'Tachado', labelEn: 'Strikethrough' },
+  { id: 'highlight', labelEs: 'Resaltar', labelEn: 'Highlight' },
+  { id: 'h1', labelEs: 'Título 1', labelEn: 'Heading 1' },
+  { id: 'h2', labelEs: 'Título 2', labelEn: 'Heading 2' },
+  { id: 'bullet', labelEs: 'Lista de viñetas', labelEn: 'Bullet list' },
+  { id: 'ordered', labelEs: 'Lista numerada', labelEn: 'Numbered list' },
+  { id: 'alignLeft', labelEs: 'Alinear a la izquierda', labelEn: 'Align left' },
+  { id: 'alignCenter', labelEs: 'Centrar', labelEn: 'Center' },
+  { id: 'alignRight', labelEs: 'Alinear a la derecha', labelEn: 'Align right' },
+  { id: 'alignJustify', labelEs: 'Justificar', labelEn: 'Justify' },
+  { id: 'quote', labelEs: 'Cita', labelEn: 'Blockquote' },
+  { id: 'code', labelEs: 'Bloque de código', labelEn: 'Code block' },
+  { id: 'link', labelEs: 'Insertar enlace', labelEn: 'Insert link' },
+  { id: 'image', labelEs: 'Insertar imagen', labelEn: 'Insert image' },
+];
+
+/** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
+export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
+  ['undo', 'redo', 'copy', 'paste'],
+  ['fontFamily', 'fontSize'],
+  ['bold', 'italic', 'underline', 'strike', 'highlight'],
+  ['h1', 'h2'],
+  ['bullet', 'ordered'],
+  ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
+  ['quote', 'code'],
+  ['link', 'image'],
+];
+
+export function isToolbarItemId(value: unknown): value is ToolbarItemId {
+  return typeof value === 'string' && TOOLBAR_ITEMS.some((d) => d.id === value);
+}
+
+/**
  * Tamaño al cursor estilo Word cuando no hay marca directa: mira los nodos
  * vecinos del caret (p. ej. cursor al final de un texto de 14px). Solo con
  * selección colapsada; con rango se usa getAttributes.
@@ -666,6 +735,8 @@ export default function NoteEditor({
   onShowLineGutterChange,
   showWordCounter = false,
   showFloatingToolbar = true,
+  hiddenToolbarIds = [],
+  onHiddenToolbarIdsChange,
   autosaveEnabled = true,
   autoUnlockCapsLock = false,
   autoUnlockCapsLockTimeout = 8,
@@ -1125,6 +1196,42 @@ export default function NoteEditor({
   const capsAutoUnlockPendingRef = useRef(false);
   const prevCapsActiveForSoundRef = useRef<boolean | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  /** Menú "Más" y menú contextual de la barra (ocultar selectivo). */
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [toolbarMenu, setToolbarMenu] = useState<{ x: number; y: number; id: ToolbarItemId; inMore: boolean } | null>(null);
+  const hiddenToolbarSet = useMemo(() => new Set(hiddenToolbarIds.filter(isToolbarItemId)), [hiddenToolbarIds]);
+
+  const openToolbarMenu = useCallback((e: React.MouseEvent, id: ToolbarItemId, inMore: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const MENU_W = 200;
+    const MENU_H = 110;
+    const margin = 8;
+    setShowMoreMenu(false);
+    setToolbarMenu({
+      id,
+      inMore,
+      x: Math.max(margin, Math.min(e.clientX, window.innerWidth - MENU_W - margin)),
+      y: Math.max(margin, Math.min(e.clientY, window.innerHeight - MENU_H - margin)),
+    });
+  }, []);
+
+  const hideToolbarItem = useCallback((id: ToolbarItemId) => {
+    setToolbarMenu(null);
+    if (hiddenToolbarSet.has(id)) return;
+    onHiddenToolbarIdsChange?.([...hiddenToolbarIds.filter(isToolbarItemId), id]);
+  }, [hiddenToolbarSet, hiddenToolbarIds, onHiddenToolbarIdsChange]);
+
+  const showToolbarItem = useCallback((id: ToolbarItemId) => {
+    setToolbarMenu(null);
+    onHiddenToolbarIdsChange?.(hiddenToolbarIds.filter((x) => x !== id));
+  }, [hiddenToolbarIds, onHiddenToolbarIdsChange]);
+
+  const resetToolbarItems = useCallback(() => {
+    setToolbarMenu(null);
+    setShowMoreMenu(false);
+    onHiddenToolbarIdsChange?.([]);
+  }, [onHiddenToolbarIdsChange]);
 
   // Refs sincronizados en cada render: garantizan valores frescos dentro de los
   // callbacks de TipTap (onBlur) evitando cualquier cierre obsoleto (stale closure).
@@ -2146,6 +2253,83 @@ export default function NoteEditor({
 
   const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
 
+  const renderedToolbarGroups = TOOLBAR_GROUPS
+    .map((group) => group.filter((gid) => !hiddenToolbarSet.has(gid)))
+    .filter((group) => group.length > 0);
+  const hiddenToolbarItems = TOOLBAR_ITEMS.filter((d) => hiddenToolbarSet.has(d.id));
+  const toolbarItemLabel = (id: ToolbarItemId): string => {
+    const def = TOOLBAR_ITEMS.find((d) => d.id === id);
+    return def ? (language === 'es' ? def.labelEs : def.labelEn) : id;
+  };
+
+  /** Renderiza un control de la barra por id (barra y menú "Más" comparten nodos). */
+  const renderToolbarControl = (id: ToolbarItemId, inMore = false): React.ReactNode => {
+    if (!editor) return null;
+    const onCtx = (e: React.MouseEvent) => openToolbarMenu(e, id, inMore);
+    const ctxProps = {
+      toolbarId: id as ToolbarItemId,
+      onToolbarContextMenu: (_e: React.MouseEvent, tid: ToolbarItemId) => openToolbarMenu(_e, tid, inMore),
+    };
+    switch (id) {
+      case 'undo':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>;
+      case 'redo':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>;
+      case 'copy':
+        return <ToolbarBtn {...ctxProps} onClick={handleCopySelection} disabled={editor.state.selection.empty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>;
+      case 'paste':
+        return <ToolbarBtn {...ctxProps} onClick={() => { void handlePasteFromClipboard(); }} disabled={readOnly} title={language === 'es' ? 'Pegar (Ctrl+V)' : 'Paste (Ctrl+V)'}><Clipboard size={15} /></ToolbarBtn>;
+      case 'fontFamily':
+        return (
+          <span onContextMenu={onCtx} style={{ display: 'inline-flex' }}>
+            <WordFontFamilySelect editor={editor} language={language} />
+          </span>
+        );
+      case 'fontSize':
+        return (
+          <span onContextMenu={onCtx} style={{ display: 'inline-flex' }}>
+            <WordFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
+          </span>
+        );
+      case 'bold':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={language === 'es' ? 'Negrita' : 'Bold'}><Bold size={15} /></ToolbarBtn>;
+      case 'italic':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={language === 'es' ? 'Cursiva' : 'Italic'}><Italic size={15} /></ToolbarBtn>;
+      case 'underline':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado' : 'Underline'}><UnderlineIcon size={15} /></ToolbarBtn>;
+      case 'strike':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title={language === 'es' ? 'Tachado' : 'Strikethrough'}><Strikethrough size={15} /></ToolbarBtn>;
+      case 'highlight':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title={language === 'es' ? 'Resaltar' : 'Highlight'}><Highlighter size={15} /></ToolbarBtn>;
+      case 'h1':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title={language === 'es' ? 'Título 1' : 'Heading 1'}><Heading1 size={15} /></ToolbarBtn>;
+      case 'h2':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title={language === 'es' ? 'Título 2' : 'Heading 2'}><Heading2 size={15} /></ToolbarBtn>;
+      case 'bullet':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title={language === 'es' ? 'Lista' : 'Bullet List'}><List size={15} /></ToolbarBtn>;
+      case 'ordered':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title={language === 'es' ? 'Lista numerada' : 'Numbered List'}><ListOrdered size={15} /></ToolbarBtn>;
+      case 'alignLeft':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title={language === 'es' ? 'Alinear a la izquierda' : 'Align left'}><AlignLeft size={15} /></ToolbarBtn>;
+      case 'alignCenter':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title={language === 'es' ? 'Centrar' : 'Center'}><AlignCenter size={15} /></ToolbarBtn>;
+      case 'alignRight':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title={language === 'es' ? 'Alinear a la derecha' : 'Align right'}><AlignRight size={15} /></ToolbarBtn>;
+      case 'alignJustify':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} title={language === 'es' ? 'Justificar' : 'Justify'}><AlignJustify size={15} /></ToolbarBtn>;
+      case 'quote':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title={language === 'es' ? 'Cita' : 'Blockquote'}><Quote size={15} /></ToolbarBtn>;
+      case 'code':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title={t.editor.codeBlock}><Code size={15} /></ToolbarBtn>;
+      case 'link':
+        return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={editor.isActive('link')} title={language === 'es' ? 'Insertar link' : 'Insert Link'}><LinkIcon size={15} /></ToolbarBtn>;
+      case 'image':
+        return <ToolbarBtn {...ctxProps} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen' : 'Insert Image'}><ImageIcon size={15} /></ToolbarBtn>;
+      default:
+        return null;
+    }
+  };
+
   const noteLoader = (
     <div
       style={{
@@ -2926,55 +3110,137 @@ export default function NoteEditor({
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', flexWrap: 'wrap' }}>
           {editor && (
             <>
-              <ToolbarBtn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={handleCopySelection} disabled={editor.state.selection.empty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => { void handlePasteFromClipboard(); }} disabled={readOnly} title={language === 'es' ? 'Pegar (Ctrl+V)' : 'Paste (Ctrl+V)'}><Clipboard size={15} /></ToolbarBtn>
-              
-              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-
-              <WordFontFamilySelect editor={editor} language={language} />
-              <WordFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
-
-              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={language === 'es' ? 'Negrita' : 'Bold'}><Bold size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={language === 'es' ? 'Cursiva' : 'Italic'}><Italic size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado' : 'Underline'}><UnderlineIcon size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title={language === 'es' ? 'Tachado' : 'Strikethrough'}><Strikethrough size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title={language === 'es' ? 'Resaltar' : 'Highlight'}><Highlighter size={15} /></ToolbarBtn>
-               
-              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-              
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title={language === 'es' ? 'Título 1' : 'Heading 1'}><Heading1 size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title={language === 'es' ? 'Título 2' : 'Heading 2'}><Heading2 size={15} /></ToolbarBtn>
-              
-              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-              
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title={language === 'es' ? 'Lista' : 'Bullet List'}><List size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title={language === 'es' ? 'Lista numerada' : 'Numbered List'}><ListOrdered size={15} /></ToolbarBtn>
-
-              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-
-              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title={language === 'es' ? 'Alinear a la izquierda' : 'Align left'}><AlignLeft size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title={language === 'es' ? 'Centrar' : 'Center'}><AlignCenter size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title={language === 'es' ? 'Alinear a la derecha' : 'Align right'}><AlignRight size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} title={language === 'es' ? 'Justificar' : 'Justify'}><AlignJustify size={15} /></ToolbarBtn>
-
-              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title={language === 'es' ? 'Cita' : 'Blockquote'}><Quote size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title={t.editor.codeBlock}><Code size={15} /></ToolbarBtn>
-
-              <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-              
-              <ToolbarBtn onClick={handleSetLink} active={editor.isActive('link')} title={language === 'es' ? 'Insertar link' : 'Insert Link'}><LinkIcon size={15} /></ToolbarBtn>
-              <ToolbarBtn onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen' : 'Insert Image'}><ImageIcon size={15} /></ToolbarBtn>
+              {renderedToolbarGroups.map((group, gi) => (
+                <Fragment key={group.join('+')}>
+                  {gi > 0 && <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />}
+                  {group.map((gid) => (
+                    <Fragment key={gid}>{renderToolbarControl(gid)}</Fragment>
+                  ))}
+                </Fragment>
+              ))}
 
               <div style={{ flex: 1 }} />
+
+              {hiddenToolbarItems.length > 0 && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <Tooltip label={language === 'es' ? `Más (${hiddenToolbarItems.length})` : `More (${hiddenToolbarItems.length})`} placement="bottom">
+                    <button
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
+                      className="btn-icon toolbar-btn"
+                      style={{ position: 'relative' }}
+                    >
+                      <MoreHorizontal size={15} />
+                      <span style={{
+                        position: 'absolute', top: 1, right: 1, minWidth: 13, height: 13,
+                        borderRadius: 7, background: 'var(--accent)', color: '#fff',
+                        fontSize: 8.5, fontWeight: 800, lineHeight: '13px', textAlign: 'center',
+                        padding: '0 2px',
+                      }}>
+                        {hiddenToolbarItems.length}
+                      </span>
+                    </button>
+                  </Tooltip>
+                  {showMoreMenu && (
+                    <>
+                      <div
+                        style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+                        onClick={() => setShowMoreMenu(false)}
+                      />
+                      <div style={{
+                        position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: WORD_MENU_Z,
+                        minWidth: 200, maxHeight: 320, overflowY: 'auto', padding: 6,
+                        borderRadius: 10, background: 'rgba(10, 10, 18, 0.97)',
+                        border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+                        display: 'flex', flexDirection: 'column', gap: 2,
+                      }}>
+                        {hiddenToolbarItems.map((def) => (
+                          <div
+                            key={def.id}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '3px 6px',
+                              borderRadius: 6, background: 'transparent',
+                            }}
+                          >
+                            <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                              {renderToolbarControl(def.id, true)}
+                            </span>
+                            <span style={{
+                              flex: 1, fontSize: 12, color: 'var(--text-secondary)',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {language === 'es' ? def.labelEs : def.labelEn}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
+
+        {/* Menú contextual de la barra: ocultar selectivo hacia "Más". */}
+        {toolbarMenu && createPortal(
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+              onClick={() => setToolbarMenu(null)}
+            />
+            <div style={{
+              position: 'fixed', left: toolbarMenu.x, top: toolbarMenu.y, zIndex: WORD_MENU_Z,
+              minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(10, 10, 18, 0.97)',
+              border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+              display: 'flex', flexDirection: 'column', gap: 1,
+            }}>
+              <div style={{ padding: '6px 10px 4px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
+                {toolbarItemLabel(toolbarMenu.id)}
+              </div>
+              {toolbarMenu.inMore ? (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => showToolbarItem(toolbarMenu.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
+                    fontSize: 12, borderRadius: 6, cursor: 'pointer', background: 'transparent',
+                    color: 'var(--text-primary)', border: 'none', textAlign: 'left',
+                  }}
+                >
+                  {language === 'es' ? 'Mostrar en la barra' : 'Show in toolbar'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => hideToolbarItem(toolbarMenu.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
+                    fontSize: 12, borderRadius: 6, cursor: 'pointer', background: 'transparent',
+                    color: 'var(--text-primary)', border: 'none', textAlign: 'left',
+                  }}
+                >
+                  {language === 'es' ? 'Ocultar (mover a Más)' : 'Hide (move to More)'}
+                </button>
+              )}
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={resetToolbarItems}
+                style={{
+                  display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
+                  fontSize: 12, borderRadius: 6, cursor: 'pointer', background: 'transparent',
+                  color: 'var(--text-secondary)', border: 'none', textAlign: 'left',
+                }}
+              >
+                {language === 'es' ? 'Restablecer barra' : 'Reset toolbar'}
+              </button>
+            </div>
+          </>,
+          document.body,
+        )}
 
         {/* Barra flotante de formato (estilo Word): solo ante selección de
             texto. Convive con la barra fija y el menú de click derecho.

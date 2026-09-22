@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ThemeId, type UsageStats } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
+import { TOOLBAR_ITEMS } from './NoteEditor';
 import { Language } from '../languages';
 import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
@@ -57,6 +58,8 @@ interface Props {
   onShowWordCounterChange: (v: boolean) => void;
   showFloatingToolbar: boolean;
   onShowFloatingToolbarChange: (v: boolean) => void;
+  hiddenToolbarIds: string[];
+  onHiddenToolbarIdsChange: (ids: string[]) => void;
   initialTab?: Tab;
 }
 
@@ -201,6 +204,7 @@ export default function SettingsModal({
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
   showFloatingToolbar, onShowFloatingToolbarChange,
+  hiddenToolbarIds, onHiddenToolbarIdsChange,
   initialTab = 'general',
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -1722,6 +1726,54 @@ export default function SettingsModal({
                   </SettingsOptionCopy>
                   <div className={`custom-switch ${showFloatingToolbar ? 'active' : ''}`} />
                 </label>
+              </div>
+            </div>
+
+            <div className="settings-card">
+              <SettingsHeading icon={<SlidersHorizontal />}>
+                {language === 'es' ? 'Barra de herramientas' : 'Toolbar'}
+              </SettingsHeading>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
+                {language === 'es'
+                  ? 'Elige qué botones se ven en la barra. Los ocultos viven en el menú Más (···). También puedes ocultarlos con clic derecho sobre cada botón.'
+                  : 'Choose which buttons appear in the toolbar. Hidden ones live in the More (···) menu. You can also hide them by right-clicking each button.'}
+              </p>
+              <div className="settings-option-stack">
+                {TOOLBAR_ITEMS.map(item => {
+                  const visible = !hiddenToolbarIds.includes(item.id);
+                  const itemName = language === 'es' ? item.labelEs : item.labelEn;
+                  return (
+                    <label
+                      key={item.id}
+                      className="settings-option-row"
+                      style={{ padding: '10px 16px' }}
+                      onClick={() => {
+                        onHiddenToolbarIdsChange(
+                          visible
+                            ? [...hiddenToolbarIds, item.id]
+                            : hiddenToolbarIds.filter((x) => x !== item.id),
+                        );
+                      }}
+                    >
+                      <SettingsOptionCopy icon={<SlidersHorizontal />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {itemName}
+                        </span>
+                      </SettingsOptionCopy>
+                      <div className={`custom-switch ${visible ? 'active' : ''}`} />
+                    </label>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => onHiddenToolbarIdsChange([])}
+                  disabled={hiddenToolbarIds.length === 0}
+                  style={{ alignSelf: 'flex-end', fontSize: 12, opacity: hiddenToolbarIds.length === 0 ? 0.4 : 1 }}
+                >
+                  <RotateCcw size={13} />
+                  {language === 'es' ? 'Restablecer barra' : 'Reset toolbar'}
+                </button>
               </div>
             </div>
 

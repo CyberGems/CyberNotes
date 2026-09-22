@@ -5,7 +5,7 @@ import { EditorFontId, applyEditorFont, DEFAULT_EDITOR_FONT } from '../fonts';
 import TitleBar from './TitleBar';
 import Sidebar from './Sidebar';
 import NoteList from './NoteList';
-import NoteEditor, { type NoteExportActions } from './NoteEditor';
+import NoteEditor, { type NoteExportActions, isToolbarItemId } from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
 import TrayPinModal from './TrayPinModal';
@@ -159,6 +159,7 @@ export default function MainApp({
   const [showMinimap, setShowMinimap] = useState(false);
   const [showWordCounter, setShowWordCounter] = useState(false);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
+  const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>([]);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
   const [triggerNewFolderSignal, setTriggerNewFolderSignal] = useState(0);
@@ -462,7 +463,7 @@ export default function MainApp({
       'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
-      'show_word_counter', 'show_floating_toolbar', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
+      'show_word_counter', 'show_floating_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
       'editor_font',
     ]);
 
@@ -494,6 +495,16 @@ export default function MainApp({
     setShowWordCounter(s.show_word_counter === 'true');
     if (s.show_floating_toolbar === null) setShowFloatingToolbar(true);
     else setShowFloatingToolbar(s.show_floating_toolbar === 'true');
+    if (s.toolbar_hidden_ids) {
+      try {
+        const parsed: unknown = JSON.parse(s.toolbar_hidden_ids);
+        if (Array.isArray(parsed)) {
+          setHiddenToolbarIds(parsed.filter((x): x is string => typeof x === 'string' && isToolbarItemId(x)));
+        }
+      } catch {
+        /* ignorar JSON corrupto */
+      }
+    }
     if (s.recent_cleared_at) setRecentClearedAt(parseInt(s.recent_cleared_at));
     if (s.opened_history) {
       try { setOpenedHistory(JSON.parse(s.opened_history)); } catch { /* ignorar JSON corrupto */ }
@@ -1547,6 +1558,11 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('show_floating_toolbar', v.toString());
   };
 
+  const handleHiddenToolbarIdsChange = async (ids: string[]) => {
+    setHiddenToolbarIds(ids);
+    await window.cyberNotesAPI.setSetting('toolbar_hidden_ids', JSON.stringify(ids));
+  };
+
   const handleAutosaveEnabledChange = async (val: boolean) => {
     setAutosaveEnabled(val);
     await window.cyberNotesAPI.setSetting('autosave_enabled', val.toString());
@@ -1855,6 +1871,8 @@ export default function MainApp({
           onShowLineGutterChange={handleShowLineGutterChange}
           showWordCounter={showWordCounter}
           showFloatingToolbar={showFloatingToolbar}
+          hiddenToolbarIds={hiddenToolbarIds}
+          onHiddenToolbarIdsChange={handleHiddenToolbarIdsChange}
         />
       </div>
 
@@ -1913,6 +1931,8 @@ export default function MainApp({
           onShowWordCounterChange={(v: boolean) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
           showFloatingToolbar={showFloatingToolbar}
           onShowFloatingToolbarChange={handleShowFloatingToolbarChange}
+          hiddenToolbarIds={hiddenToolbarIds}
+          onHiddenToolbarIdsChange={handleHiddenToolbarIdsChange}
         />
       )}
 
