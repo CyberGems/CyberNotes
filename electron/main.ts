@@ -452,6 +452,17 @@ function recordAppOpen(): void {
   }
 }
 
+function recordUnlock(): void {
+  try {
+    if (!db || !isUsageStatsEnabled()) return;
+    const row = queryGet('SELECT value FROM settings WHERE key = ?', ['unlock_count']);
+    const next = (row ? parseInt(row.value, 10) : 0) || 0;
+    runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['unlock_count', String(next + 1)]);
+  } catch {
+    /* nunca romper el desbloqueo por estadísticas */
+  }
+}
+
 function stripHtmlToWords(html: unknown): string[] {
   if (typeof html !== 'string' || !html) return [];
   const noImages = html.replace(/<img\b[^>]*>/gi, ' ');
@@ -504,13 +515,19 @@ function computeUsageStats() {
   let words = 0;
   let images = 0;
   let favorites = 0;
+  let newWeek = 0;
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   for (const n of notes) {
-    words += stripHtmlToWords(n.content).length;
+    const w = stripHtmlToWords(n.content).length;
+    words += w;
     const imgs = typeof n.content === 'string' ? n.content.match(/<img\b/gi) : null;
     if (imgs) images += imgs.length;
     if (Number(n.pinned) === 1) favorites++;
+    const created = Date.parse(n.created_at);
+    if (Number.isFinite(created) && created >= weekAgo) newWeek++;
   }
   const folderRows = queryAll('SELECT COUNT(*) as count FROM folders') as { count: number }[];
+  const unlockRow = queryGet('SELECT value FROM settings WHERE key = ?', ['unlock_count']);
 
   return {
     firstOpen: days.length > 0 ? days[0] : null,
@@ -518,6 +535,9 @@ function computeUsageStats() {
     activeDays: days.length,
     currentStreak,
     longestStreak,
+    totalUnlocks: unlockRow ? Number(unlockRow.value) || 0 : 0,
+    avgWords: notes.length > 0 ? Math.round((words / notes.length) * 10) / 10 : 0,
+    newWeek,
     totals: {
       notes: notes.length,
       words,
@@ -2209,6 +2229,8 @@ ipcMain.handle('session:set-locked', (_e: any, locked: boolean) => {
     }
   } else {
     lastActivityAt = Date.now();
+    // Solo cuenta cuando había bloqueo real: es un desbloqueo del usuario.
+    if (sessionLocked) recordUnlock();
     handleSessionUnlocked();
   }
   return true;
@@ -2347,6 +2369,7 @@ ipcMain.handle('stats:getUsage', () => {
 ipcMain.handle('stats:purgeUsage', () => {
   try {
     runQuery('DELETE FROM usage_days');
+    runQuery('DELETE FROM settings WHERE key = ?', ['unlock_count']);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: String((err as Error)?.message || err) };

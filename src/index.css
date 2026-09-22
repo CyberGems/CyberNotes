@@ -2206,6 +2206,17 @@ body.sticky-is-dragging * {
   animation: cyber-border-beam 3.2s linear infinite;
 }
 
+/* Guardar manual: el brillo entra con fundido y se apaga en hover para
+   no competir con el resaltado del botón. Solo afecta al botón Guardar. */
+.cyber-save-shine::before,
+.cyber-save-shine::after {
+  transition: opacity 0.2s ease;
+}
+.cyber-save-shine:hover::before,
+.cyber-save-shine:hover::after {
+  opacity: 0;
+}
+
 /* ─── Drag and Drop Note Styling ───────────────────────────── */
 .note-item[draggable="true"] {
   user-select: none;

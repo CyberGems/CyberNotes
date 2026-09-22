@@ -5,7 +5,7 @@ import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { TOOLBAR_ITEMS } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, FileText, Star, Folder, Flame, Sigma, FilePlus2 } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -131,17 +131,55 @@ function SettingsOptionCopy({
 }
 
 function UsageTiles({ stats, language }: { stats: UsageStats; language: Language }) {
-  const fmt = (n: number) => new Intl.NumberFormat(language === 'es' ? 'es-ES' : 'en-US').format(n);
+  const locale = language === 'es' ? 'es-ES' : 'en-US';
+  const fmt = (n: number) => new Intl.NumberFormat(locale).format(n);
+  const fmt1 = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(n);
   const tiles = [
-    { value: fmt(stats.totals.notes), label: language === 'es' ? 'Notas' : 'Notes' },
-    { value: fmt(stats.totals.words), label: language === 'es' ? 'Palabras' : 'Words' },
-    { value: fmt(stats.totals.folders), label: language === 'es' ? 'Carpetas' : 'Folders' },
-    { value: fmt(stats.totals.favorites), label: language === 'es' ? 'Favoritas' : 'Favorites' },
-    { value: fmt(stats.totals.images), label: language === 'es' ? 'Imágenes' : 'Images' },
     {
-      value: fmt(stats.currentStreak),
+      icon: <FileText size={14} />, value: fmt(stats.totals.notes),
+      label: language === 'es' ? 'Notas' : 'Notes',
+      tip: language === 'es' ? 'Notas guardadas (sin papelera)' : 'Saved notes (no trash)',
+    },
+    {
+      icon: <Type size={14} />, value: fmt(stats.totals.words),
+      label: language === 'es' ? 'Palabras' : 'Words',
+      tip: language === 'es' ? 'Palabras en todas tus notas' : 'Words across all notes',
+    },
+    {
+      icon: <Folder size={14} />, value: fmt(stats.totals.folders),
+      label: language === 'es' ? 'Carpetas' : 'Folders',
+      tip: language === 'es' ? 'Carpetas creadas' : 'Created folders',
+    },
+    {
+      icon: <Star size={14} />, value: fmt(stats.totals.favorites),
+      label: language === 'es' ? 'Favoritas' : 'Favorites',
+      tip: language === 'es' ? 'Notas marcadas favoritas' : 'Favorite notes',
+    },
+    {
+      icon: <Image size={14} />, value: fmt(stats.totals.images),
+      label: language === 'es' ? 'Imágenes' : 'Images',
+      tip: language === 'es' ? 'Imágenes en tus notas' : 'Images in your notes',
+    },
+    {
+      icon: <Flame size={14} />, value: fmt(stats.currentStreak),
       label: language === 'es' ? 'Racha (días)' : 'Streak (days)',
       sub: language === 'es' ? `récord ${fmt(stats.longestStreak)}` : `best ${fmt(stats.longestStreak)}`,
+      tip: language === 'es' ? 'Días seguidos abriendo la app' : 'Consecutive days opening the app',
+    },
+    {
+      icon: <KeyRound size={14} />, value: fmt(stats.totalUnlocks),
+      label: language === 'es' ? 'Desbloqueos' : 'Unlocks',
+      tip: language === 'es' ? 'Veces que desbloqueaste la app' : 'Times you unlocked the app',
+    },
+    {
+      icon: <Sigma size={14} />, value: fmt1(stats.avgWords),
+      label: language === 'es' ? 'Promedio' : 'Average',
+      tip: language === 'es' ? 'Palabras por nota en promedio' : 'Average words per note',
+    },
+    {
+      icon: <FilePlus2 size={14} />, value: fmt(stats.newWeek),
+      label: language === 'es' ? 'Nuevas (7 días)' : 'New (7 days)',
+      tip: language === 'es' ? 'Notas creadas en los últimos 7 días' : 'Notes created in the last 7 days',
     },
   ];
   const firstOpen = stats.firstOpen ? new Date(`${stats.firstOpen}T12:00:00`) : null;
@@ -152,26 +190,30 @@ function UsageTiles({ stats, language }: { stats: UsageStats; language: Language
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
         {tiles.map((tile) => (
-          <div
-            key={tile.label}
-            style={{
-              background: 'var(--bg-app)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', padding: '10px 8px',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            }}
-          >
-            <span style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-              {tile.value}
-            </span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
-              {tile.label}
-            </span>
-            {tile.sub && (
-              <span style={{ fontSize: 9.5, color: 'var(--text-muted)', opacity: 0.8 }}>
-                {tile.sub}
+          <Tooltip key={tile.label} placement="top" label={tile.tip}>
+            <div
+              style={{
+                background: 'var(--bg-app)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)', padding: '10px 8px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              }}
+            >
+              <span style={{ color: 'var(--accent-light)', display: 'inline-flex', opacity: 0.9 }}>
+                {tile.icon}
               </span>
-            )}
-          </div>
+              <span style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                {tile.value}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+                {tile.label}
+              </span>
+              {tile.sub && (
+                <span style={{ fontSize: 9.5, color: 'var(--text-muted)', opacity: 0.8 }}>
+                  {tile.sub}
+                </span>
+              )}
+            </div>
+          </Tooltip>
         ))}
       </div>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
@@ -2216,14 +2258,25 @@ export default function SettingsModal({
                 ) : (
                   <>
                     <UsageTiles stats={usageStats} language={language} />
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={handleHideUsageStats}
-                      style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '6px 12px' }}
-                    >
-                      {language === 'es' ? 'Ocultar' : 'Hide'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handleHideUsageStats}
+                        style={{ gap: 6, fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '6px 12px' }}
+                      >
+                        {language === 'es' ? 'Ocultar' : 'Hide'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handleResetUsageStats}
+                        style={{ gap: 6, fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '6px 12px' }}
+                      >
+                        <RotateCcw size={14} />
+                        {language === 'es' ? 'Restablecer estadísticas' : 'Reset statistics'}
+                      </button>
+                    </div>
                   </>
                 )
               )}
@@ -2234,18 +2287,6 @@ export default function SettingsModal({
                     ? 'Desactivado: no se registra nada y se borró el historial guardado.'
                     : 'Disabled: nothing is recorded and saved history was deleted.'}
                 </p>
-              )}
-
-              {usageStatsOn && (
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={handleResetUsageStats}
-                  style={{ gap: 6, alignSelf: 'flex-start', fontSize: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '6px 12px' }}
-                >
-                  <RotateCcw size={14} />
-                  {language === 'es' ? 'Restablecer estadísticas' : 'Reset statistics'}
-                </button>
               )}
             </div>
             </>

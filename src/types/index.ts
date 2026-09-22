@@ -6,6 +6,9 @@ export interface UsageStats {
   activeDays: number;
   currentStreak: number;
   longestStreak: number;
+  totalUnlocks: number;
+  avgWords: number;
+  newWeek: number;
   totals: {
     notes: number;
     words: number;

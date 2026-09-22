@@ -1184,6 +1184,16 @@ export default function NoteEditor({
     }
   };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  /** El brillo del botón Guardar entra poco después del despliegue (no durante). */
+  const [saveShineOn, setSaveShineOn] = useState(false);
+  useEffect(() => {
+    if (autosaveEnabled || !hasUnsavedChanges) {
+      setSaveShineOn(false);
+      return;
+    }
+    const timer = setTimeout(() => setSaveShineOn(true), 250);
+    return () => clearTimeout(timer);
+  }, [autosaveEnabled, hasUnsavedChanges]);
   const [showLeaveEditorWarning, setShowLeaveEditorWarning] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
@@ -2967,7 +2977,7 @@ export default function NoteEditor({
                   initial={{ opacity: 0, scale: 0.9, width: 0, marginRight: 0 }}
                   animate={{ opacity: 1, scale: 1, width: 'auto', marginRight: 4 }}
                   exit={{ opacity: 0, scale: 0.9, width: 0, marginRight: 0 }}
-                  transition={{ duration: 0.16, ease: 'easeInOut' }}
+                  transition={{ duration: 0.12, ease: 'easeOut' }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2979,7 +2989,7 @@ export default function NoteEditor({
                   <Tooltip placement="bottom" label={language === 'es' ? 'Guardar nota (Ctrl+S)' : 'Save note (Ctrl+S)'}>
                     <motion.button
                       onClick={handleManualSave}
-                      className="cyber-save-shine"
+                      className={saveShineOn ? 'cyber-save-shine' : undefined}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
