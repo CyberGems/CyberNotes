@@ -203,6 +203,15 @@ async function initDatabase() {
       day   TEXT PRIMARY KEY,
       opens INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS note_revisions (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id    TEXT NOT NULL,
+      title      TEXT NOT NULL DEFAULT '',
+      content    TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_note_revisions_note ON note_revisions (note_id, id DESC);
   `);
 
   // Migración: DBs antiguas sin columnas nuevas o sticky_notes
@@ -416,6 +425,7 @@ function purgeOldTrash(): void {
   const ops = expired.flatMap((row: any) => [
     { sql: 'DELETE FROM sticky_notes WHERE note_id = ?', params: [row.id] },
     { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [row.id] },
+    { sql: 'DELETE FROM note_revisions WHERE note_id = ?', params: [row.id] },
     { sql: 'DELETE FROM notes WHERE id = ? AND deleted_at IS NOT NULL', params: [row.id] },
   ]);
   runQueryBatch(ops);
@@ -2609,6 +2619,119 @@ function isThumbUrl(value: unknown): value is string {
   );
 }
 
+// ─── Historial de versiones (fase 1: snapshots + restaurar) ──────────────
+// Una revisión guarda el contenido ANTERIOR en cada guardado con cambios.
+// Topes anti-crecimiento: 1 snapshot cada 5 min por nota, 50 por nota (FIFO)
+// y 1 MB por revisión (las notas con imágenes pesadas no versionan).
+// Todo 100% local; no viaja en el backup JSON de fase 1.
+const REVISION_THROTTLE_MS = 5 * 60 * 1000;
+const REVISION_MAX_PER_NOTE = 50;
+const REVISION_MAX_BYTES = 1_000_000;
+
+function pruneRevisions(noteId: string): void {
+  try {
+    runQuery(
+      `DELETE FROM note_revisions WHERE note_id = ? AND id NOT IN (
+        SELECT id FROM note_revisions WHERE note_id = ? ORDER BY id DESC LIMIT ?
+      )`,
+      [noteId, noteId, REVISION_MAX_PER_NOTE],
+    );
+  } catch (err) {
+    console.error('[revisions] prune failed:', err);
+  }
+}
+
+function maybeSnapshotRevision(
+  noteId: string,
+  oldTitle: string,
+  oldContent: string,
+  opts: { force: boolean },
+  newContent?: string,
+): boolean {
+  try {
+    if (typeof noteId !== 'string' || !noteId) return false;
+    if (!oldContent || !oldContent.trim()) return false;
+    if (oldContent.length > REVISION_MAX_BYTES) return false;
+    if (typeof newContent === 'string' && newContent === oldContent) return false;
+    if (!opts.force) {
+      const latest = queryGet(
+        'SELECT content, created_at FROM note_revisions WHERE note_id = ? ORDER BY id DESC LIMIT 1',
+        [noteId],
+      );
+      if (latest) {
+        if (latest.content === oldContent) return false;
+        const latestTime = Date.parse(latest.created_at);
+        if (Number.isFinite(latestTime) && Date.now() - latestTime < REVISION_THROTTLE_MS) return false;
+      }
+    }
+    runQuery(
+      'INSERT INTO note_revisions (note_id, title, content, created_at) VALUES (?, ?, ?, ?)',
+      [noteId, (oldTitle || '').slice(0, NOTE_TITLE_MAX_CHARS), oldContent, new Date().toISOString()],
+    );
+    pruneRevisions(noteId);
+    return true;
+  } catch (err) {
+    console.error('[revisions] snapshot failed:', err);
+    return false;
+  }
+}
+
+ipcMain.handle('revisions:list', (_e: any, noteId: string) => {
+  try {
+    if (typeof noteId !== 'string' || !noteId) return { ok: false, error: 'bad-id' };
+    const rows = queryAll(
+      'SELECT id, note_id, title, content, created_at FROM note_revisions WHERE note_id = ? ORDER BY id DESC',
+      [noteId],
+    ) as { id: number; note_id: string; title: string; content: string; created_at: string }[];
+    return {
+      ok: true,
+      revisions: rows.map((r) => ({
+        id: r.id,
+        title: r.title || '',
+        created_at: r.created_at,
+        words: stripHtmlToWords(r.content).length,
+      })),
+    };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
+ipcMain.handle('revisions:get', (_e: any, id: number) => {
+  try {
+    if (typeof id !== 'number' || !Number.isFinite(id)) return { ok: false, error: 'bad-id' };
+    const row = queryGet('SELECT id, note_id, title, content, created_at FROM note_revisions WHERE id = ?', [id]);
+    if (!row) return { ok: false, error: 'not-found' };
+    return { ok: true, revision: row };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
+ipcMain.handle('revisions:restore', (_e: any, noteId: string, revisionId: number) => {
+  try {
+    if (typeof noteId !== 'string' || !noteId || typeof revisionId !== 'number') return { ok: false, error: 'bad-args' };
+    const rev = queryGet('SELECT title, content FROM note_revisions WHERE id = ? AND note_id = ?', [revisionId, noteId]);
+    if (!rev) return { ok: false, error: 'not-found' };
+    const current = queryGet('SELECT title, content FROM notes WHERE id = ? AND deleted_at IS NULL', [noteId]);
+    if (!current) return { ok: false, error: 'note-gone' };
+    // La versión actual queda a salvo antes de sobrescribir (forzado, sin throttle).
+    maybeSnapshotRevision(noteId, current.title || '', current.content || '', { force: true });
+    const now = new Date().toISOString();
+    runQueryBatch([
+      {
+        sql: 'UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?',
+        params: [(rev.title || '').slice(0, NOTE_TITLE_MAX_CHARS), rev.content || '', now, noteId],
+      },
+      { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [noteId] },
+    ]);
+    const updated = queryGet('SELECT * FROM notes WHERE id = ?', [noteId]);
+    return { ok: true, note: updated };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
 ipcMain.handle('notes:save', (_e: any, note: any) => {
   if (!note || typeof note.id !== 'string' || !note.id || note.id.length > 100) return false;
   if (typeof note.content === 'string' && note.content.length > NOTE_CONTENT_MAX_CHARS) return false;
@@ -2618,9 +2741,10 @@ ipcMain.handle('notes:save', (_e: any, note: any) => {
   const thumb = isThumbUrl(note.thumb) ? note.thumb.slice(0, THUMB_MAX_CHARS) : '';
   const folderId = typeof note.folder_id === 'string' || note.folder_id === null ? note.folder_id : null;
   const pinned = note.pinned ? 1 : 0;
-  const exists = queryGet('SELECT id, deleted_at FROM notes WHERE id = ?', [note.id]);
+  const exists = queryGet('SELECT id, deleted_at, title, content FROM notes WHERE id = ?', [note.id]);
   if (exists?.deleted_at) return note;
   if (exists) {
+    maybeSnapshotRevision(note.id, exists.title || '', exists.content || '', { force: false }, content);
     runQueryBatch([
       {
         sql: 'UPDATE notes SET folder_id = ?, title = ?, content = ?, preview = ?, thumb = ?, pinned = ?, updated_at = ? WHERE id = ?',
@@ -2762,6 +2886,7 @@ ipcMain.handle('notes:purge', (_e: any, id: string) => {
   runQueryBatch([
     { sql: 'DELETE FROM sticky_notes WHERE note_id = ?', params: [id] },
     { sql: 'DELETE FROM note_drafts WHERE note_id = ?', params: [id] },
+    { sql: 'DELETE FROM note_revisions WHERE note_id = ?', params: [id] },
     { sql: 'DELETE FROM notes WHERE id = ? AND deleted_at IS NOT NULL', params: [id] },
   ]);
   return true;
@@ -2772,6 +2897,7 @@ ipcMain.handle('notes:emptyTrash', () => {
   runQueryBatch([
     { sql: 'DELETE FROM sticky_notes WHERE note_id IN (SELECT id FROM notes WHERE deleted_at IS NOT NULL)' },
     { sql: 'DELETE FROM note_drafts WHERE note_id IN (SELECT id FROM notes WHERE deleted_at IS NOT NULL)' },
+    { sql: 'DELETE FROM note_revisions WHERE note_id IN (SELECT id FROM notes WHERE deleted_at IS NOT NULL)' },
     { sql: 'DELETE FROM notes WHERE deleted_at IS NOT NULL' },
   ]);
   return Number(row?.count || 0);

@@ -110,6 +110,11 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   getUsageStats: () => ipcRenderer.invoke('stats:getUsage'),
   purgeUsageStats: () => ipcRenderer.invoke('stats:purgeUsage'),
 
+  // -- Version history --
+  listRevisions: (noteId: string) => ipcRenderer.invoke('revisions:list', noteId),
+  getRevision: (id: number) => ipcRenderer.invoke('revisions:get', id),
+  restoreRevision: (noteId: string, revisionId: number) => ipcRenderer.invoke('revisions:restore', noteId, revisionId),
+
   // -- Unsaved Changes --
   setUnsavedChanges: (val: boolean) => ipcRenderer.invoke('window:unsavedChanges:set', val),
 

@@ -18,6 +18,18 @@ export interface UsageStats {
   };
 }
 
+export interface NoteRevisionMeta {
+  id: number;
+  title: string;
+  created_at: string;
+  words: number;
+}
+
+export interface NoteRevision extends NoteRevisionMeta {
+  note_id: string;
+  content: string;
+}
+
 export interface Folder {
   id: string;
   name: string;
@@ -87,6 +99,9 @@ declare global {
       verifyRecoveryCode: (code: string) => Promise<{ ok: boolean; retryAfterMs: number }>;
       getUsageStats: () => Promise<{ ok: boolean; stats?: UsageStats; error?: string }>;
       purgeUsageStats: () => Promise<{ ok: boolean; error?: string }>;
+      listRevisions: (noteId: string) => Promise<{ ok: boolean; revisions?: NoteRevisionMeta[]; error?: string }>;
+      getRevision: (id: number) => Promise<{ ok: boolean; revision?: NoteRevision; error?: string }>;
+      restoreRevision: (noteId: string, revisionId: number) => Promise<{ ok: boolean; note?: Note; error?: string }>;
       // Unsaved Changes
       setUnsavedChanges: (val: boolean) => Promise<void>;
       // Session lock

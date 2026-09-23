@@ -12,13 +12,14 @@ import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
-import { Note, Folder } from '../types';
+import { Note, Folder, type NoteRevision } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
+import VersionHistoryModal from './VersionHistoryModal';
 import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
@@ -28,7 +29,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff,
+    Eye, EyeOff, History,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -1170,6 +1171,7 @@ export default function NoteEditor({
         ? '0 0 12px rgba(34, 211, 238, 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
         : 'inset 0 1px 3px rgba(0,0,0,0.2)';
   const [isRaw, setIsRaw] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -1928,6 +1930,37 @@ export default function NoteEditor({
     isDirtyRef.current = false;
   }, [editor, note, localTitle, onSave]);
 
+  /** Restaura una versión del historial: recarga el editor y persiste. */
+  const handleRestoreRevision = useCallback((rev: NoteRevision) => {
+    if (!editor || !note) return;
+    const content = rev.content || '';
+    const restored: Note = {
+      ...note,
+      title: rev.title || note.title,
+      content,
+      preview: extractPreview(content),
+      thumb: extractThumb(content),
+    };
+    setShowHistory(false);
+    setLocalTitle(restored.title);
+    localTitleRef.current = restored.title;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (draftSyncTimer.current) {
+      clearTimeout(draftSyncTimer.current);
+      draftSyncTimer.current = null;
+    }
+    isSelectionChangingRef.current = true;
+    isDirtyRef.current = false;
+    loadEditorContent(editor, content);
+    hydratedNoteIdRef.current = note.id;
+    updateTextMetrics(editor);
+    updateLineInfo(editor);
+    syncMinimapHtml(true);
+    setHasUnsavedChanges(false);
+    onSave(restored);
+    setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
+  }, [editor, note, onSave, syncMinimapHtml]);
+
   // Descarta el borrador y restaura el editor al último estado guardado en disco.
   const handleRevertToSaved = useCallback(() => {
     if (!editor || !note) return;
@@ -2620,6 +2653,14 @@ export default function NoteEditor({
       style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-editor)', overflow: 'hidden', position: 'relative' }}
     >
       {isNoteLoading && noteLoader}
+      {showHistory && note && (
+        <VersionHistoryModal
+          note={note}
+          language={language}
+          onClose={() => setShowHistory(false)}
+          onRestore={handleRestoreRevision}
+        />
+      )}
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (
         <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', overflow: 'hidden' }}>
@@ -3226,6 +3267,25 @@ export default function NoteEditor({
             </Tooltip>
 
             {exportMenu}
+
+            {/* Historial de versiones */}
+            <Tooltip placement="bottom" label={language === 'es' ? 'Historial de versiones' : 'Version history'}>
+            <button
+              type="button"
+              onClick={() => setShowHistory(true)}
+              style={noteActionBtnStyle(false)}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--text-muted)';
+              }}
+            >
+              <History size={15} />
+            </button>
+            </Tooltip>
 
           </div>
         </div>
