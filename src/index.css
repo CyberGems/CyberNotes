@@ -991,6 +991,15 @@ body:has(.sticky-note-window),
 .menu-item:hover {
   background: var(--bg-hover);
 }
+/* Foco por teclado con estilo de la app (sin el recuadro por defecto). */
+.menu-item {
+  outline: none;
+}
+.menu-item:focus-visible {
+  background: var(--bg-hover);
+  color: var(--accent-light);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 
 /* ─── Premium Tabs Support ────────────────────────────────── */
 

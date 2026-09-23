@@ -986,7 +986,7 @@ export default function MainApp({
     }
   }, [selectedFolderId, language]);
 
-  /** Duplica una nota (contenido, carpeta y título con sufijo) y abre la copia. */
+  /** Duplica una nota como gemela idéntica (carpeta, favorito y flotante) y la abre. */
   const handleDuplicateNote = useCallback(async (id: string) => {
     const meta = allNotesRef.current.find(n => n.id === id) || notesRef.current.find(n => n.id === id);
     if (!meta) return;
@@ -1000,7 +1000,7 @@ export default function MainApp({
       content: full?.content ?? '',
       preview: full?.preview ?? meta.preview ?? '',
       thumb: full?.thumb ?? meta.thumb ?? '',
-      pinned: 0,
+      pinned: full?.pinned ?? meta.pinned ?? 0,
       created_at: now,
       updated_at: now,
     };
@@ -1012,6 +1012,9 @@ export default function MainApp({
     setOpenNoteIds(prev => insertTabAfter(prev, copy.id, selectedNoteIdRef.current));
     setSelectedNote({ ...copyMeta, content: copy.content || '' });
     setSelectedNoteId(copy.id);
+    if (openStickyIdsRef.current.includes(id)) {
+      await window.cyberNotesAPI.openStickyNote(copy.id).catch(() => {});
+    }
   }, [language]);
 
   const handleSaveNote = useCallback(async (note: Note) => {    const thumb = note.thumb || extractThumb(note.content);
@@ -1427,6 +1430,23 @@ export default function MainApp({
     }
   };
 
+  const handleToggleSelectedFavorite = useCallback(() => {
+    const target = selectedNoteIdRef.current
+      ? allNotesRef.current.find(n => n.id === selectedNoteIdRef.current)
+      : undefined;
+    if (target) void handleTogglePin(target);
+  }, [handleTogglePin]);
+
+  const handleToggleSelectedSticky = useCallback(() => {
+    const id = selectedNoteIdRef.current;
+    if (!id) return;
+    if (openStickyIdsRef.current.includes(id)) {
+      void window.cyberNotesAPI.revealStickyNote(id);
+    } else {
+      void window.cyberNotesAPI.openStickyNote(id);
+    }
+  }, []);
+
   const handleMoveNote = async (noteId: string, targetFolderId: string | null) => {
     const note = allNotes.find(n => n.id === noteId);
     if (!note) return;
@@ -1536,6 +1556,19 @@ export default function MainApp({
         }, 50);
         return;
       }
+
+      // Ctrl+D: Duplicar nota actual (fuera de campos editables)
+      if (isCtrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'd') {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+          || !!target?.closest?.('[contenteditable="true"]');
+        if (!inField) {
+          e.preventDefault();
+          if (selectedNoteIdRef.current) void handleDuplicateNote(selectedNoteIdRef.current);
+          return;
+        }
+      }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -1550,6 +1583,7 @@ export default function MainApp({
     noteToCloseWithDraft,
     layoutMode,
     handleCreateNote,
+    handleDuplicateNote,
   ]);
 
   const handleDeleteFolder = async (id: string) => {
@@ -1780,6 +1814,12 @@ export default function MainApp({
           const note = allNotes.find(n => n.id === id);
           if (note) setSelectedFolderId(prev => prev === 'sticky' ? prev : note.folder_id);
         }}
+        currentNoteId={selectedNoteId}
+        currentNotePinned={selectedNote?.pinned === 1}
+        isCurrentNoteSticky={!!selectedNoteId && openStickyIds.includes(selectedNoteId)}
+        onDuplicateNote={handleDuplicateNote}
+        onToggleNoteFavorite={handleToggleSelectedFavorite}
+        onToggleNoteSticky={handleToggleSelectedSticky}
         recentNotes={recentNotesTop10}
         onClearRecent={async () => {
           const now = Date.now().toString();

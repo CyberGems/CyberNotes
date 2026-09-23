@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer } from 'lucide-react';
+import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer, Copy, Star, AppWindow, Sparkles } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
@@ -37,6 +37,12 @@ interface Props {
   onShowFloatingToolbarChange?: (v: boolean) => void;
   rememberLastNote?: boolean;
   onRememberLastNoteChange?: (v: boolean) => void;
+  currentNoteId?: string | null;
+  currentNotePinned?: boolean;
+  isCurrentNoteSticky?: boolean;
+  onDuplicateNote?: (id: string) => void;
+  onToggleNoteFavorite?: (id: string) => void;
+  onToggleNoteSticky?: (id: string) => void;
   minimizeToTray?: boolean;
   closeToTray?: boolean;
   /** Caps Lock físico activo + countdown (desde NoteEditor) */
@@ -87,6 +93,12 @@ export default function TitleBar({
   onShowFloatingToolbarChange,
   rememberLastNote = true,
   onRememberLastNoteChange,
+  currentNoteId = null,
+  currentNotePinned = false,
+  isCurrentNoteSticky = false,
+  onDuplicateNote,
+  onToggleNoteFavorite,
+  onToggleNoteSticky,
   minimizeToTray = false,
   closeToTray = false,
   capsStatus,
@@ -97,6 +109,7 @@ export default function TitleBar({
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [recentSubOpen, setRecentSubOpen] = useState(false);
+  const [noteSubOpen, setNoteSubOpen] = useState(false);
   const [exportSubOpen, setExportSubOpen] = useState(false);
   const [helpSubOpen, setHelpSubOpen] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
@@ -112,6 +125,7 @@ export default function TitleBar({
       document.addEventListener('mousedown', close);
     } else {
       setRecentSubOpen(false);
+      setNoteSubOpen(false);
       setExportSubOpen(false);
       setHelpSubOpen(false);
       setExitConfirm(false);
@@ -133,7 +147,9 @@ export default function TitleBar({
     };
 
     const focusFirstItem = () => focusMenuItem(0);
-    const frame = window.requestAnimationFrame(focusFirstItem);
+    // Foco sincrónico tras el commit: el portal ya está en el DOM y el primer
+    // item queda seleccionado de inmediato (sin depender del frame).
+    focusFirstItem();
     const handleMenuKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -160,14 +176,14 @@ export default function TitleBar({
 
     document.addEventListener('keydown', handleMenuKeyDown);
     return () => {
-      window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleMenuKeyDown);
     };
   }, [menuOpen]);
 
   useEffect(() => {
     const handleMenuShortcut = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'm') return;
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== 'm') return;
       event.preventDefault();
       setMenuOpen(previous => {
         if (!previous && burgerRef.current) {
@@ -446,7 +462,7 @@ export default function TitleBar({
 
         {/* More Menu */}
         <div style={{ position: 'relative' }}>
-          <Tooltip placement="bottom" label={t('Más opciones (Ctrl+Shift+M)', 'More options (Ctrl+Shift+M)')}>
+          <Tooltip placement="bottom" label={t('Más opciones (Alt+M)', 'More options (Alt+M)')}>
           <button
             ref={burgerRef}
             className="btn-icon titlebar-btn"
@@ -530,6 +546,58 @@ export default function TitleBar({
                   <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
                 </>
               )}
+
+              {/* Submenú Nota actual (atajos de teclado para la nota abierta) */}
+              <button
+                className="menu-item"
+                onClick={() => setNoteSubOpen(!noteSubOpen)}
+              >
+                <FileText size={14} style={{ opacity: 0.7 }} />
+                <span style={{ flex: 1 }}>{t('Nota actual', 'Current note')}</span>
+                <span style={{
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  transform: noteSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s',
+                }}>▶</span>
+              </button>
+              {noteSubOpen && (
+                <div style={{
+                  borderLeft: '2px solid var(--border)',
+                  marginLeft: 19,
+                  paddingLeft: 0,
+                }}>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onDuplicateNote?.(currentNoteId); } }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                  >
+                    <Copy size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Duplicar nota', 'Duplicate note')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+D</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteFavorite?.(currentNoteId); } }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                  >
+                    <Star size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{currentNotePinned ? t('Quitar de favoritos', 'Remove from favorites') : t('Marcar favorita', 'Add to favorites')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteSticky?.(currentNoteId); } }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                  >
+                    <AppWindow size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{isCurrentNoteSticky ? t('Mostrar flotante', 'Show floating note') : t('Abrir flotante', 'Open floating note')}</span>
+                  </button>
+                </div>
+              )}
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
               {/* Export Submenu */}
               <button
@@ -694,13 +762,12 @@ export default function TitleBar({
                 onClick={() => onShowFloatingToolbarChange?.(!showFloatingToolbar)}
                 onKeyDown={e => activateMenuItem(e, () => onShowFloatingToolbarChange?.(!showFloatingToolbar))}
               >
-                <MoreHorizontal size={14} style={{ opacity: 0.7 }} />
+                <Sparkles size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Barra flotante', 'Floating toolbar')}</span>
                 <div style={toggleStyle(showFloatingToolbar)}>
                   <div style={{ ...toggleDot, left: showFloatingToolbar ? 16 : 2 }} />
                 </div>
-              </div>
-              <div
+              </div>              <div
                 className="menu-item"
                 role="menuitem"
                 tabIndex={0}
