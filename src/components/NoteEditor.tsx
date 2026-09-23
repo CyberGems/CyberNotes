@@ -1282,6 +1282,31 @@ export default function NoteEditor({
     onHiddenToolbarIdsChange?.([]);
   }, [onHiddenToolbarIdsChange]);
 
+  // Descarte de los menús de la barra sin overlay bloqueante: clic fuera los
+  // cierra, y un segundo clic derecho cae directo sobre el botón de abajo,
+  // que abre su propio menú reemplazando al anterior.
+  useEffect(() => {
+    if (!toolbarMenu && !showMoreMenu) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-toolbar-menu],[data-more-menu]')) return;
+      setToolbarMenu(null);
+      setShowMoreMenu(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setToolbarMenu(null);
+        setShowMoreMenu(false);
+      }
+    };
+    window.addEventListener('mousedown', onDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [toolbarMenu, showMoreMenu]);
+
   // Refs sincronizados en cada render: garantizan valores frescos dentro de los
   // callbacks de TipTap (onBlur) evitando cualquier cierre obsoleto (stale closure).
   const autosaveEnabledRef = useRef(autosaveEnabled);
@@ -2341,6 +2366,8 @@ export default function NoteEditor({
   /** Renderiza un control de la barra por id (barra y menú "Más" comparten nodos). */
   const renderToolbarControl = (id: ToolbarItemId, inMore = false): React.ReactNode => {
     if (!editor) return null;
+    // El botón origen mantiene su highlight mientras su contextual está abierto.
+    const menuHl = toolbarMenu?.id === id;
     const onCtx = (e: React.MouseEvent) => openToolbarMenu(e, id, inMore);
     const ctxProps = {
       toolbarId: id as ToolbarItemId,
@@ -2348,61 +2375,61 @@ export default function NoteEditor({
     };
     switch (id) {
       case 'undo':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>;
       case 'redo':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>;
       case 'copy':
-        return <ToolbarBtn {...ctxProps} onClick={handleCopySelection} disabled={editor.state.selection.empty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleCopySelection} disabled={editor.state.selection.empty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>;
       case 'paste':
-        return <ToolbarBtn {...ctxProps} onClick={() => { void handlePasteFromClipboard(); }} disabled={readOnly} title={language === 'es' ? 'Pegar (Ctrl+V)' : 'Paste (Ctrl+V)'}><Clipboard size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => { void handlePasteFromClipboard(); }} disabled={readOnly} title={language === 'es' ? 'Pegar (Ctrl+V)' : 'Paste (Ctrl+V)'}><Clipboard size={15} /></ToolbarBtn>;
       case 'fontFamily':
         return (
-          <span onContextMenu={onCtx} style={{ display: 'inline-flex' }}>
+          <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
             <WordFontFamilySelect editor={editor} language={language} />
           </span>
         );
       case 'fontSize':
         return (
-          <span onContextMenu={onCtx} style={{ display: 'inline-flex' }}>
+          <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
             <WordFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
           </span>
         );
       case 'bold':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={language === 'es' ? 'Negrita' : 'Bold'}><Bold size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold') || menuHl} title={language === 'es' ? 'Negrita' : 'Bold'}><Bold size={15} /></ToolbarBtn>;
       case 'italic':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={language === 'es' ? 'Cursiva' : 'Italic'}><Italic size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic') || menuHl} title={language === 'es' ? 'Cursiva' : 'Italic'}><Italic size={15} /></ToolbarBtn>;
       case 'underline':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado' : 'Underline'}><UnderlineIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline') || menuHl} title={language === 'es' ? 'Subrayado' : 'Underline'}><UnderlineIcon size={15} /></ToolbarBtn>;
       case 'strike':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title={language === 'es' ? 'Tachado' : 'Strikethrough'}><Strikethrough size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike') || menuHl} title={language === 'es' ? 'Tachado' : 'Strikethrough'}><Strikethrough size={15} /></ToolbarBtn>;
       case 'highlight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title={language === 'es' ? 'Resaltar' : 'Highlight'}><Highlighter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight') || menuHl} title={language === 'es' ? 'Resaltar' : 'Highlight'}><Highlighter size={15} /></ToolbarBtn>;
       case 'clearFormat':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}><RemoveFormatting size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} active={menuHl} title={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}><RemoveFormatting size={15} /></ToolbarBtn>;
       case 'h1':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title={language === 'es' ? 'Título 1' : 'Heading 1'}><Heading1 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 }) || menuHl} title={language === 'es' ? 'Título 1' : 'Heading 1'}><Heading1 size={15} /></ToolbarBtn>;
       case 'h2':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title={language === 'es' ? 'Título 2' : 'Heading 2'}><Heading2 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 }) || menuHl} title={language === 'es' ? 'Título 2' : 'Heading 2'}><Heading2 size={15} /></ToolbarBtn>;
       case 'bullet':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title={language === 'es' ? 'Lista' : 'Bullet List'}><List size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList') || menuHl} title={language === 'es' ? 'Lista' : 'Bullet List'}><List size={15} /></ToolbarBtn>;
       case 'ordered':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title={language === 'es' ? 'Lista numerada' : 'Numbered List'}><ListOrdered size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList') || menuHl} title={language === 'es' ? 'Lista numerada' : 'Numbered List'}><ListOrdered size={15} /></ToolbarBtn>;
       case 'alignLeft':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title={language === 'es' ? 'Alinear a la izquierda' : 'Align left'}><AlignLeft size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' }) || menuHl} title={language === 'es' ? 'Alinear a la izquierda' : 'Align left'}><AlignLeft size={15} /></ToolbarBtn>;
       case 'alignCenter':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title={language === 'es' ? 'Centrar' : 'Center'}><AlignCenter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' }) || menuHl} title={language === 'es' ? 'Centrar' : 'Center'}><AlignCenter size={15} /></ToolbarBtn>;
       case 'alignRight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title={language === 'es' ? 'Alinear a la derecha' : 'Align right'}><AlignRight size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' }) || menuHl} title={language === 'es' ? 'Alinear a la derecha' : 'Align right'}><AlignRight size={15} /></ToolbarBtn>;
       case 'alignJustify':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' })} title={language === 'es' ? 'Justificar' : 'Justify'}><AlignJustify size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' }) || menuHl} title={language === 'es' ? 'Justificar' : 'Justify'}><AlignJustify size={15} /></ToolbarBtn>;
       case 'quote':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title={language === 'es' ? 'Cita' : 'Blockquote'}><Quote size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote') || menuHl} title={language === 'es' ? 'Cita' : 'Blockquote'}><Quote size={15} /></ToolbarBtn>;
       case 'code':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title={t.editor.codeBlock}><Code size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock') || menuHl} title={t.editor.codeBlock}><Code size={15} /></ToolbarBtn>;
       case 'link':
-        return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={editor.isActive('link')} title={language === 'es' ? 'Insertar link' : 'Insert Link'}><LinkIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={editor.isActive('link') || menuHl} title={language === 'es' ? 'Insertar link' : 'Insert Link'}><LinkIcon size={15} /></ToolbarBtn>;
       case 'image':
-        return <ToolbarBtn {...ctxProps} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen' : 'Insert Image'}><ImageIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen' : 'Insert Image'}><ImageIcon size={15} /></ToolbarBtn>;
       default:
         return null;
     }
@@ -3220,12 +3247,9 @@ export default function NoteEditor({
                     </button>
                   </Tooltip>
                   {showMoreMenu && (
-                    <>
                       <div
-                        style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
-                        onClick={() => setShowMoreMenu(false)}
-                      />
-                      <div style={{
+                        data-more-menu="true"
+                        style={{
                         position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: WORD_MENU_Z,
                         minWidth: 200, maxHeight: 320, overflowY: 'auto', padding: 6,
                         borderRadius: 10, background: 'rgba(10, 10, 18, 0.97)',
@@ -3282,7 +3306,6 @@ export default function NoteEditor({
                           {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
                         </button>
                       </div>
-                    </>
                   )}
                 </div>
               )}
@@ -3292,19 +3315,21 @@ export default function NoteEditor({
 
         {/* Menú contextual de la barra: ocultar selectivo hacia "Más". */}
         {toolbarMenu && createPortal(
-          <>
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
-              onClick={() => setToolbarMenu(null)}
-            />
-            <div style={{
+          <div
+            data-toolbar-menu="true"
+            style={{
               position: 'fixed', left: toolbarMenu.x, top: toolbarMenu.y, zIndex: WORD_MENU_Z,
               minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(10, 10, 18, 0.97)',
               border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
               display: 'flex', flexDirection: 'column', gap: 1,
               userSelect: 'none', WebkitUserSelect: 'none',
             }}>
-              <div style={{ padding: '6px 10px 4px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
+              <div style={{
+                padding: '6px 10px 7px', fontSize: 10, fontWeight: 800,
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: 'var(--text-muted)', borderBottom: '1px solid var(--border)',
+                marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
                 {toolbarItemLabel(toolbarMenu.id)}
               </div>
               {toolbarMenu.inMore ? (
@@ -3333,7 +3358,7 @@ export default function NoteEditor({
                     border: 'none', textAlign: 'left',
                   }}
                 >
-                  {language === 'es' ? 'Ocultar (mover a Más)' : 'Hide (move to More)'}
+                  {language === 'es' ? 'Ocultar' : 'Hide'}
                 </button>
               )}
               <button
@@ -3349,8 +3374,7 @@ export default function NoteEditor({
               >
                 {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
               </button>
-            </div>
-          </>,
+            </div>,
           document.body,
         )}
 
