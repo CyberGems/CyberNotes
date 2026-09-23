@@ -206,6 +206,14 @@ body:has(.sticky-note-window),
   transform: scale(0.97);
 }
 
+/* Deshabilitados que se distinguen: un botón muerto nunca debe verse vivo. */
+.btn:disabled {
+  cursor: not-allowed;
+}
+.btn-ghost:disabled {
+  opacity: 0.45;
+}
+
 .btn-danger {
   background: var(--danger-dim);
   color: var(--danger);

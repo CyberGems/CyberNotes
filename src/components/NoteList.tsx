@@ -1029,12 +1029,15 @@ export default function NoteList({
                     const isCollapsed = collapsedGroups.has(group.key);
                     return (
                       <div key={group.key} className="note-group">
+                        <Tooltip
+                          placement="bottom"
+                          label={isCollapsed
+                            ? (language === 'es' ? 'Desplegar sección' : 'Expand section')
+                            : (language === 'es' ? 'Plegar sección' : 'Collapse section')}
+                        >
                         <div
                           className="note-group-header"
                           onClick={() => toggleGroupCollapse(group.key)}
-                          title={isCollapsed
-                            ? (language === 'es' ? 'Desplegar sección' : 'Expand section')
-                            : (language === 'es' ? 'Plegar sección' : 'Collapse section')}
                         >
                           <span
                             className="note-group-chevron"
@@ -1056,6 +1059,7 @@ export default function NoteList({
                           <span className="note-group-line" />
                           <span className="note-group-badge">{group.notes.length}</span>
                         </div>
+                        </Tooltip>
                         {!isCollapsed && (
                           <div className="note-group-items">
                             {group.notes.map(note => {

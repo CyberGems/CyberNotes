@@ -939,15 +939,16 @@ export default function SettingsModal({
             <Settings size={15} />
             <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
           </div>
+          <Tooltip label={language === 'es' ? 'Cerrar' : 'Close'} placement="bottom">
           <button
             type="button"
             className="settings-header-close"
             onClick={onClose}
-            title={language === 'es' ? 'Cerrar' : 'Close'}
             aria-label={language === 'es' ? 'Cerrar' : 'Close'}
           >
             <X size={15} />
           </button>
+          </Tooltip>
         </div>
         <div className="settings-layout">
           <aside className="settings-nav">
