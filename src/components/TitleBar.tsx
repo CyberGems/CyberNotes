@@ -900,7 +900,12 @@ export default function TitleBar({
           )}
         </button>
         </Tooltip>
-        <Tooltip placement="bottom" label={closeToTray ? t('Cerrar a la bandeja', 'Close to tray') : t('Cerrar', 'Close')}>
+        <Tooltip placement="bottom" label={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span>{closeToTray ? t('Cerrar a la bandeja', 'Close to tray') : t('Cerrar', 'Close')}</span>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 4, padding: '0 4px' }}>Alt+F4</span>
+          </span>
+        }>
         <button
           className="btn-icon titlebar-btn close-btn"
           onClick={() => window.cyberNotesAPI.windowClose()}

@@ -268,6 +268,22 @@ body:has(.sticky-note-window),
 /* Controles Word (fuente/tamaño) + menús de la barra: hover y microanimaciones
    al nivel del resto de la suite. Los colores de estado van por clase para que
    el :hover no pelee con estilos inline. */
+/* Botones dentro de tarjetas de Ajustes: hover con vida (eleven, brillan y
+   toman acento) sin tocar el ghost global que usan otras superficies. */
+.settings-card .btn-ghost {
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.16s ease, color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.settings-card .btn-ghost:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.18);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), 0 0 12px var(--accent-glow);
+}
+.settings-card .btn-ghost:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+  transition-duration: 0.07s;
+}
 .word-combo {
   transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
 }

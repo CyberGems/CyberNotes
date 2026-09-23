@@ -278,6 +278,11 @@ export default function SettingsModal({
   const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
   const [stickyLockAction, setStickyLockAction] = useState<'hide' | 'shield'>('hide');
   const [dismissedConfirmationCount, setDismissedConfirmationCount] = useState(0);
+  const [restoreNoticesFeedback, setRestoreNoticesFeedback] = useState(false);
+  const restoreNoticesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (restoreNoticesTimerRef.current) clearTimeout(restoreNoticesTimerRef.current);
+  }, []);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
   const [autoBackupHours, setAutoBackupHours] = useState('24');
   const [autoBackupKeep, setAutoBackupKeep] = useState('7');
@@ -382,6 +387,12 @@ export default function SettingsModal({
     await Promise.all(DISMISSIBLE_CONFIRMATION_KEYS.map((key) => window.cyberNotesAPI.setSetting(key, 'false')));
     setDismissedConfirmationCount(0);
     setHasSavedChanges(true);
+    setRestoreNoticesFeedback(true);
+    if (restoreNoticesTimerRef.current) clearTimeout(restoreNoticesTimerRef.current);
+    restoreNoticesTimerRef.current = setTimeout(() => {
+      setRestoreNoticesFeedback(false);
+      restoreNoticesTimerRef.current = null;
+    }, 2200);
   };
 
   const handleToggleAutoBackup = async (val: boolean) => {
@@ -1187,13 +1198,23 @@ export default function SettingsModal({
                         fontSize: 'calc(12px * var(--ui-scale))',
                         flexShrink: 0,
                         padding: '7px 11px',
-                        border: '1px solid var(--border)',
+                        border: restoreNoticesFeedback
+                          ? '1px solid color-mix(in srgb, var(--success) 55%, transparent)'
+                          : '1px solid var(--border)',
                         borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-surface)',
+                        background: restoreNoticesFeedback
+                          ? 'color-mix(in srgb, var(--success) 14%, transparent)'
+                          : 'var(--bg-surface)',
+                        color: restoreNoticesFeedback ? 'var(--success)' : undefined,
+                        boxShadow: restoreNoticesFeedback
+                          ? '0 0 12px color-mix(in srgb, var(--success) 30%, transparent)'
+                          : undefined,
                       }}
                     >
-                      <RotateCcw size={14} />
-                      {language === 'es' ? 'Restaurar avisos' : 'Restore warnings'}
+                      {restoreNoticesFeedback ? <Check size={14} /> : <RotateCcw size={14} />}
+                      {restoreNoticesFeedback
+                        ? (language === 'es' ? 'Avisos restaurados' : 'Warnings restored')
+                        : (language === 'es' ? 'Restaurar avisos' : 'Restore warnings')}
                     </button>
                   </div>
 

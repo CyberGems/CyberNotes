@@ -28,6 +28,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify, MoreHorizontal, Type,
+    Eye, EyeOff,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -220,12 +221,14 @@ function loadEditorContent(editor: Editor, raw: string) {  let content: string |
 }
 
 const ToolbarBtn = ({
-  onClick, active = false, title, children, disabled = false, toolbarId, onToolbarContextMenu,
+  onClick, active = false, title, children, disabled = false, toolbarId, onToolbarContextMenu, suppressTooltip = false,
 }: {
   onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean;
   toolbarId?: ToolbarItemId; onToolbarContextMenu?: (e: React.MouseEvent, id: ToolbarItemId) => void;
-}) => (
-  <Tooltip label={title} placement="bottom">
+  /** Oculta el tooltip (p. ej. mientras un menú de la barra está abierto). */
+  suppressTooltip?: boolean;
+}) => {
+  const btn = (
     <button
       onMouseDown={(e) => e.preventDefault()} // CRÍTICO: Previene pérdida de foco
       onClick={onClick}
@@ -236,8 +239,14 @@ const ToolbarBtn = ({
     >
       {children}
     </button>
-  </Tooltip>
-);
+  );
+  if (suppressTooltip) return btn;
+  return (
+    <Tooltip label={title} placement="bottom">
+      {btn}
+    </Tooltip>
+  );
+};
 
 /** z-index por encima del BubbleMenu de TipTap (tippy usa 9999). */
 const WORD_MENU_OVERLAY_Z = 10000;
@@ -305,9 +314,9 @@ const wordMenuBoxStyle: CSSProperties = {
 
 /** Combo de fuente estilo Word: muestra la fuente de la selección y aplica solo a ella. */
 export function WordFontFamilySelect({
-  editor, language, compact = false, tooltipSide = 'bottom', dropUp = false,
+  editor, language, compact = false, tooltipSide = 'bottom', dropUp = false, hideTooltip = false,
 }: {
-  editor: Editor | null; language: Language; compact?: boolean; tooltipSide?: 'bottom' | 'top'; dropUp?: boolean;
+  editor: Editor | null; language: Language; compact?: boolean; tooltipSide?: 'bottom' | 'top'; dropUp?: boolean; hideTooltip?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
@@ -319,36 +328,41 @@ export function WordFontFamilySelect({
   const buttonWidth: number | string = compact ? 76 : 'auto';
 
   if (!editor) return null;
+  const trigger = (
+    <button
+      ref={anchorRef}
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => setOpen((v) => !v)}
+      className="word-combo"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+        width: buttonWidth, maxWidth: compact ? 76 : 200,
+        height: compact ? 24 : 30, padding: compact ? '0 6px' : '0 8px',
+        background: open || matched ? 'var(--accent-dim)' : 'var(--bg-surface)',
+        border: open || matched ? '1px solid var(--accent)' : '1px solid var(--border)',
+        borderRadius: 6, cursor: 'pointer', color: 'var(--text-primary)',
+        fontSize: compact ? 11 : 12,
+      }}
+    >
+      <span
+        style={{
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left',
+          fontFamily: matched ? matched.family : 'inherit',
+        }}
+      >
+        {matched ? matched.label : (compact ? t.editor.fontFamily : t.editor.fontFamilyDefault)}
+      </span>
+      <span style={{ color: 'var(--text-muted)', display: 'inline-flex', flexShrink: 0 }}>▾</span>
+    </button>
+  );
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
-      <Tooltip label={t.editor.fontFamily} placement={tooltipSide}>
-        <button
-          ref={anchorRef}
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setOpen((v) => !v)}
-          className="word-combo"
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-            width: buttonWidth, maxWidth: compact ? 76 : 200,
-            height: compact ? 24 : 30, padding: compact ? '0 6px' : '0 8px',
-            background: open || matched ? 'var(--accent-dim)' : 'var(--bg-surface)',
-            border: open || matched ? '1px solid var(--accent)' : '1px solid var(--border)',
-            borderRadius: 6, cursor: 'pointer', color: 'var(--text-primary)',
-            fontSize: compact ? 11 : 12,
-          }}
-        >
-          <span
-            style={{
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left',
-              fontFamily: matched ? matched.family : 'inherit',
-            }}
-          >
-            {matched ? matched.label : (compact ? t.editor.fontFamily : t.editor.fontFamilyDefault)}
-          </span>
-          <span style={{ color: 'var(--text-muted)', display: 'inline-flex', flexShrink: 0 }}>▾</span>
-        </button>
-      </Tooltip>
+      {hideTooltip ? trigger : (
+        <Tooltip label={t.editor.fontFamily} placement={tooltipSide}>
+          {trigger}
+        </Tooltip>
+      )}
       {open && createPortal(
         <>
           <div
@@ -403,11 +417,12 @@ export function WordFontFamilySelect({
 
 /** Combo de tamaño estilo Word: input editable + lista (8-72). Aplica solo a la selección. */
 export function WordFontSizeSelect({
-  editor, language, compact = false, tooltipSide = 'bottom', dropUp = false, defaultSize = 15,
+  editor, language, compact = false, tooltipSide = 'bottom', dropUp = false, defaultSize = 15, hideTooltip = false,
 }: {
   editor: Editor | null; language: Language; compact?: boolean; tooltipSide?: 'bottom' | 'top'; dropUp?: boolean;
   /** Tamaño base a mostrar cuando el cursor no tiene formato (p. ej. 15 * uiScale). */
   defaultSize?: number;
+  hideTooltip?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -431,6 +446,61 @@ export function WordFontSizeSelect({
   if (!editor) return null;
   const shown = draft ?? String(displayNum);
 
+  const sizeBox = (
+    <div
+      ref={anchorRef}
+      className="word-combo"
+      style={{
+        display: 'flex', alignItems: 'stretch',
+        width: compact ? 52 : 62, height: compact ? 24 : 30,
+        background: open || docNum ? 'var(--accent-dim)' : 'var(--bg-surface)',
+        border: open || docNum ? '1px solid var(--accent)' : '1px solid var(--border)',
+        borderRadius: 6, overflow: 'hidden',
+      }}
+    >
+      <input
+        value={shown}
+        inputMode="numeric"
+        aria-label={t.editor.fontSize}
+        placeholder="—"
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+        onFocus={(e) => { setFocused(true); justFocusedRef.current = true; e.target.select(); }}
+        onMouseUp={(e) => {
+          // El mouseup del mismo clic colapsaría el select() del focus:
+          // se conserva la selección lista para reemplazar.
+          if (justFocusedRef.current) {
+            justFocusedRef.current = false;
+            e.preventDefault();
+            (e.target as HTMLInputElement).select();
+          }
+        }}
+        onBlur={() => { justFocusedRef.current = false; setFocused(false); if (draft !== null) commit(draft); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); }
+          else if (e.key === 'Escape') { setDraft(null); setOpen(false); (e.target as HTMLInputElement).blur(); }
+          else if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); }
+        }}
+        style={{
+          width: '100%', minWidth: 0, flex: 1, background: 'transparent', border: 'none', outline: 'none',
+          color: 'var(--text-primary)', fontSize: compact ? 11 : 12, fontWeight: 600,
+          textAlign: 'center', padding: 0, fontVariantNumeric: 'tabular-nums',
+        }}
+      />
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen((v) => !v)}
+        aria-label={t.editor.fontSize}
+        style={{
+          flexShrink: 0, width: compact ? 16 : 20, border: 'none', cursor: 'pointer',
+          background: 'transparent', color: 'var(--text-muted)', fontSize: 10,
+        }}
+      >
+        ▾
+      </button>
+    </div>
+  );
+
   const commit = (raw: string) => {
     const n = parseInt(raw, 10);
     if (!raw.trim()) {
@@ -450,60 +520,11 @@ export function WordFontSizeSelect({
 
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
-      <Tooltip label={t.editor.fontSize} placement={tooltipSide}>
-        <div
-          ref={anchorRef}
-          className="word-combo"
-          style={{
-            display: 'flex', alignItems: 'stretch',
-            width: compact ? 52 : 62, height: compact ? 24 : 30,
-            background: open || docNum ? 'var(--accent-dim)' : 'var(--bg-surface)',
-            border: open || docNum ? '1px solid var(--accent)' : '1px solid var(--border)',
-            borderRadius: 6, overflow: 'hidden',
-          }}
-        >
-          <input
-            value={shown}
-            inputMode="numeric"
-            aria-label={t.editor.fontSize}
-            placeholder="—"
-            onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
-            onFocus={(e) => { setFocused(true); justFocusedRef.current = true; e.target.select(); }}
-            onMouseUp={(e) => {
-              // El mouseup del mismo clic colapsaría el select() del focus:
-              // se conserva la selección lista para reemplazar.
-              if (justFocusedRef.current) {
-                justFocusedRef.current = false;
-                e.preventDefault();
-                (e.target as HTMLInputElement).select();
-              }
-            }}
-            onBlur={() => { justFocusedRef.current = false; setFocused(false); if (draft !== null) commit(draft); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); }
-              else if (e.key === 'Escape') { setDraft(null); setOpen(false); (e.target as HTMLInputElement).blur(); }
-              else if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); }
-            }}
-            style={{
-              width: '100%', minWidth: 0, flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              color: 'var(--text-primary)', fontSize: compact ? 11 : 12, fontWeight: 600,
-              textAlign: 'center', padding: 0, fontVariantNumeric: 'tabular-nums',
-            }}
-          />
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setOpen((v) => !v)}
-            aria-label={t.editor.fontSize}
-            style={{
-              flexShrink: 0, width: compact ? 16 : 20, border: 'none', cursor: 'pointer',
-              background: 'transparent', color: 'var(--text-muted)', fontSize: 10,
-            }}
-          >
-            ▾
-          </button>
-        </div>
-      </Tooltip>
+      {hideTooltip ? sizeBox : (
+        <Tooltip label={t.editor.fontSize} placement={tooltipSide}>
+          {sizeBox}
+        </Tooltip>
+      )}
       {open && createPortal(
         <>
           <div
@@ -2368,10 +2389,13 @@ export default function NoteEditor({
     if (!editor) return null;
     // El botón origen mantiene su highlight mientras su contextual está abierto.
     const menuHl = toolbarMenu?.id === id;
+    // Sin tooltips encimados mientras haya menús de la barra abiertos.
+    const tipOff = !!toolbarMenu || showMoreMenu;
     const onCtx = (e: React.MouseEvent) => openToolbarMenu(e, id, inMore);
     const ctxProps = {
       toolbarId: id as ToolbarItemId,
       onToolbarContextMenu: (_e: React.MouseEvent, tid: ToolbarItemId) => openToolbarMenu(_e, tid, inMore),
+      suppressTooltip: tipOff,
     };
     switch (id) {
       case 'undo':
@@ -2385,13 +2409,13 @@ export default function NoteEditor({
       case 'fontFamily':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <WordFontFamilySelect editor={editor} language={language} />
+            <WordFontFamilySelect editor={editor} language={language} hideTooltip={tipOff} />
           </span>
         );
       case 'fontSize':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <WordFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
+            <WordFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} hideTooltip={tipOff} />
           </span>
         );
       case 'bold':
@@ -3228,24 +3252,31 @@ export default function NoteEditor({
 
               {hiddenToolbarItems.length > 0 && (
                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <Tooltip label={language === 'es' ? `Más (${hiddenToolbarItems.length})` : `More (${hiddenToolbarItems.length})`} placement="bottom">
-                    <button
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
-                      className="btn-icon toolbar-btn"
-                      style={{ position: 'relative' }}
-                    >
-                      <MoreHorizontal size={15} />
-                      <span style={{
-                        position: 'absolute', top: 1, right: 1, minWidth: 13, height: 13,
-                        borderRadius: 7, background: 'var(--accent)', color: '#fff',
-                        fontSize: 8.5, fontWeight: 800, lineHeight: '13px', textAlign: 'center',
-                        padding: '0 2px',
-                      }}>
-                        {hiddenToolbarItems.length}
-                      </span>
-                    </button>
-                  </Tooltip>
+                  {(() => {
+                    const moreTipOff = !!toolbarMenu || showMoreMenu;
+                    const moreTrigger = (
+                      <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
+                        className="btn-icon toolbar-btn"
+                        style={{ position: 'relative' }}
+                      >                      <MoreHorizontal size={15} />
+                        <span style={{
+                          position: 'absolute', top: 1, right: 1, minWidth: 13, height: 13,
+                          borderRadius: 7, background: 'var(--accent)', color: '#fff',
+                          fontSize: 8.5, fontWeight: 800, lineHeight: '13px', textAlign: 'center',
+                          padding: '0 2px',
+                        }}>
+                          {hiddenToolbarItems.length}
+                        </span>
+                      </button>
+                    );
+                    return moreTipOff ? moreTrigger : (
+                      <Tooltip label={language === 'es' ? `Más (${hiddenToolbarItems.length})` : `More (${hiddenToolbarItems.length})`} placement="bottom">
+                        {moreTrigger}
+                      </Tooltip>
+                    );
+                  })()}
                   {showMoreMenu && (
                       <div
                         data-more-menu="true"
@@ -3339,12 +3370,13 @@ export default function NoteEditor({
                   onClick={() => showToolbarItem(toolbarMenu.id)}
                   className="word-menu-item"
                   style={{
-                    display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
                     fontSize: 12, borderRadius: 6, cursor: 'pointer',
                     border: 'none', textAlign: 'left',
                   }}
                 >
-                  {language === 'es' ? 'Mostrar en la barra' : 'Show in toolbar'}
+                  <Eye size={13} style={{ opacity: 0.75, flexShrink: 0 }} />
+                  <span>{language === 'es' ? 'Mostrar en la barra' : 'Show in toolbar'}</span>
                 </button>
               ) : (
                 <button
@@ -3353,12 +3385,13 @@ export default function NoteEditor({
                   onClick={() => hideToolbarItem(toolbarMenu.id)}
                   className="word-menu-item"
                   style={{
-                    display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
                     fontSize: 12, borderRadius: 6, cursor: 'pointer',
                     border: 'none', textAlign: 'left',
                   }}
                 >
-                  {language === 'es' ? 'Ocultar' : 'Hide'}
+                  <EyeOff size={13} style={{ opacity: 0.75, flexShrink: 0 }} />
+                  <span>{language === 'es' ? 'Ocultar' : 'Hide'}</span>
                 </button>
               )}
               <button
@@ -3367,12 +3400,13 @@ export default function NoteEditor({
                 onClick={resetToolbarItems}
                 className="word-menu-item is-muted"
                 style={{
-                  display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px',
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
                   fontSize: 12, borderRadius: 6, cursor: 'pointer',
                   border: 'none', textAlign: 'left',
                 }}
               >
-                {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
+                <RotateCcw size={13} style={{ opacity: 0.75, flexShrink: 0 }} />
+                <span>{language === 'es' ? 'Restablecer botones' : 'Reset buttons'}</span>
               </button>
             </div>,
           document.body,
