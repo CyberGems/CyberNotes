@@ -675,10 +675,22 @@ export default function MainApp({
     }
     // Mantener la nota anterior en pantalla; solo marcar carga
     setNoteLoading(true);
-    const full = await window.cyberNotesAPI.getNoteById(id);
-    if (!full || selectedNoteIdRef.current !== id) {
-      // Otra navegación ganó la carrera: no apagar loading aquí si el id ya cambió
+    let full: Note | null | undefined;
+    try {
+      full = await window.cyberNotesAPI.getNoteById(id);
+    } catch (err) {
+      console.error('[MainApp] Error loading note:', err);
       if (selectedNoteIdRef.current === id) setNoteLoading(false);
+      return;
+    }
+    if (!full || selectedNoteIdRef.current !== id) {
+      // Otra navegación ganó la carrera: no apagar loading aquí si el id ya cambió.
+      // Si la nota ya no existe, limpiar la selección: quedarse con el loader
+      // infinito sería peor que volver a la bienvenida.
+      if (selectedNoteIdRef.current === id) {
+        setSelectedNote(null);
+        setNoteLoading(false);
+      }
       return;
     }
     const latestDraft = draftCacheRef.current[id];
@@ -2034,20 +2046,20 @@ export default function MainApp({
               <div className="modal-actions" style={{ marginTop: 2 }}>
                 <button
                   type="button"
+                  className="modal-action-btn is-cancel"
+                  style={{ color: '#f87171' }}
+                  onClick={() => chooseFirstClose('quit')}
+                >
+                  {language === 'es' ? 'Salir' : 'Quit'}
+                  <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
+                </button>
+                <button
+                  type="button"
                   className="modal-action-btn is-save"
                   onClick={() => chooseFirstClose('tray')}
                 >
                   {language === 'es' ? 'Minimizar a la bandeja' : 'Minimize to tray'}
                   <EnterGlyph />
-                </button>
-                <button
-                  type="button"
-                  className="modal-action-btn is-cancel"
-                  style={{ color: '#f87171' }}
-                  onClick={() => chooseFirstClose('quit')}
-                >
-                  {language === 'es' ? 'Salir de CyberNotes' : 'Quit CyberNotes'}
-                  <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
                 </button>
               </div>
             </div>

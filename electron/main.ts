@@ -552,8 +552,6 @@ function computeUsageStats() {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-/** Salta la pregunta de primer cierre una sola vez (tras elegir "Salir" sin recordar). */
-let bypassFirstClose = false;
 /** True while the UI should show LockScreen (password session). */
 let sessionLocked = false;
 /** Wall-clock last user activity — survives Chromium timer throttling while hidden. */
@@ -1886,13 +1884,8 @@ function createWindow() {
 
   // Manejar cierre (Bandeja de sistema)
   // Primera vez: preguntar qué hacer (estilo CyberPaste) salvo elección recordada.
-  // Tras elegir "Salir" sin recordar, `bypassFirstClose` evita repreguntar,
-  // evita que la bandeja secuestre el cierre y deja pasar al diálogo de
-  // cambios sin guardar si los hay.
   mainWindow.on('close', (event) => {
-    // Si el usuario ya eligió "Salir", ni se pregunta ni la bandeja lo secuestra.
-    const quitChosen = bypassFirstClose;
-    if (!isQuitting && !quitChosen) {
+    if (!isQuitting) {
       const remembered = queryGet('SELECT value FROM settings WHERE key = ?', ['close_choice_remembered']);
       if (remembered?.value !== 'true') {
         event.preventDefault();
@@ -1902,10 +1895,9 @@ function createWindow() {
         return false;
       }
     }
-    bypassFirstClose = false;
 
     const closeToTray = queryGet('SELECT value FROM settings WHERE key = ?', ['close_to_tray']);
-    if (closeToTray?.value === 'true' && !isQuitting && !quitChosen) {
+    if (closeToTray?.value === 'true' && !isQuitting) {
       event.preventDefault();
       if (hasPasswordHash()) {
         mainWindow?.webContents.send('session:shield-enable');
@@ -3153,9 +3145,25 @@ if (!gotTheLock) {
 }
 
 // ─── Force Close / Unsaved Exit ────────────────────────────────────────
-ipcMain.handle('window-force-close', () => {
+/**
+ * Salida real de la app: marca quit (salta pregunta y bandeja), cierra las
+ * flotantes (conservan is_open para restaurar) y cierra la principal. El
+ * diálogo de cambios sin guardar sigue apareciendo si hay cambios.
+ */
+function quitAppFromMain(): void {
   isQuitting = true;
+  for (const win of Array.from(stickyWindows.values())) {
+    try {
+      if (!win.isDestroyed()) win.close();
+    } catch {
+      /* una flotante no debe impedir salir */
+    }
+  }
   mainWindow?.close();
+}
+
+ipcMain.handle('window-force-close', () => {
+  quitAppFromMain();
 });
 
 // ─── First-close choice (estilo CyberPaste) ────────────────────────────
@@ -3173,17 +3181,15 @@ ipcMain.handle('first-close-choice', (_e: any, action: string, remember: boolean
     mainWindow?.hide();
     return true;
   }
-  // Salir: reintentar el cierre; el bypass evita repreguntar y el flujo
-  // existente (bandeja / cambios sin guardar / salir) sigue su curso.
-  bypassFirstClose = true;
-  mainWindow?.close();
+  // Salir: equivale a salida real; el flujo existente (cambios sin
+  // guardar / salir) sigue su curso y las flotantes no retienen el proceso.
+  quitAppFromMain();
   return true;
 });
 
 ipcMain.handle('confirm-unsaved-exit-response', (_e: any, discard: boolean) => {
   if (discard) {
     hasUnsavedChanges = false;
-    isQuitting = true;
-    mainWindow?.close();
+    quitAppFromMain();
   }
 });
