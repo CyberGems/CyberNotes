@@ -129,6 +129,19 @@ export default function MainApp({
   const [showUnsavedExitDialog, setShowUnsavedExitDialog] = useState(false);
   const [showFirstCloseDialog, setShowFirstCloseDialog] = useState(false);
   const [firstCloseRemember, setFirstCloseRemember] = useState(false);
+
+  const chooseFirstClose = useCallback((action: 'tray' | 'quit') => {
+    setShowFirstCloseDialog(false);
+    if (firstCloseRemember) setCloseToTray(action === 'tray');
+    void window.cyberNotesAPI.respondFirstClose(action, firstCloseRemember);
+  }, [firstCloseRemember]);
+
+  useModalKeys({
+    enabled: showFirstCloseDialog,
+    // Sin cancelar: la opción segura (bandeja) es la que resaltamos.
+    onEsc: () => chooseFirstClose('tray'),
+    onEnter: () => chooseFirstClose('tray'),
+  });
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [noteListWidth, setNoteListWidth] = useState(300);
@@ -2006,23 +2019,17 @@ export default function MainApp({
               <div className="modal-actions" style={{ marginTop: 2 }}>
                 <button
                   type="button"
-                  className="modal-action-btn is-cancel"
-                  onClick={() => {
-                    setShowFirstCloseDialog(false);
-                    if (firstCloseRemember) setCloseToTray(true);
-                    void window.cyberNotesAPI.respondFirstClose('tray', firstCloseRemember);
-                  }}
+                  className="modal-action-btn is-save"
+                  onClick={() => chooseFirstClose('tray')}
                 >
                   {language === 'es' ? 'Minimizar a la bandeja' : 'Minimize to tray'}
+                  <EnterGlyph />
                 </button>
                 <button
                   type="button"
-                  className="modal-action-btn is-danger"
-                  onClick={() => {
-                    setShowFirstCloseDialog(false);
-                    if (firstCloseRemember) setCloseToTray(false);
-                    void window.cyberNotesAPI.respondFirstClose('quit', firstCloseRemember);
-                  }}
+                  className="modal-action-btn is-cancel"
+                  style={{ color: '#f87171' }}
+                  onClick={() => chooseFirstClose('quit')}
                 >
                   {language === 'es' ? 'Salir de CyberNotes' : 'Quit CyberNotes'}
                 </button>

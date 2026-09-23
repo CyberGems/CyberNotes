@@ -1886,10 +1886,13 @@ function createWindow() {
 
   // Manejar cierre (Bandeja de sistema)
   // Primera vez: preguntar qué hacer (estilo CyberPaste) salvo elección recordada.
-  // `bypassFirstClose` evita repreguntar cuando el usuario ya eligió "Salir"
-  // sin recordar y el cierre continúa hacia el diálogo de cambios sin guardar.
+  // Tras elegir "Salir" sin recordar, `bypassFirstClose` evita repreguntar,
+  // evita que la bandeja secuestre el cierre y deja pasar al diálogo de
+  // cambios sin guardar si los hay.
   mainWindow.on('close', (event) => {
-    if (!isQuitting && !bypassFirstClose) {
+    // Si el usuario ya eligió "Salir", ni se pregunta ni la bandeja lo secuestra.
+    const quitChosen = bypassFirstClose;
+    if (!isQuitting && !quitChosen) {
       const remembered = queryGet('SELECT value FROM settings WHERE key = ?', ['close_choice_remembered']);
       if (remembered?.value !== 'true') {
         event.preventDefault();
@@ -1902,7 +1905,7 @@ function createWindow() {
     bypassFirstClose = false;
 
     const closeToTray = queryGet('SELECT value FROM settings WHERE key = ?', ['close_to_tray']);
-    if (closeToTray?.value === 'true' && !isQuitting) {
+    if (closeToTray?.value === 'true' && !isQuitting && !quitChosen) {
       event.preventDefault();
       if (hasPasswordHash()) {
         mainWindow?.webContents.send('session:shield-enable');

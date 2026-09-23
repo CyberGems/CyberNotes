@@ -1624,7 +1624,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
     >
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isDense ? 4 : 6, marginBottom: viewMode === 'normal' ? 4 : 2, flexShrink: 0, paddingRight: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isDense ? 4 : 6, marginBottom: viewMode === 'normal' ? 4 : 2, flexShrink: 0, paddingRight: isDense && folder ? 56 : 28 }}>
             {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
             {isStickyOpen && (
               <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
@@ -1773,7 +1773,9 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
           style={{
             position: 'absolute',
             top: isDense ? '50%' : viewMode === 'compact' ? 5 : 8,
-            right: 8,
+            // En densa con carpeta, a la izquierda del badge para no taparlo
+            // ni mezclar tooltips.
+            right: isDense && folder ? 36 : 8,
             transform: isDense ? 'translateY(-50%)' : undefined,
             zIndex: 5,
             background: 'rgba(20, 20, 25, 0.88)',
