@@ -986,8 +986,35 @@ export default function MainApp({
     }
   }, [selectedFolderId, language]);
 
-  const handleSaveNote = useCallback(async (note: Note) => {
-    const thumb = note.thumb || extractThumb(note.content);
+  /** Duplica una nota (contenido, carpeta y título con sufijo) y abre la copia. */
+  const handleDuplicateNote = useCallback(async (id: string) => {
+    const meta = allNotesRef.current.find(n => n.id === id) || notesRef.current.find(n => n.id === id);
+    if (!meta) return;
+    const full = await window.cyberNotesAPI.getNoteById(id).catch(() => null);
+    const now = new Date().toISOString();
+    const baseTitle = full?.title ?? meta.title;
+    const copy: Note = {
+      id: window.crypto.randomUUID(),
+      folder_id: full?.folder_id ?? meta.folder_id,
+      title: `${baseTitle} ${language === 'es' ? '(copia)' : '(copy)'}`.slice(0, 500),
+      content: full?.content ?? '',
+      preview: full?.preview ?? meta.preview ?? '',
+      thumb: full?.thumb ?? meta.thumb ?? '',
+      pinned: 0,
+      created_at: now,
+      updated_at: now,
+    };
+    await window.cyberNotesAPI.saveNote(copy);
+    const copyMeta = toNoteMeta(copy);
+    contentCacheRef.current[copy.id] = copy.content || '';
+    setAllNotes(prev => [copyMeta, ...prev]);
+    setNotes(prev => [copyMeta, ...prev]);
+    setOpenNoteIds(prev => insertTabAfter(prev, copy.id, selectedNoteIdRef.current));
+    setSelectedNote({ ...copyMeta, content: copy.content || '' });
+    setSelectedNoteId(copy.id);
+  }, [language]);
+
+  const handleSaveNote = useCallback(async (note: Note) => {    const thumb = note.thumb || extractThumb(note.content);
     const updated = { ...note, thumb, updated_at: new Date().toISOString() };
     contentCacheRef.current[updated.id] = updated.content || '';
     patchNoteMeta(updated);
@@ -1854,6 +1881,7 @@ export default function MainApp({
               onTogglePin={handleTogglePin}
               onMoveNote={handleMoveNote}
               onRenameNote={handleRenameNote}
+              onDuplicateNote={handleDuplicateNote}
               selectedFolder={selectedFolderId === 'sticky'
                 ? { id: 'sticky', name: TRANSLATIONS[language].sidebar.stickyNotes, icon: 'app-window', color: FILTER_COLORS.sticky } as Folder
                 : selectedFolderId === 'floating'
@@ -1906,6 +1934,7 @@ export default function MainApp({
           openStickyIds={openStickyIds}
           onSelectNote={handleAttemptSelectNote}
           onCloseTab={handleCloseTab}
+          onDuplicateNote={handleDuplicateNote}
           onCloseOtherTabs={handleCloseOtherTabs}
           onCloseTabsToRight={handleCloseTabsToRight}
           onCloseAllTabs={handleCloseAllTabs}

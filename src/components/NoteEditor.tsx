@@ -77,6 +77,7 @@ interface Props {
   onSelectNote?: (id: string) => void;
   onCloseTab?: (id: string) => void;
   onCloseOtherTabs?: (keepId: string) => void;
+  onDuplicateNote?: (id: string) => void;
   onCloseTabsToRight?: (fromId: string) => void;
   onCloseAllTabs?: () => void;
   onReopenClosedTab?: () => void;
@@ -776,6 +777,7 @@ export default function NoteEditor({
   onSelectNote,
   onCloseTab,
   onCloseOtherTabs,
+  onDuplicateNote,
   onCloseTabsToRight,
   onCloseAllTabs,
   onReopenClosedTab,
@@ -2903,6 +2905,16 @@ export default function NoteEditor({
                 >
                   <X size={14} />
                   {language === 'es' ? 'Cerrar pestaña' : 'Close tab'}
+                </button>
+                <button
+                  type="button"
+                  style={itemStyle()}
+                  onClick={() => runAction(() => onDuplicateNote?.(tabContextMenu.tabId))}
+                  onMouseEnter={event => { event.currentTarget.style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Copy size={14} />
+                  {language === 'es' ? 'Duplicar nota' : 'Duplicate note'}
                 </button>
                 <button
                   type="button"

@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
@@ -26,6 +26,7 @@ interface Props {
   onTogglePin: (note: Note) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
   onRenameNote: (id: string, title: string) => void;
+  onDuplicateNote: (id: string) => void;
   selectedFolder: Folder | null;
   searchQuery: string;
   uiScale?: number;
@@ -272,7 +273,7 @@ export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
   onRequestCreateFolder,
   onDeleteNote, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
-  onTogglePin, onMoveNote, onRenameNote, selectedFolder, searchQuery, uiScale = 1,
+  onTogglePin, onMoveNote, onRenameNote, onDuplicateNote, selectedFolder, searchQuery, uiScale = 1,
 }: Props) {
   const t = TRANSLATIONS[language];
   const isStickyFolder = selectedFolder?.id === 'sticky';
@@ -1300,6 +1301,16 @@ export default function NoteList({
           >
             <Star size={13} fill={contextMenu.note.pinned ? 'currentColor' : 'none'} color={contextMenu.note.pinned ? 'var(--accent-light)' : 'inherit'} style={{ flexShrink: 0 }} />
             <span>{contextMenu.note.pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}</span>
+          </button>
+          <button
+            disabled={isTrashFolder}
+            onClick={() => { onDuplicateNote(contextMenu.note.id); setContextMenu(null); }}
+            style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: isTrashFolder ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: isTrashFolder ? 0.4 : 1 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            <Copy size={13} style={{ flexShrink: 0 }} />
+            <span>{language === 'es' ? 'Duplicar nota' : 'Duplicate note'}</span>
           </button>
 
           {!isTrashFolder && folders.length > 0 && (
