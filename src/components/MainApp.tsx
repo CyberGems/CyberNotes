@@ -194,6 +194,7 @@ export default function MainApp({
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
   const [triggerNewFolderSignal, setTriggerNewFolderSignal] = useState(0);
   const isLoadedRef = useRef(false);
+  const settingsLoadedRef = useRef(false);
   const contentCacheRef = useRef<Record<string, string>>({});
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusBarUrlRef = useRef<string | null>(null);
@@ -493,6 +494,11 @@ export default function MainApp({
   }, []);
 
   const loadSettings = async () => {
+    // Anti-doble ejecución (StrictMode en dev monta los efectos dos veces):
+    // la segunda copia llegaba tarde con setNoteLoading(true) cuando la primera
+    // ya había resuelto, y como la nota no cambiaba el loader quedaba infinito.
+    if (settingsLoadedRef.current) return;
+    settingsLoadedRef.current = true;
     await loadDrafts();
     const s = await window.cyberNotesAPI.getSettings([
       'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity', 'auto_lock_minutes',
