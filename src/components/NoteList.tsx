@@ -1299,7 +1299,7 @@ export default function NoteList({
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
-            <Star size={13} fill={contextMenu.note.pinned ? 'currentColor' : 'none'} color={contextMenu.note.pinned ? 'var(--accent-light)' : 'inherit'} style={{ flexShrink: 0 }} />
+            <Star size={13} fill={contextMenu.note.pinned ? 'currentColor' : 'none'} stroke="currentColor" color={contextMenu.note.pinned ? 'var(--accent-light)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
             <span>{contextMenu.note.pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}</span>
           </button>
           <button
