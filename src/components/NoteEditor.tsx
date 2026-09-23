@@ -639,7 +639,7 @@ export function matchFontFamilyOption(activeFamily: string | null | undefined): 
 export type ToolbarItemId =
   | 'undo' | 'redo' | 'copy' | 'paste'
   | 'fontFamily' | 'fontSize'
-  | 'bold' | 'italic' | 'underline' | 'strike' | 'highlight'
+  | 'bold' | 'italic' | 'underline' | 'strike' | 'highlight' | 'clearFormat'
   | 'h1' | 'h2'
   | 'bullet' | 'ordered'
   | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
@@ -665,6 +665,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'underline', labelEs: 'Subrayado', labelEn: 'Underline', icon: UnderlineIcon },
   { id: 'strike', labelEs: 'Tachado', labelEn: 'Strikethrough', icon: Strikethrough },
   { id: 'highlight', labelEs: 'Resaltar', labelEn: 'Highlight', icon: Highlighter },
+  { id: 'clearFormat', labelEs: 'Limpiar formato', labelEn: 'Clear formatting', icon: RemoveFormatting },
   { id: 'h1', labelEs: 'Título 1', labelEn: 'Heading 1', icon: Heading1 },
   { id: 'h2', labelEs: 'Título 2', labelEn: 'Heading 2', icon: Heading2 },
   { id: 'bullet', labelEs: 'Lista de viñetas', labelEn: 'Bullet list', icon: List },
@@ -683,7 +684,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
 export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['undo', 'redo', 'copy', 'paste'],
   ['fontFamily', 'fontSize'],
-  ['bold', 'italic', 'underline', 'strike', 'highlight'],
+  ['bold', 'italic', 'underline', 'strike', 'highlight', 'clearFormat'],
   ['h1', 'h2'],
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
@@ -2376,6 +2377,8 @@ export default function NoteEditor({
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title={language === 'es' ? 'Tachado' : 'Strikethrough'}><Strikethrough size={15} /></ToolbarBtn>;
       case 'highlight':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title={language === 'es' ? 'Resaltar' : 'Highlight'}><Highlighter size={15} /></ToolbarBtn>;
+      case 'clearFormat':
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}><RemoveFormatting size={15} /></ToolbarBtn>;
       case 'h1':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title={language === 'es' ? 'Título 1' : 'Heading 1'}><Heading1 size={15} /></ToolbarBtn>;
       case 'h2':
@@ -3233,18 +3236,33 @@ export default function NoteEditor({
                         {hiddenToolbarItems.map((def) => (
                           <div
                             key={def.id}
+                            role="button"
+                            tabIndex={-1}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => {
+                              // Clic en la etiqueta o el relleno: reenvía al control.
+                              // Clics directos sobre el control se dejan pasar.
+                              if ((e.target as HTMLElement).closest('button, input, select, textarea, a')) return;
+                              const control = e.currentTarget.querySelector('button, input') as HTMLElement | null;
+                              control?.click();
+                              if (control instanceof HTMLInputElement) control.focus();
+                            }}
+                            className="word-menu-item"
                             style={{
                               display: 'flex', alignItems: 'center', gap: 8, padding: '3px 6px',
-                              borderRadius: 6, background: 'transparent',
+                              borderRadius: 6, cursor: 'pointer',
                             }}
                           >
                             <span style={{ display: 'inline-flex', flexShrink: 0 }}>
                               {renderToolbarControl(def.id, true)}
                             </span>
-                            <span style={{
-                              flex: 1, fontSize: 12, color: 'var(--text-secondary)',
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>
+                            <span
+                              className="more-label"
+                              style={{
+                                flex: 1, fontSize: 12,
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              }}
+                            >
                               {language === 'es' ? def.labelEs : def.labelEn}
                             </span>
                           </div>

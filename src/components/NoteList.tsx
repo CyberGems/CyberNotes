@@ -1764,7 +1764,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       <Tooltip placement="left" label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}>
         <button
           type="button"
-          className="delete-note-btn"
+          className={`delete-note-btn${isDense ? ' is-dense' : ''}`}
           onClick={e => {
             e.stopPropagation();
             onDelete();
@@ -1772,8 +1772,9 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
           aria-label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}
           style={{
             position: 'absolute',
-            top: isDense ? 3 : viewMode === 'compact' ? 5 : 8,
+            top: isDense ? '50%' : viewMode === 'compact' ? 5 : 8,
             right: 8,
+            transform: isDense ? 'translateY(-50%)' : undefined,
             zIndex: 5,
             background: 'rgba(20, 20, 25, 0.88)',
             backdropFilter: 'blur(6px)',
@@ -1804,6 +1805,9 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
           border-color: #ef4444 !important;
           box-shadow: none !important;
           transform: scale(1.08) !important;
+        }
+        .note-item:hover .delete-note-btn.is-dense:hover {
+          transform: translateY(-50%) scale(1.08) !important;
         }
       `}</style>
     </div>

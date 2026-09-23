@@ -300,6 +300,14 @@ body:has(.sticky-note-window),
 .word-menu-item.is-muted:hover {
   color: #fff;
 }
+/* Etiqueta de las filas del menú Más: hereda el hover de la fila. */
+.word-menu-item .more-label {
+  color: var(--text-secondary);
+  transition: color 0.14s ease;
+}
+.word-menu-item:hover .more-label {
+  color: #fff;
+}
 .word-menu-item.is-active {
   background: var(--accent-dim);
   color: var(--accent-light);
