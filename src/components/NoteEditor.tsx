@@ -27,7 +27,8 @@ import {
   Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
-    NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify, MoreHorizontal
+    NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify, MoreHorizontal, Type,
+    type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 
@@ -649,32 +650,33 @@ export interface ToolbarItemDef {
   id: ToolbarItemId;
   labelEs: string;
   labelEn: string;
+  icon: LucideIcon;
 }
 
 export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
-  { id: 'undo', labelEs: 'Deshacer', labelEn: 'Undo' },
-  { id: 'redo', labelEs: 'Rehacer', labelEn: 'Redo' },
-  { id: 'copy', labelEs: 'Copiar', labelEn: 'Copy' },
-  { id: 'paste', labelEs: 'Pegar', labelEn: 'Paste' },
-  { id: 'fontFamily', labelEs: 'Fuente', labelEn: 'Font' },
-  { id: 'fontSize', labelEs: 'Tamaño de letra', labelEn: 'Font size' },
-  { id: 'bold', labelEs: 'Negrita', labelEn: 'Bold' },
-  { id: 'italic', labelEs: 'Cursiva', labelEn: 'Italic' },
-  { id: 'underline', labelEs: 'Subrayado', labelEn: 'Underline' },
-  { id: 'strike', labelEs: 'Tachado', labelEn: 'Strikethrough' },
-  { id: 'highlight', labelEs: 'Resaltar', labelEn: 'Highlight' },
-  { id: 'h1', labelEs: 'Título 1', labelEn: 'Heading 1' },
-  { id: 'h2', labelEs: 'Título 2', labelEn: 'Heading 2' },
-  { id: 'bullet', labelEs: 'Lista de viñetas', labelEn: 'Bullet list' },
-  { id: 'ordered', labelEs: 'Lista numerada', labelEn: 'Numbered list' },
-  { id: 'alignLeft', labelEs: 'Alinear a la izquierda', labelEn: 'Align left' },
-  { id: 'alignCenter', labelEs: 'Centrar', labelEn: 'Center' },
-  { id: 'alignRight', labelEs: 'Alinear a la derecha', labelEn: 'Align right' },
-  { id: 'alignJustify', labelEs: 'Justificar', labelEn: 'Justify' },
-  { id: 'quote', labelEs: 'Cita', labelEn: 'Blockquote' },
-  { id: 'code', labelEs: 'Bloque de código', labelEn: 'Code block' },
-  { id: 'link', labelEs: 'Insertar enlace', labelEn: 'Insert link' },
-  { id: 'image', labelEs: 'Insertar imagen', labelEn: 'Insert image' },
+  { id: 'undo', labelEs: 'Deshacer', labelEn: 'Undo', icon: Undo },
+  { id: 'redo', labelEs: 'Rehacer', labelEn: 'Redo', icon: Redo },
+  { id: 'copy', labelEs: 'Copiar', labelEn: 'Copy', icon: Copy },
+  { id: 'paste', labelEs: 'Pegar', labelEn: 'Paste', icon: Clipboard },
+  { id: 'fontFamily', labelEs: 'Fuente', labelEn: 'Font', icon: Type },
+  { id: 'fontSize', labelEs: 'Tamaño de letra', labelEn: 'Font size', icon: ALargeSmall },
+  { id: 'bold', labelEs: 'Negrita', labelEn: 'Bold', icon: Bold },
+  { id: 'italic', labelEs: 'Cursiva', labelEn: 'Italic', icon: Italic },
+  { id: 'underline', labelEs: 'Subrayado', labelEn: 'Underline', icon: UnderlineIcon },
+  { id: 'strike', labelEs: 'Tachado', labelEn: 'Strikethrough', icon: Strikethrough },
+  { id: 'highlight', labelEs: 'Resaltar', labelEn: 'Highlight', icon: Highlighter },
+  { id: 'h1', labelEs: 'Título 1', labelEn: 'Heading 1', icon: Heading1 },
+  { id: 'h2', labelEs: 'Título 2', labelEn: 'Heading 2', icon: Heading2 },
+  { id: 'bullet', labelEs: 'Lista de viñetas', labelEn: 'Bullet list', icon: List },
+  { id: 'ordered', labelEs: 'Lista numerada', labelEn: 'Numbered list', icon: ListOrdered },
+  { id: 'alignLeft', labelEs: 'Alinear a la izquierda', labelEn: 'Align left', icon: AlignLeft },
+  { id: 'alignCenter', labelEs: 'Centrar', labelEn: 'Center', icon: AlignCenter },
+  { id: 'alignRight', labelEs: 'Alinear a la derecha', labelEn: 'Align right', icon: AlignRight },
+  { id: 'alignJustify', labelEs: 'Justificar', labelEn: 'Justify', icon: AlignJustify },
+  { id: 'quote', labelEs: 'Cita', labelEn: 'Blockquote', icon: Quote },
+  { id: 'code', labelEs: 'Bloque de código', labelEn: 'Code block', icon: Code },
+  { id: 'link', labelEs: 'Insertar enlace', labelEn: 'Insert link', icon: LinkIcon },
+  { id: 'image', labelEs: 'Insertar imagen', labelEn: 'Insert image', icon: ImageIcon },
 ];
 
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
@@ -3020,7 +3022,7 @@ export default function NoteEditor({
                       <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
                     </motion.button>
                   </Tooltip>
-                  <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+                  <div style={{ width: 1, alignSelf: 'stretch', minHeight: 18, background: 'var(--border)', margin: '4px 6px', flexShrink: 0 }} />
                 </motion.div>
               )}
             </AnimatePresence>

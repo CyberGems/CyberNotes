@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import { ThemeId, type UsageStats } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
-import { TOOLBAR_ITEMS } from './NoteEditor';
+import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, FileText, Star, Folder, Flame, Sigma, FilePlus2 } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, FileText, Star, Folder, Flame, Sigma, FilePlus2, Plus } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -1781,31 +1781,103 @@ export default function SettingsModal({
                   : 'Choose which buttons appear in the toolbar. Hidden ones live in the More (···) menu. You can also hide them by right-clicking each button.'}
               </p>
               <div className="settings-option-stack">
-                {TOOLBAR_ITEMS.map(item => {
-                  const visible = !hiddenToolbarIds.includes(item.id);
-                  const itemName = language === 'es' ? item.labelEs : item.labelEn;
-                  return (
-                    <label
-                      key={item.id}
-                      className="settings-option-row"
-                      style={{ padding: '10px 16px' }}
-                      onClick={() => {
-                        onHiddenToolbarIdsChange(
-                          visible
-                            ? [...hiddenToolbarIds, item.id]
-                            : hiddenToolbarIds.filter((x) => x !== item.id),
-                        );
-                      }}
-                    >
-                      <SettingsOptionCopy icon={<SlidersHorizontal />}>
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                          {itemName}
+                {(() => {
+                  const knownHidden = hiddenToolbarIds.filter((x): x is ToolbarItemDef['id'] =>
+                    TOOLBAR_ITEMS.some((d) => d.id === x));
+                  const visibleItems = TOOLBAR_ITEMS.filter((d) => !knownHidden.includes(d.id));
+                  const hiddenItems = TOOLBAR_ITEMS.filter((d) => knownHidden.includes(d.id));
+                  const chipStyle = (active: boolean): React.CSSProperties => ({
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '6px 8px 6px 10px',
+                    borderRadius: 8,
+                    border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    background: active ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                    color: active ? 'var(--accent-light)' : 'var(--text-secondary)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all var(--transition)',
+                  });
+                  const renderChip = (item: ToolbarItemDef, active: boolean) => {
+                    const Icon = item.icon;
+                    const itemName = language === 'es' ? item.labelEs : item.labelEn;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          onHiddenToolbarIdsChange(
+                            active
+                              ? [...knownHidden, item.id]
+                              : knownHidden.filter((x) => x !== item.id),
+                          );
+                        }}
+                        title={active
+                          ? (language === 'es' ? `Ocultar ${itemName}` : `Hide ${itemName}`)
+                          : (language === 'es' ? `Mostrar ${itemName}` : `Show ${itemName}`)}
+                        style={chipStyle(active)}
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.2)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = ''; }}
+                      >
+                        <Icon size={13} style={{ flexShrink: 0 }} />
+                        <span style={{ whiteSpace: 'nowrap' }}>{itemName}</span>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 16, height: 16, borderRadius: 4,
+                            background: active ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {active ? <X size={11} /> : <Plus size={11} />}
                         </span>
-                      </SettingsOptionCopy>
-                      <div className={`custom-switch ${visible ? 'active' : ''}`} />
-                    </label>
+                      </button>
+                    );
+                  };
+                  const bayStyle: React.CSSProperties = {
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-surface)',
+                    padding: 10,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                  };
+                  const bayTitleStyle: React.CSSProperties = {
+                    fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+                    textTransform: 'uppercase', color: 'var(--text-muted)', margin: '2px 2px 0',
+                  };
+                  const emptyHint = language === 'es' ? 'Vacía' : 'Empty';
+                  return (
+                    <>
+                      <div>
+                        <div style={bayTitleStyle}>
+                          {language === 'es' ? `En la barra (${visibleItems.length})` : `In toolbar (${visibleItems.length})`}
+                        </div>
+                        <div style={{ ...bayStyle, marginTop: 6 }}>
+                          {visibleItems.length === 0 && (
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 6px' }}>{emptyHint}</span>
+                          )}
+                          {visibleItems.map((item) => renderChip(item, true))}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={bayTitleStyle}>
+                          {language === 'es' ? `Ocultos en Más (${hiddenItems.length})` : `Hidden in More (${hiddenItems.length})`}
+                        </div>
+                        <div style={{ ...bayStyle, marginTop: 6 }}>
+                          {hiddenItems.length === 0 && (
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 6px' }}>{emptyHint}</span>
+                          )}
+                          {hiddenItems.map((item) => renderChip(item, false))}
+                        </div>
+                      </div>
+                    </>
                   );
-                })}
+                })()}
                 <button
                   type="button"
                   className="btn btn-ghost"
