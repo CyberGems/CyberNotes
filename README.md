@@ -198,8 +198,8 @@ Artifacts land in `release/`:
 
 | Artifact | Description |
 |---|---|
-| `CyberNotes_Setup_1.11.0.exe` | NSIS installer (interactive wizard, custom install dir) |
-| `CyberNotes_Portable_1.11.0.exe` | Portable build (zero-install) |
+| `CyberNotes_Setup_1.12.0.exe` | NSIS installer (interactive wizard, custom install dir) |
+| `CyberNotes_Portable_1.12.0.exe` | Portable build (zero-install) |
 
 ### 🛡️ Windows SmartScreen
 
