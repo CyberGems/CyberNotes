@@ -138,10 +138,25 @@ export default function MainApp({
 
   useModalKeys({
     enabled: showFirstCloseDialog,
-    // Sin cancelar: la opción segura (bandeja) es la que resaltamos.
-    onEsc: () => chooseFirstClose('tray'),
+    // Sin botón Cancelar para no saturar: Esc desestima (se queda en la app).
+    onEsc: () => setShowFirstCloseDialog(false),
     onEnter: () => chooseFirstClose('tray'),
   });
+
+  // Espacio = Salir (mapa CyberPaste). Se omite si el foco está en un control
+  // para no pelear con su comportamiento nativo (checkbox, botones).
+  useEffect(() => {
+    if (!showFirstCloseDialog) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' && (e as any).code !== 'Space') return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
+      e.preventDefault();
+      chooseFirstClose('quit');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showFirstCloseDialog, chooseFirstClose]);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [noteListWidth, setNoteListWidth] = useState(300);
@@ -2032,6 +2047,7 @@ export default function MainApp({
                   onClick={() => chooseFirstClose('quit')}
                 >
                   {language === 'es' ? 'Salir de CyberNotes' : 'Quit CyberNotes'}
+                  <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
                 </button>
               </div>
             </div>
