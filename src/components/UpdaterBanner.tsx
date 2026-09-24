@@ -49,7 +49,32 @@ function readSkippedVersion(): string | null {
 
 export function parseChangelogPeek(markdown?: string): { items: string[]; totalCount: number } {
   if (!markdown) return { items: [], totalCount: 0 };
-  const lines = markdown.split(/\r?\n/);
+  // Las notas pueden llegar como markdown crudo o ya renderizadas a HTML
+  // (p. ej. <p align>, <a target="_blank"> del cuerpo del release). El despojo
+  // de etiquetas es a nivel documento para cubrir tags partidos en líneas.
+  const textOnly = markdown
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(Number(n)));
+  const cleanInline = (text: string): string => text
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/:\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Restos sin contenido legible: URLs peladas, etc.
+  const isJunk = (text: string): boolean => {
+    if (!text) return true;
+    if (/^https?:\/\/\S+$/i.test(text)) return true;
+    return false;
+  };
+  const lines = textOnly.split(/\r?\n/);
   const allHighlights: string[] = [];
   let inHighlightsSection = false;
 
@@ -71,15 +96,10 @@ export function parseChangelogPeek(markdown?: string): { items: string[]; totalC
 
     if (rawLine.startsWith('- ') || rawLine.startsWith('* ')) {
       const text = rawLine.replace(/^[-*]\s+/, '').trim();
-      const cleaned = text
-        .replace(/\*\*([^*]+)\*\*/g, '$1')
-        .replace(/\*([^*]+)\*/g, '$1')
-        .replace(/`([^`]+)`/g, '$1')
-        .replace(/:\s*$/, '')
-        .trim();
+      const cleaned = cleanInline(text);
 
       if (
-        cleaned &&
+        !isJunk(cleaned) &&
         !cleaned.toLowerCase().includes('recommended installer') &&
         !cleaned.toLowerCase().includes('setup installer')
       ) {
@@ -92,15 +112,9 @@ export function parseChangelogPeek(markdown?: string): { items: string[]; totalC
     for (const raw of lines) {
       const line = raw.trim();
       if (line.startsWith('- ') || line.startsWith('* ')) {
-        const cleaned = line
-          .replace(/^[-*]\s+/, '')
-          .replace(/\*\*([^*]+)\*\*/g, '$1')
-          .replace(/\*([^*]+)\*/g, '$1')
-          .replace(/`([^`]+)`/g, '$1')
-          .replace(/:\s*$/, '')
-          .trim();
+        const cleaned = cleanInline(line.replace(/^[-*]\s+/, ''));
         if (
-          cleaned &&
+          !isJunk(cleaned) &&
           !cleaned.toLowerCase().includes('recommended installer') &&
           !cleaned.toLowerCase().includes('setup installer')
         ) {
@@ -114,12 +128,8 @@ export function parseChangelogPeek(markdown?: string): { items: string[]; totalC
     for (const raw of lines) {
       const line = raw.trim();
       if (line && !line.startsWith('#') && !line.startsWith('---') && !line.startsWith('|')) {
-        const cleaned = line
-          .replace(/\*\*([^*]+)\*\*/g, '$1')
-          .replace(/\*([^*]+)\*/g, '$1')
-          .replace(/`([^`]+)`/g, '$1')
-          .trim();
-        if (cleaned.length > 10) {
+        const cleaned = cleanInline(line);
+        if (!isJunk(cleaned) && cleaned.length > 10) {
           allHighlights.push(cleaned);
           if (allHighlights.length >= 2) break;
         }
@@ -684,3 +694,4 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     </div>
   );
 }
+

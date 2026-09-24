@@ -149,9 +149,8 @@ export function initUpdater(autoUpdate: boolean): void {
     autoUpdater.on('update-available', async (info) => {
       downloadedVersion = null;
       clearAutoInstallTimer();
-      // manualCheck sigue activo durante checkForUpdates: un chequeo manual
-      // solo debe mostrar opciones, nunca descargar solo.
-      autoCycle = !manualCheck;
+      // autoCycle NO se toca aquí: conserva el último valor explícito para que
+      // un chequeo manual tardío no reactive descargas automáticas por carrera.
       const details = await fetchReleaseDetails(info.version, info.releaseNotes);
       broadcast({
         state: 'available',
@@ -225,6 +224,7 @@ export function setAutoUpdate(enabled: boolean): void {
   if (enabled && !was) {
     downloadedVersion = null;
     clearAutoInstallTimer();
+    autoCycle = true;
     schedulePeriodicChecks();
     setTimeout(() => doCheckSilently(), 2000);
   } else if (!enabled) {
@@ -239,6 +239,9 @@ function registerUpdateIpc(): void {
 
   ipcMain.handle('update:check', async () => {
     manualCheck = true;
+    // Pedido explícito del usuario: ciclo manual desde ya (sin esperar al
+    // evento), para que nada automático arranque por carrera.
+    autoCycle = false;
     try {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Update check timed out')), 20000);
@@ -278,8 +281,10 @@ function registerUpdateIpc(): void {
   });
 
   ipcMain.handle('update:cancelAutoInstall', () => {
+    // Intervención del usuario (más tarde, descartar, omitir): ciclo manual,
+    // sin reemisión para no resucitar el banner de una versión omitida.
+    autoCycle = false;
     clearAutoInstallTimer();
-    if (downloadedVersion) broadcast({ state: 'downloaded', version: downloadedVersion });
     return true;
   });
 }
