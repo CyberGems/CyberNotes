@@ -12,6 +12,11 @@ import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import { Table as TableIcon } from 'lucide-react';
 import { Note, Folder, type NoteRevision } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { playSynthSound } from '../utils/audio';
@@ -656,6 +661,139 @@ export function ChangeCaseSelect({
   );
 }
 
+/** Botón tabla estilo Word: presets cuadrados + modal personalizado. */
+export function TableSelect({
+  editor, language, hideTooltip = false,
+}: {
+  editor: Editor | null; language: Language; hideTooltip?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [rows, setRows] = useState(2);
+  const [cols, setCols] = useState(2);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+  const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp: false, minWidth: 170 });
+  useModalKeys({ enabled: customOpen, onEsc: () => setCustomOpen(false) });
+  if (!editor) return null;
+  const insert = (r: number, c: number) => {
+    editor.chain().focus().insertTable({ rows: Math.max(1, r), cols: Math.max(1, c), withHeaderRow: true }).run();
+    setOpen(false);
+    setCustomOpen(false);
+  };
+  const trigger = (
+    <button
+      ref={anchorRef}
+      type="button"
+      data-word-combo="table"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => setOpen((v) => !v)}
+      className="word-combo"
+      aria-label={language === 'es' ? 'Insertar tabla' : 'Insert table'}      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: 30, padding: '0 8px',
+        background: open ? 'var(--accent-dim)' : 'var(--bg-surface)',
+        border: open ? '1px solid var(--accent)' : '1px solid var(--border)',
+        borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
+      }}
+    >
+      <TableIcon size={15} />
+    </button>
+  );
+  const countOptions = Array.from({ length: 12 }, (_, i) => i + 1);
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      {hideTooltip ? trigger : (
+        <Tooltip label={language === 'es' ? 'Insertar tabla (Ctrl+T)' : 'Insert table (Ctrl+T)'} placement="bottom">
+          {trigger}
+        </Tooltip>
+      )}
+      {open && createPortal(
+        <>
+          <div
+            data-word-menu="true"
+            style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setOpen(false)}
+          />
+          <div data-word-menu="true" style={{ ...wordMenuBoxStyle, ...menuStyle }}>
+            {[2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insert(n, n)}
+                className="word-menu-item"
+                style={{
+                  padding: '5px 10px', borderRadius: 6, cursor: 'pointer', textAlign: 'center',
+                  border: 'none', fontSize: 12, fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {`${n}x${n}`}
+              </button>
+            ))}
+            <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }} />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setOpen(false); setRows(2); setCols(2); setCustomOpen(true); }}
+              className="word-menu-item is-muted"
+              style={{
+                padding: '5px 10px', borderRadius: 6, cursor: 'pointer', textAlign: 'center',
+                border: 'none', fontSize: 12,
+              }}
+            >
+              {language === 'es' ? 'Personalizada (Ctrl+T)' : 'Custom (Ctrl+T)'}
+            </button>
+          </div>
+        </>,
+        document.body,
+      )}
+      {customOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setCustomOpen(false)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={language === 'es' ? 'Insertar tabla' : 'Insert table'}
+            style={{ width: 300 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {language === 'es' ? 'Insertar tabla' : 'Insert table'}
+              </h3>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', gap: 12 }}>
+              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                {language === 'es' ? 'Filas' : 'Rows'}
+                <select className="input" value={rows} onChange={(e) => setRows(Number(e.target.value))}>
+                  {countOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                {language === 'es' ? 'Columnas' : 'Columns'}
+                <select className="input" value={cols} onChange={(e) => setCols(Number(e.target.value))}>
+                  {countOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => setCustomOpen(false)}>
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button type="button" className="modal-action-btn is-save" onClick={() => insert(rows, cols)}>
+                {language === 'es' ? 'Crear' : 'Create'}
+                <EnterGlyph />
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 /** Misma huella táctil que ToolbarBtn (barra de formato del editor). */
 const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProperties => ({
   background: active ? (opts?.warn ? 'rgba(239, 68, 68, 0.12)' : 'var(--accent-dim)') : 'transparent',
@@ -749,7 +887,7 @@ export type ToolbarItemId =
   | 'bullet' | 'ordered'
   | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
   | 'quote' | 'code'
-  | 'link' | 'image';
+  | 'link' | 'image' | 'table';
 
 export interface ToolbarItemDef {
   id: ToolbarItemId;
@@ -784,6 +922,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'code', labelEs: 'Bloque de código', labelEn: 'Code block', icon: Code },
   { id: 'link', labelEs: 'Insertar enlace', labelEn: 'Insert link', icon: LinkIcon },
   { id: 'image', labelEs: 'Insertar imagen', labelEn: 'Insert image', icon: ImageIcon },
+  { id: 'table', labelEs: 'Insertar tabla', labelEn: 'Insert table', icon: TableIcon },
 ];
 
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
@@ -797,7 +936,7 @@ export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
-  ['link', 'image'],
+  ['link', 'image', 'table'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
@@ -1815,6 +1954,10 @@ export default function NoteEditor({
       Underline,
       Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       FontSize,
       FontFamily,
     ],
@@ -1875,8 +2018,13 @@ export default function NoteEditor({
           }
         }
 
-        // Tab = sangría / espacios; evita saltar el foco a otros controles de la UI
+        // Tab = sangría / espacios; evita saltar el foco a otros controles de la UI.
+        // Dentro de tablas se deja pasar: TipTap navega entre celdas.
         if (event.key === 'Tab') {
+          const { $from: $tabFrom } = _view.state.selection;
+          for (let d = $tabFrom.depth; d > 0; d--) {
+            if ($tabFrom.node(d).type.name === 'table') return false;
+          }
           event.preventDefault();
 
           const { state, dispatch } = _view;
@@ -1971,6 +2119,14 @@ export default function NoteEditor({
             changeCaseCycleRef.current += 1;
             applyChangeCase(editor, kind);
           }
+          return true;
+        }
+
+        // Ctrl+T = abrir el picker de tablas.
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 't') {
+          event.preventDefault();
+          const btn = editorRootRef.current?.querySelector('[data-word-combo="table"]') as HTMLElement | null;
+          btn?.click();
           return true;
         }
 
@@ -2696,6 +2852,12 @@ export default function NoteEditor({
         return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={editor.isActive('link') || menuHl} title={language === 'es' ? 'Insertar link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}><LinkIcon size={15} /></ToolbarBtn>;
       case 'image':
         return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen (Ctrl+G)' : 'Insert Image (Ctrl+G)'}><ImageIcon size={15} /></ToolbarBtn>;
+      case 'table':
+        return (
+          <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
+            <TableSelect editor={editor} language={language} hideTooltip={tipOff} />
+          </span>
+        );
       default:
         return null;
     }

@@ -6,6 +6,10 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
 import TiptapImage from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -380,6 +384,11 @@ export default function StickyNoteApp({ noteId }: Props) {
       Underline,
       Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      // Tablas solo para leer/escribir sin borrarlas (el mini no edita tablas).
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       // Necesario para leer y escribir tamaños y fuentes por selección (misma
       // marca que el editor principal; sin esto, el sticky los borraría al guardar).
       FontSize,

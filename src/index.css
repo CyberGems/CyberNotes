@@ -794,6 +794,37 @@ body:has(.sticky-note-window),
   box-shadow: 0 20px 40px rgba(0,0,0,0.4);
 }
 
+/* Tablas TipTap: bordes sobrios + celda activa visible. */
+.ProseMirror table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+  table-layout: fixed;
+  overflow: hidden;
+}
+.ProseMirror td,
+.ProseMirror th {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  vertical-align: top;
+  min-width: 2em;
+  position: relative;
+}
+.ProseMirror th {
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 700;
+  text-align: left;
+}
+.ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  pointer-events: none;
+}
+
 .title-input::placeholder {
   color: var(--text-muted);
   opacity: 0.3;
