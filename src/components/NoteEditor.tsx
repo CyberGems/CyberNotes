@@ -354,7 +354,7 @@ export function WordFontFamilySelect({
             style={{
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left',
               fontFamily: matched ? matched.family : 'inherit',
-              color: matched ? 'var(--accent-light)' : undefined,
+              color: matched ? 'var(--accent-light)' : 'var(--text-secondary)',
             }}
           >
         {matched ? matched.label : (compact ? t.editor.fontFamily : t.editor.fontFamilyDefault)}
@@ -489,7 +489,7 @@ export function WordFontSizeSelect({
         }}
             style={{
               width: '100%', minWidth: 0, flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              color: docNum ? 'var(--accent-light)' : 'var(--text-primary)',
+              color: docNum ? 'var(--accent-light)' : 'var(--text-secondary)',
               fontSize: compact ? 11 : 12, fontWeight: 600,
               textAlign: 'center', padding: 0, fontVariantNumeric: 'tabular-nums',
             }}
