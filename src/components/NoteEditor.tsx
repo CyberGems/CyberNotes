@@ -338,22 +338,25 @@ export function WordFontFamilySelect({
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setOpen((v) => !v)}
       className="word-combo"
-      style={{
+          style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
             width: buttonWidth, maxWidth: buttonWidth,
-        height: compact ? 24 : 30, padding: compact ? '0 6px' : '0 8px',
-        background: open || matched ? 'var(--accent-dim)' : 'var(--bg-surface)',
-        border: open || matched ? '1px solid var(--accent)' : '1px solid var(--border)',
-        borderRadius: 6, cursor: 'pointer', color: 'var(--text-primary)',
-        fontSize: compact ? 11 : 12,
-      }}
-    >
-      <span
-        style={{
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left',
-          fontFamily: matched ? matched.family : 'inherit',
-        }}
-      >
+            height: compact ? 24 : 30, padding: compact ? '0 6px' : '0 8px',
+            // Indicador suave de formato no default: solo el valor teñido.
+            // El borde acento se reserva al desplegable abierto.
+            background: open ? 'var(--accent-dim)' : 'var(--bg-surface)',
+            border: open ? '1px solid var(--accent)' : '1px solid var(--border)',
+            borderRadius: 6, cursor: 'pointer', color: 'var(--text-primary)',
+            fontSize: compact ? 11 : 12,
+          }}
+        >
+          <span
+            style={{
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left',
+              fontFamily: matched ? matched.family : 'inherit',
+              color: matched ? 'var(--accent-light)' : undefined,
+            }}
+          >
         {matched ? matched.label : (compact ? t.editor.fontFamily : t.editor.fontFamilyDefault)}
       </span>
       <span style={{ color: 'var(--text-muted)', display: 'inline-flex', flexShrink: 0 }}>▾</span>
@@ -457,8 +460,8 @@ export function WordFontSizeSelect({
       style={{
         display: 'flex', alignItems: 'stretch',
         width: compact ? 52 : 62, height: compact ? 24 : 30,
-        background: open || docNum ? 'var(--accent-dim)' : 'var(--bg-surface)',
-        border: open || docNum ? '1px solid var(--accent)' : '1px solid var(--border)',
+        background: open ? 'var(--accent-dim)' : 'var(--bg-surface)',
+        border: open ? '1px solid var(--accent)' : '1px solid var(--border)',
         borderRadius: 6, overflow: 'hidden',
       }}
     >
@@ -484,11 +487,12 @@ export function WordFontSizeSelect({
           else if (e.key === 'Escape') { setDraft(null); setOpen(false); (e.target as HTMLInputElement).blur(); }
           else if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); }
         }}
-        style={{
-          width: '100%', minWidth: 0, flex: 1, background: 'transparent', border: 'none', outline: 'none',
-          color: 'var(--text-primary)', fontSize: compact ? 11 : 12, fontWeight: 600,
-          textAlign: 'center', padding: 0, fontVariantNumeric: 'tabular-nums',
-        }}
+            style={{
+              width: '100%', minWidth: 0, flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              color: docNum ? 'var(--accent-light)' : 'var(--text-primary)',
+              fontSize: compact ? 11 : 12, fontWeight: 600,
+              textAlign: 'center', padding: 0, fontVariantNumeric: 'tabular-nums',
+            }}
       />
       <button
         type="button"
