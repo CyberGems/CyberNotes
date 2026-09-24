@@ -7,7 +7,8 @@ export interface UsageStats {
   currentStreak: number;
   longestStreak: number;
   totalUnlocks: number;
-  totalCreated: number;
+  createdTotal: number;
+  stickiesTotal: number;
   avgWords: number;
   newWeek: number;
   totals: {

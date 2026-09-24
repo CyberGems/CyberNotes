@@ -318,6 +318,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const pasteNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const zoomPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickyEditorRef = useRef<Editor | null>(null);
   const zoomRef = useRef(1);
   const editorContentRef = useRef<string>('');
   const noteRef = useRef<Note | null>(null);
@@ -392,6 +393,38 @@ export default function StickyNoteApp({ noteId }: Props) {
       attributes: {
         spellcheck: 'true',
       },
+      // Mismo set simple que el editor principal (h1/h2/cita/código quedan en
+      // sus atajos dobles por defecto). Alt+F/T enfoca los combos del footer.
+      handleKeyDown: (_view, event) => {
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+          const k = event.key.toLowerCase();
+          const ed = stickyEditorRef.current;
+          if (ed) {
+            switch (k) {
+              case 'h': event.preventDefault(); ed.chain().focus().toggleHighlight().run(); return true;
+              case '7': event.preventDefault(); ed.chain().focus().toggleOrderedList().run(); return true;
+              case '8': event.preventDefault(); ed.chain().focus().toggleBulletList().run(); return true;
+              case 'l': event.preventDefault(); ed.chain().focus().setTextAlign('left').run(); return true;
+              case 'e': event.preventDefault(); ed.chain().focus().setTextAlign('center').run(); return true;
+              case 'r': event.preventDefault(); ed.chain().focus().setTextAlign('right').run(); return true;
+              case 'j': event.preventDefault(); ed.chain().focus().setTextAlign('justify').run(); return true;
+            }
+          }
+        }
+        if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+          const k = event.key.toLowerCase();
+          if (k === 'f' || k === 't') {
+            event.preventDefault();
+            const target = document.querySelector(
+              k === 'f' ? '[data-word-combo="family"]' : '[data-word-combo="size"] input',
+            ) as HTMLElement | null;
+            if (k === 'f') target?.click();
+            else (target as HTMLInputElement | null)?.focus();
+            return true;
+          }
+        }
+        return false;
+      },
       handlePaste: (view, event) => {
         const imageItem = Array.from(event.clipboardData?.items || [])
           .find(item => item.kind === 'file' && item.type.startsWith('image/'));
@@ -417,6 +450,9 @@ export default function StickyNoteApp({ noteId }: Props) {
       scheduleSave();
     },
   });
+
+  // Ref sincronizado para los atajos de teclado (el handler se define antes).
+  stickyEditorRef.current = editor;
 
   // Los combos Word del footer leen el estado directo del editor en cada
   // render (igual que los botones bold/italic), sin estado local aquí.
@@ -614,7 +650,16 @@ export default function StickyNoteApp({ noteId }: Props) {
   };
 
   const handleCreateStickyNote = async () => {
-    await window.cyberNotesAPI.createAndOpenStickyNote();
+    const newId = await window.cyberNotesAPI.createAndOpenStickyNote();
+    if (!newId) return;
+    try {
+      const notesCreated = await window.cyberNotesAPI.getSetting('notes_created_total');
+      await window.cyberNotesAPI.setSetting('notes_created_total', String(((notesCreated ? parseInt(notesCreated, 10) : 0) || 0) + 1));
+      const stickiesCreated = await window.cyberNotesAPI.getSetting('stickies_created_total');
+      await window.cyberNotesAPI.setSetting('stickies_created_total', String(((stickiesCreated ? parseInt(stickiesCreated, 10) : 0) || 0) + 1));
+    } catch {
+      /* nunca romper la creación por estadísticas */
+    }
   };
 
   const handleStickyContextAction = async (action: StickyContextAction) => {

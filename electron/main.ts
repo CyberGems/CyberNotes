@@ -537,8 +537,9 @@ function computeUsageStats() {
     if (Number.isFinite(created) && created >= weekAgo) newWeek++;
   }
   const folderRows = queryAll('SELECT COUNT(*) as count FROM folders') as { count: number }[];
-  const createdRows = queryAll('SELECT COUNT(*) as count FROM notes') as { count: number }[];
   const unlockRow = queryGet('SELECT value FROM settings WHERE key = ?', ['unlock_count']);
+  const createdRow = queryGet('SELECT value FROM settings WHERE key = ?', ['notes_created_total']);
+  const stickiesRow = queryGet('SELECT value FROM settings WHERE key = ?', ['stickies_created_total']);
 
   return {
     firstOpen: days.length > 0 ? days[0] : null,
@@ -547,7 +548,8 @@ function computeUsageStats() {
     currentStreak,
     longestStreak,
     totalUnlocks: unlockRow ? Number(unlockRow.value) || 0 : 0,
-    totalCreated: createdRows.length > 0 ? Number(createdRows[0].count) || 0 : 0,
+    createdTotal: createdRow ? Number(createdRow.value) || 0 : 0,
+    stickiesTotal: stickiesRow ? Number(stickiesRow.value) || 0 : 0,
     avgWords: notes.length > 0 ? Math.round((words / notes.length) * 10) / 10 : 0,
     newWeek,
     totals: {
@@ -2377,6 +2379,8 @@ ipcMain.handle('stats:purgeUsage', () => {
   try {
     runQuery('DELETE FROM usage_days');
     runQuery('DELETE FROM settings WHERE key = ?', ['unlock_count']);
+    runQuery('DELETE FROM settings WHERE key = ?', ['notes_created_total']);
+    runQuery('DELETE FROM settings WHERE key = ?', ['stickies_created_total']);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: String((err as Error)?.message || err) };
@@ -2405,6 +2409,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'toggle_hotkey', 'toggle_hotkey_enabled',
   'auth_method', 'show_suite_promo', 'usage_stats_enabled', 'usage_stats_expanded',
   'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
+  'notes_created_total', 'stickies_created_total',
 ]);
 
 const SETTINGS_RESERVED_KEYS: ReadonlySet<string> = new Set([

@@ -334,6 +334,7 @@ export function WordFontFamilySelect({
     <button
       ref={anchorRef}
       type="button"
+      data-word-combo="family"
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setOpen((v) => !v)}
       className="word-combo"
@@ -451,6 +452,7 @@ export function WordFontSizeSelect({
   const sizeBox = (
     <div
       ref={anchorRef}
+      data-word-combo="size"
       className="word-combo"
       style={{
         display: 'flex', alignItems: 'stretch',
@@ -1780,6 +1782,50 @@ export default function NoteEditor({
           return true;
         }
 
+        // Atajos simples de formato (un solo modificador para lo frecuente).
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+          if (!editor) return false;
+          const k = event.key.toLowerCase();
+          const runFormat = (): boolean => {
+            switch (k) {
+              case 'h': editor.chain().focus().toggleHighlight().run(); break;
+              case '1': editor.chain().focus().toggleHeading({ level: 1 }).run(); break;
+              case '2': editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
+              case '7': editor.chain().focus().toggleOrderedList().run(); break;
+              case '8': editor.chain().focus().toggleBulletList().run(); break;
+              case 'q': editor.chain().focus().toggleBlockquote().run(); break;
+              case 'l': editor.chain().focus().setTextAlign('left').run(); break;
+              case 'e': editor.chain().focus().setTextAlign('center').run(); break;
+              case 'r': editor.chain().focus().setTextAlign('right').run(); break;
+              case 'j': editor.chain().focus().setTextAlign('justify').run(); break;
+              case 'g': handleInsertImage(); break;
+              case ' ':
+                editor.chain().focus().clearNodes().unsetAllMarks().run();
+                break;
+              default: return false;
+            }
+            return true;
+          };
+          if (runFormat()) {
+            event.preventDefault();
+            return true;
+          }
+        }
+
+        // Alt+F / Alt+T = llevar el foco a los combos de fuente y tamaño.
+        if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+          const k = event.key.toLowerCase();
+          if (k === 'f' || k === 't') {
+            event.preventDefault();
+            const target = editorRootRef.current?.querySelector(
+              k === 'f' ? '[data-word-combo="family"]' : '[data-word-combo="size"] input',
+            ) as HTMLElement | null;
+            if (k === 'f') target?.click();
+            else (target as HTMLInputElement | null)?.focus();
+            return true;
+          }
+        }
+
         if (event.key === 'Escape') {
           const listEl = document.querySelector('[data-notelist-container="true"]') as HTMLElement | null;
           if (listEl) {
@@ -2469,33 +2515,33 @@ export default function NoteEditor({
       case 'strike':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike') || menuHl} title={language === 'es' ? 'Tachado (Ctrl+Mayús+S)' : 'Strikethrough (Ctrl+Shift+S)'}><Strikethrough size={15} /></ToolbarBtn>;
       case 'highlight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight') || menuHl} title={language === 'es' ? 'Resaltar (Ctrl+Mayús+H)' : 'Highlight (Ctrl+Shift+H)'}><Highlighter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight') || menuHl} title={language === 'es' ? 'Resaltar (Ctrl+H)' : 'Highlight (Ctrl+H)'}><Highlighter size={15} /></ToolbarBtn>;
       case 'clearFormat':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} active={menuHl} title={language === 'es' ? 'Limpiar formato' : 'Clear formatting'}><RemoveFormatting size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} active={menuHl} title={language === 'es' ? 'Limpiar formato (Ctrl+Espacio)' : 'Clear formatting (Ctrl+Space)'}><RemoveFormatting size={15} /></ToolbarBtn>;
       case 'h1':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 }) || menuHl} title={language === 'es' ? 'Título 1 (Ctrl+Alt+1)' : 'Heading 1 (Ctrl+Alt+1)'}><Heading1 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 }) || menuHl} title={language === 'es' ? 'Título 1 (Ctrl+1)' : 'Heading 1 (Ctrl+1)'}><Heading1 size={15} /></ToolbarBtn>;
       case 'h2':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 }) || menuHl} title={language === 'es' ? 'Título 2 (Ctrl+Alt+2)' : 'Heading 2 (Ctrl+Alt+2)'}><Heading2 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 }) || menuHl} title={language === 'es' ? 'Título 2 (Ctrl+2)' : 'Heading 2 (Ctrl+2)'}><Heading2 size={15} /></ToolbarBtn>;
       case 'bullet':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList') || menuHl} title={language === 'es' ? 'Lista (Ctrl+Mayús+8)' : 'Bullet List (Ctrl+Shift+8)'}><List size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList') || menuHl} title={language === 'es' ? 'Lista (Ctrl+8)' : 'Bullet List (Ctrl+8)'}><List size={15} /></ToolbarBtn>;
       case 'ordered':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList') || menuHl} title={language === 'es' ? 'Lista numerada (Ctrl+Mayús+7)' : 'Numbered List (Ctrl+Shift+7)'}><ListOrdered size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList') || menuHl} title={language === 'es' ? 'Lista numerada (Ctrl+7)' : 'Numbered List (Ctrl+7)'}><ListOrdered size={15} /></ToolbarBtn>;
       case 'alignLeft':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' }) || menuHl} title={language === 'es' ? 'Alinear a la izquierda' : 'Align left'}><AlignLeft size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' }) || menuHl} title={language === 'es' ? 'Alinear a la izquierda (Ctrl+L)' : 'Align left (Ctrl+L)'}><AlignLeft size={15} /></ToolbarBtn>;
       case 'alignCenter':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' }) || menuHl} title={language === 'es' ? 'Centrar' : 'Center'}><AlignCenter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' }) || menuHl} title={language === 'es' ? 'Centrar (Ctrl+E)' : 'Center (Ctrl+E)'}><AlignCenter size={15} /></ToolbarBtn>;
       case 'alignRight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' }) || menuHl} title={language === 'es' ? 'Alinear a la derecha' : 'Align right'}><AlignRight size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' }) || menuHl} title={language === 'es' ? 'Alinear a la derecha (Ctrl+R)' : 'Align right (Ctrl+R)'}><AlignRight size={15} /></ToolbarBtn>;
       case 'alignJustify':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' }) || menuHl} title={language === 'es' ? 'Justificar' : 'Justify'}><AlignJustify size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' }) || menuHl} title={language === 'es' ? 'Justificar (Ctrl+J)' : 'Justify (Ctrl+J)'}><AlignJustify size={15} /></ToolbarBtn>;
       case 'quote':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote') || menuHl} title={language === 'es' ? 'Cita (Ctrl+Mayús+B)' : 'Blockquote (Ctrl+Shift+B)'}><Quote size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote') || menuHl} title={language === 'es' ? 'Cita (Ctrl+Q)' : 'Blockquote (Ctrl+Q)'}><Quote size={15} /></ToolbarBtn>;
       case 'code':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock') || menuHl} title={language === 'es' ? 'Bloque de código (Ctrl+Alt+C)' : 'Code block (Ctrl+Alt+C)'}><Code size={15} /></ToolbarBtn>;
       case 'link':
         return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={editor.isActive('link') || menuHl} title={language === 'es' ? 'Insertar link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}><LinkIcon size={15} /></ToolbarBtn>;
       case 'image':
-        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen' : 'Insert Image'}><ImageIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen (Ctrl+G)' : 'Insert Image (Ctrl+G)'}><ImageIcon size={15} /></ToolbarBtn>;
       default:
         return null;
     }

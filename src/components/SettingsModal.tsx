@@ -5,7 +5,7 @@ import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Star, Folder, Flame, Sigma, FilePlus2, Plus, Layers } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -136,9 +136,9 @@ function UsageTiles({ stats, language }: { stats: UsageStats; language: Language
   const fmt1 = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(n);
   const tiles = [
     {
-      icon: <Layers size={14} />, value: fmt(stats.totalCreated),
+      icon: <Layers size={14} />, value: fmt(stats.createdTotal),
       label: language === 'es' ? 'Creadas' : 'Created',
-      tip: language === 'es' ? 'Notas creadas en total (incluye papelera)' : 'Total notes created (including trash)',
+      tip: language === 'es' ? 'Notas creadas desde que se empezaron a contar' : 'Notes created since counting started',
     },
     {
       icon: <Type size={14} />, value: fmt(stats.totals.words),
@@ -151,9 +151,9 @@ function UsageTiles({ stats, language }: { stats: UsageStats; language: Language
       tip: language === 'es' ? 'Carpetas creadas' : 'Created folders',
     },
     {
-      icon: <Star size={14} />, value: fmt(stats.totals.favorites),
-      label: language === 'es' ? 'Favoritas' : 'Favorites',
-      tip: language === 'es' ? 'Notas marcadas favoritas' : 'Favorite notes',
+      icon: <StickyNote size={14} />, value: fmt(stats.stickiesTotal),
+      label: language === 'es' ? 'Flotantes' : 'Floating',
+      tip: language === 'es' ? 'Notas flotantes creadas' : 'Floating notes created',
     },
     {
       icon: <Image size={14} />, value: fmt(stats.totals.images),

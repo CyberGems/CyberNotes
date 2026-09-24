@@ -923,6 +923,17 @@ export default function MainApp({
     }, 250);
   }, [selectedFolderId]);
 
+  /** Contadores acumulativos de estadísticas (creadas y flotantes). */
+  const bumpSettingCounter = useCallback(async (key: string) => {
+    try {
+      const cur = await window.cyberNotesAPI.getSetting(key);
+      const next = (cur ? parseInt(cur, 10) : 0) || 0;
+      await window.cyberNotesAPI.setSetting(key, String(next + 1));
+    } catch {
+      /* nunca romper la creación por estadísticas */
+    }
+  }, []);
+
   const handleCreateNote = useCallback(async (kind: 'note' | 'floating' | 'favorite' = 'note') => {
     const createFloating = kind === 'floating';
     if (createFloating) {
@@ -947,6 +958,8 @@ export default function MainApp({
           setOpenNoteIds(prev => insertTabAfter(prev, newId, selectedNoteIdRef.current));
           setSelectedNote({ ...meta, content: '' });
           setSelectedNoteId(newId);
+          void bumpSettingCounter('notes_created_total');
+          void bumpSettingCounter('stickies_created_total');
         }
       } catch (err) {
         console.error('[MainApp] Error creating sticky note:', err);
@@ -971,6 +984,7 @@ export default function MainApp({
     };
     try {
       const saved = await window.cyberNotesAPI.saveNote(newNote);
+      void bumpSettingCounter('notes_created_total');
       contentCacheRef.current[saved.id] = saved.content || '';
       const meta = toNoteMeta(saved);
       setNotes(prev => [meta, ...prev]);
@@ -984,7 +998,7 @@ export default function MainApp({
     } catch (err) {
       console.error('[MainApp] Error creating note:', err);
     }
-  }, [selectedFolderId, language]);
+  }, [selectedFolderId, language, bumpSettingCounter]);
 
   /** Duplica una nota como gemela idéntica (carpeta, favorito y flotante) y la abre. */
   const handleDuplicateNote = useCallback(async (id: string) => {
@@ -1017,7 +1031,8 @@ export default function MainApp({
     }
   }, [language]);
 
-  const handleSaveNote = useCallback(async (note: Note) => {    const thumb = note.thumb || extractThumb(note.content);
+  const handleSaveNote = useCallback(async (note: Note) => {
+    const thumb = note.thumb || extractThumb(note.content);
     const updated = { ...note, thumb, updated_at: new Date().toISOString() };
     contentCacheRef.current[updated.id] = updated.content || '';
     patchNoteMeta(updated);
