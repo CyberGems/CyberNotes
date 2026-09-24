@@ -708,13 +708,15 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
 export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['undo', 'redo', 'copy', 'paste'],
-  ['fontFamily', 'fontSize'],
   ['bold', 'italic', 'underline', 'strike', 'highlight', 'clearFormat'],
   ['h1', 'h2'],
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
   ['link', 'image'],
+  // Fuente/tamaño al final: su ancho varía con la selección y el espaciador
+  // flexible absorbe el cambio sin mover ningún otro botón.
+  ['fontFamily', 'fontSize'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
