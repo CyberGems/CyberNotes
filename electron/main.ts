@@ -537,6 +537,7 @@ function computeUsageStats() {
     if (Number.isFinite(created) && created >= weekAgo) newWeek++;
   }
   const folderRows = queryAll('SELECT COUNT(*) as count FROM folders') as { count: number }[];
+  const createdRows = queryAll('SELECT COUNT(*) as count FROM notes') as { count: number }[];
   const unlockRow = queryGet('SELECT value FROM settings WHERE key = ?', ['unlock_count']);
 
   return {
@@ -546,6 +547,7 @@ function computeUsageStats() {
     currentStreak,
     longestStreak,
     totalUnlocks: unlockRow ? Number(unlockRow.value) || 0 : 0,
+    totalCreated: createdRows.length > 0 ? Number(createdRows[0].count) || 0 : 0,
     avgWords: notes.length > 0 ? Math.round((words / notes.length) * 10) / 10 : 0,
     newWeek,
     totals: {

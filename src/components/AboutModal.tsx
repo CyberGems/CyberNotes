@@ -165,12 +165,34 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
         onClick={e => e.stopPropagation()}
         style={{
           width: 440,
+          position: 'relative',
           maxHeight: 'min(90vh, 640px)',
           background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
           border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
           overflow: 'hidden',
         }}
       >
+        {/* Glass decorativo: brillos tras el contenido, sin tocar legibilidad. */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute', inset: 0, borderRadius: 'inherit',
+            overflow: 'hidden', pointerEvents: 'none',
+          }}
+        >
+          <div style={{
+            position: 'absolute', top: -80, left: -70, width: 210, height: 210,
+            borderRadius: '50%', background: 'var(--accent)', opacity: 0.13, filter: 'blur(60px)',
+          }} />
+          <div style={{
+            position: 'absolute', top: -50, right: -80, width: 180, height: 180,
+            borderRadius: '50%', background: '#7c3aed', opacity: 0.11, filter: 'blur(60px)',
+          }} />
+          <div style={{
+            position: 'absolute', top: 0, left: '8%', right: '8%', height: 1,
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent)',
+          }} />
+        </div>
         <div className="modal-header" style={{ border: 'none', padding: '16px 16px 0', flexShrink: 0 }}>
           <div style={{ flex: 1 }} />
           <Tooltip label={t.close} placement="left">
