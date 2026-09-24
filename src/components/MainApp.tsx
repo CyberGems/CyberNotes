@@ -189,7 +189,7 @@ export default function MainApp({
   const [showMinimap, setShowMinimap] = useState(false);
   const [showWordCounter, setShowWordCounter] = useState(false);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
-  const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>([]);
+  const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>(['h1', 'h2']);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
   const [triggerNewFolderSignal, setTriggerNewFolderSignal] = useState(0);

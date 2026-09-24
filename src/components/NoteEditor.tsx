@@ -29,7 +29,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History,
+    Eye, EyeOff, History, CaseUpper,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -580,6 +580,82 @@ export function WordFontSizeSelect({
   );
 }
 
+/** Combo Aa estilo Word: cambia mayúsculas de la selección (o palabra al cursor). */
+export function ChangeCaseSelect({
+  editor, language, hideTooltip = false,
+}: {
+  editor: Editor | null; language: Language; hideTooltip?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+  const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp: false, minWidth: 230 });
+  if (!editor) return null;
+  const items: { kind: ChangeCaseKind; label: string }[] = [
+    { kind: 'sentence', label: language === 'es' ? 'Tipo oración.' : 'Sentence case.' },
+    { kind: 'lower', label: language === 'es' ? 'minúscula' : 'lowercase' },
+    { kind: 'upper', label: language === 'es' ? 'MAYÚSCULAS' : 'UPPERCASE' },
+    { kind: 'capitalize', label: language === 'es' ? 'Poner En Mayúsculas Cada Palabra' : 'Capitalize Each Word' },
+    { kind: 'toggle', label: language === 'es' ? 'tIPO iNVERSO' : 'tOGGLE cASE' },
+  ];
+  const trigger = (
+    <button
+      ref={anchorRef}
+      type="button"
+      data-word-combo="changecase"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => setOpen((v) => !v)}
+      className="word-combo"
+      aria-label={language === 'es' ? 'Cambiar mayúsculas' : 'Change case'}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: 30, padding: '0 8px',
+        background: open ? 'var(--accent-dim)' : 'var(--bg-surface)',
+        border: open ? '1px solid var(--accent)' : '1px solid var(--border)',
+        borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
+      }}
+    >
+      <CaseUpper size={15} />
+    </button>
+  );
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      {hideTooltip ? trigger : (
+        <Tooltip label={language === 'es' ? 'Cambiar mayúsculas (Mayús+F3)' : 'Change case (Shift+F3)'} placement="bottom">
+          {trigger}
+        </Tooltip>
+      )}
+      {open && createPortal(
+        <>
+          <div
+            data-word-menu="true"
+            style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setOpen(false)}
+          />
+          <div data-word-menu="true" style={{ ...wordMenuBoxStyle, ...menuStyle }}>
+            {items.map((item) => (
+              <button
+                key={item.kind}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { applyChangeCase(editor, item.kind); setOpen(false); }}
+                className="word-menu-item"
+                style={{
+                  padding: '6px 10px', borderRadius: 6, cursor: 'pointer', textAlign: 'left',
+                  border: 'none', fontSize: 13, whiteSpace: 'nowrap',
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 /** Misma huella táctil que ToolbarBtn (barra de formato del editor). */
 const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProperties => ({
   background: active ? (opts?.warn ? 'rgba(239, 68, 68, 0.12)' : 'var(--accent-dim)') : 'transparent',
@@ -667,7 +743,7 @@ export function matchFontFamilyOption(activeFamily: string | null | undefined): 
  */
 export type ToolbarItemId =
   | 'undo' | 'redo' | 'copy' | 'paste'
-  | 'fontFamily' | 'fontSize'
+  | 'fontFamily' | 'fontSize' | 'changeCase'
   | 'bold' | 'italic' | 'underline' | 'strike' | 'highlight' | 'clearFormat'
   | 'h1' | 'h2'
   | 'bullet' | 'ordered'
@@ -689,6 +765,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'paste', labelEs: 'Pegar', labelEn: 'Paste', icon: Clipboard },
   { id: 'fontFamily', labelEs: 'Fuente', labelEn: 'Font', icon: Type },
   { id: 'fontSize', labelEs: 'Tamaño de letra', labelEn: 'Font size', icon: ALargeSmall },
+  { id: 'changeCase', labelEs: 'Cambiar mayúsculas', labelEn: 'Change case', icon: CaseUpper },
   { id: 'bold', labelEs: 'Negrita', labelEn: 'Bold', icon: Bold },
   { id: 'italic', labelEs: 'Cursiva', labelEn: 'Italic', icon: Italic },
   { id: 'underline', labelEs: 'Subrayado', labelEn: 'Underline', icon: UnderlineIcon },
@@ -712,7 +789,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
 export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   // Fuente/tamaño primero con ancho reservado (estándar Word): nada salta.
-  ['fontFamily', 'fontSize'],
+  ['fontFamily', 'fontSize', 'changeCase'],
   ['undo', 'redo'],
   ['copy', 'paste'],
   ['bold', 'italic', 'underline', 'strike', 'highlight', 'clearFormat'],
@@ -725,6 +802,59 @@ export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
   return typeof value === 'string' && TOOLBAR_ITEMS.some((d) => d.id === value);
+}
+
+/**
+ * Cambio de mayúsculas estilo Word. Funciones puras (probables por test).
+ */
+export type ChangeCaseKind = 'sentence' | 'lower' | 'upper' | 'capitalize' | 'toggle';
+
+export function applyChangeCaseText(text: string, kind: ChangeCaseKind): string {
+  switch (kind) {
+    case 'lower':
+      return text.toLowerCase();
+    case 'upper':
+      return text.toUpperCase();
+    case 'capitalize':
+      return text
+        .toLowerCase()
+        .replace(/(^|[\s"'([{‘“\-–—])(\p{L})/gu, (_m: string, pre: string, ch: string) => pre + ch.toUpperCase());
+    case 'sentence':
+      return text
+        .toLowerCase()
+        .replace(/(^\s*\p{L})|([.!?…][\s¿¡«"'(']*\p{L})/gu, (m: string) => m.toUpperCase());
+    case 'toggle':
+      return text.replace(/\p{L}/gu, (ch: string) =>
+        (ch === ch.toUpperCase() ? ch.toLowerCase() : ch.toUpperCase()));
+  }
+}
+
+/** Orden de Mayús+F3 (como Word: minúsculas → MAYÚSCULAS → Capitalizar). */
+export const CHANGE_CASE_CYCLE: ChangeCaseKind[] = ['lower', 'upper', 'capitalize'];
+
+/**
+ * Aplica el cambio a la selección; con cursor colapsado, a la palabra bajo
+ * el cursor (como Word). Devuelve false si no había nada que transformar.
+ */
+export function applyChangeCase(editor: Editor, kind: ChangeCaseKind): boolean {
+  const { selection } = editor.state;
+  let { from, to } = selection;
+  if (from === to) {
+    const $from = selection.$from;
+    const before = $from.nodeBefore?.text || '';
+    const after = $from.nodeAfter?.text || '';
+    const beforeMatch = before.match(/[\p{L}\p{N}]+$/u);
+    const afterMatch = after.match(/^[\p{L}\p{N}]+/u);
+    if (!beforeMatch && !afterMatch) return false;
+    from = $from.pos - (beforeMatch?.[0].length ?? 0);
+    to = $from.pos + (afterMatch?.[0].length ?? 0);
+  }
+  const slice = editor.state.doc.textBetween(from, to, '\n');
+  if (!slice) return false;
+  const replaced = applyChangeCaseText(slice, kind);
+  if (replaced === slice) return true;
+  editor.chain().focus().setTextSelection({ from, to }).deleteSelection().insertContent(replaced).run();
+  return true;
 }
 
 /**
@@ -1182,6 +1312,7 @@ export default function NoteEditor({
         : 'inset 0 1px 3px rgba(0,0,0,0.2)';
   const [isRaw, setIsRaw] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const changeCaseCycleRef = useRef(0);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -1830,6 +1961,17 @@ export default function NoteEditor({
             else (target as HTMLInputElement | null)?.focus();
             return true;
           }
+        }
+
+        // Mayús+F3 = rotar minúsculas → MAYÚSCULAS → Capitalizar (como Word).
+        if (event.key === 'F3' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          event.preventDefault();
+          if (editor) {
+            const kind = CHANGE_CASE_CYCLE[changeCaseCycleRef.current % CHANGE_CASE_CYCLE.length];
+            changeCaseCycleRef.current += 1;
+            applyChangeCase(editor, kind);
+          }
+          return true;
         }
 
         if (event.key === 'Escape') {
@@ -2510,6 +2652,12 @@ export default function NoteEditor({
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
             <WordFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} hideTooltip={tipOff} />
+          </span>
+        );
+      case 'changeCase':
+        return (
+          <span onContextMenu={onCtx} style={{ display: 'inline-flex' }}>
+            <ChangeCaseSelect editor={editor} language={language} hideTooltip={tipOff} />
           </span>
         );
       case 'bold':
