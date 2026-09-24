@@ -326,8 +326,8 @@ export function WordFontFamilySelect({
   const activeFamily = (editor?.getAttributes('textStyle')?.fontFamily as string | null) || null;
   const matched = matchFontFamilyOption(activeFamily);
   const t = TRANSLATIONS[language];
-  // Ancho ceñido al contenido (sin cortar el nombre): el mini mantiene 76 fijos.
-  const buttonWidth: number | string = compact ? 76 : 'auto';
+  // Ancho reservado estilo Word (nada salta al cambiar de fuente); el mini mantiene 76 fijos.
+  const buttonWidth: number = compact ? 76 : 160;
 
   if (!editor) return null;
   const trigger = (
@@ -339,8 +339,8 @@ export function WordFontFamilySelect({
       onClick={() => setOpen((v) => !v)}
       className="word-combo"
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-        width: buttonWidth, maxWidth: compact ? 76 : 200,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+            width: buttonWidth, maxWidth: buttonWidth,
         height: compact ? 24 : 30, padding: compact ? '0 6px' : '0 8px',
         background: open || matched ? 'var(--accent-dim)' : 'var(--bg-surface)',
         border: open || matched ? '1px solid var(--accent)' : '1px solid var(--border)',
@@ -707,16 +707,16 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
 
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
 export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
-  ['undo', 'redo', 'copy', 'paste'],
+  // Fuente/tamaño primero con ancho reservado (estándar Word): nada salta.
+  ['fontFamily', 'fontSize'],
+  ['undo', 'redo'],
+  ['copy', 'paste'],
   ['bold', 'italic', 'underline', 'strike', 'highlight', 'clearFormat'],
   ['h1', 'h2'],
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
   ['link', 'image'],
-  // Fuente/tamaño al final: su ancho varía con la selección y el espaciador
-  // flexible absorbe el cambio sin mover ningún otro botón.
-  ['fontFamily', 'fontSize'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
