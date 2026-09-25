@@ -1774,12 +1774,21 @@ export default function MainApp({
   };
 
   const recoveryDraft = draftRecoveryQueue[0] ?? null;
+  const recoveryPrimaryRef = useRef<HTMLButtonElement | null>(null);
   const recoveryNote = recoveryDraft
     ? allNotes.find(note => note.id === recoveryDraft.note_id) ?? null
     : null;
   const recoveryDraftIsStale = !!recoveryDraft
     && !!recoveryNote
     && recoveryDraft.base_updated_at !== recoveryNote.updated_at;
+
+  // Foco determinista al abrir el recovery: Enter funciona nativo sin
+  // depender de dónde estuviera el foco (o si la ventana acaba de enfocar).
+  useEffect(() => {
+    if (recoveryDraft && recoveryNote) {
+      recoveryPrimaryRef.current?.focus();
+    }
+  });
 
   return (
     <div 
@@ -2238,6 +2247,7 @@ export default function MainApp({
               <div className="modal-actions is-stack">
                 <button
                   type="button"
+                  ref={recoveryPrimaryRef}
                   className="modal-action-btn is-save"
                   onClick={() => { void resolveDraftRecovery(true); }}
                 >
