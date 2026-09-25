@@ -4,6 +4,7 @@ import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEditor, EditorContent, Editor, BubbleMenu } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
@@ -34,7 +35,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper,
+    Eye, EyeOff, History, CaseUpper, PanelTop,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -203,6 +204,85 @@ export const FontFamily = TextStyle.extend({
     };
   },
 });
+
+/**
+ * ¿La tabla bajo el cursor tiene fila/columna de encabezado? Lee el nodo
+ * tabla real para marcar los toggles (ambos pueden estar activos a la vez).
+ */
+function tableHeaderState(editor: Editor | null): { row: boolean; col: boolean } | null {
+  try {
+    if (!editor) return null;
+    const { $from } = editor.state.selection;
+    for (let d = $from.depth; d > 0; d--) {
+      const node = $from.node(d);
+      if (node.type.name !== 'table') continue;
+      let row = true;
+      let col = true;
+      node.forEach((rowNode, _offset, rowIndex) => {
+        rowNode.forEach((cell, _co, cellIndex) => {
+          const isHeader = cell.type.name === 'tableHeader';
+          if (rowIndex === 0 && !isHeader) row = false;
+          if (cellIndex === 0 && !isHeader) col = false;
+        });
+      });
+      return { row, col };
+    }
+  } catch {
+    /* selección no válida */
+  }
+  return null;
+}
+
+function isTableHeaderRow(editor: Editor | null): boolean {
+  return tableHeaderState(editor)?.row ?? false;
+}
+
+function isTableHeaderColumn(editor: Editor | null): boolean {
+  return tableHeaderState(editor)?.col ?? false;
+}
+
+/** Rango de coincidencia del buscador en nota. */
+export interface FindRange {
+  from: number;
+  to: number;
+}
+
+/**
+ * Coincidencias literales (insensible a mayúsculas) recorriendo nodos de
+ * texto. Sin regex: los caracteres especiales se buscan tal cual.
+ */
+export function findRanges(doc: any, query: string): FindRange[] {
+  const q = (query || '').trim().toLowerCase();
+  if (!q || !doc?.descendants) return [];
+  const out: FindRange[] = [];
+  try {
+    doc.descendants((node: any, pos: number) => {
+      if (!node.isText || !node.text) return;
+      const text = node.text.toLowerCase();
+      let idx = 0;
+      while ((idx = text.indexOf(q, idx)) !== -1) {
+        out.push({ from: pos + idx, to: pos + idx + q.length });
+        idx += q.length;
+      }
+    });
+  } catch {
+    /* doc no válido */
+  }
+  return out;
+}
+
+/** Decorations del buscador: todas tenues, la actual acentuada. */
+function buildFindDecos(doc: any, query: string, current: number): DecorationSet {
+  const ranges = findRanges(doc, query);
+  if (ranges.length === 0) return DecorationSet.empty;
+  const norm = ((current % ranges.length) + ranges.length) % ranges.length;
+  return DecorationSet.create(
+    doc,
+    ranges.map((r, i) =>
+      Decoration.inline(r.from, r.to, { class: i === norm ? 'find-match-current' : 'find-match' }),
+    ),
+  );
+}
 
 /**
  * Carga contenido en TipTap sin contaminar el historial de Undo/Redo.
@@ -777,7 +857,7 @@ export function TableSelect({
                 </select>
               </label>
             </div>
-            <div className="modal-actions">
+            <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setCustomOpen(false)}>
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
                 <span className="modal-key-esc">Esc</span>
@@ -1549,6 +1629,14 @@ export default function NoteEditor({
   const capsAutoUnlockPendingRef = useRef(false);
   const prevCapsActiveForSoundRef = useRef<boolean | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  // Ref espejo para las decorations del buscador (se leen sin transacción,
+  // así no se marca dirty ni se dispara autoguardado al navegar resultados).
+  const findDecorRef = useRef<{ query: string; current: number }>({ query: '', current: 0 });
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [findIndex, setFindIndex] = useState(0);
+  const findInputRef = useRef<HTMLInputElement | null>(null);
+  findDecorRef.current = { query: findOpen ? findQuery : '', current: findIndex };
   /** Menú "Más" y menú contextual de la barra (ocultar selectivo). */
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [toolbarMenu, setToolbarMenu] = useState<{ x: number; y: number; id: ToolbarItemId; inMore: boolean } | null>(null);
@@ -1966,6 +2054,8 @@ export default function NoteEditor({
       attributes: {
         spellcheck: 'true',
       },
+      // Resaltado del buscador en nota (no toca el documento).
+      decorations: (state) => buildFindDecos(state.doc, findDecorRef.current.query, findDecorRef.current.current),
       handleDOMEvents: {
         mousedown: (_view, event) => {
           if (event.button === 2) {
@@ -2216,6 +2306,80 @@ export default function NoteEditor({
       editor.commands.blur();
     }
   }, [showFloatingToolbar, editor]);
+
+  // Refresca el resaltado del buscador sin transacción (no ensucia la nota).
+  useEffect(() => {
+    if (!editor || editor.view.isDestroyed) return;
+    if (!findOpen && !findQuery) return;
+    try {
+      editor.view.updateState(editor.state);
+    } catch {
+      /* vista no lista */
+    }
+  }, [editor, findOpen, findQuery, findIndex]);
+
+  const findMatches: FindRange[] = editor && findOpen && findQuery.trim()
+    ? findRanges(editor.state.doc, findQuery)
+    : [];
+  const findCount = findMatches.length;
+  const findCurrent = findCount > 0 ? (((findIndex % findCount) + findCount) % findCount) : 0;
+
+  const scrollToFindRange = useCallback((range: FindRange) => {
+    const scroller = scrollContainerRef.current;
+    if (!scroller || !editor || editor.view.isDestroyed) return;
+    try {
+      const coords = editor.view.coordsAtPos(range.from);
+      const rect = scroller.getBoundingClientRect();
+      scroller.scrollTop += (coords.top - rect.top) - Math.max(80, scroller.clientHeight * 0.3);
+    } catch {
+      /* posición no visible */
+    }
+  }, [editor]);
+
+  const stepFindMatch = useCallback((dir: 1 | -1) => {
+    if (findMatches.length === 0) return;
+    const next = (((findIndex % findMatches.length) + findMatches.length) % findMatches.length + dir + findMatches.length) % findMatches.length;
+    setFindIndex(next);
+    scrollToFindRange(findMatches[next]);
+  }, [findMatches, findIndex, scrollToFindRange]);
+
+  const closeFindBar = useCallback(() => {
+    setFindOpen(false);
+    setFindQuery('');
+    setFindIndex(0);
+    editor?.commands.focus();
+  }, [editor]);
+
+  useEffect(() => {
+    if (findOpen) findInputRef.current?.focus();
+  }, [findOpen]);
+
+  // F3 = buscar en la nota (con lo seleccionado como consulta inicial).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'F3' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!note) return;
+      e.preventDefault();
+      if (findOpen && document.activeElement === findInputRef.current) {
+        stepFindMatch(1);
+        return;
+      }
+      let seed = '';
+      try {
+        const sel = editor?.state.selection;
+        if (sel && !sel.empty && editor) {
+          seed = editor.state.doc.textBetween(sel.from, sel.to, ' ').slice(0, 60);
+        }
+      } catch {
+        /* sin selección usable */
+      }
+      setFindQuery(seed);
+      setFindIndex(0);
+      setFindOpen(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [note, editor, findOpen, stepFindMatch]);
 
   // Sincronizar editorRef después de que useEditor lo haya inicializado
   editorRef.current = editor;
@@ -4001,6 +4165,21 @@ export default function NoteEditor({
                 <ToolbarBtn onClick={() => editor.chain().focus().deleteColumn().run()} title={language === 'es' ? 'Eliminar columna' : 'Delete column'}><Minus size={14} /></ToolbarBtn>
               </div>
               <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
+              <ToolbarBtn
+                onClick={() => editor.chain().focus().toggleHeaderRow().run()}
+                active={isTableHeaderRow(editor)}
+                title={language === 'es' ? 'Alternar fila de encabezado' : 'Toggle header row'}
+              >
+                <PanelTop size={14} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                onClick={() => editor.chain().focus().toggleHeaderColumn().run()}
+                active={isTableHeaderColumn(editor)}
+                title={language === 'es' ? 'Alternar columna de encabezado' : 'Toggle header column'}
+              >
+                <PanelLeft size={14} />
+              </ToolbarBtn>
+              <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
               <ToolbarBtn onClick={() => editor.chain().focus().deleteTable().run()} title={language === 'es' ? 'Eliminar tabla' : 'Delete table'}><Trash2 size={14} /></ToolbarBtn>
             </motion.div>
           )}
@@ -4009,6 +4188,67 @@ export default function NoteEditor({
 
       {/* Editor Area: relative wrapper para que el minimapa flote a la derecha */}
       <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
+        {/* Buscador en nota (F3): flotante arriba a la derecha, estilo suite. */}
+        {findOpen && (
+          <div
+            role="search"
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: showMinimap ? MINIMAP_WIDTH + 16 : 12,
+              zIndex: 30,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '5px 6px 5px 10px',
+              borderRadius: 10,
+              background: 'rgba(10, 10, 18, 0.96)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <input
+              ref={findInputRef}
+              value={findQuery}
+              onChange={(e) => { setFindQuery(e.target.value); setFindIndex(0); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); stepFindMatch(e.shiftKey ? -1 : 1); }
+                else if (e.key === 'Escape') { e.preventDefault(); closeFindBar(); }
+              }}
+              placeholder={language === 'es' ? 'Buscar en la nota…' : 'Find in note…'}
+              aria-label={language === 'es' ? 'Buscar en la nota' : 'Find in note'}
+              style={{
+                width: 150, background: 'transparent', border: 'none', outline: 'none',
+                color: 'var(--text-primary)', fontSize: 12,
+              }}
+            />
+            <span style={{
+              fontSize: 10, fontWeight: 700, color: findCount > 0 ? 'var(--text-muted)' : 'var(--danger)',
+              fontVariantNumeric: 'tabular-nums', minWidth: 44, textAlign: 'center', whiteSpace: 'nowrap',
+            }}>
+              {findQuery.trim()
+                ? (findCount > 0
+                  ? (language === 'es' ? `${findCurrent + 1} de ${findCount}` : `${findCurrent + 1} of ${findCount}`)
+                  : (language === 'es' ? 'Sin resultados' : 'No results'))
+                : ''}
+            </span>
+            <ToolbarBtn
+              onClick={() => stepFindMatch(-1)}
+              title={language === 'es' ? 'Anterior (Mayús+Enter)' : 'Previous (Shift+Enter)'}
+            >
+              <ArrowUp size={13} />
+            </ToolbarBtn>
+            <ToolbarBtn
+              onClick={() => stepFindMatch(1)}
+              title={language === 'es' ? 'Siguiente (Enter)' : 'Next (Enter)'}
+            >
+              <ArrowDown size={13} />
+            </ToolbarBtn>
+            <ToolbarBtn onClick={closeFindBar} title={language === 'es' ? 'Cerrar (Esc)' : 'Close (Esc)'}>
+              <X size={13} />
+            </ToolbarBtn>
+          </div>
+        )}
         {/* Editor Content Container (Scrolling) */}
         <div
           ref={scrollContainerRef}

@@ -825,6 +825,18 @@ body:has(.sticky-note-window),
   pointer-events: none;
 }
 
+/* Buscador en nota: coincidencias tenues, actual acentuada. */
+.ProseMirror .find-match {
+  background: rgba(251, 191, 36, 0.32);
+  border-radius: 2px;
+}
+.ProseMirror .find-match-current {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
 .title-input::placeholder {
   color: var(--text-muted);
   opacity: 0.3;
