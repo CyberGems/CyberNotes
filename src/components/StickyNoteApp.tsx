@@ -20,7 +20,7 @@ import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont } from '../fonts';
 import { extractPreview, extractThumb } from '../utils/notes';
-import { FontSize, FontFamily, WordFontFamilySelect, WordFontSizeSelect } from './NoteEditor';
+import { FontSize, FontFamily, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
 import Tooltip from './Tooltip';
 import GlobalErrorToast from './GlobalErrorToast';
 import {
@@ -393,6 +393,8 @@ export default function StickyNoteApp({ noteId }: Props) {
       // marca que el editor principal; sin esto, el sticky los borraría al guardar).
       FontSize,
       FontFamily,
+      // Videos: solo lectura/escritura segura (el mini no inserta).
+      VideoEmbed,
       Link.configure({ openOnClick: false }),
       Placeholder.configure({
         placeholder: t.editor.placeholderBody,

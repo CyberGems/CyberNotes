@@ -837,6 +837,85 @@ body:has(.sticky-note-window),
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* Video embebido: fachada local 16:9, iframe solo al reproducir. */
+.ProseMirror .video-embed {
+  margin: 12px 0;
+}
+.ProseMirror .video-embed-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.35);
+}
+.ProseMirror .video-embed-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.ProseMirror .video-embed-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: radial-gradient(ellipse at 50% 40%, rgba(99, 102, 241, 0.14) 0%, rgba(0, 0, 0, 0.35) 70%);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  transition: filter 0.16s ease;
+}
+.ProseMirror .video-embed-preview:hover {
+  filter: brightness(1.25);
+}
+.ProseMirror .video-embed-play {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-light);
+  padding-left: 3px;
+}
+.ProseMirror .video-embed-provider {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.ProseMirror .video-embed.ProseMirror-selectednode .video-embed-frame {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+/* Minimapa: los iframes se reemplazan por marcador (ver syncMinimapHtml). */
+.minimap-media-ph {
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  aspect-ratio: 16 / 9;
+  margin: 8px 0;
+}
+
 .title-input::placeholder {
   color: var(--text-muted);
   opacity: 0.3;

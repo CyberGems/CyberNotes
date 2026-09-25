@@ -2,8 +2,9 @@ import { useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, Fra
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
-import { useEditor, EditorContent, Editor, BubbleMenu } from '@tiptap/react';
+import { useEditor, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
+import { Node as TiptapNode } from '@tiptap/core';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -35,7 +36,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace,
+    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -321,6 +322,184 @@ export function replaceAllInEditor(editor: Editor, query: string, replacement: s
     return ranges.length;
   } catch {
     return 0;
+  }
+}
+
+/**
+ * Videos embebidos (YouTube, Vimeo, Rumble, Dailymotion).
+ * La URL del usuario se normaliza al embed de privacidad de cada proveedor.
+ */
+export type VideoProvider = 'youtube' | 'vimeo' | 'rumble' | 'dailymotion';
+
+export interface ParsedVideo {
+  provider: VideoProvider;
+  embedUrl: string;
+}
+
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+
+export function parseVideoUrl(raw: string): ParsedVideo | null {
+  let url: URL;
+  try {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return null;
+    url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  const path = url.pathname;
+
+  // YouTube: watch?v=, youtu.be/, embed/, shorts/, live/
+  if (host === 'youtube.com' || host === 'youtu.be' || host === 'music.youtube.com' || host === 'm.youtube.com') {
+    let id = '';
+    if (host === 'youtu.be') {
+      id = path.split('/').filter(Boolean)[0] || '';
+    } else if (path.startsWith('/embed/') || path.startsWith('/shorts/') || path.startsWith('/live/')) {
+      id = path.split('/').filter(Boolean)[1] || '';
+    } else {
+      id = url.searchParams.get('v') || '';
+    }
+    if (YOUTUBE_ID.test(id)) {
+      return { provider: 'youtube', embedUrl: `https://www.youtube-nocookie.com/embed/${id}` };
+    }
+    return null;
+  }
+
+  // Vimeo: último segmento numérico (lleva ?h= si es privado).
+  if (host === 'vimeo.com' || host.endsWith('.vimeo.com')) {
+    const segs = path.split('/').filter(Boolean);
+    const id = [...segs].reverse().find((s) => /^\d+$/.test(s)) || '';
+    if (id) {
+      const h = url.searchParams.get('h');
+      return { provider: 'vimeo', embedUrl: `https://player.vimeo.com/video/${id}${h ? `?h=${h}` : ''}` };
+    }
+    return null;
+  }
+
+  // Dailymotion: /video/{id}, dai.ly/{id}.
+  if (host === 'dailymotion.com' || host === 'dai.ly') {
+    const m = path.match(/(?:\/video\/|^\/)([A-Za-z0-9]+)/);
+    if (m) {
+      return { provider: 'dailymotion', embedUrl: `https://www.dailymotion.com/embed/video/${m[1]}` };
+    }
+    return null;
+  }
+
+  // Rumble: /v{id}-slug.html o /embed/v{id}/.
+  if (host === 'rumble.com' || host.endsWith('.rumble.com')) {
+    const m = path.match(/\/v([A-Za-z0-9]+)(?:[-/.][^/]*)?$/);
+    if (m) {
+      return { provider: 'rumble', embedUrl: `https://rumble.com/embed/v${m[1]}/` };
+    }
+    return null;
+  }
+
+  return null;
+}
+
+export const VIDEO_PROVIDER_LABEL: Record<VideoProvider, string> = {
+  youtube: 'YouTube',
+  vimeo: 'Vimeo',
+  rumble: 'Rumble',
+  dailymotion: 'Dailymotion',
+};
+
+function VideoEmbedView(props: any) {
+  const [playing, setPlaying] = useState(false);
+  const src = (props.node?.attrs?.src as string) || '';
+  const provider = (props.node?.attrs?.provider as VideoProvider) || 'youtube';
+  const label = VIDEO_PROVIDER_LABEL[provider] || provider;
+  return (
+    <NodeViewWrapper className="video-embed" data-provider={provider}>
+      <div className="video-embed-frame">
+        {playing && src ? (
+          <iframe
+            src={src}
+            title={label}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            frameBorder="0"
+          />
+        ) : (
+          <button
+            type="button"
+            className="video-embed-preview"
+            onClick={() => { if (src) setPlaying(true); }}
+            aria-label={`${label} (reproducir)`}
+          >
+            <span className="video-embed-play">
+              <Play size={26} fill="currentColor" stroke="none" />
+            </span>
+            <span className="video-embed-provider">{label}</span>
+          </button>
+        )}
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+/**
+ * Nodo atom de video: persiste src/provider/href y renderiza fachada local
+ * (sin peticiones a terceros hasta pulsar reproducir).
+ */
+export const VideoEmbed = TiptapNode.create({
+  name: 'videoEmbed',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      src: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-video-src'),
+        renderHTML: (attributes) => (attributes.src ? { 'data-video-src': attributes.src } : {}),
+      },
+      provider: {
+        default: 'youtube',
+        parseHTML: (element) => element.getAttribute('data-provider') || 'youtube',
+        renderHTML: (attributes) => ({ 'data-provider': attributes.provider || 'youtube' }),
+      },
+      href: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-video-href'),
+        renderHTML: (attributes) => (attributes.href ? { 'data-video-href': attributes.href } : {}),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'div[data-video-embed]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    const provider = (HTMLAttributes['data-provider'] as string) || 'youtube';
+    const label = (VIDEO_PROVIDER_LABEL as Record<string, string>)[provider] || provider;
+    return [
+      'div',
+      { 'data-video-embed': '', ...HTMLAttributes },
+      ['a', { href: (HTMLAttributes['data-video-href'] as string) || (HTMLAttributes['data-video-src'] as string) || '#' }, `Video: ${label}`],
+      ['iframe', { src: (HTMLAttributes['data-video-src'] as string) || '' }],
+    ];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(VideoEmbedView);
+  },
+  addCommands() {
+    return {
+      setVideoEmbed:
+        (attrs: { src: string; provider: string; href: string }) =>
+        ({ chain }: any) =>
+          chain()
+            .insertContent({ type: 'videoEmbed', attrs })
+            .run(),
+    };
+  },
+});
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    videoEmbed: {
+      setVideoEmbed: (attrs: { src: string; provider: string; href: string }) => ReturnType;
+    };
   }
 }
 
@@ -915,6 +1094,127 @@ export function TableSelect({
   );
 }
 
+/** Botón video estilo referencia: modal con enlace + vista previa en vivo. */
+export function VideoSelect({
+  editor, language, hideTooltip = false,
+}: {
+  editor: Editor | null; language: Language; hideTooltip?: boolean;
+}) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [link, setLink] = useState('');
+  const parsed = parseVideoUrl(link);
+  useModalKeys({ enabled: modalOpen, onEsc: () => { setModalOpen(false); setLink(''); } });
+  if (!editor) return null;
+  const insert = () => {
+    if (!parsed) return;
+    editor.chain().focus().setVideoEmbed({ src: parsed.embedUrl, provider: parsed.provider, href: link.trim() }).run();
+    setModalOpen(false);
+    setLink('');
+  };
+  const trigger = (
+    <button
+      type="button"
+      data-word-combo="video"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => { setLink(''); setModalOpen(true); }}
+      className="word-combo"
+      aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: 30, padding: '0 8px',
+        background: modalOpen ? 'var(--accent-dim)' : 'var(--bg-surface)',
+        border: modalOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
+        borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
+      }}
+    >
+      <MonitorPlay size={15} />
+    </button>
+  );
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      {hideTooltip ? trigger : (
+        <Tooltip label={language === 'es' ? 'Insertar video' : 'Insert video'} placement="bottom">
+          {trigger}
+        </Tooltip>
+      )}
+      {modalOpen && createPortal(
+        <div className="modal-overlay" onClick={() => { setModalOpen(false); setLink(''); }}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
+            style={{ width: 460 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {language === 'es' ? 'Insertar video' : 'Insert video'}
+              </h3>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input
+                className="input"
+                value={link}
+                autoFocus
+                onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); insert(); }
+                }}
+                placeholder={language === 'es' ? 'Pega un enlace de YouTube, Vimeo, Rumble o Dailymotion…' : 'Paste a YouTube, Vimeo, Rumble or Dailymotion link…'}
+                aria-label={language === 'es' ? 'Enlace del video' : 'Video link'}
+                spellCheck={false}
+              />
+              <div
+                style={{
+                  borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0, 0, 0, 0.25)',
+                  aspectRatio: '16 / 9', overflow: 'hidden', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {parsed ? (
+                  <iframe
+                    key={parsed.embedUrl}
+                    src={parsed.embedUrl}
+                    title={VIDEO_PROVIDER_LABEL[parsed.provider]}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    frameBorder="0"
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: 16, textAlign: 'center' }}>
+                    {link.trim()
+                      ? (language === 'es' ? 'Enlace no soportado.' : 'Unsupported link.')
+                      : (language === 'es' ? 'Vista previa' : 'Preview')}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
+              <button type="button" className="modal-action-btn is-cancel" onClick={() => { setModalOpen(false); setLink(''); }}>
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+                <span className="modal-key-esc">Esc</span>
+              </button>
+              <button
+                type="button"
+                className="modal-action-btn is-save"
+                disabled={!parsed}
+                onClick={insert}
+                style={{ opacity: parsed ? 1 : 0.45 }}
+              >
+                {language === 'es' ? 'Insertar' : 'Insert'}
+                <EnterGlyph />
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 /** Misma huella táctil que ToolbarBtn (barra de formato del editor). */
 const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProperties => ({
   background: active ? (opts?.warn ? 'rgba(239, 68, 68, 0.12)' : 'var(--accent-dim)') : 'transparent',
@@ -1008,7 +1308,7 @@ export type ToolbarItemId =
   | 'bullet' | 'ordered'
   | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
   | 'quote' | 'code'
-  | 'link' | 'image' | 'table' | 'find';
+  | 'link' | 'image' | 'table' | 'find' | 'video';
 
 export interface ToolbarItemDef {
   id: ToolbarItemId;
@@ -1044,6 +1344,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'link', labelEs: 'Insertar enlace', labelEn: 'Insert link', icon: LinkIcon },
   { id: 'image', labelEs: 'Insertar imagen', labelEn: 'Insert image', icon: ImageIcon },
   { id: 'table', labelEs: 'Insertar tabla', labelEn: 'Insert table', icon: TableIcon },
+  { id: 'video', labelEs: 'Insertar video', labelEn: 'Insert video', icon: MonitorPlay },
   { id: 'find', labelEs: 'Buscar en la nota', labelEn: 'Find in note', icon: Search },
 ];
 
@@ -1058,7 +1359,7 @@ export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
-  ['link', 'image', 'table', 'find'],
+  ['link', 'image', 'table', 'video', 'find'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
@@ -1357,6 +1658,14 @@ export default function NoteEditor({
 
         // Clonar el DOM pintado: mismos nodos, estilos inline de imágenes, etc.
         target.innerHTML = ed.view.dom.innerHTML;
+
+        // Los iframes (videos en reproducción) no van al minimapa: marcador.
+        target.querySelectorAll('iframe').forEach((frame) => {
+          const ph = document.createElement('div');
+          ph.className = 'minimap-media-ph';
+          ph.textContent = '▶';
+          frame.replaceWith(ph);
+        });
 
         // Quitar ruido visual de edición (placeholder, selección)
         target.querySelectorAll('.ProseMirror-selectednode').forEach((n) => {
@@ -2107,6 +2416,7 @@ export default function NoteEditor({
       TableCell,
       FontSize,
       FontFamily,
+      VideoEmbed,
     ],
     editorProps: {
       attributes: {
@@ -3099,6 +3409,12 @@ export default function NoteEditor({
         );
       case 'find':
         return <ToolbarBtn {...ctxProps} active={findOpen || menuHl} onClick={() => { if (findOpen) closeFindBar(); else openFindBar(); }} title={language === 'es' ? 'Buscar en la nota (F3)' : 'Find in note (F3)'}><Search size={15} /></ToolbarBtn>;
+      case 'video':
+        return (
+          <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
+            <VideoSelect editor={editor} language={language} hideTooltip={tipOff} />
+          </span>
+        );
       default:
         return null;
     }
