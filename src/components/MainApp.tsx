@@ -2178,6 +2178,8 @@ export default function MainApp({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 18,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>

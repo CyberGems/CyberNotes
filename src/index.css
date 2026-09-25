@@ -402,10 +402,10 @@ body:has(.sticky-note-window),
   color: #fff;
 }
 .modal-key-esc {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border: 1px solid currentColor;
   border-radius: 4px;
   line-height: 1.25;

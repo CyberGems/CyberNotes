@@ -1131,6 +1131,7 @@ export function VideoSelect({
   const [link, setLink] = useState('');
   const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
   const overlayDownRef = useRef(false);
+  const urlFocusDoneRef = useRef(false);
   const urlMenu = useInputContextMenu(language);
   const parsed = parseVideoUrl(link);
   useModalKeys({ enabled: modalOpen, onEsc: () => { setModalOpen(false); setLink(''); } });
@@ -1155,7 +1156,7 @@ export function VideoSelect({
       type="button"
       data-word-combo="video"
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => { setLink(''); setModalOpen(true); }}
+      onClick={() => { setLink(''); urlFocusDoneRef.current = false; setModalOpen(true); }}
       className="word-combo"
       aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
       style={{
@@ -1200,7 +1201,12 @@ export function VideoSelect({
               <input
                 className="input"
                 value={link}
-                autoFocus
+                ref={(el) => {
+                  if (el && !urlFocusDoneRef.current) {
+                    urlFocusDoneRef.current = true;
+                    el.focus();
+                  }
+                }}
                 onChange={(e) => setLink(e.target.value)}
                 onContextMenu={urlMenu.onContextMenu}
                 onKeyDown={(e) => {
