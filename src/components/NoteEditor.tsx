@@ -35,7 +35,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper, PanelTop,
+    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -282,6 +282,46 @@ function buildFindDecos(doc: any, query: string, current: number): DecorationSet
       Decoration.inline(r.from, r.to, { class: i === norm ? 'find-match-current' : 'find-match' }),
     ),
   );
+}
+
+/**
+ * Reemplaza un rango conservando las marcas del borde inicial.
+ * Devuelve false si el editor no está listo (sin lanzar).
+ */
+export function replaceRangeInEditor(editor: Editor, from: number, to: number, text: string): boolean {
+  if (!editor || editor.view.isDestroyed) return false;
+  try {
+    const state = editor.state;
+    const marks = state.doc.resolve(from).marks();
+    const tr = state.tr.replaceWith(from, to, state.schema.text(text, marks));
+    editor.view.dispatch(tr);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Reemplaza todas las coincidencias de atrás hacia adelante en una sola
+ * transacción (un solo paso de undo). Devuelve cuántas reemplazó.
+ */
+export function replaceAllInEditor(editor: Editor, query: string, replacement: string): number {
+  if (!editor || editor.view.isDestroyed || !query.trim()) return 0;
+  try {
+    const state = editor.state;
+    const ranges = findRanges(state.doc, query);
+    if (ranges.length === 0) return 0;
+    let tr = state.tr;
+    for (let i = ranges.length - 1; i >= 0; i--) {
+      const r = ranges[i];
+      const marks = state.doc.resolve(r.from).marks();
+      tr = tr.replaceWith(r.from, r.to, state.schema.text(replacement, marks));
+    }
+    editor.view.dispatch(tr);
+    return ranges.length;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -968,7 +1008,7 @@ export type ToolbarItemId =
   | 'bullet' | 'ordered'
   | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
   | 'quote' | 'code'
-  | 'link' | 'image' | 'table';
+  | 'link' | 'image' | 'table' | 'find';
 
 export interface ToolbarItemDef {
   id: ToolbarItemId;
@@ -1004,6 +1044,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'link', labelEs: 'Insertar enlace', labelEn: 'Insert link', icon: LinkIcon },
   { id: 'image', labelEs: 'Insertar imagen', labelEn: 'Insert image', icon: ImageIcon },
   { id: 'table', labelEs: 'Insertar tabla', labelEn: 'Insert table', icon: TableIcon },
+  { id: 'find', labelEs: 'Buscar en la nota', labelEn: 'Find in note', icon: Search },
 ];
 
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
@@ -1017,7 +1058,7 @@ export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
-  ['link', 'image', 'table'],
+  ['link', 'image', 'table', 'find'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
@@ -1635,8 +1676,25 @@ export default function NoteEditor({
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [findIndex, setFindIndex] = useState(0);
+  const [findReplace, setFindReplace] = useState('');
   const findInputRef = useRef<HTMLInputElement | null>(null);
   findDecorRef.current = { query: findOpen ? findQuery : '', current: findIndex };
+
+  const openFindBar = useCallback(() => {
+    const ed = editorRef.current;
+    let seed = '';
+    try {
+      const sel = ed?.state.selection;
+      if (sel && !sel.empty && ed) {
+        seed = ed.state.doc.textBetween(sel.from, sel.to, ' ').slice(0, 60);
+      }
+    } catch {
+      /* sin selección usable */
+    }
+    setFindQuery(seed);
+    setFindIndex(0);
+    setFindOpen(true);
+  }, []);
   /** Menú "Más" y menú contextual de la barra (ocultar selectivo). */
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [toolbarMenu, setToolbarMenu] = useState<{ x: number; y: number; id: ToolbarItemId; inMore: boolean } | null>(null);
@@ -2346,9 +2404,36 @@ export default function NoteEditor({
   const closeFindBar = useCallback(() => {
     setFindOpen(false);
     setFindQuery('');
+    setFindReplace('');
     setFindIndex(0);
     editor?.commands.focus();
   }, [editor]);
+
+  /** Reemplaza un rango conservando las marcas del borde inicial. */
+  const replaceFindRange = useCallback((from: number, to: number, text: string) => (
+    editor ? replaceRangeInEditor(editor, from, to, text) : false
+  ), [editor]);
+
+  /** Reemplaza la coincidencia actual y centra la siguiente. */
+  const replaceFindCurrent = useCallback(() => {
+    if (!editor || !findQuery.trim() || findMatches.length === 0) return;
+    const norm = (((findIndex % findMatches.length) + findMatches.length) % findMatches.length);
+    const range = findMatches[norm];
+    if (!replaceFindRange(range.from, range.to, findReplace)) return;
+    const after = findRanges(editor.state.doc, findQuery);
+    if (after.length > 0) {
+      const next = norm % after.length;
+      setFindIndex(next);
+      scrollToFindRange(after[next]);
+    }
+  }, [editor, findQuery, findMatches, findIndex, findReplace, replaceFindRange, scrollToFindRange]);
+
+  /** Reemplaza todas de atrás hacia adelante (una sola entrada de undo). */
+  const replaceFindAll = useCallback(() => {
+    if (!editor) return;
+    const count = replaceAllInEditor(editor, findQuery, findReplace);
+    if (count > 0) setFindIndex(0);
+  }, [editor, findQuery, findReplace]);
 
   useEffect(() => {
     if (findOpen) findInputRef.current?.focus();
@@ -2364,22 +2449,11 @@ export default function NoteEditor({
         stepFindMatch(1);
         return;
       }
-      let seed = '';
-      try {
-        const sel = editor?.state.selection;
-        if (sel && !sel.empty && editor) {
-          seed = editor.state.doc.textBetween(sel.from, sel.to, ' ').slice(0, 60);
-        }
-      } catch {
-        /* sin selección usable */
-      }
-      setFindQuery(seed);
-      setFindIndex(0);
-      setFindOpen(true);
+      openFindBar();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [note, editor, findOpen, stepFindMatch]);
+  }, [note, findOpen, stepFindMatch, openFindBar]);
 
   // Sincronizar editorRef después de que useEditor lo haya inicializado
   editorRef.current = editor;
@@ -3023,6 +3097,8 @@ export default function NoteEditor({
             <TableSelect editor={editor} language={language} hideTooltip={tipOff} />
           </span>
         );
+      case 'find':
+        return <ToolbarBtn {...ctxProps} active={findOpen || menuHl} onClick={() => { if (findOpen) closeFindBar(); else openFindBar(); }} title={language === 'es' ? 'Buscar en la nota (F3)' : 'Find in note (F3)'}><Search size={15} /></ToolbarBtn>;
       default:
         return null;
     }
@@ -4198,55 +4274,90 @@ export default function NoteEditor({
               right: showMinimap ? MINIMAP_WIDTH + 16 : 12,
               zIndex: 30,
               display: 'flex',
-              alignItems: 'center',
+              flexDirection: 'column',
               gap: 4,
-              padding: '5px 6px 5px 10px',
+              padding: 6,
               borderRadius: 10,
               background: 'rgba(10, 10, 18, 0.96)',
               border: '1px solid var(--border)',
               boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
             }}
           >
-            <input
-              ref={findInputRef}
-              value={findQuery}
-              onChange={(e) => { setFindQuery(e.target.value); setFindIndex(0); }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); stepFindMatch(e.shiftKey ? -1 : 1); }
-                else if (e.key === 'Escape') { e.preventDefault(); closeFindBar(); }
-              }}
-              placeholder={language === 'es' ? 'Buscar en la nota…' : 'Find in note…'}
-              aria-label={language === 'es' ? 'Buscar en la nota' : 'Find in note'}
-              style={{
-                width: 150, background: 'transparent', border: 'none', outline: 'none',
-                color: 'var(--text-primary)', fontSize: 12,
-              }}
-            />
-            <span style={{
-              fontSize: 10, fontWeight: 700, color: findCount > 0 ? 'var(--text-muted)' : 'var(--danger)',
-              fontVariantNumeric: 'tabular-nums', minWidth: 44, textAlign: 'center', whiteSpace: 'nowrap',
-            }}>
-              {findQuery.trim()
-                ? (findCount > 0
-                  ? (language === 'es' ? `${findCurrent + 1} de ${findCount}` : `${findCurrent + 1} of ${findCount}`)
-                  : (language === 'es' ? 'Sin resultados' : 'No results'))
-                : ''}
-            </span>
-            <ToolbarBtn
-              onClick={() => stepFindMatch(-1)}
-              title={language === 'es' ? 'Anterior (Mayús+Enter)' : 'Previous (Shift+Enter)'}
-            >
-              <ArrowUp size={13} />
-            </ToolbarBtn>
-            <ToolbarBtn
-              onClick={() => stepFindMatch(1)}
-              title={language === 'es' ? 'Siguiente (Enter)' : 'Next (Enter)'}
-            >
-              <ArrowDown size={13} />
-            </ToolbarBtn>
-            <ToolbarBtn onClick={closeFindBar} title={language === 'es' ? 'Cerrar (Esc)' : 'Close (Esc)'}>
-              <X size={13} />
-            </ToolbarBtn>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input
+                ref={findInputRef}
+                value={findQuery}
+                onChange={(e) => { setFindQuery(e.target.value); setFindIndex(0); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); stepFindMatch(e.shiftKey ? -1 : 1); }
+                  else if (e.key === 'Escape') { e.preventDefault(); closeFindBar(); }
+                }}
+                placeholder={language === 'es' ? 'Buscar en la nota…' : 'Find in note…'}
+                aria-label={language === 'es' ? 'Buscar en la nota' : 'Find in note'}
+                style={{
+                  width: 150, background: 'transparent', border: 'none', outline: 'none',
+                  color: 'var(--text-primary)', fontSize: 12, paddingLeft: 4,
+                }}
+              />
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: findCount > 0 ? 'var(--text-muted)' : 'var(--danger)',
+                fontVariantNumeric: 'tabular-nums', minWidth: 44, textAlign: 'center', whiteSpace: 'nowrap',
+              }}>
+                {findQuery.trim()
+                  ? (findCount > 0
+                    ? (language === 'es' ? `${findCurrent + 1} de ${findCount}` : `${findCurrent + 1} of ${findCount}`)
+                    : (language === 'es' ? 'Sin resultados' : 'No results'))
+                  : ''}
+              </span>
+              <ToolbarBtn
+                onClick={() => stepFindMatch(-1)}
+                title={language === 'es' ? 'Anterior (Mayús+Enter)' : 'Previous (Shift+Enter)'}
+              >
+                <ArrowUp size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                onClick={() => stepFindMatch(1)}
+                title={language === 'es' ? 'Siguiente (Enter)' : 'Next (Enter)'}
+              >
+                <ArrowDown size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn onClick={closeFindBar} title={language === 'es' ? 'Cerrar (Esc)' : 'Close (Esc)'}>
+                <X size={13} />
+              </ToolbarBtn>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input
+                value={findReplace}
+                onChange={(e) => setFindReplace(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); replaceFindCurrent(); }
+                  else if (e.key === 'Escape') { e.preventDefault(); closeFindBar(); }
+                }}
+                placeholder={language === 'es' ? 'Reemplazar con…' : 'Replace with…'}
+                aria-label={language === 'es' ? 'Reemplazar con' : 'Replace with'}
+                style={{
+                  width: 150, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
+                  borderRadius: 6, outline: 'none', color: 'var(--text-primary)', fontSize: 12,
+                  padding: '3px 6px', marginLeft: 0,
+                }}
+              />
+              <span style={{ minWidth: 44 }} />
+              <ToolbarBtn
+                onClick={replaceFindCurrent}
+                title={language === 'es' ? 'Reemplazar actual' : 'Replace current'}
+              >
+                <Replace size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                onClick={replaceFindAll}
+                title={language === 'es' ? 'Reemplazar todo' : 'Replace all'}
+              >
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.02em' }}>
+                  {language === 'es' ? 'Todo' : 'All'}
+                </span>
+              </ToolbarBtn>
+              <span style={{ width: 26 }} />
+            </div>
           </div>
         )}
         {/* Editor Content Container (Scrolling) */}

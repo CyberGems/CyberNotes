@@ -71,14 +71,18 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, chil
   }, [anchor, placement]);
 
   // Ocultar al hacer scroll para que el tooltip no quede "flotando".
+  // También al perder el foco la ventana (minimizar): sin mouseleave que lo
+  // oculte, quedaría pegado al restaurar.
   useEffect(() => {
     if (!anchor) return;
     const hide = () => { clearTimer(); setAnchor(null); };
     window.addEventListener('scroll', hide, true);
     window.addEventListener('wheel', hide, true);
+    window.addEventListener('blur', hide);
     return () => {
       window.removeEventListener('scroll', hide, true);
       window.removeEventListener('wheel', hide, true);
+      window.removeEventListener('blur', hide);
     };
   }, [anchor]);
 
