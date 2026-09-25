@@ -33,7 +33,7 @@ import {
   Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
-    NotebookText, Keyboard, ArrowRight, ALargeSmall, AlignJustify, MoreHorizontal, Type,
+    NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
     Eye, EyeOff, History, CaseUpper,
     type LucideIcon,
   } from 'lucide-react';
@@ -755,7 +755,7 @@ export function TableSelect({
             role="dialog"
             aria-modal="true"
             aria-label={language === 'es' ? 'Insertar tabla' : 'Insert table'}
-            style={{ width: 300 }}
+            style={{ width: 380 }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
@@ -780,6 +780,7 @@ export function TableSelect({
             <div className="modal-actions">
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setCustomOpen(false)}>
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
+                <span className="modal-key-esc">Esc</span>
               </button>
               <button type="button" className="modal-action-btn is-save" onClick={() => insert(rows, cols)}>
                 {language === 'es' ? 'Crear' : 'Create'}
@@ -3957,6 +3958,50 @@ export default function NoteEditor({
                   </motion.button>
                 ))}
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Barra de tabla: filas/columnas mientras el cursor está en una tabla */}
+        <AnimatePresence>
+          {editor?.isActive('table') && !editor?.isActive('image') && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 20,
+                background: 'rgba(10, 10, 18, 0.92)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                borderTop: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '8px 16px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+              }}
+            >
+              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>{language === 'es' ? 'Tabla:' : 'Table:'}</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <ToolbarBtn onClick={() => editor.chain().focus().addRowBefore().run()} title={language === 'es' ? 'Insertar fila arriba' : 'Insert row above'}><ArrowUp size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().addRowAfter().run()} title={language === 'es' ? 'Insertar fila debajo' : 'Insert row below'}><ArrowDown size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().deleteRow().run()} title={language === 'es' ? 'Eliminar fila' : 'Delete row'}><Minus size={14} /></ToolbarBtn>
+              </div>
+              <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
+              <div style={{ display: 'flex', gap: 4 }}>
+                <ToolbarBtn onClick={() => editor.chain().focus().addColumnBefore().run()} title={language === 'es' ? 'Insertar columna a la izquierda' : 'Insert column left'}><ArrowLeft size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title={language === 'es' ? 'Insertar columna a la derecha' : 'Insert column right'}><ArrowRight size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().deleteColumn().run()} title={language === 'es' ? 'Eliminar columna' : 'Delete column'}><Minus size={14} /></ToolbarBtn>
+              </div>
+              <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
+              <ToolbarBtn onClick={() => editor.chain().focus().deleteTable().run()} title={language === 'es' ? 'Eliminar tabla' : 'Delete table'}><Trash2 size={14} /></ToolbarBtn>
             </motion.div>
           )}
         </AnimatePresence>
