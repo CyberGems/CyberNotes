@@ -1048,7 +1048,7 @@ export function TableSelect({
         document.body,
       )}
       {customOpen && createPortal(
-        <div className="modal-overlay" onClick={() => setCustomOpen(false)}>
+        <div className="modal-overlay" data-leave-guard="modal" onClick={() => setCustomOpen(false)}>
           <div
             className="modal"
             role="dialog"
@@ -1138,7 +1138,7 @@ export function VideoSelect({
         </Tooltip>
       )}
       {modalOpen && createPortal(
-        <div className="modal-overlay" onClick={() => { setModalOpen(false); setLink(''); }}>
+        <div className="modal-overlay" data-leave-guard="modal" onClick={() => { setModalOpen(false); setLink(''); }}>
           <div
             className="modal"
             role="dialog"
@@ -2656,7 +2656,10 @@ export default function NoteEditor({
         // Los menús de fuente/tamaño viven en un portal (fuera del editor),
         // pero son parte de él: tocarlos no es abandonar la nota.
         const goesToWordMenu = !!target && !!target.closest?.('[data-word-menu="true"]');
-        if (target && !goesToTitle && !goesInsideEditor && !goesToNav && !goesToAppChrome && !goesToWordMenu) {
+        // Igual los modales propios (enlace, tabla, video): usan sus inputs
+        // sin salir del flujo de edición.
+        const goesToEditorModal = !!target && !!target.closest?.('[data-leave-guard="modal"]');
+        if (target && !goesToTitle && !goesInsideEditor && !goesToNav && !goesToAppChrome && !goesToWordMenu && !goesToEditorModal) {
           setShowLeaveEditorWarning(true);
         }
       }
@@ -5624,7 +5627,7 @@ export default function NoteEditor({
         <div style={{
           position: 'fixed', inset: 0, background: 'var(--bg-editor-glass)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
-        }} onClick={() => setEditLinkData(null)}>
+        }} data-leave-guard="modal" onClick={() => setEditLinkData(null)}>
           <div style={{
             background: 'var(--bg-modal)', padding: 24, borderRadius: 'var(--radius-lg)',
             width: 400, display: 'flex', flexDirection: 'column', gap: 16, border: '1px solid var(--border)',
