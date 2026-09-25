@@ -334,6 +334,8 @@ export type VideoProvider = 'youtube' | 'vimeo' | 'rumble' | 'dailymotion';
 export interface ParsedVideo {
   provider: VideoProvider;
   embedUrl: string;
+  /** Miniatura directa cuando el proveedor la expone sin API (YouTube, Dailymotion). */
+  thumb?: string;
 }
 
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -361,7 +363,11 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
       id = url.searchParams.get('v') || '';
     }
     if (YOUTUBE_ID.test(id)) {
-      return { provider: 'youtube', embedUrl: `https://www.youtube-nocookie.com/embed/${id}` };
+      return {
+        provider: 'youtube',
+        embedUrl: `https://www.youtube-nocookie.com/embed/${id}`,
+        thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      };
     }
     return null;
   }
@@ -381,7 +387,11 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
   if (host === 'dailymotion.com' || host === 'dai.ly') {
     const m = path.match(/(?:\/video\/|^\/)([A-Za-z0-9]+)/);
     if (m) {
-      return { provider: 'dailymotion', embedUrl: `https://www.dailymotion.com/embed/video/${m[1]}` };
+      return {
+        provider: 'dailymotion',
+        embedUrl: `https://www.dailymotion.com/embed/video/${m[1]}`,
+        thumb: `https://www.dailymotion.com/thumbnail/video/${m[1]}`,
+      };
     }
     return null;
   }
@@ -407,8 +417,10 @@ export const VIDEO_PROVIDER_LABEL: Record<VideoProvider, string> = {
 
 function VideoEmbedView(props: any) {
   const [playing, setPlaying] = useState(false);
+  const [imgGone, setImgGone] = useState(false);
   const src = (props.node?.attrs?.src as string) || '';
   const provider = (props.node?.attrs?.provider as VideoProvider) || 'youtube';
+  const thumb = (props.node?.attrs?.thumb as string) || '';
   const label = VIDEO_PROVIDER_LABEL[provider] || provider;
   return (
     <NodeViewWrapper className="video-embed" data-provider={provider}>
@@ -428,6 +440,16 @@ function VideoEmbedView(props: any) {
             onClick={() => { if (src) setPlaying(true); }}
             aria-label={`${label} (reproducir)`}
           >
+            {thumb && !imgGone && (
+              <img
+                src={thumb}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="video-embed-thumb"
+                onError={() => setImgGone(true)}
+              />
+            )}
             <span className="video-embed-play">
               <Play size={26} fill="currentColor" stroke="none" />
             </span>
@@ -465,6 +487,11 @@ export const VideoEmbed = TiptapNode.create({
         parseHTML: (element) => element.getAttribute('data-video-href'),
         renderHTML: (attributes) => (attributes.href ? { 'data-video-href': attributes.href } : {}),
       },
+      thumb: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-video-thumb'),
+        renderHTML: (attributes) => (attributes.thumb ? { 'data-video-thumb': attributes.thumb } : {}),
+      },
     };
   },
   parseHTML() {
@@ -486,7 +513,7 @@ export const VideoEmbed = TiptapNode.create({
   addCommands() {
     return {
       setVideoEmbed:
-        (attrs: { src: string; provider: string; href: string }) =>
+        (attrs: { src: string; provider: string; href: string; thumb?: string }) =>
         ({ chain }: any) =>
           chain()
             .insertContent({ type: 'videoEmbed', attrs })
@@ -498,7 +525,7 @@ export const VideoEmbed = TiptapNode.create({
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     videoEmbed: {
-      setVideoEmbed: (attrs: { src: string; provider: string; href: string }) => ReturnType;
+      setVideoEmbed: (attrs: { src: string; provider: string; href: string; thumb?: string }) => ReturnType;
     };
   }
 }
@@ -1102,14 +1129,26 @@ export function VideoSelect({
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [link, setLink] = useState('');
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+  const overlayDownRef = useRef(false);
+  const urlMenu = useInputContextMenu(language);
   const parsed = parseVideoUrl(link);
   useModalKeys({ enabled: modalOpen, onEsc: () => { setModalOpen(false); setLink(''); } });
   if (!editor) return null;
-  const insert = () => {
-    if (!parsed) return;
-    editor.chain().focus().setVideoEmbed({ src: parsed.embedUrl, provider: parsed.provider, href: link.trim() }).run();
+  const closeModal = () => {
     setModalOpen(false);
     setLink('');
+    setLoadedUrl(null);
+  };
+  const insert = () => {
+    if (!parsed) return;
+    editor.chain().focus().setVideoEmbed({
+      src: parsed.embedUrl,
+      provider: parsed.provider,
+      href: link.trim(),
+      thumb: parsed.thumb || '',
+    }).run();
+    closeModal();
   };
   const trigger = (
     <button
@@ -1138,7 +1177,12 @@ export function VideoSelect({
         </Tooltip>
       )}
       {modalOpen && createPortal(
-        <div className="modal-overlay" data-leave-guard="modal" onClick={() => { setModalOpen(false); setLink(''); }}>
+        <div
+          className="modal-overlay"
+          data-leave-guard="modal"
+          onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+          onClick={() => { if (overlayDownRef.current) closeModal(); overlayDownRef.current = false; }}
+        >
           <div
             className="modal"
             role="dialog"
@@ -1158,6 +1202,7 @@ export function VideoSelect({
                 value={link}
                 autoFocus
                 onChange={(e) => setLink(e.target.value)}
+                onContextMenu={urlMenu.onContextMenu}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { e.preventDefault(); insert(); }
                 }}
@@ -1169,19 +1214,37 @@ export function VideoSelect({
                 style={{
                   borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0, 0, 0, 0.25)',
                   aspectRatio: '16 / 9', overflow: 'hidden', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
+                  alignItems: 'center', justifyContent: 'center', position: 'relative',
                 }}
               >
                 {parsed ? (
-                  <iframe
-                    key={parsed.embedUrl}
-                    src={parsed.embedUrl}
-                    title={VIDEO_PROVIDER_LABEL[parsed.provider]}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    frameBorder="0"
-                    style={{ width: '100%', height: '100%', border: 'none' }}
-                  />
+                  <>
+                    <iframe
+                      key={parsed.embedUrl}
+                      src={parsed.embedUrl}
+                      title={VIDEO_PROVIDER_LABEL[parsed.provider]}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      frameBorder="0"
+                      onLoad={() => setLoadedUrl(parsed.embedUrl)}
+                      onError={() => setLoadedUrl(parsed.embedUrl)}
+                      style={{ width: '100%', height: '100%', border: 'none' }}
+                    />
+                    {loadedUrl !== parsed.embedUrl && (
+                      <div style={{
+                        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center', gap: 10, background: 'rgba(0, 0, 0, 0.45)',
+                      }}>
+                        <span className="spin" style={{
+                          width: 26, height: 26, borderRadius: '50%',
+                          border: '2px solid rgba(255,255,255,0.15)', borderTopColor: 'var(--accent-light)',
+                        }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {language === 'es' ? 'Cargando vista previa…' : 'Loading preview…'}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: 16, textAlign: 'center' }}>
                     {link.trim()
@@ -1192,7 +1255,7 @@ export function VideoSelect({
               </div>
             </div>
             <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
-              <button type="button" className="modal-action-btn is-cancel" onClick={() => { setModalOpen(false); setLink(''); }}>
+              <button type="button" className="modal-action-btn is-cancel" onClick={closeModal}>
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
                 <span className="modal-key-esc">Esc</span>
               </button>
@@ -1208,6 +1271,7 @@ export function VideoSelect({
               </button>
             </div>
           </div>
+          {urlMenu.menu}
         </div>,
         document.body,
       )}
@@ -2660,7 +2724,18 @@ export default function NoteEditor({
         // sin salir del flujo de edición.
         const goesToEditorModal = !!target && !!target.closest?.('[data-leave-guard="modal"]');
         if (target && !goesToTitle && !goesInsideEditor && !goesToNav && !goesToAppChrome && !goesToWordMenu && !goesToEditorModal) {
-          setShowLeaveEditorWarning(true);
+          // Enfocar un iframe (reproducir video) deja relatedTarget en nulo y
+          // el mousedown no cruza documentos: se confirma en el próximo tick,
+          // cuando el elemento activo ya migró al iframe.
+          setTimeout(() => {
+            if (!autosaveEnabledRef.current && hasUnsavedChangesRef.current && document.hasFocus()) {
+              const activeEl = document.activeElement as HTMLElement | null;
+              const inFrame = !!activeEl && activeEl.tagName === 'IFRAME' && !!(
+                editorRootRef.current?.contains(activeEl) || activeEl.closest?.('[data-leave-guard="modal"]')
+              );
+              if (!inFrame) setShowLeaveEditorWarning(true);
+            }
+          }, 0);
         }
       }
     },

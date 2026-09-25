@@ -1125,8 +1125,8 @@ export default function MainApp({
 
   useModalKeys({
     enabled: draftRecoveryQueue.length > 0,
-    onEsc: () => {},
-    onEnter: () => {},
+    onEsc: () => { void resolveDraftRecovery(false); },
+    onEnter: () => { void resolveDraftRecovery(true); },
   });
 
   // Guard de navegación (Caso A): si dejamos una nota con borrador en modo manual,
@@ -2248,6 +2248,7 @@ export default function MainApp({
                   onClick={() => { void resolveDraftRecovery(false); }}
                 >
                   {language === 'es' ? 'Volver a la versión guardada' : 'Use saved version'}
+                  <span className="modal-key-esc">Esc</span>
                 </button>
               </div>
             </motion.div>

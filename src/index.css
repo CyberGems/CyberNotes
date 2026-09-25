@@ -877,6 +877,19 @@ body:has(.sticky-note-window),
 .ProseMirror .video-embed-preview:hover {
   filter: brightness(1.25);
 }
+.ProseMirror .video-embed-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.ProseMirror .video-embed-play,
+.ProseMirror .video-embed-provider {
+  position: relative;
+  z-index: 1;
+}
 .ProseMirror .video-embed-play {
   width: 52px;
   height: 52px;
