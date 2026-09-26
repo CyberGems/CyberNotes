@@ -2045,6 +2045,31 @@ ipcMain.handle('add-to-dictionary', (_e: any, word: string) => {
   session.defaultSession.addWordToSpellCheckerDictionary(clean);
   return true;
 });
+ipcMain.handle('spell:listWords', async () => {
+  try {
+    const ses: any = mainWindow && !mainWindow.isDestroyed()
+      ? mainWindow.webContents.session
+      : session.defaultSession;
+    const words: unknown = await ses.listWordsInSpellCheckerDictionary();
+    return { ok: true, words: Array.isArray(words) ? words.filter((w): w is string => typeof w === 'string') : [] };
+  } catch (err) {
+    return { ok: false, words: [], error: String((err as Error)?.message || err) };
+  }
+});
+ipcMain.handle('spell:removeWord', (_e: any, word: string) => {
+  try {
+    if (typeof word !== 'string') return { ok: false };
+    const clean = word.trim().slice(0, 100);
+    if (!clean) return { ok: false };
+    const ses: any = mainWindow && !mainWindow.isDestroyed()
+      ? mainWindow.webContents.session
+      : session.defaultSession;
+    ses.removeWordFromSpellCheckerDictionary(clean);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
 /** Limites para imagenes copiadas al portapapeles desde el renderer. */
 const CLIPBOARD_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const CLIPBOARD_DATA_URL_MAX_CHARS = 15 * 1024 * 1024;

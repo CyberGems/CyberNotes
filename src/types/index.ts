@@ -196,6 +196,8 @@ declare global {
       // Spellcheck
       replaceMisspelling: (word: string) => Promise<void>;
       addToDictionary: (word: string) => Promise<void>;
+      listDictionaryWords: () => Promise<{ ok: boolean; words?: string[]; error?: string }>;
+      removeDictionaryWord: (word: string) => Promise<{ ok: boolean; error?: string }>;
       getSpellState: () => Promise<{ ok: boolean; available?: string[]; enabled?: boolean; languages?: string[]; error?: string }>;
       setSpellState: (patch: { enabled?: boolean; languages?: string[] }) => Promise<{ ok: boolean; available?: string[]; enabled?: boolean; languages?: string[]; error?: string }>;
       writeImageToClipboard: (url: string) => Promise<boolean>;

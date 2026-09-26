@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useCallback, Fragment, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ThemeId, type UsageStats } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -222,6 +222,170 @@ function UsageTiles({ stats, language }: { stats: UsageStats; language: Language
         {language === 'es'
           ? `${fmt(stats.activeDays)} días activos · ${fmt(stats.totalOpens)} aperturas`
           : `${fmt(stats.activeDays)} active days · ${fmt(stats.totalOpens)} opens`}
+      </div>
+    </div>
+  );
+}
+
+/** Gestor del diccionario personal del corrector (palabras agregadas). */
+function DictionaryWordsManager({ language }: { language: Language }) {
+  const [words, setWords] = useState<string[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [query, setQuery] = useState('');
+  const [newWord, setNewWord] = useState('');
+
+  const load = useCallback(() => {
+    window.cyberNotesAPI
+      ?.listDictionaryWords?.()
+      .then((res) => {
+        if (res?.ok) {
+          setWords([...(res.words || [])].sort((a, b) => a.localeCompare(b)));
+          setLoadError(false);
+        } else {
+          setLoadError(true);
+        }
+      })
+      .catch(() => setLoadError(true));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    if (!words) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return words;
+    return words.filter((w) => w.toLowerCase().includes(q));
+  }, [words, query]);
+
+  const handleRemove = useCallback((word: string) => {
+    window.cyberNotesAPI
+      ?.removeDictionaryWord?.(word)
+      .then((res) => {
+        if (res?.ok) setWords((prev) => (prev ? prev.filter((w) => w !== word) : prev));
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleAdd = useCallback(() => {
+    const clean = newWord.trim().slice(0, 100);
+    if (!clean) return;
+    window.cyberNotesAPI
+      ?.addToDictionary?.(clean)
+      .then(() => {
+        setNewWord('');
+        load();
+      })
+      .catch(() => {});
+  }, [newWord, load]);
+
+  if (!window.cyberNotesAPI?.listDictionaryWords) return null;
+
+  const count = words?.length ?? 0;
+
+  return (
+    <div className="settings-card">
+      <SettingsHeading icon={<BookOpen />}>
+        {language === 'es' ? 'Corrector ortográfico' : 'Spell checker'}
+      </SettingsHeading>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          {language === 'es'
+            ? 'Palabras que agregaste con "Agregar al diccionario". El corrector las acepta como válidas.'
+            : 'Words you added via "Add to dictionary". The spell checker accepts them as valid.'}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            className="input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={language === 'es' ? 'Buscar palabra…' : 'Search words…'}
+            aria-label={language === 'es' ? 'Buscar palabra' : 'Search words'}
+            style={{ flex: 1, fontSize: 12, background: 'var(--bg-app)' }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+            {language === 'es' ? `${count} palabras` : `${count} words`}
+          </span>
+        </div>
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 2,
+          maxHeight: 180, overflowY: 'auto',
+          background: 'var(--bg-app)',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+          padding: words && words.length > 0 ? 4 : 0,
+        }}>
+          {words === null && !loadError && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+              {language === 'es' ? 'Cargando…' : 'Loading…'}
+            </div>
+          )}
+          {loadError && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--danger)', textAlign: 'center' }}>
+              {language === 'es' ? 'No se pudo leer el diccionario.' : 'Could not read the dictionary.'}
+            </div>
+          )}
+          {words !== null && count === 0 && !loadError && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+              {language === 'es' ? 'Aún no agregaste palabras.' : 'No words added yet.'}
+            </div>
+          )}
+          {filtered.map((word) => (
+            <div
+              key={word}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '5px 6px 5px 10px', fontSize: 12,
+                borderRadius: 4, color: 'var(--text-primary)',
+              }}
+            >
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {word}
+              </span>
+              <Tooltip
+                placement="left"
+                label={language === 'es' ? `Quitar "${word}" del diccionario` : `Remove "${word}" from dictionary`}
+              >
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => handleRemove(word)}
+                  aria-label={language === 'es' ? `Quitar ${word} del diccionario` : `Remove ${word} from dictionary`}
+                  style={{ padding: 4, color: 'var(--text-muted)' }}
+                >
+                  <X size={13} />
+                </button>
+              </Tooltip>
+            </div>
+          ))}
+          {words !== null && count > 0 && filtered.length === 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+              {language === 'es' ? 'Sin resultados.' : 'No results.'}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            className="input"
+            value={newWord}
+            onChange={(e) => setNewWord(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+            placeholder={language === 'es' ? 'Nueva palabra…' : 'New word…'}
+            aria-label={language === 'es' ? 'Nueva palabra' : 'New word'}
+            maxLength={100}
+            style={{ flex: 1, fontSize: 12, background: 'var(--bg-app)' }}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={handleAdd}
+            disabled={!newWord.trim()}
+            style={{ gap: 4, fontSize: 12, padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
+          >
+            <Plus size={14} />
+            {language === 'es' ? 'Agregar' : 'Add'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1477,6 +1641,7 @@ export default function SettingsModal({
                   </div>
                 </div>
             </div>
+            <DictionaryWordsManager language={language} />
             <div className="settings-card settings-floating-card">
               <SettingsHeading icon={<StickyNote />}>
                 {language === 'es' ? 'Notas flotantes' : 'Floating Notes'}

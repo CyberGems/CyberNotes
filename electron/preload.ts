@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   reportRendererError: (message: string) => ipcRenderer.invoke('log:renderer-error', message),
   replaceMisspelling: (word: string) => ipcRenderer.invoke('replace-misspelling', word),
   addToDictionary: (word: string) => ipcRenderer.invoke('add-to-dictionary', word),
+  listDictionaryWords: () => ipcRenderer.invoke('spell:listWords'),
+  removeDictionaryWord: (word: string) => ipcRenderer.invoke('spell:removeWord', word),
   getSpellState: () => ipcRenderer.invoke('spell:getState'),
   setSpellState: (patch: { enabled?: boolean; languages?: string[] }) => ipcRenderer.invoke('spell:setState', patch),
   writeImageToClipboard: (url: string) => ipcRenderer.invoke('clipboard:writeImage', url),
