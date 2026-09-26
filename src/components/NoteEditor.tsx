@@ -550,9 +550,30 @@ const SPELL_LANG_NAMES: Record<string, { es: string; en: string }> = {
   'ca': { es: 'Catalán', en: 'Catalan' },
 };
 
+let spellDisplayNamesEs: Intl.DisplayNames | null = null;
+let spellDisplayNamesEn: Intl.DisplayNames | null = null;
+
 function spellLangName(code: string, language: Language): string {
+  // Nombres curados primero (los más usados, tal cual ya se mostraban).
   const hit = SPELL_LANG_NAMES[code.toLowerCase()];
   if (hit) return language === 'es' ? hit.es : hit.en;
+  // Chromium anuncia ~150 idiomas; Intl.DisplayNames los nombra todos en el
+  // idioma de la UI sin mapa manual (p. ej. "sk" -> "Eslovaco" / "Slovak").
+  try {
+    const dict = language === 'es'
+      ? (spellDisplayNamesEs ??= new Intl.DisplayNames(['es'], { type: 'language' }))
+      : (spellDisplayNamesEn ??= new Intl.DisplayNames(['en'], { type: 'language' }));
+    const parts = code.split('-');
+    const tag = parts.length > 1
+      ? `${parts[0].toLowerCase()}-${parts.slice(1).join('-').toUpperCase()}`
+      : code.toLowerCase();
+    const name = dict.of(tag);
+    if (name && name.toLowerCase() !== tag.toLowerCase()) {
+      return language === 'es' ? name.charAt(0).toUpperCase() + name.slice(1) : name;
+    }
+  } catch {
+    /* código no válido: respaldo de abajo */
+  }
   return code.toUpperCase();
 }
 
