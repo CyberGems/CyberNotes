@@ -1522,8 +1522,8 @@ export default function MainApp({
   };
 
   // "Eliminar la nota seleccionada" lo registra NoteList (mismo flujo con
-  // confirmaci├│n que el bot├│n y el men├║). El hotkey vive aqu├¡ para que
-  // funcione aunque el foco est├® en el editor.
+  // confirmación que el botón y el menú). El hotkey vive aquí para que
+  // funcione aunque el foco esté en el editor.
   const requestDeleteSelectedRef = useRef<(() => void) | null>(null);
   const registerDeleteSelected = useCallback((handler: () => void) => {
     requestDeleteSelectedRef.current = handler;
@@ -1596,9 +1596,9 @@ export default function MainApp({
         }
       }
 
-      // Alt+Supr: Eliminar nota seleccionada aunque el foco est├® en el editor
-      // (Supr a secas lo consume el editor como edici├│n de texto). Se omite en
-      // campos de texto de una l├¡nea para no sorprender (p. ej. renombrando).
+      // Alt+Supr: Eliminar nota seleccionada aunque el foco esté en el editor
+      // (Supr a secas lo consume el editor como edición de texto). Se omite en
+      // campos de texto de una línea para no sorprender (p. ej. renombrando).
       if (e.altKey && !isCtrlOrCmd && !e.shiftKey && e.key === 'Delete') {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName;
@@ -1809,10 +1809,13 @@ export default function MainApp({
 
   // Foco determinista al abrir el recovery: Enter funciona nativo sin
   // depender de dónde estuviera el foco (o si la ventana acaba de enfocar).
+  const recoveryWasOpenRef = useRef(false);
   useEffect(() => {
-    if (recoveryDraft && recoveryNote) {
+    const isOpen = !!(recoveryDraft && recoveryNote);
+    if (isOpen && !recoveryWasOpenRef.current) {
       recoveryPrimaryRef.current?.focus();
     }
+    recoveryWasOpenRef.current = isOpen;
   });
 
   return (
