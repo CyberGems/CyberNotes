@@ -3309,12 +3309,19 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(async () => {
-    // Diccionarios del corrector según preferencia guardada (bilingüe por defecto).
-    applySpellSettings();
-
     writeLog('info', `CyberNotes ${app.getVersion()} started (packaged: ${app.isPackaged})`);
     await initDatabase();
     recordAppOpen();
+    // Diccionarios del corrector según preferencia guardada (bilingüe por
+    // defecto). Requiere la BD iniciada (lee spellcheck_* de settings), por
+    // eso va después de initDatabase: antes tumbaba el arranque y nunca se
+    // creaba la ventana. Protegido para que un fallo del corrector jamás
+    // impida abrir la app.
+    try {
+      applySpellSettings();
+    } catch (err) {
+      writeLog('error', `spell init failed: ${err instanceof Error ? err.stack || err.message : String(err)}`);
+    }
     // Start locked whenever a password exists so tray restore never assumes an open session.
     sessionLocked = hasPasswordHash();
     lastActivityAt = Date.now();
