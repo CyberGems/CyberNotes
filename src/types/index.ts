@@ -196,6 +196,8 @@ declare global {
       // Spellcheck
       replaceMisspelling: (word: string) => Promise<void>;
       addToDictionary: (word: string) => Promise<void>;
+      getSpellState: () => Promise<{ ok: boolean; available?: string[]; enabled?: boolean; languages?: string[]; error?: string }>;
+      setSpellState: (patch: { enabled?: boolean; languages?: string[] }) => Promise<{ ok: boolean; available?: string[]; enabled?: boolean; languages?: string[]; error?: string }>;
       writeImageToClipboard: (url: string) => Promise<boolean>;
       // Keyboard
       unlockCapsLock: () => Promise<boolean>;

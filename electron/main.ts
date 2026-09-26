@@ -2145,6 +2145,105 @@ function sendSyntheticLockKey(key: 'CAPSLOCK' | 'NUMLOCK'): Promise<boolean> {
 ipcMain.handle('toggle-caps-lock', () => sendSyntheticLockKey('CAPSLOCK'));
 ipcMain.handle('toggle-num-lock', () => sendSyntheticLockKey('NUMLOCK'));
 
+// ─── Corrector ortográfico (diccionarios) ────────────────────────────────
+// Chromium expone los diccionarios disponibles; la app permite varios a la
+// vez (ideal bilingüe) más un interruptor maestro. Todo 100% local.
+const SPELL_DEFAULT_LANGS = ['es-ES', 'en-US'];
+
+function getAvailableSpellLangs(): string[] {
+  try {
+    const ses: any = mainWindow && !mainWindow.isDestroyed()
+      ? mainWindow.webContents.session
+      : session.defaultSession;
+    const list: unknown = ses.availableSpellCheckerLanguages;
+    if (Array.isArray(list)) {
+      const clean = list.filter((c): c is string => typeof c === 'string' && c.length >= 2 && c.length <= 12);
+      if (clean.length > 0) return clean;
+    }
+  } catch {
+    /* sin lista: respaldo curado */
+  }
+  return [...SPELL_DEFAULT_LANGS];
+}
+
+function readSpellState(): { available: string[]; enabled: boolean; languages: string[] } {
+  const available = getAvailableSpellLangs();
+  const enabledRow = queryGet('SELECT value FROM settings WHERE key = ?', ['spellcheck_enabled']);
+  const enabled = !enabledRow || enabledRow.value !== 'false';
+  const langsRow = queryGet('SELECT value FROM settings WHERE key = ?', ['spellcheck_languages']);
+  let languages: string[] = [...SPELL_DEFAULT_LANGS];
+  if (langsRow) {
+    try {
+      const parsed: unknown = JSON.parse(langsRow.value);
+      if (Array.isArray(parsed)) {
+        const valid = parsed.filter((c): c is string => typeof c === 'string' && available.includes(c));
+        if (valid.length > 0) languages = [...new Set(valid)];
+      }
+    } catch {
+      /* JSON corrupto: defaults */
+    }
+  } else {
+    languages = SPELL_DEFAULT_LANGS.filter((c) => available.includes(c));
+    if (languages.length === 0) languages = available.slice(0, 1);
+  }
+  return { available, enabled, languages };
+}
+
+function applySpellSettings(): { available: string[]; enabled: boolean; languages: string[] } {
+  const state = readSpellState();
+  try {
+    const sessions = new Set<any>([session.defaultSession]);
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) sessions.add(win.webContents.session);
+    }
+    for (const ses of sessions) {
+      try {
+        ses.setSpellCheckerEnabled(state.enabled);
+        if (state.enabled && state.languages.length > 0) {
+          ses.setSpellCheckerLanguages(state.languages);
+        }
+      } catch {
+        /* una sesión no debe tumbar a las demás */
+      }
+    }
+  } catch (err) {
+    console.error('[spell] apply failed:', err);
+  }
+  return state;
+}
+
+ipcMain.handle('spell:getState', () => {
+  try {
+    return { ok: true, ...readSpellState() };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
+ipcMain.handle('spell:setState', (_e: any, patch: { enabled?: boolean; languages?: string[] }) => {
+  try {
+    const available = getAvailableSpellLangs();
+    if (typeof patch.enabled === 'boolean') {
+      runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
+        'spellcheck_enabled',
+        patch.enabled ? 'true' : 'false',
+      ]);
+    }
+    if (Array.isArray(patch.languages)) {
+      const valid = [...new Set(patch.languages.filter((c) => typeof c === 'string' && available.includes(c)))];
+      if (valid.length > 0) {
+        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
+          'spellcheck_languages',
+          JSON.stringify(valid),
+        ]);
+      }
+    }
+    return { ok: true, ...applySpellSettings() };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
 // -- Updates (handled by electron/updater.ts via update:check|download|install) --
 ipcMain.handle('app:getVersions', () => ({
   app: app.getVersion(),
@@ -3210,8 +3309,8 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(async () => {
-    // Habilitar diccionarios bilingües simultáneos (Español e Inglés)
-    session.defaultSession.setSpellCheckerLanguages(['es-ES', 'en-US']);
+    // Diccionarios del corrector según preferencia guardada (bilingüe por defecto).
+    applySpellSettings();
 
     writeLog('info', `CyberNotes ${app.getVersion()} started (packaged: ${app.isPackaged})`);
     await initDatabase();

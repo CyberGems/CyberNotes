@@ -36,7 +36,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay,
+    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -528,6 +528,183 @@ declare module '@tiptap/core' {
       setVideoEmbed: (attrs: { src: string; provider: string; href: string; thumb?: string }) => ReturnType;
     };
   }
+}
+
+/** Nombres amables para los códigos de diccionario más comunes. */
+const SPELL_LANG_NAMES: Record<string, { es: string; en: string }> = {
+  'es': { es: 'Español', en: 'Spanish' },
+  'es-es': { es: 'Español (España)', en: 'Spanish (Spain)' },
+  'es-mx': { es: 'Español (México)', en: 'Spanish (Mexico)' },
+  'es-cr': { es: 'Español (Costa Rica)', en: 'Spanish (Costa Rica)' },
+  'en': { es: 'Inglés', en: 'English' },
+  'en-us': { es: 'Inglés (EE. UU.)', en: 'English (US)' },
+  'en-gb': { es: 'Inglés (Reino Unido)', en: 'English (UK)' },
+  'fr': { es: 'Francés', en: 'French' },
+  'de': { es: 'Alemán', en: 'German' },
+  'it': { es: 'Italiano', en: 'Italian' },
+  'pt': { es: 'Portugués', en: 'Portuguese' },
+  'pt-br': { es: 'Portugués (Brasil)', en: 'Portuguese (Brazil)' },
+  'nl': { es: 'Neerlandés', en: 'Dutch' },
+  'ru': { es: 'Ruso', en: 'Russian' },
+  'pl': { es: 'Polaco', en: 'Polish' },
+  'ca': { es: 'Catalán', en: 'Catalan' },
+};
+
+function spellLangName(code: string, language: Language): string {
+  const hit = SPELL_LANG_NAMES[code.toLowerCase()];
+  if (hit) return language === 'es' ? hit.es : hit.en;
+  return code.toUpperCase();
+}
+
+/** Selector de diccionarios del corrector (varios a la vez + interruptor). */
+export function SpellCheckSelect({ language }: { language: Language }) {
+  const [open, setOpen] = useState(false);
+  const [spell, setSpell] = useState<{ available: string[]; enabled: boolean; languages: string[] } | null>(null);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+  const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp: true, minWidth: 200 });
+  useEffect(() => {
+    if (!open || spell) return;
+    window.cyberNotesAPI
+      ?.getSpellState?.()
+      .then((res) => {
+        if (res?.ok) {
+          setSpell({
+            available: res.available || [],
+            enabled: res.enabled !== false,
+            languages: res.languages || [],
+          });
+        }
+      })
+      .catch(() => {});
+  }, [open, spell]);
+  if (!window.cyberNotesAPI?.getSpellState) return null;
+  const short = !spell
+    ? '…'
+    : !spell.enabled
+      ? 'OFF'
+      : spell.languages.map((c) => c.split('-')[0].toUpperCase()).join('·') || '—';
+  const apply = (patch: { enabled?: boolean; languages?: string[] }) => {
+    window.cyberNotesAPI
+      ?.setSpellState?.(patch)
+      .then((res) => {
+        if (res?.ok) {
+          setSpell({
+            available: res.available || [],
+            enabled: res.enabled !== false,
+            languages: res.languages || [],
+          });
+        }
+      })
+      .catch(() => {});
+  };
+  const toggleLang = (code: string) => {
+    if (!spell) return;
+    const next = spell.languages.includes(code)
+      ? spell.languages.filter((c) => c !== code)
+      : [...spell.languages, code];
+    if (next.length === 0) return;
+    apply({ languages: next });
+  };
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <Tooltip label={language === 'es' ? 'Corrector ortográfico' : 'Spell checker'} placement="top">
+        <button
+          ref={anchorRef}
+          type="button"
+          className="kb-badge"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setOpen((v) => !v)}
+          aria-label={language === 'es' ? 'Corrector ortográfico' : 'Spell checker'}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '2px 6px',
+            borderRadius: 999,
+            border: `1px solid ${spell && spell.enabled ? 'var(--accent)' : 'var(--border)'}`,
+            background: spell && spell.enabled ? 'var(--accent-dim)' : 'rgba(255,255,255,0.03)',
+            color: spell && spell.enabled ? 'var(--accent-light)' : 'var(--text-muted)',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: 0.2,
+            opacity: spell && spell.enabled ? 1 : 0.72,
+            userSelect: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <Languages size={10} style={{ flexShrink: 0 }} />
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{short}</span>
+        </button>
+      </Tooltip>
+      {open && createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+            onClick={() => setOpen(false)}
+          />
+          <div style={{ ...wordMenuBoxStyle, ...menuStyle }}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => spell && apply({ enabled: !spell.enabled })}
+              className="word-menu-item"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                padding: '6px 10px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
+                border: 'none', textAlign: 'left',
+              }}
+            >
+              <span>{language === 'es' ? 'Corrector' : 'Spell checker'}</span>
+              <span className={`custom-switch ${spell?.enabled ? 'active' : ''}`} />
+            </button>
+            <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }} />
+            {!spell && (
+              <div style={{ padding: '8px 10px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                {language === 'es' ? 'Cargando…' : 'Loading…'}
+              </div>
+            )}
+            {spell?.available.map((code) => {
+              const on = spell.languages.includes(code);
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => toggleLang(code)}
+                  className={`word-menu-item${on ? ' is-active' : ''}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                    border: 'none', textAlign: 'left',
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 14, height: 14, borderRadius: 4, flexShrink: 0,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      border: on ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      background: on ? 'var(--accent)' : 'transparent',
+                      color: '#fff', fontSize: 10, fontWeight: 800,
+                    }}
+                  >
+                    {on ? '✓' : ''}
+                  </span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {spellLangName(code, language)}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    {code.toUpperCase()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>,
+        document.body,
+      )}
+    </div>
+  );
 }
 
 /**
@@ -1121,42 +1298,156 @@ export function TableSelect({
   );
 }
 
-/** Botón video estilo referencia: modal con enlace + vista previa en vivo. */
+/** Modal de video compartido: insertar nuevo o editar el existente. */
+export function VideoInsertModal({
+  language, initialLink = '', submitLabel, onClose, onInsert,
+}: {
+  language: Language;
+  initialLink?: string;
+  submitLabel: { es: string; en: string };
+  onClose: () => void;
+  onInsert: (parsed: ParsedVideo, href: string) => void;
+}) {
+  const [link, setLink] = useState(initialLink);
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+  const overlayDownRef = useRef(false);
+  const urlFocusDoneRef = useRef(false);
+  const urlMenu = useInputContextMenu(language);
+  const parsed = parseVideoUrl(link);
+  useModalKeys({ enabled: true, onEsc: onClose });
+  const insert = () => {
+    if (!parsed) return;
+    onInsert(parsed, link.trim());
+  };
+  return createPortal(
+    <div
+      className="modal-overlay"
+      data-leave-guard="modal"
+      onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+      onClick={() => { if (overlayDownRef.current) onClose(); overlayDownRef.current = false; }}
+    >
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
+        style={{ width: 460 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+            {language === 'es' ? 'Insertar video' : 'Insert video'}
+          </h3>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input
+            className="input"
+            value={link}
+            ref={(el) => {
+              if (el && !urlFocusDoneRef.current) {
+                urlFocusDoneRef.current = true;
+                el.focus();
+              }
+            }}
+            onChange={(e) => setLink(e.target.value)}
+            onContextMenu={urlMenu.onContextMenu}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); insert(); }
+            }}
+            placeholder={language === 'es' ? 'Pega un enlace de YouTube, Vimeo, Rumble o Dailymotion…' : 'Paste a YouTube, Vimeo, Rumble or Dailymotion link…'}
+            aria-label={language === 'es' ? 'Enlace del video' : 'Video link'}
+            spellCheck={false}
+          />
+          <div
+            style={{
+              borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0, 0, 0, 0.25)',
+              aspectRatio: '16 / 9', overflow: 'hidden', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', position: 'relative',
+            }}
+          >
+            {parsed ? (
+              <>
+                <iframe
+                  key={parsed.embedUrl}
+                  src={parsed.embedUrl}
+                  title={VIDEO_PROVIDER_LABEL[parsed.provider]}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  frameBorder="0"
+                  onLoad={() => setLoadedUrl(parsed.embedUrl)}
+                  onError={() => setLoadedUrl(parsed.embedUrl)}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                />
+                {loadedUrl !== parsed.embedUrl && (
+                  <div style={{
+                    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: 10, background: 'rgba(0, 0, 0, 0.45)',
+                  }}>
+                    <span className="spin" style={{
+                      width: 26, height: 26, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.15)', borderTopColor: 'var(--accent-light)',
+                    }} />
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {language === 'es' ? 'Cargando vista previa…' : 'Loading preview…'}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: 16, textAlign: 'center' }}>
+                {link.trim()
+                  ? (language === 'es' ? 'Enlace no soportado.' : 'Unsupported link.')
+                  : (language === 'es' ? 'Vista previa' : 'Preview')}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
+          <button type="button" className="modal-action-btn is-cancel" onClick={onClose}>
+            {language === 'es' ? 'Cancelar' : 'Cancel'}
+            <span className="modal-key-esc">Esc</span>
+          </button>
+          <button
+            type="button"
+            className="modal-action-btn is-save"
+            disabled={!parsed}
+            onClick={insert}
+            style={{ opacity: parsed ? 1 : 0.45 }}
+          >
+            {language === 'es' ? submitLabel.es : submitLabel.en}
+            <EnterGlyph />
+          </button>
+        </div>
+      </div>
+      {urlMenu.menu}
+    </div>,
+    document.body,
+  );
+}
+
+/** Botón video estilo referencia: abre el modal de inserción. */
 export function VideoSelect({
   editor, language, hideTooltip = false,
 }: {
   editor: Editor | null; language: Language; hideTooltip?: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [link, setLink] = useState('');
-  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
-  const overlayDownRef = useRef(false);
-  const urlFocusDoneRef = useRef(false);
-  const urlMenu = useInputContextMenu(language);
-  const parsed = parseVideoUrl(link);
-  useModalKeys({ enabled: modalOpen, onEsc: () => { setModalOpen(false); setLink(''); } });
   if (!editor) return null;
-  const closeModal = () => {
-    setModalOpen(false);
-    setLink('');
-    setLoadedUrl(null);
-  };
-  const insert = () => {
-    if (!parsed) return;
+  const insert = (parsed: ParsedVideo, href: string) => {
     editor.chain().focus().setVideoEmbed({
       src: parsed.embedUrl,
       provider: parsed.provider,
-      href: link.trim(),
+      href,
       thumb: parsed.thumb || '',
     }).run();
-    closeModal();
+    setModalOpen(false);
   };
   const trigger = (
     <button
       type="button"
       data-word-combo="video"
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => { setLink(''); urlFocusDoneRef.current = false; setModalOpen(true); }}
+      onClick={() => setModalOpen(true)}
       className="word-combo"
       aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
       style={{
@@ -1177,109 +1468,13 @@ export function VideoSelect({
           {trigger}
         </Tooltip>
       )}
-      {modalOpen && createPortal(
-        <div
-          className="modal-overlay"
-          data-leave-guard="modal"
-          onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
-          onClick={() => { if (overlayDownRef.current) closeModal(); overlayDownRef.current = false; }}
-        >
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
-            style={{ width: 460 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                {language === 'es' ? 'Insertar video' : 'Insert video'}
-              </h3>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input
-                className="input"
-                value={link}
-                ref={(el) => {
-                  if (el && !urlFocusDoneRef.current) {
-                    urlFocusDoneRef.current = true;
-                    el.focus();
-                  }
-                }}
-                onChange={(e) => setLink(e.target.value)}
-                onContextMenu={urlMenu.onContextMenu}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); insert(); }
-                }}
-                placeholder={language === 'es' ? 'Pega un enlace de YouTube, Vimeo, Rumble o Dailymotion…' : 'Paste a YouTube, Vimeo, Rumble or Dailymotion link…'}
-                aria-label={language === 'es' ? 'Enlace del video' : 'Video link'}
-                spellCheck={false}
-              />
-              <div
-                style={{
-                  borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0, 0, 0, 0.25)',
-                  aspectRatio: '16 / 9', overflow: 'hidden', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', position: 'relative',
-                }}
-              >
-                {parsed ? (
-                  <>
-                    <iframe
-                      key={parsed.embedUrl}
-                      src={parsed.embedUrl}
-                      title={VIDEO_PROVIDER_LABEL[parsed.provider]}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      frameBorder="0"
-                      onLoad={() => setLoadedUrl(parsed.embedUrl)}
-                      onError={() => setLoadedUrl(parsed.embedUrl)}
-                      style={{ width: '100%', height: '100%', border: 'none' }}
-                    />
-                    {loadedUrl !== parsed.embedUrl && (
-                      <div style={{
-                        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', justifyContent: 'center', gap: 10, background: 'rgba(0, 0, 0, 0.45)',
-                      }}>
-                        <span className="spin" style={{
-                          width: 26, height: 26, borderRadius: '50%',
-                          border: '2px solid rgba(255,255,255,0.15)', borderTopColor: 'var(--accent-light)',
-                        }} />
-                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          {language === 'es' ? 'Cargando vista previa…' : 'Loading preview…'}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: 16, textAlign: 'center' }}>
-                    {link.trim()
-                      ? (language === 'es' ? 'Enlace no soportado.' : 'Unsupported link.')
-                      : (language === 'es' ? 'Vista previa' : 'Preview')}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
-              <button type="button" className="modal-action-btn is-cancel" onClick={closeModal}>
-                {language === 'es' ? 'Cancelar' : 'Cancel'}
-                <span className="modal-key-esc">Esc</span>
-              </button>
-              <button
-                type="button"
-                className="modal-action-btn is-save"
-                disabled={!parsed}
-                onClick={insert}
-                style={{ opacity: parsed ? 1 : 0.45 }}
-              >
-                {language === 'es' ? 'Insertar' : 'Insert'}
-                <EnterGlyph />
-              </button>
-            </div>
-          </div>
-          {urlMenu.menu}
-        </div>,
-        document.body,
+      {modalOpen && (
+        <VideoInsertModal
+          language={language}
+          submitLabel={{ es: 'Insertar', en: 'Insert' }}
+          onClose={() => setModalOpen(false)}
+          onInsert={insert}
+        />
       )}
     </div>
   );
@@ -2003,9 +2198,11 @@ export default function NoteEditor({
   }, [autosaveEnabled, hasUnsavedChanges]);
   const [showLeaveEditorWarning, setShowLeaveEditorWarning] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  /** Menú dedicado del nodo video bajo el cursor derecho. */
+  const [videoMenu, setVideoMenu] = useState<{ x: number; y: number; pos: number } | null>(null);
+  const [videoEdit, setVideoEdit] = useState<{ pos: number; href: string } | null>(null);
   const [isCapsLockActive, setIsCapsLockActive] = useState(false);
   const [isNumLockActive, setIsNumLockActive] = useState(false);
-  /** Sobreescritura (tecla INS): al escribir reemplaza el carácter siguiente. */
   /** Sobreescritura (tecla INS): al escribir reemplaza el carácter siguiente. */
   const [isOvertype, setIsOvertype] = useState(false);
   const isOvertypeRef = useRef(false);
@@ -2099,6 +2296,50 @@ export default function NoteEditor({
     if (hiddenToolbarSet.has(id)) return;
     onHiddenToolbarIdsChange?.([...hiddenToolbarIds.filter(isToolbarItemId), id]);
   }, [hiddenToolbarSet, hiddenToolbarIds, onHiddenToolbarIdsChange]);
+
+  /** Posición del nodo videoEmbed bajo un elemento del DOM (con tolerancia). */
+  const findVideoNodePos = useCallback((ed: Editor, el: HTMLElement): number | null => {
+    try {
+      const pos = ed.view.posAtDOM(el, 0);
+      for (const candidate of [pos, pos - 1, pos + 1]) {
+        if (candidate < 0) continue;
+        const node = ed.state.doc.nodeAt(candidate);
+        if (node && node.type.name === 'videoEmbed') return candidate;
+      }
+    } catch {
+      /* DOM no mapeable */
+    }
+    return null;
+  }, []);
+
+  const openVideoMenu = useCallback((x: number, y: number, pos: number) => {
+    const margin = 8;
+    const MENU_W = 210;
+    const MENU_H = 190;
+    setVideoMenu({
+      pos,
+      x: Math.max(margin, Math.min(x, window.innerWidth - MENU_W - margin)),
+      y: Math.max(margin, Math.min(y, window.innerHeight - MENU_H - margin)),
+    });
+  }, []);
+
+  /** Reemplaza el nodo video (editar URL) conservando su posición. */
+  const applyVideoEdit = useCallback((pos: number, parsed: ParsedVideo, href: string) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    setVideoEdit(null);
+    ed.chain().focus().setNodeSelection(pos).deleteSelection().insertContent({
+      type: 'videoEmbed',
+      attrs: { src: parsed.embedUrl, provider: parsed.provider, href, thumb: parsed.thumb || '' },
+    }).run();
+  }, []);
+
+  const deleteVideoNode = useCallback((pos: number) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    setVideoMenu(null);
+    ed.chain().focus().setNodeSelection(pos).deleteSelection().run();
+  }, []);
 
   const showToolbarItem = useCallback((id: ToolbarItemId) => {
     setToolbarMenu(null);
@@ -2340,6 +2581,24 @@ export default function NoteEditor({
         const timeDiff = Date.now() - lastContextMenuTimeRef.current;
         if (timeDiff > 200) {
           return;
+        }
+
+        // Clic derecho sobre un video: menú dedicado (editar/borrar) en vez
+        // del contextual habitual, para no mezclar acciones de texto.
+        const downEl = (window as any).lastMouseDownEl as HTMLElement | null;
+        const videoEl = downEl?.closest?.('.video-embed') as HTMLElement | null;
+        if (videoEl && editorRef.current) {
+          const videoPos = findVideoNodePos(editorRef.current, videoEl);
+          if (videoPos !== null) {
+            try {
+              editorRef.current.commands.setNodeSelection(videoPos);
+            } catch {
+              /* selección opcional */
+            }
+            setContextMenu(null);
+            openVideoMenu(mousePos.x, mousePos.y, videoPos);
+            return;
+          }
         }
 
         // El reposicionamiento dentro de la ventana lo afina useLayoutEffect tras medir el menú.
@@ -2994,6 +3253,8 @@ export default function NoteEditor({
     setHasUnsavedChanges(!!draft);
 
     hydratedNoteIdRef.current = null;
+    setVideoMenu(null);
+    setVideoEdit(null);
     if (!editor || !note) return;
     tabHydrationStart(note.id);
 
@@ -5272,6 +5533,7 @@ export default function NoteEditor({
               <span>INS</span>
             </span>
           </Tooltip>
+          <SpellCheckSelect language={language} />
         </div>
 
         {/* Métricas compactas: números + tooltips */}
@@ -5352,8 +5614,116 @@ export default function NoteEditor({
         )}
       </div>
 
-      {contextMenu && editor && createPortal(
+      {/* Menú dedicado del video: editar, copiar/abrir enlace y eliminar. */}
+      {videoMenu && editor && createPortal(
         <>
+          <div
+            data-word-menu="true"
+            style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setVideoMenu(null)}
+          />
+          <div
+            data-word-menu="true"
+            role="menu"
+            style={{
+              position: 'fixed', left: videoMenu.x, top: videoMenu.y, zIndex: WORD_MENU_Z,
+              minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(10, 10, 18, 0.97)',
+              border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+              display: 'flex', flexDirection: 'column', gap: 1,
+              userSelect: 'none', WebkitUserSelect: 'none',
+            }}
+          >
+            <div style={{
+              padding: '6px 10px 7px', fontSize: 10, fontWeight: 800,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--text-muted)', borderBottom: '1px solid var(--border)',
+              marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {language === 'es' ? 'Video' : 'Video'}
+            </div>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const node = editor.state.doc.nodeAt(videoMenu.pos);
+                const href = (node?.attrs?.href as string) || (node?.attrs?.src as string) || '';
+                setVideoMenu(null);
+                setVideoEdit({ pos: videoMenu.pos, href });
+              }}
+              className="word-menu-item"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
+                fontSize: 12, borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
+              }}
+            >
+              <Pencil size={13} style={{ opacity: 0.75, flexShrink: 0 }} />
+              <span>{language === 'es' ? 'Editar video' : 'Edit video'}</span>
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const node = editor.state.doc.nodeAt(videoMenu.pos);
+                const href = (node?.attrs?.href as string) || (node?.attrs?.src as string) || '';
+                setVideoMenu(null);
+                if (href) navigator.clipboard.writeText(href).catch(() => {});
+              }}
+              className="word-menu-item"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
+                fontSize: 12, borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
+              }}
+            >
+              <Copy size={13} style={{ opacity: 0.75, flexShrink: 0 }} />
+              <span>{language === 'es' ? 'Copiar enlace' : 'Copy link'}</span>
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const node = editor.state.doc.nodeAt(videoMenu.pos);
+                const href = (node?.attrs?.href as string) || (node?.attrs?.src as string) || '';
+                setVideoMenu(null);
+                if (href) window.cyberNotesAPI.openExternal(href);
+              }}
+              className="word-menu-item"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
+                fontSize: 12, borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
+              }}
+            >
+              <ExternalLink size={13} style={{ opacity: 0.75, flexShrink: 0 }} />
+              <span>{language === 'es' ? 'Abrir en el navegador' : 'Open in browser'}</span>
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => deleteVideoNode(videoMenu.pos)}
+              className="word-menu-item is-muted"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
+                fontSize: 12, borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
+                color: '#f87171',
+              }}
+            >
+              <Trash2 size={13} style={{ flexShrink: 0 }} />
+              <span>{language === 'es' ? 'Eliminar video' : 'Delete video'}</span>
+            </button>
+          </div>
+        </>,
+        document.body,
+      )}
+      {videoEdit && editor && (
+        <VideoInsertModal
+          language={language}
+          initialLink={videoEdit.href}
+          submitLabel={{ es: 'Guardar', en: 'Save' }}
+          onClose={() => setVideoEdit(null)}
+          onInsert={(parsed, href) => applyVideoEdit(videoEdit.pos, parsed, href)}
+        />
+      )}
+      {contextMenu && editor && createPortal(        <>
           {/* Backdrop: cierra al mousedown fuera (evita carrera con click del ítem). */}
           <div
             style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
