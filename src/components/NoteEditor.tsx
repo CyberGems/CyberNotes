@@ -3855,6 +3855,7 @@ export default function NoteEditor({
       { keys: ['Ctrl', 'N'], label: language === 'es' ? 'Nueva nota' : 'New note' },
       { keys: ['Ctrl', 'F'], label: language === 'es' ? 'Buscar notas' : 'Search notes' },
       { keys: ['Ctrl', 'S'], label: language === 'es' ? 'Guardar nota' : 'Save note' },
+      { keys: ['Alt', language === 'es' ? 'Supr' : 'Del'], label: language === 'es' ? 'Eliminar nota seleccionada' : 'Delete selected note' },
     ];
     return (
       <div className="glass-effect editor-glass" style={{
@@ -5545,6 +5546,11 @@ export default function NoteEditor({
               <span>INS</span>
             </span>
           </Tooltip>
+          {/* Separador: el selector de diccionario es otra familia, no un indicador de tecla. */}
+          <span
+            aria-hidden="true"
+            style={{ width: 1, height: 14, background: 'var(--border)', opacity: 0.7, margin: '0 5px 0 3px', flexShrink: 0 }}
+          />
           <SpellCheckSelect language={language} />
         </div>
 

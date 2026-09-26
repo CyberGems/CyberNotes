@@ -1521,6 +1521,17 @@ export default function MainApp({
     setFolders(prev => prev.map(f => f.id === folder.id ? folder : f).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
   };
 
+  // "Eliminar la nota seleccionada" lo registra NoteList (mismo flujo con
+  // confirmaci├│n que el bot├│n y el men├║). El hotkey vive aqu├¡ para que
+  // funcione aunque el foco est├® en el editor.
+  const requestDeleteSelectedRef = useRef<(() => void) | null>(null);
+  const registerDeleteSelected = useCallback((handler: () => void) => {
+    requestDeleteSelectedRef.current = handler;
+    return () => {
+      if (requestDeleteSelectedRef.current === handler) requestDeleteSelectedRef.current = null;
+    };
+  }, []);
+
   // Atajos globales de teclado
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -1581,6 +1592,20 @@ export default function MainApp({
         if (!inField) {
           e.preventDefault();
           if (selectedNoteIdRef.current) void handleDuplicateNote(selectedNoteIdRef.current);
+          return;
+        }
+      }
+
+      // Alt+Supr: Eliminar nota seleccionada aunque el foco est├® en el editor
+      // (Supr a secas lo consume el editor como edici├│n de texto). Se omite en
+      // campos de texto de una l├¡nea para no sorprender (p. ej. renombrando).
+      if (e.altKey && !isCtrlOrCmd && !e.shiftKey && e.key === 'Delete') {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        const inTextField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+        if (!inTextField) {
+          e.preventDefault();
+          requestDeleteSelectedRef.current?.();
           return;
         }
       }
@@ -1946,6 +1971,7 @@ export default function MainApp({
               onMoveNote={handleMoveNote}
               onRenameNote={handleRenameNote}
               onDuplicateNote={handleDuplicateNote}
+              onRegisterDeleteSelected={registerDeleteSelected}
               selectedFolder={selectedFolderId === 'sticky'
                 ? { id: 'sticky', name: TRANSLATIONS[language].sidebar.stickyNotes, icon: 'app-window', color: FILTER_COLORS.sticky } as Folder
                 : selectedFolderId === 'floating'

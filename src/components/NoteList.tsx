@@ -27,6 +27,7 @@ interface Props {
   onMoveNote: (noteId: string, folderId: string | null) => void;
   onRenameNote: (id: string, title: string) => void;
   onDuplicateNote: (id: string) => void;
+  onRegisterDeleteSelected?: (handler: () => void) => () => void;
   selectedFolder: Folder | null;
   searchQuery: string;
   uiScale?: number;
@@ -273,7 +274,8 @@ export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
   onRequestCreateFolder,
   onDeleteNote, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
-  onTogglePin, onMoveNote, onRenameNote, onDuplicateNote, selectedFolder, searchQuery, uiScale = 1,
+  onTogglePin, onMoveNote, onRenameNote, onDuplicateNote, onRegisterDeleteSelected,
+  selectedFolder, searchQuery, uiScale = 1,
 }: Props) {
   const t = TRANSLATIONS[language];
   const isStickyFolder = selectedFolder?.id === 'sticky';
@@ -708,6 +710,17 @@ export default function NoteList({
     setDontAskMoveToTrash(false);
     setNoteToDelete(note);
   }, [isTrashFolder, onDeleteNote, skipMoveToTrashConfirmation]);
+
+  // Expone "eliminar la nota seleccionada" para el hotkey global Alt+Supr de
+  // MainApp: mismo flujo con confirmación que el botón y el menú contextual.
+  useEffect(() => {
+    if (!onRegisterDeleteSelected) return;
+    return onRegisterDeleteSelected(() => {
+      if (!selectedNoteId) return;
+      const current = sortedNotes.find(n => n.id === selectedNoteId);
+      if (current) requestDeleteNote(current);
+    });
+  }, [onRegisterDeleteSelected, selectedNoteId, sortedNotes, requestDeleteNote]);
 
   const handleListKeyDown = (e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -1797,7 +1810,10 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         ))}
       </div>
 
-      <Tooltip placement="left" label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}>
+      <Tooltip placement="left" label={isTrash
+        ? `${t.noteList.permanentDelete} (Alt+${language === 'es' ? 'Supr' : 'Del'})`
+        : (language === 'es' ? 'Eliminar nota (Alt+Supr)' : 'Delete note (Alt+Del)')}
+      >
         <button
           type="button"
           className={`delete-note-btn${isDense ? ' is-dense' : ''}`}
