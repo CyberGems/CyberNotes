@@ -562,8 +562,10 @@ export function SpellCheckSelect({ language }: { language: Language }) {
   const [spell, setSpell] = useState<{ available: string[]; enabled: boolean; languages: string[] } | null>(null);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp: true, minWidth: 200 });
+  // Precarga al montar para que el badge muestre los idiomas activos sin
+  // tener que abrir el menú primero.
   useEffect(() => {
-    if (!open || spell) return;
+    if (spell) return;
     window.cyberNotesAPI
       ?.getSpellState?.()
       .then((res) => {
@@ -576,7 +578,7 @@ export function SpellCheckSelect({ language }: { language: Language }) {
         }
       })
       .catch(() => {});
-  }, [open, spell]);
+  }, [spell]);
   if (!window.cyberNotesAPI?.getSpellState) return null;
   const short = !spell
     ? '…'
@@ -2376,6 +2378,16 @@ export default function NoteEditor({
       window.removeEventListener('keydown', onKey);
     };
   }, [toolbarMenu, showMoreMenu]);
+
+  // El menú dedicado del video también cierra con Escape, como el resto.
+  useEffect(() => {
+    if (!videoMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVideoMenu(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [videoMenu]);
 
   // Refs sincronizados en cada render: garantizan valores frescos dentro de los
   // callbacks de TipTap (onBlur) evitando cualquier cierre obsoleto (stale closure).

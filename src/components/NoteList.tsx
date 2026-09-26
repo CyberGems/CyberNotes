@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo, memo, useCallback } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
@@ -286,6 +286,7 @@ export default function NoteList({
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, note: Note } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [isHovering, setIsHovering] = useState(false);
   const [hiddenCount, setHiddenCount] = useState(0);
   const [renameTarget, setRenameTarget] = useState<Note | null>(null);
@@ -768,12 +769,31 @@ export default function NoteList({
 
   const handleContextMenu = useCallback((e: React.MouseEvent, note: Note) => {
     e.preventDefault();
-    let safeX = e.clientX;
-    let safeY = e.clientY;
-    if (safeX + 160 > window.innerWidth) safeX = window.innerWidth - 160;
-    if (safeY + 250 > window.innerHeight) safeY = window.innerHeight - 250;
-    setContextMenu({ x: safeX, y: safeY, note });
+    // Posición inicial aproximada; el useLayoutEffect de abajo la ajusta con
+    // el tamaño real medido (el menú varía: papelera, sección "Mover a…", etc.).
+    setContextMenu({ x: e.clientX, y: e.clientY, note });
   }, []);
+
+  // Reposiciona el menú contextual para que no se desborde de la ventana,
+  // sobre todo por abajo cuando la nota está cerca del borde inferior.
+  useLayoutEffect(() => {
+    if (!contextMenu) return;
+    const el = contextMenuRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let nextX = contextMenu.x;
+    let nextY = contextMenu.y;
+    if (nextX + rect.width + margin > window.innerWidth) {
+      nextX = Math.max(margin, window.innerWidth - rect.width - margin);
+    }
+    if (nextY + rect.height + margin > window.innerHeight) {
+      nextY = Math.max(margin, window.innerHeight - rect.height - margin);
+    }
+    if (nextX !== contextMenu.x || nextY !== contextMenu.y) {
+      setContextMenu(cm => (cm ? { ...cm, x: nextX, y: nextY } : cm));
+    }
+  }, [contextMenu]);
 
   const getHeaderTitle = () => {
     if (searchQuery) {
@@ -1220,7 +1240,8 @@ export default function NoteList({
 
       {/* Menú Contextual */}
       {contextMenu && createPortal(
-        <div 
+        <div
+          ref={contextMenuRef}
           className="glass-effect"
           style={{
             position: 'fixed',
