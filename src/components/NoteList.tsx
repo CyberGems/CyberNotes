@@ -1398,7 +1398,7 @@ export default function NoteList({
 
       {/* Modal Renombrar */}
       {renameTarget && createPortal(
-        <div style={{
+        <div data-leave-guard="modal" style={{
           position: 'fixed', inset: 0, background: 'var(--bg-editor-glass)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
         }} onClick={() => setRenameTarget(null)}>
@@ -1444,7 +1444,7 @@ export default function NoteList({
 
       {/* Modal Confirmar Eliminar Nota */}
       {noteToDelete && createPortal(
-        <div style={{
+        <div data-leave-guard="modal" style={{
           position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.72)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
@@ -1546,7 +1546,7 @@ export default function NoteList({
       )}
 
       {showEmptyTrashConfirm && createPortal(
-        <div style={{
+        <div data-leave-guard="modal" style={{
           position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.72)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
