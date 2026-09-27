@@ -20,6 +20,7 @@ export const TRANSLATIONS = {
     },
     sidebar: {
       allNotes: 'Todas las notas',
+      views: 'Vistas',
       favorites: 'Favoritos',
       stickyNotes: 'Notas flotantes',
       trash: 'Papelera',
@@ -343,6 +344,7 @@ export const TRANSLATIONS = {
     },
     sidebar: {
       allNotes: 'All Notes',
+      views: 'Views',
       favorites: 'Favorites',
       stickyNotes: 'Floating notes',
       trash: 'Trash',

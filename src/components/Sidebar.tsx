@@ -113,6 +113,81 @@ export default function Sidebar({
   const [isNoteDragging, setIsNoteDragging] = useState(false);
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null | 'all'>(null);
 
+  // Secciones colapsables (Vistas y Carpetas), como los grupos de la lista.
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('cybernotes_sidebar_collapsed_sections');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set(parsed.filter((k): k is string => typeof k === 'string'));
+      }
+    } catch {}
+    return new Set<string>();
+  });
+  const toggleSidebarSection = (key: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem('cybernotes_sidebar_collapsed_sections', JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  };
+  // Si la selección cae dentro de una sección colapsada, se expande sola.
+  useEffect(() => {
+    const specialIds = new Set<string>(['favorites', 'sticky', 'floating', 'trash']);
+    const inFolders = selectedFolderId !== null && !specialIds.has(selectedFolderId);
+    setCollapsedSections(prev => {
+      const target = inFolders ? 'folders' : 'views';
+      if (!prev.has(target)) return prev;
+      const next = new Set(prev);
+      next.delete(target);
+      try {
+        localStorage.setItem('cybernotes_sidebar_collapsed_sections', JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  }, [selectedFolderId]);
+
+  const viewsCollapsed = collapsedSections.has('views');
+  const foldersCollapsed = collapsedSections.has('folders');
+
+  const renderSectionHeader = (key: 'views' | 'folders', label: string) => {
+    const collapsed = collapsedSections.has(key);
+    return (
+      <Tooltip
+        placement="bottom"
+        label={collapsed
+          ? (language === 'es' ? 'Desplegar sección' : 'Expand section')
+          : (language === 'es' ? 'Plegar sección' : 'Collapse section')}
+      >
+        <button
+          type="button"
+          onClick={() => toggleSidebarSection(key)}
+          aria-expanded={!collapsed}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            fontSize: 'calc(10px * var(--ui-scale))', fontWeight: 700,
+            color: 'var(--text-muted)', textTransform: 'uppercase',
+            letterSpacing: 1, padding: '12px 10px 6px', textAlign: 'left',
+          }}
+        >
+          <span style={{
+            display: 'inline-flex',
+            transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+            transition: 'transform 0.15s',
+          }}>
+            <ChevronRight size={12} />
+          </span>
+          <span style={{ flex: 1 }}>{label}</span>
+        </button>
+      </Tooltip>
+    );
+  };
+
   // Global drag listeners to activate target drop indicators
   useEffect(() => {
     const handleDragStart = () => {
@@ -308,6 +383,9 @@ export default function Sidebar({
         }}
         style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}
       >
+        {renderSectionHeader('views', t.sidebar.views)}
+        {!viewsCollapsed && (
+          <>
         {/* Todas las notas */}
         <motion.button
           onClick={() => onSelectFolder(null)}
@@ -668,18 +746,12 @@ export default function Sidebar({
             <span style={specialFilterBadgeStyle(selectedFolderId === 'trash' && !searchQuery, FILTER_COLORS.trash)}>{trashCount}</span>
           )}
         </motion.button>
+          </>
+        )}
 
-        {/* Separator */}
-        <div style={{
-          fontSize: 'calc(10px * var(--ui-scale))',
-          fontWeight: 700,
-          color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: 1,
-          padding: '12px 10px 6px',
-        }}>
-          {t.sidebar.folders}
-        </div>
+        {renderSectionHeader('folders', t.sidebar.folders)}
+        {!foldersCollapsed && (
+          <>
 
         {/* Lista de folders */}
         {folders.map(folder => {
@@ -840,6 +912,8 @@ export default function Sidebar({
             {t.sidebar.newFolder}
           </button>
         </Tooltip>
+          </>
+        )}
       </div>
 
       {/* Bottom actions */}
