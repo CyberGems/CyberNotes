@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ThemeId, type UsageStats } from '../types';
+import { ThemeId, type UsageStats, type AccessLogEvent } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
@@ -391,7 +391,170 @@ function DictionaryWordsManager({ language }: { language: Language }) {
   );
 }
 
-export default function SettingsModal({ 
+/** Registro de accesos: últimos desbloqueos, intentos y cambios de clave. */
+function AccessLogCard({ language }: { language: Language }) {
+  const [events, setEvents] = useState<AccessLogEvent[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = useCallback(() => {
+    window.cyberNotesAPI
+      ?.listAccessLog?.()
+      .then((res) => {
+        if (res?.ok) {
+          setEvents(res.events || []);
+          setLoadError(false);
+        } else {
+          setLoadError(true);
+        }
+      })
+      .catch(() => setLoadError(true));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleClear = useCallback(() => {
+    window.cyberNotesAPI
+      ?.clearAccessLog?.()
+      .then((res) => {
+        if (res?.ok) {
+          setEvents([]);
+          setLoadError(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!window.cyberNotesAPI?.listAccessLog) return null;
+
+  const labelOf = (event: string, detail: string): string => {
+    const isPin = detail === 'pin';
+    switch (event) {
+      case 'unlock_ok':
+        return language === 'es' ? 'Desbloqueo correcto' : 'Unlocked';
+      case 'unlock_fail':
+        return language === 'es' ? 'Intento fallido' : 'Failed attempt';
+      case 'auto_lock':
+        return language === 'es' ? 'Bloqueo automático' : 'Auto-lock';
+      case 'password_changed':
+        return isPin
+          ? (language === 'es' ? 'PIN actualizado' : 'PIN updated')
+          : (language === 'es' ? 'Contraseña actualizada' : 'Password updated');
+      case 'password_removed':
+        return language === 'es' ? 'Protección eliminada' : 'Protection removed';
+      default:
+        return event;
+    }
+  };
+
+  const dotOf = (event: string): string => {
+    switch (event) {
+      case 'unlock_ok':
+        return 'var(--success)';
+      case 'unlock_fail':
+        return 'var(--danger)';
+      case 'auto_lock':
+        return 'var(--warning, #f59e0b)';
+      default:
+        return 'var(--accent-light)';
+    }
+  };
+
+  const formatWhen = (iso: string): string => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(language === 'es' ? 'es-ES' : 'en-US', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  };
+
+  const count = events?.length ?? 0;
+
+  return (
+    <div className="settings-card">
+      <SettingsHeading icon={<Eye />}>
+        {language === 'es' ? 'Registro de accesos' : 'Access log'}
+      </SettingsHeading>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
+        {language === 'es'
+          ? 'Últimos desbloqueos, intentos fallidos, bloqueos automáticos y cambios de clave (máx. 50).'
+          : 'Recent unlocks, failed attempts, auto-locks and credential changes (max 50).'}
+      </p>
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 2,
+        maxHeight: 180, overflowY: 'auto',
+        background: 'var(--bg-app)',
+        border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+        padding: events && events.length > 0 ? 4 : 0,
+      }}>
+        {events === null && !loadError && (
+          <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+            {language === 'es' ? 'Cargando…' : 'Loading…'}
+          </div>
+        )}
+        {loadError && (
+          <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--danger)', textAlign: 'center' }}>
+            {language === 'es' ? 'No se pudo leer el registro.' : 'Could not read the log.'}
+          </div>
+        )}
+        {events !== null && count === 0 && !loadError && (
+          <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+            {language === 'es' ? 'Sin eventos todavía.' : 'No events yet.'}
+          </div>
+        )}
+        {(events || []).map((entry) => (
+          <div
+            key={entry.id}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '5px 6px 5px 10px', fontSize: 12,
+              borderRadius: 4, color: 'var(--text-primary)',
+            }}
+          >
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotOf(entry.event), flexShrink: 0 }} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {labelOf(entry.event, entry.detail)}
+            </span>
+            <span style={{ fontSize: 10.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              {formatWhen(entry.created_at)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {language === 'es' ? `${count} eventos` : `${count} events`}
+        </span>
+        <Tooltip label={language === 'es' ? 'Recargar' : 'Reload'} placement="top">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={load}
+            aria-label={language === 'es' ? 'Recargar' : 'Reload'}
+            style={{ padding: 6 }}
+          >
+            <RotateCcw size={13} />
+          </button>
+        </Tooltip>
+        <Tooltip label={language === 'es' ? 'Limpiar registro' : 'Clear log'} placement="top">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={handleClear}
+            disabled={count === 0}
+            aria-label={language === 'es' ? 'Limpiar registro' : 'Clear log'}
+            style={{ padding: 6, opacity: count === 0 ? 0.4 : 1 }}
+          >
+            <Trash2 size={13} />
+          </button>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+export default function SettingsModal({
   language, displayName, onDisplayNameChange, onLanguageChange,
   currentTheme, onThemeChange, colorIntensity, onIntensityChange, 
   bgImage, onBgImageChange, glassBlur, onBlurChange, bgOpacity, onOpacityChange,
@@ -2414,6 +2577,8 @@ export default function SettingsModal({
                 )}
               </div>
             </div>
+
+            <AccessLogCard language={language} />
 
             <div className="settings-card">
                 <SettingsHeading icon={<ShieldCheck />}>

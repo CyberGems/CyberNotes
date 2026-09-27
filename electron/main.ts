@@ -212,6 +212,14 @@ async function initDatabase() {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_note_revisions_note ON note_revisions (note_id, id DESC);
+
+    CREATE TABLE IF NOT EXISTS access_log (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      event      TEXT NOT NULL,
+      detail     TEXT DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_access_log_created ON access_log (created_at DESC);
   `);
 
   // Migración: DBs antiguas sin columnas nuevas o sticky_notes
@@ -473,6 +481,27 @@ function recordUnlock(): void {
   }
 }
 
+// ─── Registro de accesos (mínimo: últimos 50 eventos de bloqueo) ────────────
+// Desbloqueos OK/fallidos, bloqueos automáticos y cambios de clave. Solo
+// metadatos (sin secretos); un fallo de log jamás rompe el flujo de auth.
+const ACCESS_LOG_KEEP = 50;
+
+function recordAccessEvent(event: string, detail = ''): void {
+  try {
+    if (!db) return;
+    runQuery('INSERT INTO access_log (event, detail, created_at) VALUES (?, ?, ?)', [
+      event,
+      detail.slice(0, 120),
+      new Date().toISOString(),
+    ]);
+    runQuery('DELETE FROM access_log WHERE id NOT IN (SELECT id FROM access_log ORDER BY id DESC LIMIT ?)', [
+      ACCESS_LOG_KEEP,
+    ]);
+  } catch {
+    /* logging must never break auth */
+  }
+}
+
 function stripHtmlToWords(html: unknown): string[] {
   if (typeof html !== 'string' || !html) return [];
   const noImages = html.replace(/<img\b[^>]*>/gi, ' ');
@@ -632,6 +661,7 @@ function startIdleLockWatcher(): void {
     if (sessionLocked) return;
     if (!hasPasswordHash()) return;
     if (!idleExceeded()) return;
+    recordAccessEvent('auto_lock');
     requestRendererLock();
   }, 5_000);
 }
@@ -2363,7 +2393,10 @@ ipcMain.handle('session:set-locked', (_e: any, locked: boolean) => {
   } else {
     lastActivityAt = Date.now();
     // Solo cuenta cuando había bloqueo real: es un desbloqueo del usuario.
-    if (sessionLocked) recordUnlock();
+    if (sessionLocked) {
+      recordUnlock();
+      recordAccessEvent('unlock_ok');
+    }
     handleSessionUnlocked();
   }
   return true;
@@ -2391,6 +2424,7 @@ ipcMain.handle('auth:setPassword', async (_e: any, password: string, method?: st
   const hash = await bcrypt.hash(mode === 'pin' ? secret.trim() : password, 10);
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hash]);
   runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auth_method', mode]);
+  recordAccessEvent('password_changed', mode);
   sessionLocked = false;
   lastActivityAt = Date.now();
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2403,7 +2437,11 @@ ipcMain.handle('auth:setPassword', async (_e: any, password: string, method?: st
 ipcMain.handle('auth:verifyPassword', async (_e: any, password: string) => {
   const row = queryGet('SELECT value FROM settings WHERE key = ?', ['password_hash']);
   if (!row) return true;
-  return bcrypt.compare(password, row.value);
+  const ok = await bcrypt.compare(password, row.value);
+  // Solo los fallos: el OK se registra al desbloquear de verdad
+  // (session:set-locked), para no duplicar ni contar verificaciones internas.
+  if (!ok) recordAccessEvent('unlock_fail');
+  return ok;
 });
 
 ipcMain.handle('auth:removePassword', () => {
@@ -2411,11 +2449,34 @@ ipcMain.handle('auth:removePassword', () => {
   // Sin contraseña no hay nada que recuperar: limpiar código y pista también.
   runQuery('DELETE FROM settings WHERE key = ?', ['recovery_code_hash']);
   runQuery('DELETE FROM settings WHERE key = ?', ['password_hint']);
+  recordAccessEvent('password_removed');
   handleSessionUnlocked();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('setting-changed', { key: 'password_hash', value: 'removed' });
   }
   return true;
+});
+
+// -- Registro de accesos (lectura y limpieza para Ajustes) --
+ipcMain.handle('security:listAccessLog', () => {
+  try {
+    const rows = queryAll(
+      'SELECT id, event, detail, created_at FROM access_log ORDER BY id DESC LIMIT ?',
+      [ACCESS_LOG_KEEP],
+    );
+    return { ok: true, events: rows };
+  } catch (err) {
+    return { ok: false, events: [], error: String((err as Error)?.message || err) };
+  }
+});
+
+ipcMain.handle('security:clearAccessLog', () => {
+  try {
+    runQuery('DELETE FROM access_log');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
 });
 
 // -- Códigos de recuperación --

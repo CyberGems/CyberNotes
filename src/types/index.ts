@@ -99,6 +99,8 @@ declare global {
       hasRecoveryCode: () => Promise<boolean>;
       setRecoveryCode: (code: string) => Promise<boolean>;
       verifyRecoveryCode: (code: string) => Promise<{ ok: boolean; retryAfterMs: number }>;
+      listAccessLog: () => Promise<{ ok: boolean; events?: AccessLogEvent[]; error?: string }>;
+      clearAccessLog: () => Promise<{ ok: boolean; error?: string }>;
       getUsageStats: () => Promise<{ ok: boolean; stats?: UsageStats; error?: string }>;
       purgeUsageStats: () => Promise<{ ok: boolean; error?: string }>;
       listRevisions: (noteId: string) => Promise<{ ok: boolean; revisions?: NoteRevisionMeta[]; error?: string }>;
@@ -229,6 +231,13 @@ declare global {
       onStickyAttention: (callback: () => void) => () => void;
     };
   }
+}
+
+export interface AccessLogEvent {
+  id: number;
+  event: string;
+  detail: string;
+  created_at: string;
 }
 
 export interface StickyNoteConfig {
