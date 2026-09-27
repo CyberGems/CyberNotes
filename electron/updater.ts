@@ -6,19 +6,15 @@ const { autoUpdater } = require('electron-updater') as typeof import('electron-u
 
 let autoUpdateEnabled = false;
 let manualCheck = false;
-// true = ciclo automático (startup/periódico): descarga e instalación
-// desatendidas. false = el usuario pidió/confirmó: nada automático.
-let autoCycle = true;
+// Política: solo se COMPRUEBA en silencio (startup/periódico). Descargar e
+// instalar requieren siempre un clic del usuario en el aviso.
 let isDownloading = false;
 let downloadedVersion: string | null = null;
 let periodicTimer: ReturnType<typeof setInterval> | null = null;
-let pendingAutoInstallTimer: ReturnType<typeof setTimeout> | null = null;
-let canInstallChecker: () => boolean = () => true;
 let listenersRegistered = false;
 
 const STARTUP_CHECK_MS = 8000;
 const PERIODIC_CHECK_MS = 6 * 60 * 60 * 1000;
-const AUTO_INSTALL_DELAY_MS = 15000;
 
 type UpdateStatus =
   | { state: 'checking' }
@@ -80,17 +76,6 @@ function broadcast(status: UpdateStatus): void {
   }
 }
 
-function clearAutoInstallTimer(): void {
-  if (pendingAutoInstallTimer) {
-    clearTimeout(pendingAutoInstallTimer);
-    pendingAutoInstallTimer = null;
-  }
-}
-
-export function setCanInstallChecker(fn: () => boolean): void {
-  canInstallChecker = fn;
-}
-
 function schedulePeriodicChecks(): void {
   if (periodicTimer) clearInterval(periodicTimer);
   if (!autoUpdateEnabled) return;
@@ -139,7 +124,8 @@ async function doCheckSilently(): Promise<void> {
 export function initUpdater(autoUpdate: boolean): void {
   autoUpdateEnabled = autoUpdate;
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // Sin instalación al salir: instalar también exige clic en Reiniciar ahora.
+  autoUpdater.autoInstallOnAppQuit = false;
 
   if (!listenersRegistered) {
     listenersRegistered = true;
@@ -148,25 +134,14 @@ export function initUpdater(autoUpdate: boolean): void {
 
     autoUpdater.on('update-available', async (info) => {
       downloadedVersion = null;
-      clearAutoInstallTimer();
-      // autoCycle NO se toca aquí: conserva el último valor explícito para que
-      // un chequeo manual tardío no reactive descargas automáticas por carrera.
       const details = await fetchReleaseDetails(info.version, info.releaseNotes);
+      // Solo avisar (con changelog): la descarga la inicia el usuario.
       broadcast({
         state: 'available',
         version: info.version,
         releaseNotes: details.notes,
         releaseUrl: details.url,
       });
-      if (autoUpdateEnabled && autoCycle && !isDownloading) {
-        isDownloading = true;
-        autoUpdater.downloadUpdate().catch((err) => {
-          isDownloading = false;
-          const errMsg = String(err?.message || err);
-          if (!manualCheck && isNetworkError(errMsg)) return;
-          broadcast({ state: 'error', message: errMsg });
-        });
-      }
     });
 
     autoUpdater.on('update-not-available', (info) => {
@@ -180,23 +155,8 @@ export function initUpdater(autoUpdate: boolean): void {
     autoUpdater.on('update-downloaded', (info) => {
       isDownloading = false;
       downloadedVersion = info.version;
+      // Solo avisar: instalar exige clic en Reiniciar ahora.
       broadcast({ state: 'downloaded', version: info.version });
-      if (autoUpdateEnabled && autoCycle && canInstallChecker()) {
-        clearAutoInstallTimer();
-        pendingAutoInstallTimer = setTimeout(() => {
-          pendingAutoInstallTimer = null;
-          if (!canInstallChecker()) {
-            broadcast({ state: 'downloaded', version: info.version });
-            return;
-          }
-          broadcast({ state: 'installing', version: info.version });
-          setTimeout(() => {
-            // Silencioso + force-run: el template NSIS asistido solo relanza
-            // la app si instala en silencio (la página final se salta en /S).
-            try { autoUpdater.quitAndInstall(true, true); } catch { /* ignore */ }
-          }, 400);
-        }, AUTO_INSTALL_DELAY_MS);
-      }
     });
 
     autoUpdater.on('error', (err) => {
@@ -223,13 +183,10 @@ export function setAutoUpdate(enabled: boolean): void {
   autoUpdateEnabled = enabled;
   if (enabled && !was) {
     downloadedVersion = null;
-    clearAutoInstallTimer();
-    autoCycle = true;
     schedulePeriodicChecks();
     setTimeout(() => doCheckSilently(), 2000);
   } else if (!enabled) {
     stopPeriodicChecks();
-    clearAutoInstallTimer();
   }
 }
 
@@ -239,9 +196,6 @@ function registerUpdateIpc(): void {
 
   ipcMain.handle('update:check', async () => {
     manualCheck = true;
-    // Pedido explícito del usuario: ciclo manual desde ya (sin esperar al
-    // evento), para que nada automático arranque por carrera.
-    autoCycle = false;
     try {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Update check timed out')), 20000);
@@ -261,9 +215,7 @@ function registerUpdateIpc(): void {
   ipcMain.handle('update:download', async () => {
     try {
       if (downloadedVersion) return { ok: true };
-      // Descarga iniciada por el usuario: el ciclo pasa a manual, sin
-      // instalación automática al terminar (el banner ofrece Reiniciar).
-      autoCycle = false;
+      // Descarga iniciada por el usuario (botón Descargar del aviso).
       isDownloading = true;
       await autoUpdater.downloadUpdate();
       return { ok: true };
@@ -274,17 +226,14 @@ function registerUpdateIpc(): void {
   });
 
   ipcMain.handle('update:install', () => {
-    clearAutoInstallTimer();
-    // Silencioso + force-run: ver nota arriba, si no el usuario queda
-    // mirando el asistente NSIS en vez de la app reiniciada.
+    // Reiniciar ahora (clic explícito). Silencioso + force-run: el template
+    // NSIS asistido solo relanza la app si instala en silencio.
     try { autoUpdater.quitAndInstall(true, true); } catch { /* ignore */ }
   });
 
   ipcMain.handle('update:cancelAutoInstall', () => {
-    // Intervención del usuario (más tarde, descartar, omitir): ciclo manual,
-    // sin reemisión para no resucitar el banner de una versión omitida.
-    autoCycle = false;
-    clearAutoInstallTimer();
+    // Intervención del usuario (más tarde, descartar, omitir): no reemite
+    // nada para no resucitar el banner de una versión omitida.
     return true;
   });
 }

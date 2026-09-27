@@ -11,7 +11,6 @@ type Status =
   | { state: 'installing'; version: string }
   | { state: 'error'; message: string };
 
-const AUTO_RESTART_SEC = 8;
 const SKIP_KEY = 'cybernotes_skipped_update_version';
 const RELEASES_REPO = 'CyberGems/CyberNotes';
 
@@ -162,22 +161,11 @@ export function parseChangelogPeek(markdown?: string, language: Language = 'en')
 export default function UpdaterBanner({ language }: { language: Language }) {
   const t = TRANSLATIONS[language].updater;
   const [status, setStatus] = useState<Status>({ state: 'idle' });
-  const [countdown, setCountdown] = useState(AUTO_RESTART_SEC);
   const [dismissed, setDismissed] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [releaseNotes, setReleaseNotes] = useState<string | undefined>();
   const [releaseUrl, setReleaseUrl] = useState<string>('');
   const lastVersionRef = useRef('');
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // true cuando la descarga en curso la inició el usuario (botón Descargar):
-  // en ese caso no hay reinicio automático, solo botón Reiniciar ahora.
-  const userDownloadRef = useRef(false);
-
-  const clearTimers = useCallback(() => {
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-  }, []);
 
   const currentVersion = status.state === 'available' || status.state === 'downloaded' || status.state === 'installing' || status.state === 'downloading'
     ? (status.version || '')
@@ -191,7 +179,6 @@ export default function UpdaterBanner({ language }: { language: Language }) {
       }
       if (next.state === 'available') {
         if (readSkippedVersion() === next.version) return;
-        userDownloadRef.current = false;
         lastVersionRef.current = next.version;
         setReleaseNotes(next.releaseNotes);
         setReleaseUrl(next.releaseUrl || `https://github.com/${RELEASES_REPO}/releases/tag/v${next.version}`);
@@ -207,16 +194,12 @@ export default function UpdaterBanner({ language }: { language: Language }) {
       }
       if (next.state === 'not-available' as any) {
         setStatus({ state: 'idle' });
-        clearTimers();
         return;
       }
       setStatus(next);
-      if (next.state !== 'downloaded') {
-        clearTimers();
-      }
     });
-    return () => { off(); clearTimers(); };
-  }, [clearTimers]);
+    return () => { off(); };
+  }, []);
 
   useEffect(() => {
     if (status.state !== 'available' || !status.version) return;
@@ -233,56 +216,36 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     return () => { cancelled = true; };
   }, [status, releaseNotes]);
 
-  useEffect(() => {
-    // Sin countdown cuando la descarga la pidió el usuario: él decide cuándo
-    // reiniciar con los botones. El countdown solo corre en ciclos automáticos.
-    if (status.state !== 'downloaded' || dismissed || userDownloadRef.current) {
-      clearTimers();
-      return;
-    }
-    setCountdown(AUTO_RESTART_SEC);
-    intervalRef.current = setInterval(() => {
-      setCountdown((c) => Math.max(0, c - 1));
-    }, 1000);
-    timerRef.current = setTimeout(() => {
-      window.cyberNotesAPI.installUpdate();
-    }, AUTO_RESTART_SEC * 1000);
-    return clearTimers;
-  }, [status, dismissed, clearTimers]);
-
+  // Sin reinicio automático: tras descargar, el usuario decide con
+  // Reiniciar ahora o Más tarde. Nada se descarga ni instala sin su clic.
   const handleLater = useCallback(() => {
-    clearTimers();
     setDismissed(true);
     window.cyberNotesAPI.cancelAutoInstall?.();
-  }, [clearTimers]);
+  }, []);
 
   const handleNow = useCallback(() => {
-    clearTimers();
     window.cyberNotesAPI.installUpdate();
-  }, [clearTimers]);
+  }, []);
 
   const handleDismiss = useCallback(() => {
-    clearTimers();
     setDismissed(true);
     if (status.state === 'downloaded') {
       window.cyberNotesAPI.cancelAutoInstall?.();
     }
-  }, [clearTimers, status.state]);
+  }, [status.state]);
 
   const handleSkip = useCallback((version: string) => {
     try {
       localStorage.setItem(SKIP_KEY, version);
     } catch { /* ignore */ }
-    clearTimers();
     setDismissed(true);
     window.cyberNotesAPI.cancelAutoInstall?.();
-  }, [clearTimers]);
+  }, []);
 
   const handleDownload = useCallback(() => {
     try {
       localStorage.removeItem(SKIP_KEY);
     } catch { /* ignore */ }
-    userDownloadRef.current = true;
     const version = currentVersion;
     setStatus({ state: 'downloading', percent: 0, version });
     void window.cyberNotesAPI.downloadUpdate();
@@ -399,11 +362,6 @@ export default function UpdaterBanner({ language }: { language: Language }) {
                 </span>
               )}
             </div>
-            {status.state === 'downloaded' && !userDownloadRef.current && (
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                {t.restartingIn.replace('{sec}', String(countdown))}
-              </div>
-            )}
           </div>
         </div>
 
