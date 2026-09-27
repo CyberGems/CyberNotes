@@ -8,7 +8,7 @@
 
 <!-- Maintainer: Rewrite the marked paragraph for every release. Use 25-45 words, lead with user-facing changes, and do not repeat the app name or version. -->
 <!-- changelog-summary:start -->
-Video embeds arrive with a dedicated menu to edit, copy, open or delete clips, alongside a footer spell checker with multi-language support and a personal dictionary manager. Plus a smarter recovery comparison, collapsible sidebar sections, an Alt+Delete shortcut, and bilingual update notes.
+Square grid cards arrive with text peeks, collapsible groups, a views dropdown and an Alt+V shortcut, alongside a security access log with opt-out and PIN recovery hints. Plus updates that always ask first, smoother tab switches, a recents facelift, and delete actions everywhere.
 <!-- changelog-summary:end -->
 
 > **New to CyberNotes?** A privacy-focused Windows notes app with rich text, folders, tabs, floating notes, and fully local data.
@@ -17,10 +17,10 @@ Video embeds arrive with a dedicated menu to edit, copy, open or delete clips, a
 
 ### ✨ Key Features & Highlights
 
-- 🎬 **Video embeds with dedicated menu**: multi-provider embeds with privacy facade, thumbnails and loader, plus right-click actions to edit the URL, copy or open the link, and delete the clip.
-- 🌐 **Spell checker upgrades**: footer switcher with on/off toggle and multi-select for bilingual writing, full language names, and a personal dictionary manager in Settings with search, add and remove.
-- 🛟 **Smarter recovery and sidebar**: the recovery dialog now compares saved version versus draft (dates, word counts, excerpts), and the Views and Folders sidebar sections collapse with persisted state.
-- ⌨️ **Alt+Delete and polish**: delete the selected note from anywhere, a note-list menu that stays on screen, Esc closing the video menu, deterministic modal focus, and update notices in Spanish.
+- 🃏 **Grid cards view**: square cards with cover images or text peeks, collapsible favorite, floating and date groups, a views dropdown with Alt+V shortcut, and inline badges that never overlap text.
+- 🛡️ **Security access log**: last 50 unlocks, failed attempts, auto-locks and credential changes in Settings, with one-click clear, an opt-out toggle, and Forgot PIN plus Enter hint on the lock screen.
+- ✅ **Updates ask first**: notices always show the changelog in your language with Download, Skip and View release; nothing downloads or installs without your click, and the close-window dialog is now option cards.
+- ✨ **Flow polish**: delete from the tab menu and the editor header, Esc clearing search, smoother tab switches without loader flicker or scroll jumps, a cleaner recents menu, and a Space key for Leave without saving.
 
 <details>
 <summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
@@ -28,7 +28,7 @@ Video embeds arrive with a dedicated menu to edit, copy, open or delete clips, a
 ### 🚀 Novedades de esta versión
 
 <!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
-Los videos embebidos llegan con menú dedicado para editar, copiar, abrir o eliminar clips, junto a un corrector con varios idiomas y gestor de diccionario personal. Además, comparador de recuperación, secciones colapsables, atajo Alt+Supr y avisos en español.
+Las tarjetas cuadradas llegan con peeks de texto, grupos colapsables, menú de vistas y atajo Alt+V, junto a un registro de accesos con opt-out y ayuda de PIN. Además, avisos que siempre piden confirmación, cambios de pestaña suaves, recientes renovados y borrado en todas partes.
 
 ---
 
@@ -36,10 +36,10 @@ Los videos embebidos llegan con menú dedicado para editar, copiar, abrir o elim
 
 <!-- Maintainer: Espejo en español de los puntos de arriba. -->
 
-- 🎬 **Videos embebidos con menú dedicado**: embebidos multiproveedor con fachada de privacidad, miniaturas y loader, más acciones de clic derecho para editar la URL, copiar o abrir el enlace y eliminar el clip.
-- 🌐 **Mejoras del corrector**: selector en el footer con interruptor y selección múltiple para escritura bilingüe, nombres completos de idioma y gestor de diccionario personal en Ajustes con búsqueda, alta y baja.
-- 🛟 **Recuperación y sidebar más listos**: el diálogo de recuperación compara versión guardada y borrador (fechas, palabras, extractos), y las secciones Vistas y Carpetas se pliegan con estado persistido.
-- ⌨️ **Alt+Supr y pulido**: elimina la nota seleccionada desde cualquier foco, menú de la lista siempre visible, Esc cierra el menú de video, foco determinista en modales y avisos en español.
+- 🃏 **Vista de tarjetas**: tarjetas cuadradas con portada o peek de texto, grupos colapsables de favoritas, flotantes y fechas, menú de vistas con atajo Alt+V e insignias que nunca tapan texto.
+- 🛡️ **Registro de accesos**: últimos 50 desbloqueos, intentos, bloqueos y cambios de clave en Ajustes, con limpiar en un clic, interruptor opt-out y PIN olvidado más Enter en el login.
+- ✅ **Avisos con confirmación**: los avisos siempre muestran el changelog en tu idioma con Descargar, Omitir y Ver release; nada se descarga ni instala sin tu clic, y el diálogo de cierre ahora son tarjetas.
+- ✨ **Pulido de flujo**: borrado desde menú de pestaña y header, Esc que limpia la búsqueda, cambios de pestaña sin parpadeos ni saltos, recientes renovados y Espacio para Salir sin guardar.
 
 </details>
 
