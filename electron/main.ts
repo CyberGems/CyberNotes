@@ -486,9 +486,19 @@ function recordUnlock(): void {
 // metadatos (sin secretos); un fallo de log jamás rompe el flujo de auth.
 const ACCESS_LOG_KEEP = 50;
 
+function isAccessLogEnabled(): boolean {
+  try {
+    if (!db) return true;
+    const row = queryGet('SELECT value FROM settings WHERE key = ?', ['access_log_enabled']);
+    return !row || row.value !== 'false';
+  } catch {
+    return true;
+  }
+}
+
 function recordAccessEvent(event: string, detail = ''): void {
   try {
-    if (!db) return;
+    if (!db || !isAccessLogEnabled()) return;
     runQuery('INSERT INTO access_log (event, detail, created_at) VALUES (?, ?, ?)', [
       event,
       detail.slice(0, 120),

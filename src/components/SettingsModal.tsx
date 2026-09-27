@@ -395,6 +395,7 @@ function DictionaryWordsManager({ language }: { language: Language }) {
 function AccessLogCard({ language }: { language: Language }) {
   const [events, setEvents] = useState<AccessLogEvent[] | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [logEnabled, setLogEnabled] = useState(true);
 
   const load = useCallback(() => {
     window.cyberNotesAPI
@@ -413,6 +414,21 @@ function AccessLogCard({ language }: { language: Language }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    window.cyberNotesAPI
+      ?.getSetting?.('access_log_enabled')
+      .then((v) => setLogEnabled(v !== 'false'))
+      .catch(() => {});
+  }, []);
+
+  const handleToggleLog = useCallback(() => {
+    const next = !logEnabled;
+    setLogEnabled(next);
+    void window.cyberNotesAPI
+      ?.setSetting?.('access_log_enabled', next ? 'true' : 'false')
+      .catch(() => {});
+  }, [logEnabled]);
 
   const handleClear = useCallback(() => {
     window.cyberNotesAPI
@@ -481,6 +497,19 @@ function AccessLogCard({ language }: { language: Language }) {
           ? 'Últimos desbloqueos, intentos fallidos, bloqueos automáticos y cambios de clave (máx. 50).'
           : 'Recent unlocks, failed attempts, auto-locks and credential changes (max 50).'}
       </p>
+      <button
+        type="button"
+        onClick={handleToggleLog}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+          padding: '6px 2px', marginBottom: 8, fontSize: 12, fontWeight: 600,
+          background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <span>{language === 'es' ? 'Registrar accesos' : 'Record access'}</span>
+        <span className={`custom-switch ${logEnabled ? 'active' : ''}`} />
+      </button>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 2,
         maxHeight: 180, overflowY: 'auto',
