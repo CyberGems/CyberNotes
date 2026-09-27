@@ -11,6 +11,8 @@ import AboutModal from './AboutModal';
 import TrayPinModal from './TrayPinModal';
 import ConfirmDialog from './ConfirmDialog';
 import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
+import { Download, Power, X } from 'lucide-react';
+import Tooltip from './Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb } from '../utils/notes';
 import { tabSwitchStart, tabSwitchResolve } from '../utils/tabPerf';
@@ -2198,10 +2200,20 @@ export default function MainApp({
       {showFirstCloseDialog && (
         <div className="modal-overlay">
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="first-close-title" style={{ width: 520 }}>
-            <div className="modal-header">
+            <div className="modal-header" style={{ justifyContent: 'space-between' }}>
               <h2 id="first-close-title" style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>
                 {language === 'es' ? 'Cerrar ventana' : 'Close window'}
               </h2>
+              <Tooltip label={language === 'es' ? 'Cerrar' : 'Close'} placement="bottom">
+                <button
+                  type="button"
+                  className="settings-header-close"
+                  onClick={() => setShowFirstCloseDialog(false)}
+                  aria-label={language === 'es' ? 'Cerrar' : 'Close'}
+                >
+                  <X size={15} />
+                </button>
+              </Tooltip>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
@@ -2209,6 +2221,68 @@ export default function MainApp({
                   ? '¿Qué te gustaría hacer al cerrar la ventana? Minimizar a la bandeja mantiene CyberNotes en segundo plano; salir la cierra por completo.'
                   : 'What would you like to do when closing the window? Minimizing to tray keeps CyberNotes in the background; quitting closes it completely.'}
               </p>
+              <button
+                type="button"
+                onClick={() => chooseFirstClose('tray')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                  padding: '12px 14px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'; }}
+              >
+                <span style={{
+                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+                  color: 'var(--accent-light)',
+                }}>
+                  <Download size={17} />
+                </span>
+                <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>
+                    {language === 'es' ? 'Minimizar a la bandeja' : 'Minimize to tray'}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {language === 'es' ? 'Mantiene CyberNotes en segundo plano' : 'Keeps CyberNotes in the background'}
+                  </span>
+                </span>
+                <EnterGlyph />
+              </button>
+              <button
+                type="button"
+                onClick={() => chooseFirstClose('quit')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                  padding: '12px 14px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'; }}
+              >
+                <span style={{
+                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: 'var(--danger)',
+                }}>
+                  <Power size={17} />
+                </span>
+                <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>
+                    {language === 'es' ? 'Salir' : 'Quit'}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {language === 'es' ? 'Cierra CyberNotes por completo' : 'Quits CyberNotes completely'}
+                  </span>
+                </span>
+                <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
+              </button>
               <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', userSelect: 'none' }}>
                 <input
                   type="checkbox"
@@ -2220,25 +2294,6 @@ export default function MainApp({
                   {language === 'es' ? 'Recordar mi elección' : 'Remember my choice'}
                 </span>
               </label>
-              <div className="modal-actions" style={{ marginTop: 2 }}>
-                <button
-                  type="button"
-                  className="modal-action-btn is-cancel"
-                  style={{ color: '#f87171' }}
-                  onClick={() => chooseFirstClose('quit')}
-                >
-                  {language === 'es' ? 'Salir' : 'Quit'}
-                  <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
-                </button>
-                <button
-                  type="button"
-                  className="modal-action-btn is-save"
-                  onClick={() => chooseFirstClose('tray')}
-                >
-                  {language === 'es' ? 'Minimizar a la bandeja' : 'Minimize to tray'}
-                  <EnterGlyph />
-                </button>
-              </div>
             </div>
           </div>
         </div>
