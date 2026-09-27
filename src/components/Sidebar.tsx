@@ -1016,61 +1016,8 @@ export default function Sidebar({
             </Tooltip>
           </div>
 
-          {/* Lista de notas (altura fija para 6 elementos) */}
-          <div style={{ minHeight: 312, maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {recentForTab.length === 0 ? (
-              <div style={{ fontSize: 15.5, color: 'var(--text-muted)', padding: '40px 10px', textAlign: 'center' }}>
-                {t.noteList.noNotes}
-              </div>
-            ) : (
-              recentForTab.map(({ note, ts }, i) => (
-                <div key={note.id}>
-                  {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />}
-                  <button
-                    onClick={() => { onSelectNote(note.id); setShowRecent(false); }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: 3,
-                      padding: '10px 14px',
-                      fontSize: 15,
-                      background: 'transparent',
-                      color: 'var(--text-primary)',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      width: '100%',
-                    }}
-                  >
-                    <span style={{
-                      fontWeight: 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      width: '100%',
-                    }}>
-                      {note.title || t.noteList.unnamedNote}
-                    </span>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end' }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        {timeAgo(ts, language)}
-                      </span>
-                      <span style={{ fontSize: 13, color: 'var(--text-muted)', opacity: 0.75 }}>
-                        {new Date(ts).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Pestañas inferiores: Editadas / Abiertas / Creadas */}
-          <div style={{ display: 'flex', gap: 4, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+          {/* Pestañas arriba: Editadas / Abiertas / Creadas */}
+          <div style={{ display: 'flex', gap: 4, margin: '2px 0 8px' }}>
             {recentTabs.map(tab => {
               const active = recentTab === tab.id;
               return (
@@ -1081,8 +1028,8 @@ export default function Sidebar({
                   onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                   style={{
                     flex: 1,
-                    padding: '7px 4px',
-                    fontSize: 13.5,
+                    padding: '6px 4px',
+                    fontSize: 12.5,
                     fontWeight: active ? 600 : 500,
                     background: active ? 'var(--accent-dim)' : 'transparent',
                     color: active ? 'var(--text-accent)' : 'var(--text-secondary)',
@@ -1096,6 +1043,62 @@ export default function Sidebar({
                 </button>
               );
             })}
+          </div>
+
+          {/* Lista de notas (altura fija para 6 elementos) */}
+          <div style={{ minHeight: 312, maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {recentForTab.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '40px 10px', textAlign: 'center' }}>
+                {t.noteList.noNotes}
+              </div>
+            ) : (
+              recentForTab.map(({ note, ts }, i) => {
+                const parentFolder = note.folder_id ? folders.find(f => f.id === note.folder_id) : null;
+                return (
+                <div key={note.id}>
+                  {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />}
+                  <button
+                    onClick={() => { onSelectNote(note.id); setShowRecent(false); }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 2,
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      color: 'var(--text-primary)',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 13.5,
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      width: '100%',
+                    }}>
+                      {note.title || t.noteList.unnamedNote}
+                    </span>
+                    <span style={{
+                      fontSize: 12, color: 'var(--text-muted)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      width: '100%',
+                    }}>
+                      {timeAgo(ts, language)}
+                      {parentFolder ? ` · ${parentFolder.name}` : ''}
+                    </span>
+                  </button>
+                </div>
+                );
+              })
+            )}
           </div>
 
           {/* Limpiar historial (con confirmación inline) */}
