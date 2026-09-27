@@ -1749,6 +1749,12 @@ export default function NoteList({
   );
 }
 
+/** Hint del hotkey solo donde aplica: Alt+Supr actúa sobre la seleccionada. */
+function deleteNoteTooltip(base: string, language: Language, isSelected: boolean): string {
+  if (!isSelected) return base;
+  return `${base} (Alt+${language === 'es' ? 'Supr' : 'Del'})`;
+}
+
 // ─── NoteItem subcomponent ─────────────────────────────────────────────────
 
 interface NoteItemProps {
@@ -1971,8 +1977,8 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       </div>
 
       <Tooltip placement="left" label={isTrash
-        ? `${t.noteList.permanentDelete} (Alt+${language === 'es' ? 'Supr' : 'Del'})`
-        : (language === 'es' ? 'Eliminar nota (Alt+Supr)' : 'Delete note (Alt+Del)')}
+        ? deleteNoteTooltip(t.noteList.permanentDelete, language, isSelected)
+        : deleteNoteTooltip(language === 'es' ? 'Eliminar nota' : 'Delete note', language, isSelected)}
       >
         <button
           type="button"
@@ -2161,8 +2167,8 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
       </div>
 
       <Tooltip placement="left" label={isTrash
-        ? `${t.noteList.permanentDelete} (Alt+${language === 'es' ? 'Supr' : 'Del'})`
-        : (language === 'es' ? 'Eliminar nota (Alt+Supr)' : 'Delete note (Alt+Del)')}
+        ? deleteNoteTooltip(t.noteList.permanentDelete, language, isSelected)
+        : deleteNoteTooltip(language === 'es' ? 'Eliminar nota' : 'Delete note', language, isSelected)}
       >
         <button
           type="button"
