@@ -1215,6 +1215,21 @@ export default function MainApp({
     onEnter: () => { void saveAndLeaveNav(); },
   });
 
+  // Espacio = Salir sin guardar (consistencia con el cierre inicial). Se omite
+  // con foco en controles para no pelear con su nativo (checkbox, botones).
+  useEffect(() => {
+    if (!pendingNavNoteId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' && (e as any).code !== 'Space') return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
+      e.preventDefault();
+      void discardAndLeaveNav();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pendingNavNoteId, discardAndLeaveNav]);
+
   const handleReorderTabs = useCallback((fromId: string, toId: string, edge: 'before' | 'after') => {
     setOpenNoteIds(prev => reorderTabs(prev, fromId, toId, edge));
   }, []);
@@ -2542,6 +2557,7 @@ export default function MainApp({
                 </button>
                 <button type="button" className="modal-action-btn is-danger" onClick={() => { void discardAndLeaveNav(); }}>
                   {language === 'es' ? 'Salir sin guardar' : 'Leave without saving'}
+                  <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
                 </button>
                 <button type="button" className="modal-action-btn is-cancel" onClick={dismissLeaveNav}>
                   {language === 'es' ? 'Seguir aquí' : 'Stay here'}
