@@ -1063,6 +1063,20 @@ export default function Sidebar({
                 return (
                 <div key={note.id}>
                   {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />}
+                  <Tooltip
+                    placement="right"
+                    delay={400}
+                    label={note.preview ? (
+                      <span style={{
+                        whiteSpace: 'normal', maxWidth: 250, textAlign: 'left',
+                        fontWeight: 400, fontSize: 12, lineHeight: 1.5,
+                        display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden', wordBreak: 'break-word',
+                      }}>
+                        {note.preview.slice(0, 220)}
+                      </span>
+                    ) : ''}
+                  >
                   <button
                     onClick={() => { onSelectNote(note.id); setShowRecent(false); }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
@@ -1083,7 +1097,7 @@ export default function Sidebar({
                     }}
                   >
                     <span style={{
-                      fontSize: 13.5,
+                      fontSize: 12.5,
                       fontWeight: 600,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -1101,6 +1115,7 @@ export default function Sidebar({
                       {parentFolder ? ` · ${parentFolder.name}` : ''}
                     </span>
                   </button>
+                  </Tooltip>
                 </div>
                 );
               })
