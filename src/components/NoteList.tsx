@@ -1985,6 +1985,8 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
         ) : note.preview ? (
           <span style={{
             padding: 'calc(11px * var(--ui-scale))',
+            paddingRight: 'calc(34px * var(--ui-scale))',
+            boxSizing: 'border-box',
             fontSize: 'calc(12px * var(--ui-scale))', lineHeight: 1.5,
             color: 'var(--text-secondary)',
             overflow: 'hidden', display: '-webkit-box',
@@ -1996,16 +1998,6 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
         ) : (
           <FileText size={30} strokeWidth={1.4} style={{ opacity: 0.28, color: 'var(--text-muted)' }} />
         )}
-        {(note.pinned === 1 || isStickyOpen) && (
-          <span style={{ position: 'absolute', top: 8, left: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
-            {isStickyOpen && (
-              <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
-                <AppWindow size={12} color="var(--accent-light)" style={{ flexShrink: 0 }} />
-              </Tooltip>
-            )}
-          </span>
-        )}
       </div>
       <div style={{
         padding: '8px 10px 9px', borderTop: '1px solid var(--border)',
@@ -2013,11 +2005,22 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
         display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0,
       }}>
         <span style={{
+          display: 'flex', alignItems: 'center', gap: 5,
           fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600,
-          color: 'var(--text-primary)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25,
+          color: 'var(--text-primary)', lineHeight: 1.25, minWidth: 0,
         }}>
-          {note.title || t.noteList.unnamedNote}
+          {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
+          {isStickyOpen && (
+            <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
+              <AppWindow size={12} color="var(--accent-light)" style={{ flexShrink: 0 }} />
+            </Tooltip>
+          )}
+          <span style={{
+            flex: 1, minWidth: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {note.title || t.noteList.unnamedNote}
+          </span>
         </span>
         <span style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
