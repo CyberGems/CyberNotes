@@ -510,12 +510,20 @@ function AccessLogCard({ language }: { language: Language }) {
         <span>{language === 'es' ? 'Registrar accesos' : 'Record access'}</span>
         <span className={`custom-switch ${logEnabled ? 'active' : ''}`} />
       </button>
+      {!logEnabled && (
+        <div style={{ fontSize: 11, color: 'var(--warning, #f59e0b)', lineHeight: 1.5, margin: '-4px 0 0' }}>
+          {language === 'es'
+            ? 'Registro en pausa: no se guardan eventos nuevos.'
+            : 'Log paused: new events are not recorded.'}
+        </div>
+      )}
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 2,
         maxHeight: 180, overflowY: 'auto',
         background: 'var(--bg-app)',
         border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
         padding: events && events.length > 0 ? 4 : 0,
+        opacity: logEnabled ? 1 : 0.45,
       }}>
         {events === null && !loadError && (
           <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
