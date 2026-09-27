@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type CSSProperties, type FormEvent } from 
 import { Lock, Eye, EyeOff, Minus, Square, X, CaseSensitive } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import { EnterGlyph } from './ModalActions';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
 
@@ -610,6 +611,9 @@ export default function LockScreen({
               <>
                 <Lock size={15} />
                 {hasPassword ? t.lockScreen.unlock : t.lockScreen.enter}
+                <span style={{ opacity: 0.55, display: 'inline-flex', marginLeft: 2 }} aria-hidden="true">
+                  <EnterGlyph />
+                </span>
               </>
             )}
           </button>
