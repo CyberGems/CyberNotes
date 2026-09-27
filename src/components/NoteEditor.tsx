@@ -2062,66 +2062,25 @@ export default function NoteEditor({
     document.addEventListener('mouseup', onUp);
   };
 
-  // Rueda en tabs + rebote suave en los extremos (rubber-band)
+  // Rueda vertical → scroll horizontal de la tira. Sin rebote elástico: mover
+  // toda la fila con spring se leía como glitch. El overscroll nativo queda
+  // cortado con overscroll-behavior-x en el estilo de la tira.
   useLayoutEffect(() => {
     const el = tabStripRef.current;
     if (!el) return;
 
-    const MAX_PULL = 12;
-    const RESISTANCE = 0.08;
-    let offset = 0;
-    let settleTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const applyOffset = (value: number, animate: boolean) => {
-      offset = value;
-      el.style.transition = animate ? 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)' : 'none';
-      el.style.transform = value === 0 ? '' : `translateX(${value}px)`;
-    };
-
-    const settle = () => {
-      if (offset === 0) return;
-      applyOffset(0, true);
-    };
-
     const handleWheel = (e: WheelEvent) => {
       if (el.scrollWidth <= el.clientWidth) return;
-
+      if (e.deltaY === 0 || e.shiftKey || e.ctrlKey || e.metaKey) return;
+      // Gesto horizontal del trackpad: que lo gestione el nativo.
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
-
-      const maxScroll = el.scrollWidth - el.clientWidth;
-      const atStart = el.scrollLeft <= 0.5;
-      const atEnd = el.scrollLeft >= maxScroll - 0.5;
-      // Rueda invertida: deltaY>0 → hacia el inicio; deltaY<0 → hacia el final
-      const towardStart = e.deltaY > 0;
-      const towardEnd = e.deltaY < 0;
-
-      if (atStart && towardStart) {
-        const next = Math.min(MAX_PULL, offset + e.deltaY * RESISTANCE);
-        applyOffset(next, false);
-        if (settleTimer) clearTimeout(settleTimer);
-        settleTimer = setTimeout(settle, 120);
-        return;
-      }
-
-      if (atEnd && towardEnd) {
-        const next = Math.max(-MAX_PULL, offset + e.deltaY * RESISTANCE);
-        applyOffset(next, false);
-        if (settleTimer) clearTimeout(settleTimer);
-        settleTimer = setTimeout(settle, 120);
-        return;
-      }
-
-      // Scroll normal: soltar rebote si había
-      if (offset !== 0) applyOffset(0, true);
-      el.scrollLeft -= e.deltaY;
+      el.scrollLeft += e.deltaY;
     };
 
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       el.removeEventListener('wheel', handleWheel);
-      if (settleTimer) clearTimeout(settleTimer);
-      el.style.transition = '';
-      el.style.transform = '';
     };
   }, [openNoteIds]);
 
@@ -3991,7 +3950,7 @@ export default function NoteEditor({
           <div
             ref={tabStripRef}
             className={`tab-strip ${tabsWidthMode === 'wide' ? 'tabs-wide' : ''} ${draggingTabId ? 'is-reordering' : ''}`}
-            style={{ borderBottom: 'none' }}
+            style={{ borderBottom: 'none', overscrollBehaviorX: 'none' }}
             onDragOver={(e) => {
               if (!draggingTabIdRef.current) return;
               e.preventDefault();
