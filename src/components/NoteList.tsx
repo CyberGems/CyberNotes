@@ -109,12 +109,12 @@ function getDateGroupKeyAndLabel(
   };
 }
 
-  type ViewMode = 'normal' | 'compact' | 'dense' | 'grid';
-
-/** Altura de slot virtual = card + márgenes verticales del diseño original. */
+  /** Altura de slot virtual = card + márgenes verticales del diseño original. */
 const ROW_NORMAL = 112;  // ~104 card + 8 (margin 4+4)
 const ROW_COMPACT = 58;  // ~52 card + 6 (margin 3+3)
 const ROW_DENSE = 38;    // ~34 card + 4 (margin 2+2)
+type ViewMode = 'normal' | 'compact' | 'dense' | 'grid';
+const VIEW_ORDER: ViewMode[] = ['normal', 'compact', 'dense', 'grid'];
 const OVERSCAN = 8;
 const FLOATING_GROUP_KEY = 'floating';
 const FLOATING_GROUP_READY_KEY = 'note_list_floating_group_ready';
@@ -468,18 +468,74 @@ export default function NoteList({
     });
   };
 
-  // Alterna y persiste la densidad elegida
-  const handleToggleViewMode = () => {
-    const next: ViewMode = viewMode === 'normal'
-      ? 'compact'
-      : viewMode === 'compact'
-        ? 'dense'
-        : viewMode === 'dense'
-          ? 'grid'
-          : 'normal';
-    setViewMode(next);
-    window.cyberNotesAPI?.setSetting('note_list_view_mode', next);
+  // Alterna y persiste la vista elegida (también vía Alt+V y el desplegable).
+  const handleToggleViewMode = useCallback(() => {
+    setViewMode(prev => {
+      const next = VIEW_ORDER[(VIEW_ORDER.indexOf(prev) + 1) % VIEW_ORDER.length];
+      void window.cyberNotesAPI?.setSetting('note_list_view_mode', next);
+      return next;
+    });
+  }, []);
+
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [viewMenuPos, setViewMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const viewBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  const applyViewMode = (m: ViewMode) => {
+    setViewMode(m);
+    void window.cyberNotesAPI?.setSetting('note_list_view_mode', m);
+    setViewMenuOpen(false);
   };
+
+  const openViewMenu = () => {
+    const el = viewBtnRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const MENU_W = 200;
+      const margin = 8;
+      setViewMenuPos({
+        top: rect.bottom + 4,
+        left: Math.max(margin, Math.min(rect.left, window.innerWidth - MENU_W - margin)),
+      });
+    }
+    setViewMenuOpen(true);
+  };
+
+  // Cierre del desplegable: clic fuera, resize y Escape.
+  useEffect(() => {
+    if (!viewMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-view-menu]')) return;
+      setViewMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setViewMenuOpen(false);
+    };
+    const onResize = () => setViewMenuOpen(false);
+    window.addEventListener('mousedown', onDown, true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown, true);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [viewMenuOpen]);
+
+  // Alt+V: alternar vista de la lista (mnemotecnia Vistas/Views).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.key.toLowerCase() !== 'v') return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      handleToggleViewMode();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleToggleViewMode]);
 
   useEffect(() => {
     const closeContextMenu = () => setContextMenu(null);
@@ -1075,19 +1131,14 @@ export default function NoteList({
 
             <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
 
-            <Tooltip placement="bottom" label={
-              viewMode === 'normal'
-                ? (language === 'es' ? 'Cambiar a vista compacta' : 'Switch to compact view')
-                : viewMode === 'compact'
-                  ? (language === 'es' ? 'Cambiar a vista densa' : 'Switch to dense view')
-                  : viewMode === 'dense'
-                    ? (language === 'es' ? 'Cambiar a vista de tarjetas' : 'Switch to grid view')
-                    : (language === 'es' ? 'Cambiar a vista normal' : 'Switch to standard view')
-            }>
+            <Tooltip placement="bottom" label={language === 'es' ? 'Cambiar vista (Alt+V)' : 'Switch view (Alt+V)'}>
             <button
-              onClick={handleToggleViewMode}
+              ref={viewBtnRef}
+              onClick={() => (viewMenuOpen ? setViewMenuOpen(false) : openViewMenu())}
               className="btn-icon"
-              style={{ padding: 2, color: 'var(--text-muted)' }}
+              aria-haspopup="menu"
+              aria-expanded={viewMenuOpen}
+              style={{ padding: 2, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 1 }}
             >
               {viewMode === 'normal'
                 ? <LayoutList size={14} />
@@ -1096,8 +1147,41 @@ export default function NoteList({
                   : viewMode === 'dense'
                     ? <FileText size={14} />
                     : <LayoutGrid size={14} />}
+              <ChevronDown size={11} style={{ opacity: 0.7 }} />
             </button>
             </Tooltip>
+            {viewMenuOpen && viewMenuPos && createPortal(
+              <div
+                data-view-menu="true"
+                className="new-note-split-menu"
+                role="menu"
+                style={{ top: viewMenuPos.top, left: viewMenuPos.left, minWidth: 190 }}
+              >
+                {([
+                  { id: 'normal', icon: <LayoutList size={14} />, es: 'Normal', en: 'Standard' },
+                  { id: 'compact', icon: <StretchHorizontal size={14} />, es: 'Compacta', en: 'Compact' },
+                  { id: 'dense', icon: <FileText size={14} />, es: 'Densa', en: 'Dense' },
+                  { id: 'grid', icon: <LayoutGrid size={14} />, es: 'Tarjetas', en: 'Grid' },
+                ] as const).map((item) => {
+                  const active = viewMode === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="menuitem"
+                      className="new-note-split-item"
+                      onClick={() => applyViewMode(item.id)}
+                      style={active ? { color: 'var(--accent-light)', background: 'var(--accent-dim)' } : undefined}
+                    >
+                      {item.icon}
+                      <span style={{ flex: 1 }}>{language === 'es' ? item.es : item.en}</span>
+                      {active && <Check size={13} style={{ flexShrink: 0 }} />}
+                    </button>
+                  );
+                })}
+              </div>,
+              document.body
+            )}
           </div>
           
           <span style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-secondary)', fontWeight: 500 }}>
