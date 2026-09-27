@@ -62,6 +62,31 @@ const migrateIcon = (icon: string): string => {
   return EMOJI_TO_ICON_MAP[icon] || icon;
 };
 
+/** Texto plano (para comparar y contar) desde HTML del editor. */
+function plainTextOf(html: string, max = 400): string {
+  try {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    return ((tmp.textContent || '').replace(/\s+/g, ' ').trim()).slice(0, max);
+  } catch {
+    return '';
+  }
+}
+
+function countWordsOf(text: string): number {
+  const m = text.match(/\S+/g);
+  return m ? m.length : 0;
+}
+
+function formatRecoveryWhen(iso: string, language: Language): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const locale = language === 'es' ? 'es-ES' : 'en-US';
+  return d.toLocaleString(locale, {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 interface Props {
   language: Language;
   displayName?: string | null;
@@ -1806,6 +1831,14 @@ export default function MainApp({
   const recoveryDraftIsStale = !!recoveryDraft
     && !!recoveryNote
     && recoveryDraft.base_updated_at !== recoveryNote.updated_at;
+  // Lado guardado vs lado borrador para el comparador (como el historial).
+  const recoverySavedText = recoveryNote
+    ? (recoveryNote.preview || plainTextOf(recoveryNote.content))
+    : '';
+  const recoveryDraftText = recoveryDraft ? plainTextOf(recoveryDraft.content) : '';
+  const recoveryTitlesDiffer = !!recoveryDraft
+    && !!recoveryNote
+    && (recoveryDraft.title || '') !== (recoveryNote.title || '');
 
   // Foco determinista al abrir el recovery: Enter funciona nativo sin
   // depender de dónde estuviera el foco (o si la ventana acaba de enfocar).
@@ -2206,7 +2239,7 @@ export default function MainApp({
               {...modalCardMotion}
               className="glass-effect"
               style={{
-                width: 'calc(440px * var(--ui-scale))',
+                width: 'calc(560px * var(--ui-scale))',
                 maxWidth: 'calc(100vw - 32px)',
                 background: 'rgba(15, 15, 22, 0.97)',
                 border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
@@ -2256,6 +2289,73 @@ export default function MainApp({
                       : `The note "${recoveryDraft.title || recoveryNote.title}" has a draft saved before the lock.`}
                   </p>
                 </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {([
+                  {
+                    key: 'saved',
+                    dot: 'var(--text-muted)',
+                    label: language === 'es' ? 'Versión guardada' : 'Saved version',
+                    title: recoveryNote.title || (language === 'es' ? 'Sin título' : 'Untitled'),
+                    when: formatRecoveryWhen(recoveryNote.updated_at, language),
+                    words: countWordsOf(recoverySavedText),
+                    excerpt: recoverySavedText || (language === 'es' ? '(vacía)' : '(empty)'),
+                    highlight: recoveryTitlesDiffer,
+                  },
+                  {
+                    key: 'draft',
+                    dot: 'var(--accent-light)',
+                    label: language === 'es' ? 'Borrador recuperable' : 'Recoverable draft',
+                    title: recoveryDraft.title || (language === 'es' ? 'Sin título' : 'Untitled'),
+                    when: formatRecoveryWhen(recoveryDraft.updated_at, language),
+                    words: countWordsOf(recoveryDraftText),
+                    excerpt: recoveryDraftText || (language === 'es' ? '(vacío)' : '(empty)'),
+                    highlight: recoveryTitlesDiffer,
+                  },
+                ] as const).map((side) => (
+                  <div
+                    key={side.key}
+                    style={{
+                      minWidth: 0,
+                      border: side.highlight ? '1px solid var(--warning)' : '1px solid var(--border)',
+                      borderRadius: 8,
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      padding: '9px 11px',
+                      display: 'flex', flexDirection: 'column', gap: 5,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{
+                        width: 7, height: 7, borderRadius: '50%',
+                        background: side.dot, flexShrink: 0,
+                      }} />
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                        {side.label}
+                      </span>
+                    </div>
+                    <div style={{
+                      fontSize: 13, fontWeight: 700, color: 'var(--text-primary)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {side.title}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                      {side.when}
+                      {' · '}
+                      {side.words === 1
+                        ? (language === 'es' ? '1 palabra' : '1 word')
+                        : (language === 'es' ? `${side.words} palabras` : `${side.words} words`)}
+                    </div>
+                    <p style={{
+                      margin: 0, fontSize: 11.5, color: 'var(--text-secondary)',
+                      lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      maxHeight: 96, overflowY: 'auto',
+                    }}>
+                      {side.excerpt}
+                    </p>
+                  </div>
+                ))}
               </div>
 
               <p style={{
