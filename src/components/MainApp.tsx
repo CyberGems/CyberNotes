@@ -1563,16 +1563,22 @@ export default function MainApp({
     setFolders(prev => prev.map(f => f.id === folder.id ? folder : f).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
   };
 
-  // "Eliminar la nota seleccionada" lo registra NoteList (mismo flujo con
-  // confirmación que el botón y el menú). El hotkey vive aquí para que
-  // funcione aunque el foco esté en el editor.
-  const requestDeleteSelectedRef = useRef<(() => void) | null>(null);
-  const registerDeleteSelected = useCallback((handler: () => void) => {
+  // "Eliminar nota" lo registra NoteList (mismo flujo con confirmación que
+  // el botón y el menú). El hotkey y los accesos del editor viven aquí para
+  // funcionar aunque el foco esté en el editor.
+  const requestDeleteSelectedRef = useRef<((id?: string) => void) | null>(null);
+  const registerDeleteSelected = useCallback((handler: (id?: string) => void) => {
     requestDeleteSelectedRef.current = handler;
     return () => {
       if (requestDeleteSelectedRef.current === handler) requestDeleteSelectedRef.current = null;
     };
   }, []);
+  const handleRequestDeleteNote = useCallback((id: string) => {
+    // Sin lista montada (p. ej. solo editor) no hay modal: borrado directo a
+    // papelera, recuperable desde allí.
+    if (requestDeleteSelectedRef.current) requestDeleteSelectedRef.current(id);
+    else void handleDeleteNote(id);
+  }, [handleDeleteNote]);
 
   // Atajos globales de teclado
   useEffect(() => {
@@ -2079,6 +2085,7 @@ export default function MainApp({
           onSelectNote={handleAttemptSelectNote}
           onCloseTab={handleCloseTab}
           onDuplicateNote={handleDuplicateNote}
+          onRequestDeleteNote={handleRequestDeleteNote}
           onCloseOtherTabs={handleCloseOtherTabs}
           onCloseTabsToRight={handleCloseTabsToRight}
           onCloseAllTabs={handleCloseAllTabs}

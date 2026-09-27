@@ -27,7 +27,7 @@ interface Props {
   onMoveNote: (noteId: string, folderId: string | null) => void;
   onRenameNote: (id: string, title: string) => void;
   onDuplicateNote: (id: string) => void;
-  onRegisterDeleteSelected?: (handler: () => void) => () => void;
+  onRegisterDeleteSelected?: (handler: (id?: string) => void) => () => void;
   selectedFolder: Folder | null;
   searchQuery: string;
   onSearch?: (q: string) => void;
@@ -845,13 +845,15 @@ export default function NoteList({
     setNoteToDelete(note);
   }, [isTrashFolder, onDeleteNote, skipMoveToTrashConfirmation]);
 
-  // Expone "eliminar la nota seleccionada" para el hotkey global Alt+Supr de
-  // MainApp: mismo flujo con confirmación que el botón y el menú contextual.
+  // Expone "eliminar nota" para el hotkey global Alt+Supr de MainApp y los
+  // accesos del editor: mismo flujo con confirmación que el botón y el menú.
+  // Sin id elimina la seleccionada; con id, esa nota.
   useEffect(() => {
     if (!onRegisterDeleteSelected) return;
-    return onRegisterDeleteSelected(() => {
-      if (!selectedNoteId) return;
-      const current = sortedNotes.find(n => n.id === selectedNoteId);
+    return onRegisterDeleteSelected((id?: string) => {
+      const targetId = id ?? selectedNoteId;
+      if (!targetId) return;
+      const current = sortedNotes.find(n => n.id === targetId);
       if (current) requestDeleteNote(current);
     });
   }, [onRegisterDeleteSelected, selectedNoteId, sortedNotes, requestDeleteNote]);

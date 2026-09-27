@@ -85,6 +85,7 @@ interface Props {
   onCloseTab?: (id: string) => void;
   onCloseOtherTabs?: (keepId: string) => void;
   onDuplicateNote?: (id: string) => void;
+  onRequestDeleteNote?: (id: string) => void;
   onCloseTabsToRight?: (fromId: string) => void;
   onCloseAllTabs?: () => void;
   onReopenClosedTab?: () => void;
@@ -1766,6 +1767,7 @@ export default function NoteEditor({
   onCloseTab,
   onCloseOtherTabs,
   onDuplicateNote,
+  onRequestDeleteNote,
   onCloseTabsToRight,
   onCloseAllTabs,
   onReopenClosedTab,
@@ -4223,6 +4225,16 @@ export default function NoteEditor({
                 </button>
                 <button
                   type="button"
+                  style={{ ...itemStyle(), color: '#f87171' }}
+                  onClick={() => runAction(() => onRequestDeleteNote?.(tabContextMenu.tabId))}
+                  onMouseEnter={event => { event.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'; }}
+                  onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Trash2 size={14} />
+                  {language === 'es' ? 'Eliminar nota' : 'Delete note'}
+                </button>
+                <button
+                  type="button"
                   disabled={!hasOtherTabs}
                   style={itemStyle(!hasOtherTabs)}
                   onClick={() => runAction(() => onCloseOtherTabs?.(tabContextMenu.tabId))}
@@ -4542,6 +4554,27 @@ export default function NoteEditor({
                 <AppWindow size={15} color={isFloatingNote ? FILTER_COLORS.sticky : 'currentColor'} />
               </button>
             </Tooltip>
+
+            {/* Eliminar nota (misma confirmación que la lista) */}
+            {!readOnly && note?.id && (
+              <Tooltip placement="bottom" label={language === 'es' ? 'Eliminar nota (Alt+Supr)' : 'Delete note (Alt+Del)'}>
+              <button
+                type="button"
+                onClick={() => onRequestDeleteNote?.(note.id)}
+                style={noteActionBtnStyle(false)}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
+                  e.currentTarget.style.color = '#f87171';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-muted)';
+                }}
+              >
+                <Trash2 size={15} />
+              </button>
+              </Tooltip>
+            )}
 
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
 
