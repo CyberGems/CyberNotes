@@ -620,7 +620,7 @@ export default function LockScreen({
               onClick={() => { setView('recover'); setError(''); }}
               style={{ gap: 6, fontSize: 13, alignSelf: 'center' }}
             >
-              {t.lockScreen.forgotPassword}
+              {authMethod === 'pin' ? t.lockScreen.forgotPin : t.lockScreen.forgotPassword}
             </button>
           )}
         </form>
