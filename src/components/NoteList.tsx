@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useMemo, memo, useCallbac
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye, Copy } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, LayoutGrid, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
@@ -109,7 +109,7 @@ function getDateGroupKeyAndLabel(
   };
 }
 
-type ViewMode = 'normal' | 'compact' | 'dense';
+  type ViewMode = 'normal' | 'compact' | 'dense' | 'grid';
 
 /** Altura de slot virtual = card + márgenes verticales del diseño original. */
 const ROW_NORMAL = 112;  // ~104 card + 8 (margin 4+4)
@@ -403,7 +403,7 @@ export default function NoteList({
       if (!active) return;
 
       const viewModeValue = settings.note_list_view_mode;
-      if (viewModeValue === 'compact' || viewModeValue === 'dense' || viewModeValue === 'normal') {
+      if (viewModeValue === 'compact' || viewModeValue === 'dense' || viewModeValue === 'grid' || viewModeValue === 'normal') {
         setViewMode(viewModeValue);
       }
 
@@ -474,7 +474,9 @@ export default function NoteList({
       ? 'compact'
       : viewMode === 'compact'
         ? 'dense'
-        : 'normal';
+        : viewMode === 'dense'
+          ? 'grid'
+          : 'normal';
     setViewMode(next);
     window.cyberNotesAPI?.setSetting('note_list_view_mode', next);
   };
@@ -682,7 +684,8 @@ export default function NoteList({
 
   const scrollNoteIntoView = useCallback((noteId: string, index: number) => {
     if (!listRef.current) return;
-    if (useGroupLayout) {
+    // En grid no hay filas virtuales: localizar por DOM como en grupos.
+    if (useGroupLayout || viewMode === 'grid') {
       requestAnimationFrame(() => {
         const el = listRef.current?.querySelector(`[data-note-id="${noteId}"]`) as HTMLElement | null;
         if (el) {
@@ -700,7 +703,7 @@ export default function NoteList({
         el.scrollTo({ top: targetTop + rowHeight - viewportH, behavior: 'smooth' });
       }
     }
-  }, [useGroupLayout, rowHeight]);
+  }, [useGroupLayout, rowHeight, viewMode]);
 
   const requestDeleteNote = useCallback((note: Note) => {
     if (!isTrashFolder && skipMoveToTrashConfirmation) {
@@ -1006,7 +1009,9 @@ export default function NoteList({
                 ? (language === 'es' ? 'Cambiar a vista compacta' : 'Switch to compact view')
                 : viewMode === 'compact'
                   ? (language === 'es' ? 'Cambiar a vista densa' : 'Switch to dense view')
-                  : (language === 'es' ? 'Cambiar a vista normal' : 'Switch to standard view')
+                  : viewMode === 'dense'
+                    ? (language === 'es' ? 'Cambiar a vista de tarjetas' : 'Switch to grid view')
+                    : (language === 'es' ? 'Cambiar a vista normal' : 'Switch to standard view')
             }>
             <button
               onClick={handleToggleViewMode}
@@ -1017,7 +1022,9 @@ export default function NoteList({
                 ? <LayoutList size={14} />
                 : viewMode === 'compact'
                   ? <StretchHorizontal size={14} />
-                  : <FileText size={14} />}
+                  : viewMode === 'dense'
+                    ? <FileText size={14} />
+                    : <LayoutGrid size={14} />}
             </button>
             </Tooltip>
           </div>
@@ -1056,6 +1063,36 @@ export default function NoteList({
                     ? <><Search size={32} strokeWidth={1.5} style={{ opacity: 0.4 }} /><span style={{ fontSize: 13 }}>{language === 'es' ? 'No se encontraron resultados' : 'No results found'}</span></>
                     : <><FileText size={34} strokeWidth={1.4} style={{ opacity: 0.32, color: 'var(--text-muted)' }} /><span style={{ fontSize: 13 }}>{t.noteList.noNotes}</span></>
                   }
+                </div>
+              ) : viewMode === 'grid' ? (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(calc(118px * var(--ui-scale)), 1fr))',
+                  gap: 'calc(10px * var(--ui-scale))',
+                  padding: 'calc(12px * var(--ui-scale))',
+                  alignContent: 'start',
+                }}>
+                  {navigableNotes.map(note => {
+                    const folder = note.folder_id ? (folderMap.get(note.folder_id) ?? null) : null;
+                    return (
+                      <NoteCard
+                        key={note.id}
+                        language={language}
+                        note={note}
+                        folder={folder}
+                        isSelected={selectedNoteId === note.id}
+                        isContextActive={contextMenu?.note.id === note.id}
+                        isStickyOpen={!isStickyFolder && openStickyIds.includes(note.id)}
+                        isTrash={isTrashFolder}
+                        onClick={() => {
+                          onSelectNote(note.id);
+                          listRef.current?.focus({ preventScroll: true });
+                        }}
+                        onDelete={() => requestDeleteNote(note)}
+                        onContextMenu={(e) => handleContextMenu(e, note)}
+                      />
+                    );
+                  })}
                 </div>
               ) : useGroupLayout ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1211,7 +1248,8 @@ export default function NoteList({
         </AnimatePresence>
         </div>
 
-        {/* X Más pill */}
+        {/* X Más pill (solo filas: en tarjetas no hay virtualización) */}
+        {viewMode !== 'grid' && (
         <div style={{
           position: 'absolute',
           bottom: 12,
@@ -1247,8 +1285,9 @@ export default function NoteList({
             onMouseDown={(e) => e.preventDefault()}
           >
              +{hiddenCount} {language === 'es' ? 'más' : 'more'}
-          </button>
+            </button>
         </div>
+        )}
       </div>
 
       {/* Menú Contextual */}
@@ -1864,6 +1903,165 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
           transform: translateY(-50%) scale(1.08) !important;
         }
       `}</style>
+    </div>
+  );
+});
+
+// ─── NoteCard subcomponent (vista grid: tarjetas cuadradas) ──────────────────
+
+interface NoteCardProps {
+  language: Language;
+  note: Note;
+  folder?: Folder | null;
+  isSelected: boolean;
+  isContextActive?: boolean;
+  isStickyOpen?: boolean;
+  isTrash?: boolean;
+  onClick: () => void;
+  onDelete: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}
+
+const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, isContextActive, isStickyOpen, isTrash = false, onClick, onDelete, onContextMenu }: NoteCardProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const t = TRANSLATIONS[language];
+  const thumb = note.thumb || null;
+
+  return (
+    <div
+      data-note-id={note.id}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      draggable={!isTrash}
+      onDragStart={e => {
+        if (isTrash) return;
+        setIsDragging(true);
+        (e as any).dataTransfer.setData('text/plain', note.id);
+        (e as any).dataTransfer.setData('application/cybernotes-note', note.id);
+        (e as any).dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => {
+        setIsDragging(false);
+        window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
+      }}
+      className="note-item"
+      style={{
+        aspectRatio: '1 / 1',
+        boxSizing: 'border-box',
+        borderRadius: 'var(--radius-md)',
+        background: isSelected || isContextActive ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
+        cursor: isDragging ? 'grabbing' : 'pointer',
+        position: 'relative',
+        transition: 'all var(--transition)',
+        border: isSelected || isContextActive ? '1px solid var(--accent)' : '1px solid var(--border)',
+        boxShadow: isSelected || isContextActive ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        opacity: isDragging ? 0.35 : 1,
+        transform: isDragging ? 'scale(0.97)' : 'none',
+      }}
+      onMouseEnter={e => {
+        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+      }}
+      onMouseLeave={e => {
+        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.01)';
+      }}
+    >
+      <div style={{
+        flex: 1, minHeight: 0, position: 'relative',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(255,255,255,0.02)', overflow: 'hidden',
+      }}>
+        {thumb ? (
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+            onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+          />
+        ) : (
+          <FileText size={30} strokeWidth={1.4} style={{ opacity: 0.28, color: 'var(--text-muted)' }} />
+        )}
+        {(note.pinned === 1 || isStickyOpen) && (
+          <span style={{ position: 'absolute', top: 8, left: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
+            {isStickyOpen && (
+              <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
+                <AppWindow size={12} color="var(--accent-light)" style={{ flexShrink: 0 }} />
+              </Tooltip>
+            )}
+          </span>
+        )}
+      </div>
+      <div style={{
+        padding: '8px 10px 9px', borderTop: '1px solid var(--border)',
+        background: 'var(--bg-surface)',
+        display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0,
+      }}>
+        <span style={{
+          fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600,
+          color: 'var(--text-primary)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25,
+        }}>
+          {note.title || t.noteList.unnamedNote}
+        </span>
+        <span style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+          fontSize: 'calc(10.5px * var(--ui-scale))', color: 'var(--text-secondary)', lineHeight: 1.2,
+        }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {formatDate((isTrash && note.deleted_at) || note.updated_at, language)}
+          </span>
+          {folder && (
+            <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
+              <span style={{ display: 'inline-flex', flexShrink: 0, color: folder.color || 'var(--text-secondary)' }}>
+                <FolderIcon name={folder.icon} color={folder.color} size={11} />
+              </span>
+            </Tooltip>
+          )}
+        </span>
+      </div>
+
+      <Tooltip placement="left" label={isTrash
+        ? `${t.noteList.permanentDelete} (Alt+${language === 'es' ? 'Supr' : 'Del'})`
+        : (language === 'es' ? 'Eliminar nota (Alt+Supr)' : 'Delete note (Alt+Del)')}
+      >
+        <button
+          type="button"
+          className="delete-note-btn"
+          onClick={e => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          aria-label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: 5,
+            background: 'rgba(20, 20, 25, 0.88)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            opacity: 0,
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            padding: 0,
+          }}
+        >
+          <Trash2 size={12} />
+        </button>
+      </Tooltip>
     </div>
   );
 });
