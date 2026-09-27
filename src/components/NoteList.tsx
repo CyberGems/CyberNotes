@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useMemo, memo, useCallbac
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, LayoutGrid, StretchHorizontal, FileText, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye, Copy } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, LayoutGrid, StretchHorizontal, FileText, Rows3, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
@@ -30,6 +30,7 @@ interface Props {
   onRegisterDeleteSelected?: (handler: () => void) => () => void;
   selectedFolder: Folder | null;
   searchQuery: string;
+  onSearch?: (q: string) => void;
   uiScale?: number;
 }
 
@@ -194,14 +195,17 @@ function NewNoteSplitButton({
         style={{
           minWidth: 96,
           justifyContent: 'center',
+          alignItems: 'center',
+          gap: 6,
           fontSize: 'calc(12px * var(--ui-scale))',
           lineHeight: 1.2,
           whiteSpace: 'nowrap',
           flexShrink: 0,
         }}
       >
-        <Plus size={14} />
+        <Plus size={14} style={{ flexShrink: 0 }} />
         {createNoteLabel}
+        <ChevronDown size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
       </button>
       {createPortal(
         <AnimatePresence>
@@ -275,7 +279,7 @@ export default function NoteList({
   onRequestCreateFolder,
   onDeleteNote, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
   onTogglePin, onMoveNote, onRenameNote, onDuplicateNote, onRegisterDeleteSelected,
-  selectedFolder, searchQuery, uiScale = 1,
+  selectedFolder, searchQuery, onSearch, uiScale = 1,
 }: Props) {
   const t = TRANSLATIONS[language];
   const isStickyFolder = selectedFolder?.id === 'sticky';
@@ -907,6 +911,12 @@ export default function NoteList({
           requestDeleteNote(currentNote);
         }
       }
+    } else if (e.key === 'Escape') {
+      // Esc limpia la búsqueda y devuelve la lista a su vista normal.
+      if (searchQuery) {
+        e.preventDefault();
+        onSearch?.('');
+      }
     }
   };
 
@@ -1145,7 +1155,7 @@ export default function NoteList({
                 : viewMode === 'compact'
                   ? <StretchHorizontal size={14} />
                   : viewMode === 'dense'
-                    ? <FileText size={14} />
+                    ? <Rows3 size={14} />
                     : <LayoutGrid size={14} />}
               <ChevronDown size={11} style={{ opacity: 0.7 }} />
             </button>
@@ -1160,7 +1170,7 @@ export default function NoteList({
                 {([
                   { id: 'normal', icon: <LayoutList size={14} />, es: 'Normal', en: 'Standard' },
                   { id: 'compact', icon: <StretchHorizontal size={14} />, es: 'Compacta', en: 'Compact' },
-                  { id: 'dense', icon: <FileText size={14} />, es: 'Densa', en: 'Dense' },
+                  { id: 'dense', icon: <Rows3 size={14} />, es: 'Densa', en: 'Dense' },
                   { id: 'grid', icon: <LayoutGrid size={14} />, es: 'Tarjetas', en: 'Grid' },
                 ] as const).map((item) => {
                   const active = viewMode === item.id;

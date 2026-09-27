@@ -2035,6 +2035,7 @@ export default function MainApp({
                   ? { id: 'all', name: TRANSLATIONS[language].sidebar.allNotes, icon: 'file-text', color: FILTER_COLORS.all } as Folder
                 : (folders.find(f => f.id === selectedFolderId) ?? null)}
               searchQuery={searchQuery}
+              onSearch={handleSearch}
               uiScale={uiScale}
             />
             <div 

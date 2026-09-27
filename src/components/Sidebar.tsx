@@ -352,6 +352,14 @@ export default function Sidebar({
             type="text"
             value={searchQuery}
             onChange={e => onSearch(e.target.value)}
+            onKeyDown={e => {
+              // Esc limpia la búsqueda y devuelve la lista a su vista normal.
+              if (e.key === 'Escape' && searchQuery) {
+                e.preventDefault();
+                onSearch('');
+                e.currentTarget.blur();
+              }
+            }}
             placeholder={`${t.general.search} (Ctrl+F)`}
             className="input"
             onContextMenu={inputMenu.onContextMenu}
