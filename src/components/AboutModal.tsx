@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react';
 import {
   X, Github, RefreshCw, Download, CheckCircle2,
-  Bug, Tag, ClipboardCopy, Check, Diamond, BookOpen, Heart,
+  Bug, Tag, ClipboardCopy, Check, Gem, BookOpen, Heart,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import Tooltip from './Tooltip';
@@ -372,7 +372,7 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 onClick={() => window.cyberNotesAPI.openExternal('https://cybergems.org')}
                 aria-label={t.websiteTooltip}
               >
-                <Diamond size={14} />
+                <Gem size={14} />
               </button>
             </Tooltip>
             <Tooltip label={t.docsTooltip} placement="top">
