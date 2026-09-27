@@ -682,6 +682,77 @@ export default function NoteList({
     };
   }, [sortedNotes.length]);
 
+  // Cabecera colapsable de grupo (las filas y las tarjetas comparten la misma).
+  const renderNoteGroupHeader = (group: NoteGroup) => {
+    const isCollapsed = collapsedGroups.has(group.key);
+    return (
+      <Tooltip
+        placement="bottom"
+        label={isCollapsed
+          ? (language === 'es' ? 'Desplegar sección' : 'Expand section')
+          : (language === 'es' ? 'Plegar sección' : 'Collapse section')}
+      >
+      <div
+        className="note-group-header"
+        onClick={() => toggleGroupCollapse(group.key)}
+      >
+        <span
+          className="note-group-chevron"
+          style={{
+            transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+          }}
+        >
+          <ChevronRight size={12} />
+        </span>
+        <span className="note-group-title">
+          {group.isPinnedGroup && (
+            <Star size={11} style={{ fill: 'currentColor', opacity: 0.85 }} />
+          )}
+          {group.isFloatingGroup && (
+            <AppWindow size={11} style={{ opacity: 0.85 }} />
+          )}
+          {group.label}
+        </span>
+        <span className="note-group-line" />
+        <span className="note-group-badge">{group.notes.length}</span>
+      </div>
+      </Tooltip>
+    );
+  };
+
+  // Parrilla de tarjetas cuadradas para una lista de notas.
+  const renderNoteGrid = (notes: Note[], isFloatingGroup: boolean) => (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(calc(118px * var(--ui-scale)), 1fr))',
+      gap: 'calc(10px * var(--ui-scale))',
+      padding: 'calc(4px * var(--ui-scale)) calc(12px * var(--ui-scale)) calc(12px * var(--ui-scale))',
+      alignContent: 'start',
+    }}>
+      {notes.map(note => {
+        const folder = note.folder_id ? (folderMap.get(note.folder_id) ?? null) : null;
+        return (
+          <NoteCard
+            key={note.id}
+            language={language}
+            note={note}
+            folder={folder}
+            isSelected={selectedNoteId === note.id}
+            isContextActive={contextMenu?.note.id === note.id}
+            isStickyOpen={!isStickyFolder && !isFloatingGroup && openStickyIds.includes(note.id)}
+            isTrash={isTrashFolder}
+            onClick={() => {
+              onSelectNote(note.id);
+              listRef.current?.focus({ preventScroll: true });
+            }}
+            onDelete={() => requestDeleteNote(note)}
+            onContextMenu={(e) => handleContextMenu(e, note)}
+          />
+        );
+      })}
+    </div>
+  );
+
   const scrollNoteIntoView = useCallback((noteId: string, index: number) => {
     if (!listRef.current) return;
     // En grid no hay filas virtuales: localizar por DOM como en grupos.
@@ -1065,72 +1136,26 @@ export default function NoteList({
                   }
                 </div>
               ) : viewMode === 'grid' ? (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(calc(118px * var(--ui-scale)), 1fr))',
-                  gap: 'calc(10px * var(--ui-scale))',
-                  padding: 'calc(12px * var(--ui-scale))',
-                  alignContent: 'start',
-                }}>
-                  {navigableNotes.map(note => {
-                    const folder = note.folder_id ? (folderMap.get(note.folder_id) ?? null) : null;
-                    return (
-                      <NoteCard
-                        key={note.id}
-                        language={language}
-                        note={note}
-                        folder={folder}
-                        isSelected={selectedNoteId === note.id}
-                        isContextActive={contextMenu?.note.id === note.id}
-                        isStickyOpen={!isStickyFolder && openStickyIds.includes(note.id)}
-                        isTrash={isTrashFolder}
-                        onClick={() => {
-                          onSelectNote(note.id);
-                          listRef.current?.focus({ preventScroll: true });
-                        }}
-                        onDelete={() => requestDeleteNote(note)}
-                        onContextMenu={(e) => handleContextMenu(e, note)}
-                      />
-                    );
-                  })}
-                </div>
+                useGroupLayout ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: 8 }}>
+                    {noteGroups.map(group => (
+                      <div key={group.key} className="note-group">
+                        {renderNoteGroupHeader(group)}
+                        {!collapsedGroups.has(group.key) && renderNoteGrid(group.notes, !!group.isFloatingGroup)}
+                      </div>
+                    ))}
+                    {!isGroupingActive && regularNotes.length > 0 && renderNoteGrid(regularNotes, false)}
+                  </div>
+                ) : (
+                  renderNoteGrid(navigableNotes, false)
+                )
               ) : useGroupLayout ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {noteGroups.map(group => {
                     const isCollapsed = collapsedGroups.has(group.key);
                     return (
                       <div key={group.key} className="note-group">
-                        <Tooltip
-                          placement="bottom"
-                          label={isCollapsed
-                            ? (language === 'es' ? 'Desplegar sección' : 'Expand section')
-                            : (language === 'es' ? 'Plegar sección' : 'Collapse section')}
-                        >
-                        <div
-                          className="note-group-header"
-                          onClick={() => toggleGroupCollapse(group.key)}
-                        >
-                          <span
-                            className="note-group-chevron"
-                            style={{
-                              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
-                            }}
-                          >
-                            <ChevronRight size={12} />
-                          </span>
-                          <span className="note-group-title">
-                            {group.isPinnedGroup && (
-                              <Star size={11} style={{ fill: 'currentColor', opacity: 0.85 }} />
-                            )}
-                            {group.isFloatingGroup && (
-                              <AppWindow size={11} style={{ opacity: 0.85 }} />
-                            )}
-                            {group.label}
-                          </span>
-                          <span className="note-group-line" />
-                          <span className="note-group-badge">{group.notes.length}</span>
-                        </div>
-                        </Tooltip>
+                        {renderNoteGroupHeader(group)}
                         {!isCollapsed && (
                           <div className="note-group-items">
                             {group.notes.map(note => {
