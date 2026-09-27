@@ -62,4 +62,53 @@ describe('parseChangelogPeek', () => {
     expect(parseChangelogPeek(undefined)).toEqual({ items: [], totalCount: 0 });
     expect(parseChangelogPeek('')).toEqual({ items: [], totalCount: 0 });
   });
+
+  const BILINGUAL_NOTES = `## CyberNotes v1.13.0: Release Notes
+
+### What's new in this release
+
+English summary paragraph.
+
+### Key Features & Highlights
+
+- English first feature with [docs](https://example.com/docs)
+- English second feature
+
+<details>
+<summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
+
+### Novedades de esta versión
+
+Resumen en español.
+
+### Novedades destacadas
+
+- Primera novedad en español
+- Segunda novedad en español
+
+</details>
+
+### Downloads & Packages`;
+
+  it('shows the Spanish block when language is es', () => {
+    const { items, totalCount } = parseChangelogPeek(BILINGUAL_NOTES, 'es');
+    expect(totalCount).toBe(2);
+    expect(items[0]).toContain('Primera novedad');
+    expect(items[1]).toContain('Segunda novedad');
+    expect(items.some((i) => /english/i.test(i))).toBe(false);
+  });
+
+  it('excludes the Spanish block when language is en', () => {
+    const { items, totalCount } = parseChangelogPeek(BILINGUAL_NOTES, 'en');
+    expect(totalCount).toBe(2);
+    expect(items[0]).toBe('English first feature with docs');
+    expect(items[1]).toContain('English second feature');
+    expect(items.some((i) => /español|novedad/i.test(i))).toBe(false);
+  });
+
+  it('falls back to English notes for es when no Spanish block exists', () => {
+    const { items, totalCount } = parseChangelogPeek(RAW_MARKDOWN_NOTES, 'es');
+    expect(totalCount).toBe(2);
+    expect(items[0]).toContain('Floating sticky notes');
+  });
 });

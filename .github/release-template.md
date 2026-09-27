@@ -24,6 +24,27 @@ Word-style font controls arrive in the editor and floating notes: per-selection 
 - 📊 **Expanded usage statistics**: unlocks, average words per note, and new notes, with icons and friendlier tooltips.
 - 🚪 **First-close choice**: tray-or-quit dialog with remember option, keyboard badges, and bilingual refinements throughout.
 
+<details>
+<summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
+
+### 🚀 Novedades de esta versión
+
+<!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
+Los controles de fuente estilo Word llegan al editor y a las notas flotantes: familia y tamaño por selección, alineación de párrafos y barra personalizable con menú Más. Además, historial de versiones con restauración segura, estadísticas de uso ampliadas y pulido bilingüe en diálogos y tooltips.
+
+---
+
+### ✨ Novedades destacadas
+
+<!-- Maintainer: Espejo en español de los puntos de arriba. -->
+
+- ✍️ **Tipografía estilo Word**: familia y tamaño de letra por selección, alineación de párrafos, limpieza de formato y barra personalizable con menú Más, también en notas flotantes.
+- 🕘 **Historial de versiones**: snapshots locales automáticos con vista previa y restauración segura en un clic desde el editor.
+- 📊 **Estadísticas de uso ampliadas**: desbloqueos, promedio de palabras por nota y notas nuevas, con iconos y tooltips más amables.
+- 🚪 **Elección al primer cierre**: diálogo de bandeja o salir con opción de recordar, insignias de teclado y refinamientos bilingües en todo.
+
+</details>
+
 ---
 
 ### 📦 Downloads & Packages
