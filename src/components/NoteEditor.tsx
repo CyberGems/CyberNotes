@@ -3321,7 +3321,10 @@ export default function NoteEditor({
         }
       }, 50);
     } else {
-      editor.commands.focus('start');
+      // Sin robo de scroll: el contenido es nuevo y el scroller se resetea
+      // síncrono pre-paint; view.focus() enfoca sin scrollIntoView.
+      scrollContainerRef.current?.scrollTo(0, 0);
+      editor.view.focus();
     }
     setIsRaw(false);
 
@@ -3800,6 +3803,18 @@ export default function NoteEditor({
     }
   };
 
+  // Loader con gracia: las cargas locales resuelven en ms y no deben
+  // parpadear el overlay con blur; solo se muestra si tarda de verdad.
+  const [showSlowLoader, setShowSlowLoader] = useState(false);
+  useEffect(() => {
+    if (!isNoteLoading) {
+      setShowSlowLoader(false);
+      return;
+    }
+    const t = setTimeout(() => setShowSlowLoader(true), 160);
+    return () => clearTimeout(t);
+  }, [isNoteLoading]);
+
   const noteLoader = (
     <div
       style={{
@@ -3961,7 +3976,7 @@ export default function NoteEditor({
       className={`glass-effect editor-glass ${isFocused ? 'focused-immersive' : ''}`}
       style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-editor)', overflow: 'hidden', position: 'relative' }}
     >
-      {isNoteLoading && noteLoader}
+      {showSlowLoader && noteLoader}
       {showHistory && note && (
         <VersionHistoryModal
           note={note}
