@@ -2198,8 +2198,8 @@ export default function MainApp({
       )}
 
       {showFirstCloseDialog && (
-        <div className="modal-overlay">
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="first-close-title" style={{ width: 520 }}>
+        <div className="modal-overlay" onClick={() => setShowFirstCloseDialog(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="first-close-title" style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header" style={{ justifyContent: 'space-between' }}>
               <h2 id="first-close-title" style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>
                 {language === 'es' ? 'Cerrar ventana' : 'Close window'}
