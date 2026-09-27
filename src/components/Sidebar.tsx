@@ -940,6 +940,12 @@ export default function Sidebar({
               gap: 6,
               fontSize: 'calc(12px * var(--ui-scale))',
               padding: '7px 8px',
+              ...(showRecent ? {
+                background: 'var(--accent-dim)',
+                borderColor: 'var(--accent)',
+                color: 'var(--accent-light)',
+                boxShadow: '0 0 8px var(--accent-glow)',
+              } : null),
             }}
           >
             <Clock size={14} />
