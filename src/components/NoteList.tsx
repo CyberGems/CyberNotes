@@ -1982,6 +1982,17 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
             style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
             onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
           />
+        ) : note.preview ? (
+          <span style={{
+            padding: 'calc(11px * var(--ui-scale))',
+            fontSize: 'calc(12px * var(--ui-scale))', lineHeight: 1.5,
+            color: 'var(--text-secondary)',
+            overflow: 'hidden', display: '-webkit-box',
+            WebkitLineClamp: 6, WebkitBoxOrient: 'vertical',
+            wordBreak: 'break-word', alignSelf: 'flex-start', width: '100%',
+          }}>
+            {note.preview}
+          </span>
         ) : (
           <FileText size={30} strokeWidth={1.4} style={{ opacity: 0.28, color: 'var(--text-muted)' }} />
         )}
