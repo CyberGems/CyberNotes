@@ -8,7 +8,7 @@
 
 <!-- Maintainer: Rewrite the marked paragraph for every release. Use 25-45 words, lead with user-facing changes, and do not repeat the app name or version. -->
 <!-- changelog-summary:start -->
-Word-style font controls arrive in the editor and floating notes: per-selection family and size, paragraph alignment, and a customizable toolbar with a More menu. Plus note version history with safe restore, expanded usage statistics, and bilingual polish across dialogs and tooltips.
+Video embeds arrive with a dedicated menu to edit, copy, open or delete clips, alongside a footer spell checker with multi-language support and a personal dictionary manager. Plus a smarter recovery comparison, collapsible sidebar sections, an Alt+Delete shortcut, and bilingual update notes.
 <!-- changelog-summary:end -->
 
 > **New to CyberNotes?** A privacy-focused Windows notes app with rich text, folders, tabs, floating notes, and fully local data.
@@ -17,12 +17,10 @@ Word-style font controls arrive in the editor and floating notes: per-selection 
 
 ### ✨ Key Features & Highlights
 
-<!-- Maintainer: replace the bullets below with this version's highlights before tagging. This fallback is publish-ready as-is. -->
-
-- ✍️ **Word-style typography**: per-selection font family and size, paragraph alignment, clear formatting, and a customizable toolbar with a More overflow menu, also in floating notes.
-- 🕘 **Version history**: automatic local snapshots with preview and safe one-click restore from the editor.
-- 📊 **Expanded usage statistics**: unlocks, average words per note, and new notes, with icons and friendlier tooltips.
-- 🚪 **First-close choice**: tray-or-quit dialog with remember option, keyboard badges, and bilingual refinements throughout.
+- 🎬 **Video embeds with dedicated menu**: multi-provider embeds with privacy facade, thumbnails and loader, plus right-click actions to edit the URL, copy or open the link, and delete the clip.
+- 🌐 **Spell checker upgrades**: footer switcher with on/off toggle and multi-select for bilingual writing, full language names, and a personal dictionary manager in Settings with search, add and remove.
+- 🛟 **Smarter recovery and sidebar**: the recovery dialog now compares saved version versus draft (dates, word counts, excerpts), and the Views and Folders sidebar sections collapse with persisted state.
+- ⌨️ **Alt+Delete and polish**: delete the selected note from anywhere, a note-list menu that stays on screen, Esc closing the video menu, deterministic modal focus, and update notices in Spanish.
 
 <details>
 <summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
@@ -30,7 +28,7 @@ Word-style font controls arrive in the editor and floating notes: per-selection 
 ### 🚀 Novedades de esta versión
 
 <!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
-Los controles de fuente estilo Word llegan al editor y a las notas flotantes: familia y tamaño por selección, alineación de párrafos y barra personalizable con menú Más. Además, historial de versiones con restauración segura, estadísticas de uso ampliadas y pulido bilingüe en diálogos y tooltips.
+Los videos embebidos llegan con menú dedicado para editar, copiar, abrir o eliminar clips, junto a un corrector con varios idiomas y gestor de diccionario personal. Además, comparador de recuperación, secciones colapsables, atajo Alt+Supr y avisos en español.
 
 ---
 
@@ -38,10 +36,10 @@ Los controles de fuente estilo Word llegan al editor y a las notas flotantes: fa
 
 <!-- Maintainer: Espejo en español de los puntos de arriba. -->
 
-- ✍️ **Tipografía estilo Word**: familia y tamaño de letra por selección, alineación de párrafos, limpieza de formato y barra personalizable con menú Más, también en notas flotantes.
-- 🕘 **Historial de versiones**: snapshots locales automáticos con vista previa y restauración segura en un clic desde el editor.
-- 📊 **Estadísticas de uso ampliadas**: desbloqueos, promedio de palabras por nota y notas nuevas, con iconos y tooltips más amables.
-- 🚪 **Elección al primer cierre**: diálogo de bandeja o salir con opción de recordar, insignias de teclado y refinamientos bilingües en todo.
+- 🎬 **Videos embebidos con menú dedicado**: embebidos multiproveedor con fachada de privacidad, miniaturas y loader, más acciones de clic derecho para editar la URL, copiar o abrir el enlace y eliminar el clip.
+- 🌐 **Mejoras del corrector**: selector en el footer con interruptor y selección múltiple para escritura bilingüe, nombres completos de idioma y gestor de diccionario personal en Ajustes con búsqueda, alta y baja.
+- 🛟 **Recuperación y sidebar más listos**: el diálogo de recuperación compara versión guardada y borrador (fechas, palabras, extractos), y las secciones Vistas y Carpetas se pliegan con estado persistido.
+- ⌨️ **Alt+Supr y pulido**: elimina la nota seleccionada desde cualquier foco, menú de la lista siempre visible, Esc cierra el menú de video, foco determinista en modales y avisos en español.
 
 </details>
 
