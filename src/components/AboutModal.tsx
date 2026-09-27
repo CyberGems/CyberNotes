@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react';
 import {
   X, Github, RefreshCw, Download, CheckCircle2,
-  Bug, Tag, ClipboardCopy, Check, Globe, BookOpen, Heart,
+  Bug, Tag, ClipboardCopy, Check, Diamond, BookOpen, Heart,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import Tooltip from './Tooltip';
@@ -71,7 +71,16 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      // Enter cierra (salvo foco en controles, donde conserva su nativo).
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'BUTTON' || tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
+      e.preventDefault();
+      onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -147,13 +156,28 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
   // offline y no descarga nada en runtime. Si una hermana actualiza su icono,
   // copiarlo de nuevo desde su repo (ver rutas en el commit que los trajo) y
   // reconstruir; lo peor de no hacerlo es un icono desactualizado, los links
-  // siguen válidos.
-  const suiteApps = [
-    { slug: 'cyberpaste', icon: 'suite/cyberpaste.png', pitch: t.suitePaste },
+  // siguen válidos. Cada apertura sortea 4 de las otras 9 apps.
+  const suitePool = [
+    { slug: 'cyberclock', icon: 'suite/cyberclock.png', pitch: t.suiteClock },
     { slug: 'cyberfeeds', icon: 'suite/cyberfeeds.png', pitch: t.suiteFeeds },
+    { slug: 'cyberlauncher', icon: 'suite/cyberlauncher.png', pitch: t.suiteLauncher },
+    { slug: 'cybermanager', icon: 'suite/cybermanager.png', pitch: t.suiteManager },
+    { slug: 'cyberpaste', icon: 'suite/cyberpaste.png', pitch: t.suitePaste },
     { slug: 'cybersnap', icon: 'suite/cybersnap.png', pitch: t.suiteSnap },
+    { slug: 'cybertray', icon: 'suite/cybertray.png', pitch: t.suiteTray },
     { slug: 'cyberviewer', icon: 'suite/cyberviewer.png', pitch: t.suiteViewer },
+    { slug: 'cyberwall', icon: 'suite/cyberwall.png', pitch: t.suiteWall },
   ];
+  const [suitePick] = useState<string[]>(() => {
+    const pool = suitePool.map((a) => a.slug);
+    const picks: string[] = [];
+    while (picks.length < 4 && pool.length > 0) {
+      const [slug] = pool.splice(Math.floor(Math.random() * pool.length), 1);
+      if (slug) picks.push(slug);
+    }
+    return picks;
+  });
+  const suiteApps = suitePick.flatMap((slug) => suitePool.filter((a) => a.slug === slug));
 
   return (
     <div className="modal-overlay" onClick={() => handleClose()}>
@@ -170,6 +194,8 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
           background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
           border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
           overflow: 'hidden',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
         }}
       >
         {/* Glass decorativo: brillos tras el contenido, sin tocar legibilidad. */}
@@ -269,16 +295,6 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 </button>
               )}
 
-              <button
-                type="button"
-                className={`btn btn-ghost about-action-btn about-diag-btn${diagCopied ? ' is-copied' : ''}`}
-                onClick={handleCopyDiagnostics}
-                disabled={!versions}
-              >
-                {diagCopied ? <Check size={14} /> : <ClipboardCopy size={14} />}
-                <span>{diagCopied ? t.diagnosticsCopied : t.copyDiagnostics}</span>
-              </button>
-
               <label
                 className="about-auto-update"
                 style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
@@ -356,7 +372,7 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 onClick={() => window.cyberNotesAPI.openExternal('https://cybergems.org')}
                 aria-label={t.websiteTooltip}
               >
-                <Globe size={14} />
+                <Diamond size={14} />
               </button>
             </Tooltip>
             <Tooltip label={t.docsTooltip} placement="top">
@@ -390,6 +406,18 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 aria-label={t.issuesTooltip}
               >
                 <Bug size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip label={diagCopied ? t.diagnosticsCopied : t.copyDiagnostics} placement="top">
+              <button
+                type="button"
+                className="btn-icon"
+                style={{ width: 28, height: 28 }}
+                onClick={handleCopyDiagnostics}
+                aria-label={diagCopied ? t.diagnosticsCopied : t.copyDiagnostics}
+                disabled={!versions}
+              >
+                {diagCopied ? <Check size={14} /> : <ClipboardCopy size={14} />}
               </button>
             </Tooltip>
             <Tooltip label={t.releasesTooltip} placement="top">

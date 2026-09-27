@@ -269,6 +269,11 @@ export const TRANSLATIONS = {
       suiteFeeds: 'CyberFeeds: lector RSS sin distracciones',
       suiteSnap: 'CyberSnap: capturas y anotaciones',
       suiteViewer: 'CyberViewer: visor de imágenes',
+      suiteClock: 'CyberClock: reloj, calendario y temporizadores',
+      suiteLauncher: 'CyberLauncher: lanzador con esquinas activas',
+      suiteManager: 'CyberManager: gestor de tareas ligero',
+      suiteTray: 'CyberTray: lanzador en bandeja',
+      suiteWall: 'CyberWall: firewall por aplicación',
     },
     security: {
       passwordDesc: 'La contraseña protege el acceso a la app (bloqueo con hash bcrypt, las notas se guardan sin cifrar). Deja los campos vacíos si no quieres contraseña.',
@@ -593,6 +598,11 @@ export const TRANSLATIONS = {
       suiteFeeds: 'CyberFeeds: distraction-free RSS reader',
       suiteSnap: 'CyberSnap: screenshots and annotations',
       suiteViewer: 'CyberViewer: image viewer',
+      suiteClock: 'CyberClock: clock, calendar and timers',
+      suiteLauncher: 'CyberLauncher: launcher with hot corners',
+      suiteManager: 'CyberManager: lightweight task manager',
+      suiteTray: 'CyberTray: tray launcher',
+      suiteWall: 'CyberWall: per-application firewall',
     },
     security: {
       passwordDesc: 'The password protects access to the app (bcrypt-hashed lock, notes are stored unencrypted). Leave fields empty if you don\'t want a password.',
