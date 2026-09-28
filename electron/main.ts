@@ -1837,8 +1837,9 @@ function createWindow() {
     x: winBounds.x,
     y: winBounds.y,
     center: winBounds.center,
-    minWidth: 900,
-    minHeight: 600,
+    // 840x560 lógicos caben en 1280x800 físicos al 150% de escala.
+    minWidth: 840,
+    minHeight: 560,
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0d0d14',
