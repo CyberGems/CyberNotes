@@ -3,22 +3,8 @@
    Fonts: Inter (UI) + JetBrains Mono (code) + Montserrat (bundled)
 ═══════════════════════════════════════════════════════════════ */
 
-/* Montserrat real bundleada (latin 400/700, offline). El resto de familias
-   resuelven por sistema cuando no están instaladas. */
-@font-face {
-  font-family: 'Montserrat';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('../fonts/montserrat-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Montserrat';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('../fonts/montserrat-700.woff2') format('woff2');
-}
+/* Nota: los @font-face viven en index.html (única casa). Las familias sin
+   archivo resuelven por sistema cuando no están instaladas. */
 
 *, *::before, *::after {
   box-sizing: border-box;

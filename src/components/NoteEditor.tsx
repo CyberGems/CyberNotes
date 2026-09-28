@@ -863,6 +863,12 @@ export function WordFontFamilySelect({
   const activeFamily = (editor?.getAttributes('textStyle')?.fontFamily as string | null) || null;
   const matched = matchFontFamilyOption(activeFamily);
   const baseFontName = (EDITOR_FONTS.find(f => f.id === baseFontId) || EDITOR_FONTS[0]).name;
+  // En blur los atributos se vacían: conservar la última vista en vez de
+  // saltar a la base (con foco y sin familia, la base sí es lo correcto).
+  const lastMatchedRef = useRef<string | null>(null);
+  if (matched) lastMatchedRef.current = matched.label;
+  const shownLabel = matched?.label
+    ?? ((!editor?.view.hasFocus() && lastMatchedRef.current) || baseFontName);
   const t = TRANSLATIONS[language];
   // Ancho reservado estilo Word (nada salta al cambiar de fuente); el mini mantiene 76 fijos.
   const buttonWidth: number = compact ? 76 : 160;
@@ -895,7 +901,7 @@ export function WordFontFamilySelect({
               color: matched ? 'var(--accent-light)' : 'var(--text-secondary)',
             }}
           >
-        {matched ? matched.label : baseFontName}
+        {shownLabel}
       </span>
       <span style={{ color: 'var(--text-muted)', display: 'inline-flex', flexShrink: 0 }}>▾</span>
     </button>
@@ -1583,13 +1589,13 @@ function normalizeFamily(value: string | null | undefined): string {
 
 export function matchFontFamilyOption(activeFamily: string | null | undefined): FontFamilyOption | null {
   if (!activeFamily) return null;
-  const norm = normalizeFamily(activeFamily);
+  // Comparación exacta por primera familia: el substring matcheaba 'inter'
+  // dentro de cualquier stack con ese fallback (p. ej. Montserrat) y dejaba
+  // Inter atascado en el selector.
+  const firstName = (v: string) => normalizeFamily(v).split(',')[0].trim();
+  const norm = firstName(activeFamily);
   if (!norm) return null;
-  return FONT_FAMILY_OPTIONS.find((opt) => {
-    const optNorm = normalizeFamily(opt.family);
-    const firstName = normalizeFamily(opt.label);
-    return norm.includes(firstName) || optNorm.split(',')[0].trim() === norm.split(',')[0].trim();
-  }) || null;
+  return FONT_FAMILY_OPTIONS.find((opt) => firstName(opt.family) === norm) || null;
 }
 
 /**
