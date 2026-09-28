@@ -2099,6 +2099,7 @@ export default function MainApp({
           onRegisterDraftFlush={registerDraftFlush}
           draftRecoveryNonce={draftRecoveryNonce}
           tabsWidthMode={tabsWidthMode}
+          editorFontId={editorFont}
           showMinimap={showMinimap}
           onShowMinimapChange={handleShowMinimapChange}
           showLineGutter={showLineGutter}

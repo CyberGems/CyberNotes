@@ -18,7 +18,7 @@ import type { StickyColorId } from '../../shared/sticky';
 import { STICKY_BACKGROUNDS } from '../../shared/sticky';
 import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
-import { applyEditorFont } from '../fonts';
+import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { extractPreview, extractThumb } from '../utils/notes';
 import { FontSize, FontFamily, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
 import Tooltip from './Tooltip';
@@ -302,6 +302,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [language, setLanguage] = useState<Language>('es');
+  const [editorFontId, setEditorFontId] = useState<EditorFontId>(DEFAULT_EDITOR_FONT);
   const [color, setColor] = useState<StickyColorId>('cyber-yellow');
   const [opacity, setOpacity] = useState<number>(DEFAULT_STICKY_OPACITY);
   const [zoom, setZoom] = useState<number>(1);
@@ -484,6 +485,9 @@ export default function StickyNoteApp({ noteId }: Props) {
           if (s.language === 'en' || s.language === 'es') setLanguage(s.language);
           applyThemeVars((s.theme as ThemeId) || 'cyber-dark', s.colorIntensity ? parseInt(s.colorIntensity) : 50);
           applyEditorFont(s.editor_font || 'inter');
+          if (typeof s.editor_font === 'string' && s.editor_font) {
+            setEditorFontId(s.editor_font as EditorFontId);
+          }
         }
 
         const initiallyLocked = await window.cyberNotesAPI.isSessionLocked();
@@ -1504,7 +1508,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               <Highlighter size={12} />
             </StickyFooterBtn>
             <div style={{ width: 1, height: 15, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
-            <WordFontFamilySelect editor={editor} language={language} compact tooltipSide="top" dropUp />
+            <WordFontFamilySelect editor={editor} language={language} compact tooltipSide="top" dropUp baseFontId={editorFontId} />
             <WordFontSizeSelect editor={editor} language={language} compact tooltipSide="top" dropUp defaultSize={Math.round(13.5 * zoom)} />
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <StickyFooterBtn

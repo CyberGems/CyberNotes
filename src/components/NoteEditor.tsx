@@ -21,6 +21,7 @@ import TableHeader from '@tiptap/extension-table-header';
 import { Table as TableIcon } from 'lucide-react';
 import { Note, Folder, type NoteRevision } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
+import { EDITOR_FONTS, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
@@ -98,6 +99,7 @@ interface Props {
   onRegisterDraftFlush?: (flush: (() => Promise<void>) | null) => void;
   draftRecoveryNonce?: number;
   tabsWidthMode?: 'normal' | 'wide';
+  editorFontId?: EditorFontId;
   showMinimap?: boolean;
   onShowMinimapChange?: (v: boolean) => void;
   openStickyIds?: string[];
@@ -849,14 +851,18 @@ const wordMenuBoxStyle: CSSProperties = {
 /** Combo de fuente estilo Word: muestra la fuente de la selección y aplica solo a ella. */
 export function WordFontFamilySelect({
   editor, language, compact = false, tooltipSide = 'bottom', dropUp = false, hideTooltip = false,
+  baseFontId = DEFAULT_EDITOR_FONT,
 }: {
   editor: Editor | null; language: Language; compact?: boolean; tooltipSide?: 'bottom' | 'top'; dropUp?: boolean; hideTooltip?: boolean;
+  /** Fuente base configurada: se muestra por nombre cuando la selección no tiene familia propia. */
+  baseFontId?: EditorFontId;
 }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: compact ? 150 : 200 });
   const activeFamily = (editor?.getAttributes('textStyle')?.fontFamily as string | null) || null;
   const matched = matchFontFamilyOption(activeFamily);
+  const baseFontName = (EDITOR_FONTS.find(f => f.id === baseFontId) || EDITOR_FONTS[0]).name;
   const t = TRANSLATIONS[language];
   // Ancho reservado estilo Word (nada salta al cambiar de fuente); el mini mantiene 76 fijos.
   const buttonWidth: number = compact ? 76 : 160;
@@ -884,12 +890,12 @@ export function WordFontFamilySelect({
         >
           <span
             style={{
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0, textAlign: 'left',
               fontFamily: matched ? matched.family : 'inherit',
               color: matched ? 'var(--accent-light)' : 'var(--text-secondary)',
             }}
           >
-        {matched ? matched.label : (compact ? t.editor.fontFamily : t.editor.fontFamilyDefault)}
+        {matched ? matched.label : baseFontName}
       </span>
       <span style={{ color: 'var(--text-muted)', display: 'inline-flex', flexShrink: 0 }}>▾</span>
     </button>
@@ -921,7 +927,7 @@ export function WordFontFamilySelect({
                 border: 'none', textAlign: 'left',
               }}
             >
-              {t.editor.fontFamilyDefault}
+              {baseFontName}
               {!matched && <span>✓</span>}
             </button>
             {FONT_FAMILY_OPTIONS.map((opt) => {
@@ -1780,6 +1786,7 @@ export default function NoteEditor({
   onRegisterDraftFlush,
   draftRecoveryNonce = 0,
   tabsWidthMode = 'normal',
+  editorFontId = DEFAULT_EDITOR_FONT,
   showMinimap = false,
   onShowMinimapChange,
   openStickyIds = [],
@@ -3694,7 +3701,7 @@ export default function NoteEditor({
       case 'fontFamily':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <WordFontFamilySelect editor={editor} language={language} hideTooltip={tipOff} />
+            <WordFontFamilySelect editor={editor} language={language} hideTooltip={tipOff} baseFontId={editorFontId} />
           </span>
         );
       case 'fontSize':
