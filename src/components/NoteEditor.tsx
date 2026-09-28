@@ -4622,7 +4622,7 @@ export default function NoteEditor({
         flexShrink: 0, background: 'var(--bg-notelist)',
         position: 'relative', // Necesario para que la barra de imagen se posicione absolutamente
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', flexWrap: 'wrap' }}>
+        <div className="toolbar-strip" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px' }}>
           {editor && (
             <>
               {renderedToolbarGroups.map((group, gi) => (

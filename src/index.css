@@ -270,6 +270,21 @@ body:has(.sticky-note-window),
   transform: none;
 }
 
+/* Tira de formato en una sola fila: con ventanas angostas hace scroll
+   horizontal (sin barra visible) en vez de partirse en varias filas. */
+.toolbar-strip {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.toolbar-strip::-webkit-scrollbar {
+  display: none;
+}
+.toolbar-strip > * {
+  flex-shrink: 0;
+}
+
 /* Controles Word (fuente/tamaño) + menús de la barra: hover y microanimaciones
    al nivel del resto de la suite. Los colores de estado van por clase para que
    el :hover no pelee con estilos inline. */
