@@ -1,4 +1,4 @@
-export type EditorFontId = 'inter' | 'jetbrains-mono' | 'merriweather' | 'outfit' | 'system';
+export type EditorFontId = 'arial' | 'inter' | 'jetbrains-mono' | 'merriweather' | 'outfit' | 'montserrat' | 'system';
 
 export interface EditorFont {
   id: EditorFontId;
@@ -16,6 +16,32 @@ export interface EditorFont {
 
 export const EDITOR_FONTS: EditorFont[] = [
   {
+    id: 'montserrat',
+    name: 'Montserrat',
+    nameEs: 'Montserrat (Geométrica)',
+    nameEn: 'Montserrat (Geometric)',
+    category: 'sans',
+    categoryLabelEs: 'Geométrica',
+    categoryLabelEn: 'Geometric',
+    family: "'Montserrat', 'Inter', system-ui, sans-serif",
+    descriptionEs: 'Geométrica y expresiva, incluida en la app (funciona offline). Predeterminada de CyberNotes.',
+    descriptionEn: 'Geometric and expressive, bundled with the app (works offline). CyberNotes default.',
+    sample: 'Aa Bb Gg 123 · Montserrat',
+  },
+  {
+    id: 'arial',
+    name: 'Arial',
+    nameEs: 'Arial (Conocida)',
+    nameEn: 'Arial (Familiar)',
+    category: 'sans',
+    categoryLabelEs: 'Sans-serif',
+    categoryLabelEn: 'Sans-serif',
+    family: "Arial, 'Helvetica Neue', sans-serif",
+    descriptionEs: 'La clásica de siempre, disponible en todos los equipos.',
+    descriptionEn: 'The classic everyone knows, available on every machine.',
+    sample: 'Aa Bb Gg 123 · CyberNotes',
+  },
+  {
     id: 'inter',
     name: 'Inter',
     nameEs: 'Inter (Sans-serif)',
@@ -24,8 +50,8 @@ export const EDITOR_FONTS: EditorFont[] = [
     categoryLabelEs: 'Sans-serif',
     categoryLabelEn: 'Sans-serif',
     family: "'Inter', system-ui, -apple-system, sans-serif",
-    descriptionEs: 'Limpia, moderna y neutra. Predeterminada de CyberNotes.',
-    descriptionEn: 'Clean, modern and neutral. CyberNotes default.',
+    descriptionEs: 'Limpia, moderna y neutra.',
+    descriptionEn: 'Clean, modern and neutral.',
     sample: 'Aa Bb Gg 123 · CyberNotes',
   },
   {
@@ -82,7 +108,7 @@ export const EDITOR_FONTS: EditorFont[] = [
   },
 ];
 
-export const DEFAULT_EDITOR_FONT: EditorFontId = 'inter';
+export const DEFAULT_EDITOR_FONT: EditorFontId = 'montserrat';
 
 export function applyEditorFont(fontId: string) {
   const font = EDITOR_FONTS.find(f => f.id === fontId) || EDITOR_FONTS[0];

@@ -1557,6 +1557,7 @@ export const FONT_FAMILY_OPTIONS: FontFamilyOption[] = [
   { label: 'Inter', family: "'Inter', system-ui, sans-serif" },
   { label: 'JetBrains Mono', family: "'JetBrains Mono', 'Fira Code', monospace" },
   { label: 'Merriweather', family: "'Merriweather', Georgia, serif" },
+  { label: 'Montserrat', family: "'Montserrat', 'Inter', system-ui, sans-serif" },
   { label: 'Outfit', family: "'Outfit', system-ui, sans-serif" },
   { label: 'Segoe UI', family: "'Segoe UI', system-ui, sans-serif" },
   { label: 'Tahoma', family: "Tahoma, Geneva, sans-serif" },

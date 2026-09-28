@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment, type React
 import { createPortal } from 'react-dom';
 import { ThemeId, type UsageStats, type AccessLogEvent } from '../types';
 import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
-import { EditorFontId, EDITOR_FONTS } from '../fonts';
+import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
 import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
@@ -606,7 +606,7 @@ export default function SettingsModal({
   capsLockSoundScope, onCapsLockSoundScopeChange,
   onClose, onLock, onOpenAbout, onOpenTrayPin,
   tabsWidthMode, onTabsWidthModeChange,
-  editorFont = 'inter', onEditorFontChange,
+  editorFont = DEFAULT_EDITOR_FONT, onEditorFontChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
   showFloatingToolbar, onShowFloatingToolbarChange,
@@ -2288,12 +2288,12 @@ export default function SettingsModal({
                   : 'Base font for the whole editor. Applies to entire notes, except text with a font picked from the toolbar.'}
               </p>
               {(() => {
-                const activeFont = EDITOR_FONTS.find(f => f.id === (editorFont || 'inter')) || EDITOR_FONTS[0];
+                const activeFont = EDITOR_FONTS.find(f => f.id === (editorFont || DEFAULT_EDITOR_FONT)) || EDITOR_FONTS[0];
                 return (
                   <>
                     <div role="radiogroup" aria-label={language === 'es' ? 'Tipografía del Editor' : 'Editor Typography'} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {EDITOR_FONTS.map(font => {
-                        const isCurrent = (editorFont || 'inter') === font.id;
+                        const isCurrent = (editorFont || DEFAULT_EDITOR_FONT) === font.id;
                         const fontName = language === 'es' ? font.nameEs : font.nameEn;
                         const categoryLabel = language === 'es' ? font.categoryLabelEs : font.categoryLabelEn;
 

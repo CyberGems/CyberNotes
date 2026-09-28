@@ -484,7 +484,7 @@ export default function StickyNoteApp({ noteId }: Props) {
         if (mounted) {
           if (s.language === 'en' || s.language === 'es') setLanguage(s.language);
           applyThemeVars((s.theme as ThemeId) || 'cyber-dark', s.colorIntensity ? parseInt(s.colorIntensity) : 50);
-          applyEditorFont(s.editor_font || 'inter');
+          applyEditorFont(s.editor_font || DEFAULT_EDITOR_FONT);
           if (typeof s.editor_font === 'string' && s.editor_font) {
             setEditorFontId(s.editor_font as EditorFontId);
           }

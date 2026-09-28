@@ -1,7 +1,24 @@
 /* ═══════════════════════════════════════════════════════════════
    CyberNotes — Design System
-   Fonts: Inter (UI) + JetBrains Mono (code)
+   Fonts: Inter (UI) + JetBrains Mono (code) + Montserrat (bundled)
 ═══════════════════════════════════════════════════════════════ */
+
+/* Montserrat real bundleada (latin 400/700, offline). El resto de familias
+   resuelven por sistema cuando no están instaladas. */
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/montserrat-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/montserrat-700.woff2') format('woff2');
+}
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -15,7 +32,7 @@
   /* Font */
   --font-ui: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-editor: 'Inter', system-ui, sans-serif;
+  --font-editor: 'Montserrat', 'Inter', system-ui, sans-serif;
 
   /* Radii */
   --radius-sm: 6px;

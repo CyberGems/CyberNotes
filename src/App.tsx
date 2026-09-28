@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeId } from './types';
 import { applyThemeVars } from './themes';
-import { applyEditorFont } from './fonts';
+import { applyEditorFont, DEFAULT_EDITOR_FONT } from './fonts';
 import { Language } from './languages';
 import LockScreen from './components/LockScreen';
 import MainApp from './components/MainApp';
@@ -103,7 +103,7 @@ export default function App() {
         setShowWelcomeNameSetup(!hasCustomName && s.welcome_name_prompt_dismissed !== 'true');
         setAutoLockMinutes(Number.isFinite(autoLock) ? autoLock : 0);
         applyThemeVars(t, i);
-        applyEditorFont(s.editor_font || 'inter');
+        applyEditorFont(s.editor_font || DEFAULT_EDITOR_FONT);
         if (s.bg_image) setBgImage(s.bg_image);
         if (s.glass_blur) setGlassBlur(parseFloat(s.glass_blur));
         if (s.bg_opacity) setBgOpacity(parseFloat(s.bg_opacity));
