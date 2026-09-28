@@ -3547,7 +3547,9 @@ export default function NoteEditor({
             style={{
               position: 'absolute',
               top: '100%',
-              left: 0,
+              // Alineado al borde derecho del botón (vive al filo derecho de
+              // la barra): con left: 0 se salía de la ventana.
+              right: 0,
               marginTop: 6,
               minWidth: 205,
               padding: 4,
