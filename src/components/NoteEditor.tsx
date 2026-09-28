@@ -862,7 +862,8 @@ export function WordFontFamilySelect({
   const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: compact ? 150 : 200 });
   const activeFamily = (editor?.getAttributes('textStyle')?.fontFamily as string | null) || null;
   const matched = matchFontFamilyOption(activeFamily);
-  const baseFontName = (EDITOR_FONTS.find(f => f.id === baseFontId) || EDITOR_FONTS[0]).name;
+  const baseFont = EDITOR_FONTS.find(f => f.id === baseFontId) || EDITOR_FONTS[0];
+  const baseFontName = baseFont.name;
   // En blur los atributos se vacían: conservar la última vista en vez de
   // saltar a la base (con foco y sin familia, la base sí es lo correcto).
   const lastMatchedRef = useRef<string | null>(null);
@@ -871,7 +872,7 @@ export function WordFontFamilySelect({
     ?? ((!editor?.view.hasFocus() && lastMatchedRef.current) || baseFontName);
   const t = TRANSLATIONS[language];
   // Ancho reservado estilo Word (nada salta al cambiar de fuente); el mini mantiene 76 fijos.
-  const buttonWidth: number = compact ? 76 : 160;
+  const buttonWidth: number = compact ? 76 : 140;
 
   if (!editor) return null;
   const trigger = (
@@ -897,8 +898,8 @@ export function WordFontFamilySelect({
           <span
             style={{
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0, textAlign: 'left',
-              fontFamily: matched ? matched.family : 'inherit',
-              color: matched ? 'var(--accent-light)' : 'var(--text-secondary)',
+              fontFamily: matched ? matched.family : baseFont.family,
+              color: 'var(--accent-light)',
             }}
           >
         {shownLabel}
@@ -933,9 +934,14 @@ export function WordFontFamilySelect({
                 border: 'none', textAlign: 'left',
               }}
             >
-              {baseFontName}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {baseFontName}
+                {' — '}
+                {t.editor.fontFamilyDefault}
+              </span>
               {!matched && <span>✓</span>}
             </button>
+            <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }} />
             {FONT_FAMILY_OPTIONS.map((opt) => {
               const isCurrent = matched?.label === opt.label;
               return (
