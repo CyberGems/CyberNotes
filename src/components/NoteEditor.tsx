@@ -3685,14 +3685,33 @@ export default function NoteEditor({
     .filter((group) => group.length > 0);
   const hiddenToolbarItems = TOOLBAR_ITEMS.filter((d) => hiddenToolbarSet.has(d.id));
 
-  // Overflow automático al menú "Más": los grupos de cola que no caben se
-  // repliegan solos (con histéresis para no parpadear en el borde). Se suma
-  // a lo que el usuario ocultó a mano; el menú "Más" muestra ambos.
+  // Overflow automático al menú "Más": los controles de cola que no caben se
+  // repliegan de uno en uno (grano fino: caben muchos más botones que por
+  // grupos) con histéresis para no parpadear en el borde. Se suma a lo que
+  // el usuario ocultó a mano; el menú "Más" muestra ambos.
   const toolbarStripRef = useRef<HTMLDivElement | null>(null);
-  const toolbarGroupRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [autoHiddenGroups, setAutoHiddenGroups] = useState(0);
+  const toolbarControlRefs = useRef(new Map<ToolbarItemId, HTMLDivElement | null>());
+  const moreBtnWrapRef = useRef<HTMLDivElement | null>(null);
+  const [moreMenuPos, setMoreMenuPos] = useState<{ top: number; right: number } | null>(null);
+
+  const toggleMoreMenu = () => {
+    if (showMoreMenu) {
+      setShowMoreMenu(false);
+      return;
+    }
+    const r = moreBtnWrapRef.current?.getBoundingClientRect();
+    if (r) {
+      setMoreMenuPos({
+        top: r.bottom + 6,
+        right: Math.max(8, window.innerWidth - r.right),
+      });
+    }
+    setToolbarMenu(null);
+    setShowMoreMenu(true);
+  };
+  const [autoHiddenControls, setAutoHiddenControls] = useState(0);
   const [stripWidth, setStripWidth] = useState(0);
-  const lastHiddenWidthRef = useRef(140);
+  const lastHiddenWidthRef = useRef(60);
 
   useEffect(() => {
     const el = toolbarStripRef.current;
@@ -3704,39 +3723,40 @@ export default function NoteEditor({
     return () => ro.disconnect();
   }, []);
 
+  const flatToolbarGids = renderedToolbarGroups.flatMap((group) => group);
+
   useLayoutEffect(() => {
     const el = toolbarStripRef.current;
     if (!el) return;
-    const total = renderedToolbarGroups.length;
-    const visible = total - autoHiddenGroups;
+    const total = flatToolbarGids.length;
+    const visible = total - autoHiddenControls;
     if (el.scrollWidth > el.clientWidth + 1) {
       if (visible > 1) {
-        const lastEl = toolbarGroupRefs.current[visible - 1];
-        if (lastEl) {
+        const lastEl = toolbarControlRefs.current.get(flatToolbarGids[visible - 1]);
+        if (lastEl?.isConnected) {
           const w = lastEl.getBoundingClientRect().width;
           if (w > 0) lastHiddenWidthRef.current = w + 12;
         }
-        setAutoHiddenGroups(autoHiddenGroups + 1);
+        setAutoHiddenControls(autoHiddenControls + 1);
       }
       return;
     }
-    if (autoHiddenGroups > 0) {
+    if (autoHiddenControls > 0) {
       const slack = el.clientWidth - el.scrollWidth;
       if (slack >= lastHiddenWidthRef.current + 24) {
-        setAutoHiddenGroups(autoHiddenGroups - 1);
+        setAutoHiddenControls(autoHiddenControls - 1);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stripWidth, autoHiddenGroups, uiScale, hiddenToolbarIds, renderedToolbarGroups.length]);
+  }, [stripWidth, autoHiddenControls, uiScale, hiddenToolbarIds, flatToolbarGids.length]);
 
-  const visibleToolbarGroups = renderedToolbarGroups.slice(
-    0, Math.max(1, renderedToolbarGroups.length - autoHiddenGroups),
+  const visibleToolbarGids = new Set(
+    flatToolbarGids.slice(0, Math.max(1, flatToolbarGids.length - autoHiddenControls)),
   );
-  const autoHiddenDefs = renderedToolbarGroups
-    .slice(Math.max(1, renderedToolbarGroups.length - autoHiddenGroups))
-    .flatMap((group) => group
-      .map((gid) => TOOLBAR_ITEMS.find((d) => d.id === gid))
-      .filter((d): d is ToolbarItemDef => !!d));
+  const autoHiddenDefs = flatToolbarGids
+    .slice(Math.max(1, flatToolbarGids.length - autoHiddenControls))
+    .map((gid) => TOOLBAR_ITEMS.find((d) => d.id === gid))
+    .filter((d): d is ToolbarItemDef => !!d);
   const moreMenuDefs = [...autoHiddenDefs, ...hiddenToolbarItems];
   const toolbarItemLabel = (id: ToolbarItemId): string => {
     const def = TOOLBAR_ITEMS.find((d) => d.id === id);
@@ -4700,29 +4720,39 @@ export default function NoteEditor({
         <div ref={toolbarStripRef} className="toolbar-strip" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px' }}>
           {editor && (
             <>
-              {visibleToolbarGroups.map((group, gi) => (
-                <div
-                  key={group.join('+')}
-                  ref={(el) => { toolbarGroupRefs.current[gi] = el; }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
-                >
-                  {gi > 0 && <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />}
-                  {group.map((gid) => (
-                    <Fragment key={gid}>{renderToolbarControl(gid)}</Fragment>
-                  ))}
-                </div>
-              ))}
+              {(() => {
+                const firstVisibleGi = renderedToolbarGroups.findIndex((group) =>
+                  group.some((gid) => visibleToolbarGids.has(gid)));
+                return renderedToolbarGroups.map((group, gi) => {
+                  const vis = group.filter((gid) => visibleToolbarGids.has(gid));
+                  if (vis.length === 0) return null;
+                  return (
+                    <Fragment key={group.join('+')}>
+                      {gi > firstVisibleGi && <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />}
+                      {vis.map((gid) => (
+                        <div
+                          key={gid}
+                          ref={(el) => { toolbarControlRefs.current.set(gid, el); }}
+                          style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                        >
+                          {renderToolbarControl(gid)}
+                        </div>
+                      ))}
+                    </Fragment>
+                  );
+                });
+              })()}
 
               <div style={{ flex: 1 }} />
 
               {moreMenuDefs.length > 0 && (
-                <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div ref={moreBtnWrapRef} style={{ position: 'relative', flexShrink: 0 }}>
                   {(() => {
                     const moreTipOff = !!toolbarMenu || showMoreMenu;
                     const moreTrigger = (
                       <button
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
+                        onClick={toggleMoreMenu}
                         className="btn-icon toolbar-btn"
                         style={{ position: 'relative' }}
                       >                      <MoreHorizontal size={15} />
@@ -4742,11 +4772,11 @@ export default function NoteEditor({
                       </Tooltip>
                     );
                   })()}
-                  {showMoreMenu && (
+                  {showMoreMenu && moreMenuPos && createPortal(
                       <div
                         data-more-menu="true"
                         style={{
-                        position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: WORD_MENU_Z,
+                        position: 'fixed', top: moreMenuPos.top, right: moreMenuPos.right, zIndex: WORD_MENU_Z,
                         minWidth: 200, maxHeight: 320, overflowY: 'auto', padding: 6,
                         borderRadius: 10, background: 'rgba(10, 10, 18, 0.97)',
                         border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
@@ -4801,8 +4831,9 @@ export default function NoteEditor({
                         >
                           {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
                         </button>
-                      </div>
-                  )}
+                      </div>,
+                      document.body
+                    )}
                 </div>
               )}
             </>
