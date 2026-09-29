@@ -3684,6 +3684,60 @@ export default function NoteEditor({
     .map((group) => group.filter((gid) => !hiddenToolbarSet.has(gid)))
     .filter((group) => group.length > 0);
   const hiddenToolbarItems = TOOLBAR_ITEMS.filter((d) => hiddenToolbarSet.has(d.id));
+
+  // Overflow automático al menú "Más": los grupos de cola que no caben se
+  // repliegan solos (con histéresis para no parpadear en el borde). Se suma
+  // a lo que el usuario ocultó a mano; el menú "Más" muestra ambos.
+  const toolbarStripRef = useRef<HTMLDivElement | null>(null);
+  const toolbarGroupRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [autoHiddenGroups, setAutoHiddenGroups] = useState(0);
+  const [stripWidth, setStripWidth] = useState(0);
+  const lastHiddenWidthRef = useRef(140);
+
+  useEffect(() => {
+    const el = toolbarStripRef.current;
+    if (!el) return;
+    const update = () => setStripWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = toolbarStripRef.current;
+    if (!el) return;
+    const total = renderedToolbarGroups.length;
+    const visible = total - autoHiddenGroups;
+    if (el.scrollWidth > el.clientWidth + 1) {
+      if (visible > 1) {
+        const lastEl = toolbarGroupRefs.current[visible - 1];
+        if (lastEl) {
+          const w = lastEl.getBoundingClientRect().width;
+          if (w > 0) lastHiddenWidthRef.current = w + 12;
+        }
+        setAutoHiddenGroups(autoHiddenGroups + 1);
+      }
+      return;
+    }
+    if (autoHiddenGroups > 0) {
+      const slack = el.clientWidth - el.scrollWidth;
+      if (slack >= lastHiddenWidthRef.current + 24) {
+        setAutoHiddenGroups(autoHiddenGroups - 1);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stripWidth, autoHiddenGroups, uiScale, hiddenToolbarIds, renderedToolbarGroups.length]);
+
+  const visibleToolbarGroups = renderedToolbarGroups.slice(
+    0, Math.max(1, renderedToolbarGroups.length - autoHiddenGroups),
+  );
+  const autoHiddenDefs = renderedToolbarGroups
+    .slice(Math.max(1, renderedToolbarGroups.length - autoHiddenGroups))
+    .flatMap((group) => group
+      .map((gid) => TOOLBAR_ITEMS.find((d) => d.id === gid))
+      .filter((d): d is ToolbarItemDef => !!d));
+  const moreMenuDefs = [...autoHiddenDefs, ...hiddenToolbarItems];
   const toolbarItemLabel = (id: ToolbarItemId): string => {
     const def = TOOLBAR_ITEMS.find((d) => d.id === id);
     return def ? (language === 'es' ? def.labelEs : def.labelEn) : id;
@@ -4392,61 +4446,61 @@ export default function NoteEditor({
             borderRadius: 'var(--radius-md)',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
           }}>
-            {/* Guardar manual (alineado a la izquierda / primero) */}
-            <AnimatePresence>
-              {!autosaveEnabled && hasUnsavedChanges && (
-                <motion.div
-                  key="manual-save-container"
-                  initial={{ opacity: 0, scale: 0.9, width: 0, marginRight: 0 }}
-                  animate={{ opacity: 1, scale: 1, width: 'auto', marginRight: 4 }}
-                  exit={{ opacity: 0, scale: 0.9, width: 0, marginRight: 0 }}
-                  transition={{ duration: 0.12, ease: 'easeOut' }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    overflow: 'visible',
-                    whiteSpace: 'nowrap',
-                    padding: '2px 3px',
-                  }}
-                >
-                  <Tooltip placement="bottom" label={language === 'es' ? 'Guardar nota (Ctrl+S)' : 'Save note (Ctrl+S)'}>
-                    <motion.button
-                      onClick={handleManualSave}
-                      className={saveShineOn ? 'cyber-save-shine' : undefined}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        padding: '6px 11px',
-                        minHeight: 32,
-                        borderRadius: 6,
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        background: 'var(--accent-dim)',
-                        color: 'var(--accent-light)',
-                        cursor: 'pointer',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        transition: 'background 0.15s ease, color 0.15s ease',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = 'var(--accent)';
-                        e.currentTarget.style.color = '#ffffff';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'var(--accent-dim)';
-                        e.currentTarget.style.color = 'var(--accent-light)';
-                      }}
-                      whileTap={{ scale: 0.95 }}
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      <Save size={15} />
-                      <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
-                    </motion.button>
-                  </Tooltip>
-                  <div style={{ width: 1, alignSelf: 'stretch', minHeight: 18, background: 'var(--border)', margin: '4px 6px', flexShrink: 0 }} />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Guardar manual (alineado a la izquierda / primero).
+                Espacio siempre reservado en modo manual: solo cambia la
+                opacidad para que aparecer/desaparecer no mueva a los vecinos. */}
+            {!autosaveEnabled && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  overflow: 'visible',
+                  whiteSpace: 'nowrap',
+                  padding: '2px 3px',
+                  marginRight: 4,
+                  visibility: hasUnsavedChanges ? 'visible' : 'hidden',
+                  opacity: hasUnsavedChanges ? 1 : 0,
+                  transition: 'opacity 0.12s ease-out',
+                }}
+              >
+                <Tooltip placement="bottom" label={language === 'es' ? 'Guardar nota (Ctrl+S)' : 'Save note (Ctrl+S)'}>
+                  <button
+                    type="button"
+                    onClick={handleManualSave}
+                    tabIndex={hasUnsavedChanges ? undefined : -1}
+                    className={saveShineOn ? 'cyber-save-shine' : undefined}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '6px 11px',
+                      minHeight: 32,
+                      borderRadius: 6,
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      background: 'var(--accent-dim)',
+                      color: 'var(--accent-light)',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      transition: 'background 0.15s ease, color 0.15s ease',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'var(--accent)';
+                      e.currentTarget.style.color = '#ffffff';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'var(--accent-dim)';
+                      e.currentTarget.style.color = 'var(--accent-light)';
+                    }}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <Save size={15} />
+                    <span>{language === 'es' ? 'Guardar' : 'Save'}</span>
+                  </button>
+                </Tooltip>
+                <div style={{ width: 1, alignSelf: 'stretch', minHeight: 18, background: 'var(--border)', margin: '4px 6px', flexShrink: 0 }} />
+              </div>
+            )}
 
             {/* Grupo 1: Estado y Marcadores (Bloq Mayús, Favorito) */}
             <Tooltip
@@ -4643,21 +4697,25 @@ export default function NoteEditor({
         flexShrink: 0, background: 'var(--bg-notelist)',
         position: 'relative', // Necesario para que la barra de imagen se posicione absolutamente
       }}>
-        <div className="toolbar-strip" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px' }}>
+        <div ref={toolbarStripRef} className="toolbar-strip" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px' }}>
           {editor && (
             <>
-              {renderedToolbarGroups.map((group, gi) => (
-                <Fragment key={group.join('+')}>
+              {visibleToolbarGroups.map((group, gi) => (
+                <div
+                  key={group.join('+')}
+                  ref={(el) => { toolbarGroupRefs.current[gi] = el; }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+                >
                   {gi > 0 && <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />}
                   {group.map((gid) => (
                     <Fragment key={gid}>{renderToolbarControl(gid)}</Fragment>
                   ))}
-                </Fragment>
+                </div>
               ))}
 
               <div style={{ flex: 1 }} />
 
-              {hiddenToolbarItems.length > 0 && (
+              {moreMenuDefs.length > 0 && (
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   {(() => {
                     const moreTipOff = !!toolbarMenu || showMoreMenu;
@@ -4674,12 +4732,12 @@ export default function NoteEditor({
                           fontSize: 8.5, fontWeight: 800, lineHeight: '13px', textAlign: 'center',
                           padding: '0 2px',
                         }}>
-                          {hiddenToolbarItems.length}
+                          {moreMenuDefs.length}
                         </span>
                       </button>
                     );
                     return moreTipOff ? moreTrigger : (
-                      <Tooltip label={language === 'es' ? `Más (${hiddenToolbarItems.length})` : `More (${hiddenToolbarItems.length})`} placement="bottom">
+                      <Tooltip label={language === 'es' ? `Más (${moreMenuDefs.length})` : `More (${moreMenuDefs.length})`} placement="bottom">
                         {moreTrigger}
                       </Tooltip>
                     );
@@ -4695,7 +4753,7 @@ export default function NoteEditor({
                         display: 'flex', flexDirection: 'column', gap: 2,
                         userSelect: 'none', WebkitUserSelect: 'none',
                       }}>
-                        {hiddenToolbarItems.map((def) => (
+                        {moreMenuDefs.map((def) => (
                           <div
                             key={def.id}
                             role="button"
