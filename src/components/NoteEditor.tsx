@@ -3684,80 +3684,6 @@ export default function NoteEditor({
     .map((group) => group.filter((gid) => !hiddenToolbarSet.has(gid)))
     .filter((group) => group.length > 0);
   const hiddenToolbarItems = TOOLBAR_ITEMS.filter((d) => hiddenToolbarSet.has(d.id));
-
-  // Overflow automático al menú "Más": los controles de cola que no caben se
-  // repliegan de uno en uno (grano fino: caben muchos más botones que por
-  // grupos) con histéresis para no parpadear en el borde. Se suma a lo que
-  // el usuario ocultó a mano; el menú "Más" muestra ambos.
-  const toolbarStripRef = useRef<HTMLDivElement | null>(null);
-  const toolbarControlRefs = useRef(new Map<ToolbarItemId, HTMLDivElement | null>());
-  const moreBtnWrapRef = useRef<HTMLDivElement | null>(null);
-  const [moreMenuPos, setMoreMenuPos] = useState<{ top: number; right: number } | null>(null);
-
-  const toggleMoreMenu = () => {
-    if (showMoreMenu) {
-      setShowMoreMenu(false);
-      return;
-    }
-    const r = moreBtnWrapRef.current?.getBoundingClientRect();
-    if (r) {
-      setMoreMenuPos({
-        top: r.bottom + 6,
-        right: Math.max(8, window.innerWidth - r.right),
-      });
-    }
-    setToolbarMenu(null);
-    setShowMoreMenu(true);
-  };
-  const [autoHiddenControls, setAutoHiddenControls] = useState(0);
-  const [stripWidth, setStripWidth] = useState(0);
-  const lastHiddenWidthRef = useRef(60);
-
-  useEffect(() => {
-    const el = toolbarStripRef.current;
-    if (!el) return;
-    const update = () => setStripWidth(el.clientWidth);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const flatToolbarGids = renderedToolbarGroups.flatMap((group) => group);
-
-  useLayoutEffect(() => {
-    const el = toolbarStripRef.current;
-    if (!el) return;
-    const total = flatToolbarGids.length;
-    const visible = total - autoHiddenControls;
-    if (el.scrollWidth > el.clientWidth + 1) {
-      if (visible > 1) {
-        const lastEl = toolbarControlRefs.current.get(flatToolbarGids[visible - 1]);
-        if (lastEl?.isConnected) {
-          const w = lastEl.getBoundingClientRect().width;
-          if (w > 0) lastHiddenWidthRef.current = w + 12;
-        }
-        setAutoHiddenControls(autoHiddenControls + 1);
-      }
-      return;
-    }
-    if (autoHiddenControls > 0) {
-      const slack = el.clientWidth - el.scrollWidth;
-      if (slack >= lastHiddenWidthRef.current + 24) {
-        setAutoHiddenControls(autoHiddenControls - 1);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stripWidth, autoHiddenControls, uiScale, hiddenToolbarIds, flatToolbarGids.length]);
-
-  const visibleToolbarGids = new Set(
-    flatToolbarGids.slice(0, Math.max(1, flatToolbarGids.length - autoHiddenControls)),
-  );
-  const autoHiddenDefs = flatToolbarGids
-    .slice(Math.max(1, flatToolbarGids.length - autoHiddenControls))
-    .map((gid) => TOOLBAR_ITEMS.find((d) => d.id === gid))
-    .filter((d): d is ToolbarItemDef => !!d);
-  const moreMenuDefs = [...autoHiddenDefs, ...hiddenToolbarItems];
   const toolbarItemLabel = (id: ToolbarItemId): string => {
     const def = TOOLBAR_ITEMS.find((d) => d.id === id);
     return def ? (language === 'es' ? def.labelEs : def.labelEn) : id;
@@ -4717,42 +4643,28 @@ export default function NoteEditor({
         flexShrink: 0, background: 'var(--bg-notelist)',
         position: 'relative', // Necesario para que la barra de imagen se posicione absolutamente
       }}>
-        <div ref={toolbarStripRef} className="toolbar-strip" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', flexWrap: 'wrap' }}>
           {editor && (
             <>
-              {(() => {
-                const firstVisibleGi = renderedToolbarGroups.findIndex((group) =>
-                  group.some((gid) => visibleToolbarGids.has(gid)));
-                return renderedToolbarGroups.map((group, gi) => {
-                  const vis = group.filter((gid) => visibleToolbarGids.has(gid));
-                  if (vis.length === 0) return null;
-                  return (
-                    <Fragment key={group.join('+')}>
-                      {gi > firstVisibleGi && <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />}
-                      {vis.map((gid) => (
-                        <div
-                          key={gid}
-                          ref={(el) => { toolbarControlRefs.current.set(gid, el); }}
-                          style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
-                        >
-                          {renderToolbarControl(gid)}
-                        </div>
-                      ))}
-                    </Fragment>
-                  );
-                });
-              })()}
+              {renderedToolbarGroups.map((group, gi) => (
+                <Fragment key={group.join('+')}>
+                  {gi > 0 && <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />}
+                  {group.map((gid) => (
+                    <Fragment key={gid}>{renderToolbarControl(gid)}</Fragment>
+                  ))}
+                </Fragment>
+              ))}
 
               <div style={{ flex: 1 }} />
 
-              {moreMenuDefs.length > 0 && (
-                <div ref={moreBtnWrapRef} style={{ position: 'relative', flexShrink: 0 }}>
+              {hiddenToolbarItems.length > 0 && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
                   {(() => {
                     const moreTipOff = !!toolbarMenu || showMoreMenu;
                     const moreTrigger = (
                       <button
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={toggleMoreMenu}
+                        onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
                         className="btn-icon toolbar-btn"
                         style={{ position: 'relative' }}
                       >                      <MoreHorizontal size={15} />
@@ -4762,28 +4674,28 @@ export default function NoteEditor({
                           fontSize: 8.5, fontWeight: 800, lineHeight: '13px', textAlign: 'center',
                           padding: '0 2px',
                         }}>
-                          {moreMenuDefs.length}
+                          {hiddenToolbarItems.length}
                         </span>
                       </button>
                     );
                     return moreTipOff ? moreTrigger : (
-                      <Tooltip label={language === 'es' ? `Más (${moreMenuDefs.length})` : `More (${moreMenuDefs.length})`} placement="bottom">
+                      <Tooltip label={language === 'es' ? `Más (${hiddenToolbarItems.length})` : `More (${hiddenToolbarItems.length})`} placement="bottom">
                         {moreTrigger}
                       </Tooltip>
                     );
                   })()}
-                  {showMoreMenu && moreMenuPos && createPortal(
+                  {showMoreMenu && (
                       <div
                         data-more-menu="true"
                         style={{
-                        position: 'fixed', top: moreMenuPos.top, right: moreMenuPos.right, zIndex: WORD_MENU_Z,
+                        position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: WORD_MENU_Z,
                         minWidth: 200, maxHeight: 320, overflowY: 'auto', padding: 6,
                         borderRadius: 10, background: 'rgba(10, 10, 18, 0.97)',
                         border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
                         display: 'flex', flexDirection: 'column', gap: 2,
                         userSelect: 'none', WebkitUserSelect: 'none',
                       }}>
-                        {moreMenuDefs.map((def) => (
+                        {hiddenToolbarItems.map((def) => (
                           <div
                             key={def.id}
                             role="button"
@@ -4831,9 +4743,8 @@ export default function NoteEditor({
                         >
                           {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
                         </button>
-                      </div>,
-                      document.body
-                    )}
+                      </div>
+                  )}
                 </div>
               )}
             </>
