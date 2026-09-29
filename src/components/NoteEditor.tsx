@@ -4300,8 +4300,8 @@ export default function NoteEditor({
           />
         )}
         
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', rowGap: 10 }}>
-          <div style={{ flex: '1 1 230px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             {(pinned || isFloatingNote) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 {pinned && (
@@ -4385,7 +4385,6 @@ export default function NoteEditor({
             alignItems: 'center',
             gap: 4,
             flexShrink: 0,
-            marginLeft: 'auto',
             background: 'var(--bg-surface)',
             border: '1px solid var(--border)',
             padding: '4px 6px',
