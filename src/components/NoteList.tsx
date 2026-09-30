@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useMemo, memo, useCallbac
 import { createPortal } from 'react-dom';
 import { Note, Folder } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
-import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, LayoutGrid, StretchHorizontal, FileText, Rows3, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye, Copy } from 'lucide-react';
+import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Check, LayoutList, LayoutGrid, StretchHorizontal, FileText, Rows3, Pencil, FolderInput, ExternalLink, RotateCcw, AppWindow, FolderPlus, Eye, Copy, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
@@ -31,6 +31,8 @@ interface Props {
   selectedFolder: Folder | null;
   searchQuery: string;
   onSearch?: (q: string) => void;
+  singleColumn?: boolean;
+  onSelectFolder?: (id: string | null) => void;
   uiScale?: number;
 }
 
@@ -279,7 +281,7 @@ export default function NoteList({
   onRequestCreateFolder,
   onDeleteNote, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
   onTogglePin, onMoveNote, onRenameNote, onDuplicateNote, onRegisterDeleteSelected,
-  selectedFolder, searchQuery, onSearch, uiScale = 1,
+  selectedFolder, searchQuery, onSearch, singleColumn = false, onSelectFolder, uiScale = 1,
 }: Props) {
   const t = TRANSLATIONS[language];
   const isStickyFolder = selectedFolder?.id === 'sticky';
@@ -962,7 +964,7 @@ export default function NoteList({
 
   return (
     <div className={`glass-effect notelist-glass${isHovering ? ' is-hovered' : ''}`} data-leave-guard="nav" style={{
-      width: 'var(--notelist-width)',
+      width: singleColumn ? '100%' : 'var(--notelist-width)',
       background: 'var(--bg-notelist)',
       borderRight: '1px solid var(--border)',
       display: 'flex',
@@ -982,6 +984,59 @@ export default function NoteList({
         gap: 16,
         flexShrink: 0,
       }}>
+        {singleColumn && (
+          <>
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{
+                position: 'absolute', left: 10, top: '50%',
+                transform: 'translateY(-50%)', color: 'var(--text-muted)',
+                pointerEvents: 'none',
+              }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => onSearch?.(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape' && searchQuery) {
+                    e.preventDefault();
+                    onSearch?.('');
+                  }
+                }}
+                placeholder={`${t.general.search} (Ctrl+F)`}
+                className="input"
+                aria-label={t.general.search}
+                onContextMenu={inputMenu.onContextMenu}
+                style={{ paddingLeft: 32, paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 10px 7px 32px', width: '100%' }}
+              />
+              {searchQuery && (
+                <button
+                  className="btn-icon"
+                  onClick={() => onSearch?.('')}
+                  aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: 2 }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <select
+              value={selectedFolder?.id ?? 'all'}
+              onChange={e => onSelectFolder?.(e.target.value === 'all' ? null : e.target.value)}
+              className="input"
+              aria-label={language === 'es' ? 'Carpeta' : 'Folder'}
+              style={{ background: 'var(--bg-app)', cursor: 'pointer', fontSize: 12 }}
+            >
+              <option value="all">{t.sidebar.allNotes}</option>
+              <option value="favorites">{t.sidebar.favorites}</option>
+              <option value="sticky">{t.sidebar.stickyNotes}</option>
+              <option value="floating">{t.sidebar.floatingNotes}</option>
+              <option value="trash">{t.sidebar.trash}</option>
+              {folders.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
           <h2 style={{
             fontSize: 'calc(14px * var(--ui-scale))',

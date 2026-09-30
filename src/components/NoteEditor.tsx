@@ -83,6 +83,8 @@ interface Props {
   notes?: Note[];
   folders?: Folder[];
   onSelectNote?: (id: string) => void;
+  showBackButton?: boolean;
+  onBack?: () => void;
   onCloseTab?: (id: string) => void;
   onCloseOtherTabs?: (keepId: string) => void;
   onDuplicateNote?: (id: string) => void;
@@ -1783,6 +1785,8 @@ export default function NoteEditor({
   notes = [],
   folders = [],
   onSelectNote,
+  showBackButton = false,
+  onBack,
   onCloseTab,
   onCloseOtherTabs,
   onDuplicateNote,
@@ -4301,6 +4305,19 @@ export default function NoteEditor({
         )}
         
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
+          {showBackButton && (
+            <Tooltip placement="bottom" label={language === 'es' ? 'Atrás' : 'Back'}>
+              <button
+                type="button"
+                onClick={onBack}
+                className="btn-icon"
+                aria-label={language === 'es' ? 'Atrás' : 'Back'}
+                style={{ padding: 6, flexShrink: 0, marginTop: 2 }}
+              >
+                <ArrowLeft size={16} />
+              </button>
+            </Tooltip>
+          )}
           <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             {(pinned || isFloatingNote) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>

@@ -20,6 +20,9 @@ import UpdaterBanner from './UpdaterBanner';
 import { FILTER_COLORS } from './FolderIcon';
 
 const SIDEBAR_RAIL_BREAKPOINT = 1100;
+// Fase 2 responsive: bajo este ancho lógico, una sola columna (lista O
+// editor) en lugar de comprimir las tres.
+const SINGLE_COLUMN_BREAKPOINT = 850;
 
 function insertTabAfter(ids: string[], newId: string, afterId: string | null | undefined): string[] {
   if (ids.includes(newId)) return ids;
@@ -198,6 +201,24 @@ export default function MainApp({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  const [isSingleColumn, setIsSingleColumn] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < SINGLE_COLUMN_BREAKPOINT,
+  );
+  useEffect(() => {
+    const onResize = () => setIsSingleColumn(window.innerWidth < SINGLE_COLUMN_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  // En columna única se muestra lista o editor (sin desmontar: display que
+  // preserva el editor y su historial). Volver atrás conserva la selección;
+  // cualquier selección nueva vuelve al editor.
+  const [singleBackToList, setSingleBackToList] = useState(false);
+  useEffect(() => {
+    setSingleBackToList(false);
+  }, [selectedNoteId]);
+  const singleColumnActive = isSingleColumn && layoutMode === 3;
+  const showingSingleEditor = !singleColumnActive || (!!selectedNoteId && !singleBackToList);
+  const showingSingleList = !singleColumnActive || !showingSingleEditor;
   const [noteListWidth, setNoteListWidth] = useState(300);
   const [uiScale, setUiScale] = useState(1.0);
   const [bgImage, setBgImage] = useState<string | null>(null);
@@ -1970,7 +1991,7 @@ export default function MainApp({
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Sidebar */}
-        {layoutMode === 3 && (
+        {layoutMode === 3 && !singleColumnActive && (
           <>
             <Sidebar
               language={language}
@@ -2022,8 +2043,12 @@ export default function MainApp({
         )}
 
         {/* Note list */}
-        {layoutMode >= 2 && (
+        {layoutMode >= 2 && showingSingleList && (
           <>
+            <div style={singleColumnActive
+              ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }
+              : { display: 'contents' }}
+            >
             <NoteList
               language={language}
               notes={notes}
@@ -2060,18 +2085,31 @@ export default function MainApp({
               searchQuery={searchQuery}
               onSearch={handleSearch}
               uiScale={uiScale}
+              singleColumn={singleColumnActive}
+              onSelectFolder={handleSelectFolder}
             />
-            <div 
-              onMouseDown={startDragNoteList}
-              style={{ width: 4, cursor: 'col-resize', background: 'transparent', flexShrink: 0, zIndex: 10, margin: '0 -2px' }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.background = 'var(--accent)'; }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; }}
-            />
+            </div>
+            {!singleColumnActive && (
+              <div
+                onMouseDown={startDragNoteList}
+                style={{ width: 4, cursor: 'col-resize', background: 'transparent', flexShrink: 0, zIndex: 10, margin: '0 -2px' }}
+                onMouseEnter={e => { (e.target as HTMLElement).style.background = 'var(--accent)'; }}
+                onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; }}
+              />
+            )}
           </>
         )}
 
         {/* Editor */}
+        <div style={singleColumnActive
+          ? (showingSingleEditor
+            ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }
+            : { display: 'none' })
+          : { display: 'contents' }}
+        >
         <NoteEditor
+          showBackButton={singleColumnActive}
+          onBack={() => setSingleBackToList(true)}
           language={language}
           note={selectedNote}
           readOnly={selectedFolderId === 'trash'}
@@ -2124,6 +2162,7 @@ export default function MainApp({
           hiddenToolbarIds={hiddenToolbarIds}
           onHiddenToolbarIdsChange={handleHiddenToolbarIdsChange}
         />
+        </div>
       </div>
 
       {showSettings && (
