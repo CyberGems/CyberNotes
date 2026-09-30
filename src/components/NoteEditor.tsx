@@ -4392,9 +4392,8 @@ export default function NoteEditor({
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
           }}>
             {/* Guardar manual (alineado a la izquierda / primero).
-                Espacio siempre reservado en modo manual: solo cambia la
-                opacidad para que aparecer/desaparecer no mueva a los vecinos. */}
-            {!autosaveEnabled && (
+                Sin espacio reservado: solo existe con cambios pendientes. */}
+            {!autosaveEnabled && hasUnsavedChanges && (
               <div
                 style={{
                   display: 'flex',
@@ -4403,16 +4402,12 @@ export default function NoteEditor({
                   whiteSpace: 'nowrap',
                   padding: '2px 3px',
                   marginRight: 4,
-                  visibility: hasUnsavedChanges ? 'visible' : 'hidden',
-                  opacity: hasUnsavedChanges ? 1 : 0,
-                  transition: 'opacity 0.12s ease-out',
                 }}
               >
                 <Tooltip placement="bottom" label={language === 'es' ? 'Guardar nota (Ctrl+S)' : 'Save note (Ctrl+S)'}>
                   <button
                     type="button"
                     onClick={handleManualSave}
-                    tabIndex={hasUnsavedChanges ? undefined : -1}
                     className={saveShineOn ? 'cyber-save-shine' : undefined}
                     style={{
                       display: 'flex',
