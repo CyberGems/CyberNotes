@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, type CSSProperties } from 'react';
+import { useState, useRef, useEffect, useMemo, type CSSProperties, type ReactNode, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Folder, Note } from '../types';
@@ -189,7 +189,7 @@ export default function Sidebar({
     );
   };
 
-  // Botón del rail: 40px centrado con estado activo.
+  // Botón del rail: 40px centrado, con activo y hover elegante.
   const railBtnStyle = (active: boolean, tint?: string): CSSProperties => ({
     width: 40,
     height: 40,
@@ -202,7 +202,53 @@ export default function Sidebar({
     border: active ? `1px solid ${tint || 'var(--accent)'}` : '1px solid transparent',
     color: active ? (tint || 'var(--accent-light)') : 'var(--text-secondary)',
     cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s, border-color 0.15s, filter 0.15s',
   });
+
+  function RailIconBtn({
+    label, active, tint, onClick, onContextMenu, onDragOver, onDragLeave, onDrop, children,
+  }: {
+    label: string;
+    active: boolean;
+    tint?: string;
+    onClick?: () => void;
+    onContextMenu?: (e: React.MouseEvent) => void;
+    onDragOver?: (e: ReactDragEvent) => void;
+    onDragLeave?: (e: ReactDragEvent) => void;
+    onDrop?: (e: ReactDragEvent) => void;
+    children: ReactNode;
+  }) {
+    const [hover, setHover] = useState(false);
+    return (
+      <Tooltip placement="right" label={label}>
+        <button
+          type="button"
+          aria-label={label}
+          onClick={onClick}
+          onContextMenu={onContextMenu}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          style={{
+            ...railBtnStyle(active, tint),
+            ...(hover && !active
+              ? {
+                background: 'var(--bg-hover)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border)',
+                boxShadow: '0 0 10px var(--accent-glow)',
+              }
+              : null),
+            ...(hover && active ? { filter: 'brightness(1.18)' } : null),
+          }}
+        >
+          {children}
+        </button>
+      </Tooltip>
+    );
+  }
 
   // Global drag listeners to activate target drop indicators
   useEffect(() => {
@@ -416,24 +462,62 @@ export default function Sidebar({
           { key: 'floating', icon: <Inbox size={17} />, label: t.sidebar.floatingNotes, count: allNotes.filter(n => !n.folder_id).length, active: selectedFolderId === 'floating' && !searchQuery, onClick: () => onSelectFolder('floating'), dropId: null as string | null },
           { key: 'trash', icon: <Trash2 size={17} />, label: t.sidebar.trash, count: trashCount, active: selectedFolderId === 'trash' && !searchQuery, onClick: () => onSelectFolder('trash'), dropId: null as string | null },
         ]).map((item) => (
-          <Tooltip key={item.key} placement="right" label={`${item.label} (${item.count})`}>
-            <button
-              type="button"
-              onClick={item.onClick}
+          <RailIconBtn
+            key={item.key}
+            label={`${item.label} (${item.count})`}
+            active={item.active}
+            tint={isNoteDragging && activeDropTargetId === 'all' && item.key === 'all' ? 'var(--accent)' : undefined}
+            onClick={item.onClick}
+            onDragOver={item.key === 'all' ? (e => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = 'move';
+              setActiveDropTargetId(prev => (prev === 'all' ? prev : 'all'));
+            }) : undefined}
+            onDragLeave={item.key === 'all' ? (e => {
+              if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+              setActiveDropTargetId(prev => (prev === 'all' ? null : prev));
+            }) : undefined}
+            onDrop={item.key === 'all' ? (e => {
+              e.preventDefault();
+              e.stopPropagation();
+              const noteId = e.dataTransfer.getData('text/plain');
+              setActiveDropTargetId(null);
+              setIsNoteDragging(false);
+              window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
+              if (noteId) {
+                playSynthSound('mechanical-click');
+                onMoveNote(noteId, null);
+              }
+            }) : undefined}
+          >
+            {item.icon}
+          </RailIconBtn>
+        ))}
+        <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
+        {folders.map(folder => {
+          const isSelected = selectedFolderId === folder.id;
+          const count = allNotes.filter(n => n.folder_id === folder.id).length;
+          const isTarget = isNoteDragging && activeDropTargetId === folder.id;
+          return (
+            <RailIconBtn
+              key={folder.id}
+              label={`${folder.name} (${count})`}
+              active={isSelected}
+              tint={isTarget ? folder.color : (isSelected ? `${folder.color}66` : undefined)}
+              onClick={() => onSelectFolder(folder.id)}
+              onContextMenu={e => handleContextMenu(e, folder)}
               onDragOver={e => {
-                if (item.key !== 'all') return;
                 e.preventDefault();
                 e.stopPropagation();
                 e.dataTransfer.dropEffect = 'move';
-                setActiveDropTargetId(prev => (prev === 'all' ? prev : 'all'));
+                setActiveDropTargetId(prev => (prev === folder.id ? prev : folder.id));
               }}
               onDragLeave={e => {
-                if (item.key !== 'all') return;
                 if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-                setActiveDropTargetId(prev => (prev === 'all' ? null : prev));
+                setActiveDropTargetId(prev => (prev === folder.id ? null : prev));
               }}
               onDrop={e => {
-                if (item.key !== 'all') return;
                 e.preventDefault();
                 e.stopPropagation();
                 const noteId = e.dataTransfer.getData('text/plain');
@@ -442,55 +526,12 @@ export default function Sidebar({
                 window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
                 if (noteId) {
                   playSynthSound('mechanical-click');
-                  onMoveNote(noteId, null);
+                  onMoveNote(noteId, folder.id);
                 }
               }}
-              aria-label={item.label}
-              style={railBtnStyle(item.active, isNoteDragging && activeDropTargetId === 'all' && item.key === 'all' ? 'var(--accent)' : undefined)}
             >
-              {item.icon}
-            </button>
-          </Tooltip>
-        ))}
-        <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
-        {folders.map(folder => {
-          const isSelected = selectedFolderId === folder.id;
-          const count = allNotes.filter(n => n.folder_id === folder.id).length;
-          const isTarget = isNoteDragging && activeDropTargetId === folder.id;
-          return (
-            <Tooltip key={folder.id} placement="right" label={`${folder.name} (${count})`}>
-              <button
-                type="button"
-                onClick={() => onSelectFolder(folder.id)}
-                onContextMenu={e => handleContextMenu(e, folder)}
-                onDragOver={e => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  e.dataTransfer.dropEffect = 'move';
-                  setActiveDropTargetId(prev => (prev === folder.id ? prev : folder.id));
-                }}
-                onDragLeave={e => {
-                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-                  setActiveDropTargetId(prev => (prev === folder.id ? null : prev));
-                }}
-                onDrop={e => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const noteId = e.dataTransfer.getData('text/plain');
-                  setActiveDropTargetId(null);
-                  setIsNoteDragging(false);
-                  window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
-                  if (noteId) {
-                    playSynthSound('mechanical-click');
-                    onMoveNote(noteId, folder.id);
-                  }
-                }}
-                aria-label={folder.name}
-                style={railBtnStyle(isSelected, isTarget ? folder.color : (isSelected ? `${folder.color}66` : undefined))}
-              >
-                <FolderIcon name={folder.icon} color={folder.color} size={17} />
-              </button>
-            </Tooltip>
+              <FolderIcon name={folder.icon} color={folder.color} size={17} />
+            </RailIconBtn>
           );
         })}
         <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
