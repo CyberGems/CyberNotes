@@ -273,6 +273,11 @@ body:has(.sticky-note-window),
   transform: none;
 }
 
+/* Rail del sidebar en ventanas angostas: 60px de iconos. */
+.sidebar-rail {
+  width: 60px !important;
+}
+
 /* Tira de formato en una sola fila: con ventanas angostas hace scroll
    horizontal (sin barra visible) en vez de partirse en varias filas. */
 .toolbar-strip {

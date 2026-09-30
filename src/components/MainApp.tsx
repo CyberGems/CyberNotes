@@ -19,6 +19,8 @@ import { tabSwitchStart, tabSwitchResolve } from '../utils/tabPerf';
 import UpdaterBanner from './UpdaterBanner';
 import { FILTER_COLORS } from './FolderIcon';
 
+const SIDEBAR_RAIL_BREAKPOINT = 1100;
+
 function insertTabAfter(ids: string[], newId: string, afterId: string | null | undefined): string[] {
   if (ids.includes(newId)) return ids;
   if (!afterId) return [...ids, newId];
@@ -186,6 +188,16 @@ export default function MainApp({
   }, [showFirstCloseDialog, chooseFirstClose]);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
+  // Fase 1 responsive: bajo este ancho lógico el sidebar colapsa a rail de
+  // iconos (automático; el layoutMode manual sigue mandando en columnas).
+  const [isSidebarRail, setIsSidebarRail] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < SIDEBAR_RAIL_BREAKPOINT,
+  );
+  useEffect(() => {
+    const onResize = () => setIsSidebarRail(window.innerWidth < SIDEBAR_RAIL_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [noteListWidth, setNoteListWidth] = useState(300);
   const [uiScale, setUiScale] = useState(1.0);
   const [bgImage, setBgImage] = useState<string | null>(null);
@@ -1962,6 +1974,7 @@ export default function MainApp({
           <>
             <Sidebar
               language={language}
+              rail={isSidebarRail}
               folders={folders}
               selectedFolderId={selectedFolderId}
               noteCount={allNotes.length}
@@ -1997,12 +2010,14 @@ export default function MainApp({
               onMoveNote={handleMoveNote}
               triggerNewFolderSignal={triggerNewFolderSignal}
             />
-            <div 
-              onMouseDown={startDragSidebar}
-              style={{ width: 4, cursor: 'col-resize', background: 'transparent', flexShrink: 0, zIndex: 10, margin: '0 -2px' }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.background = 'var(--accent)'; }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; }}
-            />
+            {!isSidebarRail && (
+              <div
+                onMouseDown={startDragSidebar}
+                style={{ width: 4, cursor: 'col-resize', background: 'transparent', flexShrink: 0, zIndex: 10, margin: '0 -2px' }}
+                onMouseEnter={e => { (e.target as HTMLElement).style.background = 'var(--accent)'; }}
+                onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; }}
+              />
+            )}
           </>
         )}
 

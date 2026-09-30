@@ -35,6 +35,7 @@ interface Props {
   searchQuery: string;
   onSearch: (q: string) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
+  rail?: boolean;
   getAvailableColors: (currentFolderId?: string) => { all: string[]; available: string[]; usedColors: Set<string> };
   triggerNewFolderSignal?: number;
 }
@@ -91,7 +92,7 @@ function timeAgo(iso: string, language: Language): string {
 export default function Sidebar({
   language, folders, selectedFolderId, noteCount, trashCount, recentNotes, allNotes, stickyNoteIds, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
-  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, getAvailableColors,
+  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, rail = false, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
   triggerNewFolderSignal,
 }: Props) {
@@ -187,6 +188,21 @@ export default function Sidebar({
       </Tooltip>
     );
   };
+
+  // Botón del rail: 40px centrado con estado activo.
+  const railBtnStyle = (active: boolean, tint?: string): CSSProperties => ({
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: active ? 'var(--bg-active)' : 'transparent',
+    border: active ? `1px solid ${tint || 'var(--accent)'}` : '1px solid transparent',
+    color: active ? (tint || 'var(--accent-light)') : 'var(--text-secondary)',
+    cursor: 'pointer',
+  });
 
   // Global drag listeners to activate target drop indicators
   useEffect(() => {
@@ -330,7 +346,7 @@ export default function Sidebar({
   ];
 
   return (
-    <div className="glass-effect sidebar-glass" data-leave-guard="nav" style={{
+    <div className={`glass-effect sidebar-glass${rail ? ' sidebar-rail' : ''}`} data-leave-guard="nav" style={{
       width: 'var(--sidebar-width)',
       background: 'var(--bg-sidebar)',
       borderRight: '1px solid var(--border)',
@@ -379,6 +395,125 @@ export default function Sidebar({
 
       <div className="divider" />
 
+      {rail ? (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+        <Tooltip placement="right" label={searchQuery ? `${t.general.search}: ${searchQuery}` : t.general.search}>
+          <button
+            type="button"
+            className="btn-icon"
+            style={{ width: 40, height: 40, borderRadius: 10 }}
+            onClick={() => { if (searchQuery) onSearch(''); }}
+            aria-label={t.general.search}
+          >
+            {searchQuery ? <X size={16} /> : <Search size={16} />}
+          </button>
+        </Tooltip>
+        <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
+        {([
+          { key: 'all', icon: <FileText size={17} />, label: t.sidebar.allNotes, count: noteCount, active: selectedFolderId === null && !searchQuery, onClick: () => onSelectFolder(null), dropId: null as string | null },
+          { key: 'favorites', icon: <Star size={17} />, label: t.sidebar.favorites, count: allNotes.filter(n => n.pinned === 1).length, active: selectedFolderId === 'favorites' && !searchQuery, onClick: () => onSelectFolder('favorites'), dropId: null as string | null },
+          { key: 'sticky', icon: <AppWindow size={17} />, label: t.sidebar.stickyNotes, count: stickyNoteIds.length, active: selectedFolderId === 'sticky' && !searchQuery, onClick: () => onSelectFolder('sticky'), dropId: null as string | null },
+          { key: 'floating', icon: <Inbox size={17} />, label: t.sidebar.floatingNotes, count: allNotes.filter(n => !n.folder_id).length, active: selectedFolderId === 'floating' && !searchQuery, onClick: () => onSelectFolder('floating'), dropId: null as string | null },
+          { key: 'trash', icon: <Trash2 size={17} />, label: t.sidebar.trash, count: trashCount, active: selectedFolderId === 'trash' && !searchQuery, onClick: () => onSelectFolder('trash'), dropId: null as string | null },
+        ]).map((item) => (
+          <Tooltip key={item.key} placement="right" label={`${item.label} (${item.count})`}>
+            <button
+              type="button"
+              onClick={item.onClick}
+              onDragOver={e => {
+                if (item.key !== 'all') return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                setActiveDropTargetId(prev => (prev === 'all' ? prev : 'all'));
+              }}
+              onDragLeave={e => {
+                if (item.key !== 'all') return;
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                setActiveDropTargetId(prev => (prev === 'all' ? null : prev));
+              }}
+              onDrop={e => {
+                if (item.key !== 'all') return;
+                e.preventDefault();
+                e.stopPropagation();
+                const noteId = e.dataTransfer.getData('text/plain');
+                setActiveDropTargetId(null);
+                setIsNoteDragging(false);
+                window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
+                if (noteId) {
+                  playSynthSound('mechanical-click');
+                  onMoveNote(noteId, null);
+                }
+              }}
+              aria-label={item.label}
+              style={railBtnStyle(item.active, isNoteDragging && activeDropTargetId === 'all' && item.key === 'all' ? 'var(--accent)' : undefined)}
+            >
+              {item.icon}
+            </button>
+          </Tooltip>
+        ))}
+        <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
+        {folders.map(folder => {
+          const isSelected = selectedFolderId === folder.id;
+          const count = allNotes.filter(n => n.folder_id === folder.id).length;
+          const isTarget = isNoteDragging && activeDropTargetId === folder.id;
+          return (
+            <Tooltip key={folder.id} placement="right" label={`${folder.name} (${count})`}>
+              <button
+                type="button"
+                onClick={() => onSelectFolder(folder.id)}
+                onContextMenu={e => handleContextMenu(e, folder)}
+                onDragOver={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = 'move';
+                  setActiveDropTargetId(prev => (prev === folder.id ? prev : folder.id));
+                }}
+                onDragLeave={e => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  setActiveDropTargetId(prev => (prev === folder.id ? null : prev));
+                }}
+                onDrop={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const noteId = e.dataTransfer.getData('text/plain');
+                  setActiveDropTargetId(null);
+                  setIsNoteDragging(false);
+                  window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
+                  if (noteId) {
+                    playSynthSound('mechanical-click');
+                    onMoveNote(noteId, folder.id);
+                  }
+                }}
+                aria-label={folder.name}
+                style={railBtnStyle(isSelected, isTarget ? folder.color : (isSelected ? `${folder.color}66` : undefined))}
+              >
+                <FolderIcon name={folder.icon} color={folder.color} size={17} />
+              </button>
+            </Tooltip>
+          );
+        })}
+        <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
+        <Tooltip placement="right" label={language === 'es' ? 'Nueva carpeta (Ctrl+Shift+N)' : 'New folder (Ctrl+Shift+N)'}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              setNewFolderName('');
+              setNewFolderIcon('folder');
+              const { available } = getAvailableColors();
+              setNewFolderColor(available[0] || '#7c3aed');
+              setShowNewFolder(true);
+            }}
+            aria-label={t.sidebar.newFolder}
+            style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Plus size={16} />
+          </button>
+        </Tooltip>
+      </div>
+      ) : (
+      <>
       {/* Nav */}
       <div
         onDragOver={e => {
@@ -923,10 +1058,12 @@ export default function Sidebar({
           </>
         )}
       </div>
+      </>
+      )}
 
       {/* Bottom actions */}
       <div className="divider" />
-      <div style={{ padding: '8px', display: 'flex', gap: 6, justifyContent: 'space-between' }}>
+      <div style={{ padding: '8px', display: 'flex', gap: 6, justifyContent: 'space-between', flexDirection: rail ? 'column' : 'row' }}>
         <Tooltip placement="top" label={language === 'es' ? 'Notas recientes' : 'Recent notes'}>
           <button
             ref={recentBtnRef}
@@ -949,7 +1086,7 @@ export default function Sidebar({
             }}
           >
             <Clock size={14} />
-            <span>{language === 'es' ? 'Recientes' : 'Recent'}</span>
+            {!rail && <span>{language === 'es' ? 'Recientes' : 'Recent'}</span>}
           </button>
         </Tooltip>
         <Tooltip placement="top" label={language === 'es' ? 'Bloquear aplicación' : 'Lock application'}>
@@ -967,7 +1104,7 @@ export default function Sidebar({
             }}
           >
             <Lock size={14} />
-            <span>{language === 'es' ? 'Bloquear' : 'Lock'}</span>
+            {!rail && <span>{language === 'es' ? 'Bloquear' : 'Lock'}</span>}
           </button>
         </Tooltip>
       </div>
