@@ -1192,7 +1192,11 @@ export default function MainApp({
   // Guard de navegación (Caso A): si dejamos una nota con borrador en modo manual,
   // pedimos confirmación antes de cambiar de nota/pestaña.
   const handleAttemptSelectNote = useCallback((targetId: string) => {
-    if (targetId === selectedNoteId) return;
+    // Re-elegir la actual saliendo del "atrás": vuelve al editor sin cambiar nada.
+    if (targetId === selectedNoteId) {
+      if (singleBackToList) setSingleBackToList(false);
+      return;
+    }
     if (!autosaveEnabled && selectedNoteId && draftCache[selectedNoteId] && !confirmLeaveDismissed) {
       setDontAskChecked(false);
       setPendingNavNoteId(targetId);
@@ -1215,7 +1219,7 @@ export default function MainApp({
     }
     tabSwitchStart(targetId, applied ?? 'pending');
     setSelectedNoteId(targetId);
-  }, [selectedNoteId, selectedFolderId, autosaveEnabled, draftCache, confirmLeaveDismissed, applyCachedNote]);
+  }, [selectedNoteId, selectedFolderId, autosaveEnabled, draftCache, confirmLeaveDismissed, applyCachedNote, singleBackToList]);
 
   const dismissLeaveNav = useCallback(() => setPendingNavNoteId(null), []);
 

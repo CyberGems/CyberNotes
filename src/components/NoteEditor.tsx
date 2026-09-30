@@ -4348,16 +4348,12 @@ export default function NoteEditor({
               <button
                 type="button"
                 onClick={onBack}
+                className="btn-icon"
                 aria-label={language === 'es' ? 'Atrás' : 'Back'}
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 34, height: 34, borderRadius: 9, flexShrink: 0, marginTop: 2,
-                  background: 'var(--accent-dim)', border: '1px solid var(--accent)',
-                  color: 'var(--accent-light)', cursor: 'pointer',
-                  boxShadow: '0 0 10px var(--accent-glow)',
+                  color: 'var(--text-muted)',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.filter = 'brightness(1.18)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.filter = ''; }}
               >
                 <ArrowLeft size={16} />
               </button>
