@@ -667,10 +667,11 @@ export function SpellCheckSelect({ language }: { language: Language }) {
       {open && createPortal(
         <>
           <div
+            data-word-menu="true"
             style={{ position: 'fixed', inset: 0, zIndex: WORD_MENU_OVERLAY_Z }}
             onClick={() => setOpen(false)}
           />
-          <div style={{ ...wordMenuBoxStyle, ...menuStyle }}>
+          <div data-word-menu="true" style={{ ...wordMenuBoxStyle, ...menuStyle }}>
             <button
               type="button"
               onMouseDown={(e) => e.preventDefault()}
@@ -1819,6 +1820,22 @@ export default function NoteEditor({
   const lastContextMenuTimeRef = useRef(0);
   const isDirtyRef = useRef(false);
   const tabStripRef = useRef<HTMLDivElement>(null);
+  // Degradados en los bordes de la tira cuando hay overflow (elegante).
+  const [tabEdges, setTabEdges] = useState({ left: false, right: false });
+  const updateTabEdges = useCallback(() => {
+    const el = tabStripRef.current;
+    if (!el) return;
+    setTabEdges(prev => {
+      const next = {
+        left: el.scrollLeft > 4,
+        right: el.scrollLeft < el.scrollWidth - el.clientWidth - 4,
+      };
+      return (prev.left === next.left && prev.right === next.right) ? prev : next;
+    });
+  }, []);
+  useEffect(() => {
+    updateTabEdges();
+  }, [openNoteIds, note?.id, updateTabEdges]);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const draggingTabIdRef = useRef<string | null>(null);
   const [tabDropHint, setTabDropHint] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
@@ -3972,11 +3989,32 @@ export default function NoteEditor({
       )}
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (
-        <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', overflow: 'hidden', position: 'relative' }}>
+          {tabEdges.left && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute', left: 0, top: 0, bottom: 0, width: 30,
+                pointerEvents: 'none', zIndex: 5,
+                background: 'linear-gradient(to right, var(--bg-sidebar), transparent)',
+              }}
+            />
+          )}
+          {tabEdges.right && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0, width: 30,
+                pointerEvents: 'none', zIndex: 5,
+                background: 'linear-gradient(to left, var(--bg-sidebar), transparent)',
+              }}
+            />
+          )}
           <div
             ref={tabStripRef}
             className={`tab-strip ${tabsWidthMode === 'wide' ? 'tabs-wide' : ''} ${draggingTabId ? 'is-reordering' : ''}`}
             style={{ borderBottom: 'none', overscrollBehaviorX: 'none' }}
+            onScroll={updateTabEdges}
             onDragOver={(e) => {
               if (!draggingTabIdRef.current) return;
               e.preventDefault();
@@ -4310,9 +4348,16 @@ export default function NoteEditor({
               <button
                 type="button"
                 onClick={onBack}
-                className="btn-icon"
                 aria-label={language === 'es' ? 'Atrás' : 'Back'}
-                style={{ padding: 6, flexShrink: 0, marginTop: 2 }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34, borderRadius: 9, flexShrink: 0, marginTop: 2,
+                  background: 'var(--accent-dim)', border: '1px solid var(--accent)',
+                  color: 'var(--accent-light)', cursor: 'pointer',
+                  boxShadow: '0 0 10px var(--accent-glow)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.filter = 'brightness(1.18)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.filter = ''; }}
               >
                 <ArrowLeft size={16} />
               </button>
