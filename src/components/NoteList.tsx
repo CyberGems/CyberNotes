@@ -992,6 +992,10 @@ export default function NoteList({
                 transform: 'translateY(-50%)', color: 'var(--text-muted)',
                 pointerEvents: 'none',
               }} />
+              <Tooltip
+                placement="bottom"
+                label={language === 'es' ? 'Buscar notas (Esc para limpiar)' : 'Search notes (Esc to clear)'}
+              >
               <input
                 type="text"
                 value={searchQuery}
@@ -1006,8 +1010,9 @@ export default function NoteList({
                 className="input"
                 aria-label={t.general.search}
                 onContextMenu={inputMenu.onContextMenu}
-                style={{ paddingLeft: 32, paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 10px 7px 32px', width: '100%' }}
+                style={{ padding: '7px 10px 7px 32px', paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))', width: '100%' }}
               />
+              </Tooltip>
               {searchQuery && (
                 <button
                   className="btn-icon"

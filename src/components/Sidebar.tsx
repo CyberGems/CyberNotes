@@ -409,6 +409,10 @@ export default function Sidebar({
             transform: 'translateY(-50%)', color: 'var(--text-muted)',
             pointerEvents: 'none',
           }} />
+          <Tooltip
+            placement="bottom"
+            label={language === 'es' ? 'Buscar notas (Esc para limpiar)' : 'Search notes (Esc to clear)'}
+          >
           <input
             id="cybernotes-search-input"
             type="text"
@@ -425,8 +429,9 @@ export default function Sidebar({
             placeholder={`${t.general.search} (Ctrl+F)`}
             className="input"
             onContextMenu={inputMenu.onContextMenu}
-            style={{ paddingLeft: 32, paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 10px 7px 32px' }}
+            style={{ padding: '7px 10px 7px 32px', paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))' }}
           />
+          </Tooltip>
           {searchQuery && (
             <button
               className="btn-icon"
