@@ -1057,7 +1057,7 @@ export default function NoteList({
             alignItems: 'center',
             gap: 6,
           }}>
-            {searchQuery ? (
+            {searchQuery && !singleColumn ? (
               <Search size={16} color="var(--accent-light)" style={{ flexShrink: 0 }} />
             ) : selectedFolder ? (
               <FolderIcon name={selectedFolder.icon} color={selectedFolder.color} size={16} />
