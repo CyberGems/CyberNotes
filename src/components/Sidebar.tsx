@@ -480,7 +480,9 @@ export default function Sidebar({
 
       {rail ? (
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-        <Tooltip placement="right" label={searchQuery ? `${t.general.search}: ${searchQuery}` : t.general.search}>
+        <Tooltip placement="right" label={searchQuery
+          ? (language === 'es' ? 'Limpiar búsqueda' : 'Clear search')
+          : (language === 'es' ? 'Buscar notas (Ctrl+F)' : 'Search notes (Ctrl+F)')}>
           <button
             ref={railSearchBtnRef}
             type="button"
@@ -534,7 +536,7 @@ export default function Sidebar({
                     setRailSearchOpen(false);
                   }
                 }}
-                placeholder={`${t.general.search} (Ctrl+F)`}
+                placeholder={t.general.search}
                 className="input"
                 aria-label={t.general.search}
                 onContextMenu={inputMenu.onContextMenu}
