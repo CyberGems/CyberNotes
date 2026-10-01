@@ -1181,7 +1181,11 @@ export default function MainApp({
 
     persistedDraftsRef.current = persistedDraftsRef.current.filter(item => item.note_id !== draft.note_id);
     setDraftRecoveryQueue(prev => prev.slice(1));
-  }, [draftRecoveryQueue, clearDraftState]);
+    // Asegurar la carga tras resolver: si el id no cambió, el efecto no
+    // re-dispara y el loader quedaría colgado (visto al arrancar).
+    const currentId = selectedNoteIdRef.current;
+    if (currentId) void loadFullNote(currentId);
+  }, [draftRecoveryQueue, clearDraftState, loadFullNote]);
 
   useModalKeys({
     enabled: draftRecoveryQueue.length > 0,

@@ -1014,6 +1014,7 @@ export default function NoteList({
               />
               </Tooltip>
               {searchQuery && (
+                <Tooltip placement="right" label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}>
                 <button
                   className="btn-icon"
                   onClick={() => onSearch?.('')}
@@ -1022,6 +1023,7 @@ export default function NoteList({
                 >
                   <X size={12} />
                 </button>
+                </Tooltip>
               )}
             </div>
             <select

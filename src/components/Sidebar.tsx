@@ -464,13 +464,19 @@ export default function Sidebar({
           />
           </Tooltip>
           {searchQuery && (
+            <Tooltip
+              placement="right"
+              label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+            >
             <button
               className="btn-icon"
               onClick={() => onSearch('')}
+              aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
               style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: 2 }}
             >
               <X size={12} />
             </button>
+            </Tooltip>
           )}
         </div>
       </div>
