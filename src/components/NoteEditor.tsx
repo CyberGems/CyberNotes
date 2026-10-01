@@ -3312,15 +3312,21 @@ export default function NoteEditor({
     // Sincronizar minimap con el nuevo contenido de la nota
     syncMinimapHtml(true);
     
+    // Nunca robar el foco desde un campo de texto (p. ej. buscar filtra y
+    // cambia la selección: el foco debe quedarse escribiendo).
+    const focusedTag = (document.activeElement as HTMLElement | null)?.tagName;
+    const typingElsewhere = focusedTag === 'INPUT' || focusedTag === 'TEXTAREA' || focusedTag === 'SELECT';
     if ((draft ? draft.title : note.title) === 'Nueva nota') {
       setTimeout(() => {
+        const ae = document.activeElement as HTMLElement | null;
+        if (ae && ae !== titleInputRef.current && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
         if (titleInputRef.current) {
           titleInputRef.current.focus();
           const len = titleInputRef.current.value.length;
           titleInputRef.current.setSelectionRange(len, len);
         }
       }, 50);
-    } else {
+    } else if (!typingElsewhere) {
       // Sin robo de scroll: el contenido es nuevo y el scroller se resetea
       // síncrono pre-paint; view.focus() enfoca sin scrollIntoView.
       scrollContainerRef.current?.scrollTo(0, 0);
