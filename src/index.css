@@ -1846,18 +1846,6 @@ html.tab-dragging * {
 .settings-general-stack > *:has(> .settings-option-copy):has(> .custom-switch) > .custom-switch {
   align-self: center;
 }
-.settings-caps-lock-toggle-row {
-  min-width: 0;
-}
-.settings-caps-lock-toggle-row > .settings-option-copy {
-  width: auto;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.settings-caps-lock-toggle-row > .custom-switch {
-  align-self: center;
-  flex: 0 0 42px;
-}
 .settings-caps-lock-details {
   min-width: 0;
   background: transparent !important;

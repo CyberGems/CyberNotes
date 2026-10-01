@@ -1719,7 +1719,6 @@ export default function SettingsModal({
                     gap: 12,
                   }}>
                     <label
-                      className="settings-caps-lock-toggle-row"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
