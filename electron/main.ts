@@ -1759,68 +1759,41 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
 
   let width = typeof parsed.width === 'number' && parsed.width >= 500 ? parsed.width : defaultWidth;
   let height = typeof parsed.height === 'number' && parsed.height >= 400 ? parsed.height : defaultHeight;
-  let x = typeof parsed.x === 'number' ? parsed.x : undefined;
-  let y = typeof parsed.y === 'number' ? parsed.y : undefined;
+  const x = typeof parsed.x === 'number' ? parsed.x : undefined;
+  const y = typeof parsed.y === 'number' ? parsed.y : undefined;
 
   const allDisplays = screen.getAllDisplays();
+  const savedDisplayId = typeof (parsed as any).displayId === 'number' ? (parsed as any).displayId as number : undefined;
 
-  let matchingDisplay: Electron.Display | undefined;
-  if (x !== undefined && y !== undefined) {
-    matchingDisplay = allDisplays.find((d) => {
+  // Pantalla guardada primero (estable entre DPIs distintos); si ya no
+  // existe, la que más solape; si no, la primaria.
+  let target = savedDisplayId !== undefined
+    ? allDisplays.find((d) => d.id === savedDisplayId)
+    : undefined;
+  if (!target && x !== undefined && y !== undefined) {
+    target = allDisplays.find((d) => {
       const wa = d.workArea;
       return (
-        x! + 150 > wa.x &&
-        x! < wa.x + wa.width &&
-        y! + 40 > wa.y &&
-        y! < wa.y + wa.height
+        x + 150 > wa.x &&
+        x < wa.x + wa.width &&
+        y + 40 > wa.y &&
+        y < wa.y + wa.height
       );
     });
   }
+  if (!target) target = primaryDisplay;
 
-  if (!matchingDisplay) {
-    width = Math.min(width, primaryWorkArea.width);
-    height = Math.min(height, primaryWorkArea.height);
-    return {
-      width,
-      height,
-      x: undefined,
-      y: undefined,
-      center: true,
-    };
-  }
-
-  const wa = matchingDisplay.workArea;
-
-  // A restored (non-maximized) window must not equal or exceed screen dimensions
-  if (width >= wa.width) {
-    width = Math.min(defaultWidth, Math.round(wa.width * 0.85));
-  }
-  if (height >= wa.height) {
-    height = Math.min(defaultHeight, Math.round(wa.height * 0.85));
-  }
-
-  // Ensure window is fully accessible within display workArea
-  if (x !== undefined && y !== undefined) {
-    if (x + width > wa.x + wa.width) {
-      x = wa.x + wa.width - width;
-    }
-    if (x < wa.x) {
-      x = wa.x;
-    }
-    if (y + height > wa.y + wa.height) {
-      y = wa.y + wa.height - height;
-    }
-    if (y < wa.y) {
-      y = wa.y;
-    }
-  }
-
+  // Restaurada siempre centrada en su pantalla: evita ventanas a caballo
+  // entre monitores con distinta escala.
+  const wa = target.workArea;
+  width = Math.min(width, wa.width);
+  height = Math.min(height, wa.height);
   return {
     width,
     height,
-    x,
-    y,
-    center: x === undefined || y === undefined,
+    x: Math.round(wa.x + (wa.width - width) / 2),
+    y: Math.round(wa.y + (wa.height - height) / 2),
+    center: false,
   };
 }
 
@@ -1871,13 +1844,15 @@ function createWindow() {
       if (!isMax && !isMin && !isFull) {
         const b = mainWindow.getBounds();
         if (b.width >= 500 && b.height >= 400) {
-          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify(b)], { flushNow: immediate });
+          const disp = screen.getDisplayMatching(b);
+          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...b, displayId: disp.id })], { flushNow: immediate });
         }
       } else {
         try {
           const nb = mainWindow.getNormalBounds();
           if (nb && nb.width >= 500 && nb.height >= 400) {
-            runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify(nb)], { flushNow: immediate });
+            const disp = screen.getDisplayMatching(nb);
+            runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...nb, displayId: disp.id })], { flushNow: immediate });
           }
         } catch (_) {}
       }
