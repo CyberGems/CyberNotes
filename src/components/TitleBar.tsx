@@ -208,6 +208,19 @@ export default function TitleBar({
   }, [onOpenSettings]);
 
   useEffect(() => {
+    if (!onOpenAbout) return;
+    const handleAboutShortcut = (event: KeyboardEvent) => {
+      if (event.key !== 'F1') return;
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      event.preventDefault();
+      onOpenAbout();
+    };
+    window.addEventListener('keydown', handleAboutShortcut);
+    return () => window.removeEventListener('keydown', handleAboutShortcut);
+  }, [onOpenAbout]);
+
+  useEffect(() => {
     window.cyberNotesAPI.isMaximized?.().then(setIsMaximized).catch(() => {});
     const unsub = window.cyberNotesAPI.onMaximizedState?.((max) => setIsMaximized(max));
     return () => { unsub?.(); };
@@ -265,7 +278,7 @@ export default function TitleBar({
       } as any}
     >
       {/* Logo + título (clickable -> About) */}
-      <Tooltip placement="bottom" label={language === 'es' ? 'Acerca de CyberNotes' : 'About CyberNotes'}>
+      <Tooltip placement="bottom" label={language === 'es' ? 'Acerca de CyberNotes (F1)' : 'About CyberNotes (F1)'}>
         <button
           onClick={onOpenAbout}
           data-no-drag="true"
