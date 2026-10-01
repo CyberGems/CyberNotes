@@ -1857,7 +1857,6 @@ html.tab-dragging * {
 .settings-caps-lock-toggle-row > .custom-switch {
   align-self: center;
   flex: 0 0 42px;
-  margin-left: 12px;
 }
 .settings-caps-lock-details {
   min-width: 0;

@@ -1721,9 +1721,10 @@ export default function SettingsModal({
                     <label
                       className="settings-caps-lock-toggle-row"
                       style={{
-                        display: 'flex',
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
+                        columnGap: 12,
                         cursor: 'pointer',
                       }}
                       onClick={() => onAutoUnlockCapsLockChange(!autoUnlockCapsLock)}
