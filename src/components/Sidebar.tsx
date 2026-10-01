@@ -50,7 +50,7 @@ const FOLDER_ICONS = [
 const FOLDER_COLORS = [
   '#7c3aed', '#06b6d4', '#10b981', '#f59e0b',
   '#ef4444', '#ec4899', '#8b5cf6', '#14b8a6',
-  '#3b82f6', '#d946ef', '#f97316', '#06b6d4',
+  '#3b82f6', '#d946ef', '#f97316', '#e2e8f0',
   '#84cc16', '#0891b2', '#7c2d12', '#831843',
   '#4c0519', '#3730a3', '#1e40af', '#0d9488',
 ];
@@ -1574,13 +1574,13 @@ export default function Sidebar({
               {language === 'es' ? 'Asigna un color único de carpeta' : 'Assign a unique folder color'}
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
-              {FOLDER_COLORS.map(c => {
+              {FOLDER_COLORS.map((c, i) => {
                 const { usedColors } = getAvailableColors();
                 const isUsed = usedColors.has(c);
                 const isSelected = newFolderColor === c;
                 return (
                   <button
-                    key={c}
+                    key={`${c}-${i}`}
                     type="button"
                     onClick={() => !isUsed || isSelected ? setNewFolderColor(c) : null}
                     disabled={isUsed && !isSelected}
@@ -1702,13 +1702,13 @@ export default function Sidebar({
               {language === 'es' ? 'Asigna un color único de carpeta' : 'Assign a unique folder color'}
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
-              {FOLDER_COLORS.map(c => {
+              {FOLDER_COLORS.map((c, i) => {
                 const { usedColors } = getAvailableColors(editingFolder.id);
                 const isUsed = usedColors.has(c);
                 const isSelected = editingFolder.color === c;
                 return (
                   <button
-                    key={c}
+                    key={`${c}-${i}`}
                     type="button"
                     onClick={() => !isUsed || isSelected ? setEditingFolder({ ...editingFolder, color: c }) : null}
                     disabled={isUsed && !isSelected}
