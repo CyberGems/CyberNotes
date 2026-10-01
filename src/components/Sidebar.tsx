@@ -105,6 +105,36 @@ export default function Sidebar({
   const [contextMenu, setContextMenu] = useState<{ folder: Folder; x: number; y: number } | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [showRecent, setShowRecent] = useState(false);
+  const [railSearchOpen, setRailSearchOpen] = useState(false);
+  const [railSearchPos, setRailSearchPos] = useState<{ top: number; left: number } | null>(null);
+  const railSearchBtnRef = useRef<HTMLButtonElement | null>(null);
+  const railSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Autofoco al abrir el buscador del rail + cierre al clicar fuera o salir del rail.
+  useEffect(() => {
+    if (!railSearchOpen) return;
+    const t = setTimeout(() => railSearchInputRef.current?.focus(), 30);
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-rail-search]')) return;
+      if (railSearchBtnRef.current?.contains(target as Node)) return;
+      setRailSearchOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRailSearchOpen(false);
+    };
+    window.addEventListener('mousedown', onDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('mousedown', onDown, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [railSearchOpen]);
+
+  useEffect(() => {
+    if (!rail) setRailSearchOpen(false);
+  }, [rail]);
   const [recentTab, setRecentTab] = useState<'edited' | 'opened' | 'created'>('edited');
   const [clearConfirm, setClearConfirm] = useState(false);
   const recentBtnRef = useRef<HTMLButtonElement>(null);
@@ -452,15 +482,68 @@ export default function Sidebar({
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
         <Tooltip placement="right" label={searchQuery ? `${t.general.search}: ${searchQuery}` : t.general.search}>
           <button
+            ref={railSearchBtnRef}
             type="button"
             className="btn-icon"
             style={{ width: 40, height: 40, borderRadius: 10 }}
-            onClick={() => { if (searchQuery) onSearch(''); }}
+            onClick={() => {
+              if (searchQuery) {
+                onSearch('');
+                return;
+              }
+              const r = railSearchBtnRef.current?.getBoundingClientRect();
+              if (r) {
+                setRailSearchPos({
+                  top: r.top - 4,
+                  left: Math.min(r.right + 8, window.innerWidth - 256),
+                });
+              }
+              setRailSearchOpen(true);
+            }}
             aria-label={t.general.search}
           >
             {searchQuery ? <X size={16} /> : <Search size={16} />}
           </button>
         </Tooltip>
+        {railSearchOpen && railSearchPos && createPortal(
+          <div
+            data-rail-search="true"
+            className="glass-effect"
+            style={{
+              position: 'fixed', top: railSearchPos.top, left: railSearchPos.left,
+              width: 240, zIndex: 100000,
+              background: 'var(--bg-modal)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)', padding: 8,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{
+                position: 'absolute', left: 10, top: '50%',
+                transform: 'translateY(-50%)', color: 'var(--text-muted)',
+                pointerEvents: 'none',
+              }} />
+              <input
+                ref={railSearchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={e => onSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setRailSearchOpen(false);
+                  }
+                }}
+                placeholder={`${t.general.search} (Ctrl+F)`}
+                className="input"
+                aria-label={t.general.search}
+                onContextMenu={inputMenu.onContextMenu}
+                style={{ padding: '7px 10px 7px 32px', fontSize: 'calc(12px * var(--ui-scale))', width: '100%' }}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
         <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
         {([
           { key: 'all', icon: <FileText size={17} />, label: t.sidebar.allNotes, count: noteCount, active: selectedFolderId === null && !searchQuery, onClick: () => onSelectFolder(null), dropId: null as string | null },
