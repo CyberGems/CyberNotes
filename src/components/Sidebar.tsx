@@ -401,7 +401,8 @@ export default function Sidebar({
       flexShrink: 0,
       overflow: 'hidden',
     }}>
-      {/* Search */}
+      {/* Search (el rail trae su propio acceso) */}
+      {!rail && (
       <div style={{ padding: '12px 12px 8px' }}>
         <div style={{ position: 'relative' }}>
           <Search size={14} style={{
@@ -443,6 +444,7 @@ export default function Sidebar({
           )}
         </div>
       </div>
+      )}
 
       <div className="divider" />
 

@@ -1725,17 +1725,15 @@ export default function SettingsModal({
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         cursor: 'pointer',
-                        width: '100%',
                       }}
+                      onClick={() => onAutoUnlockCapsLockChange(!autoUnlockCapsLock)}
                     >
                       <SettingsOptionCopy icon={<Keyboard />}>
                         <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{language === 'es' ? 'Desactivar Bloq Mayús por inactividad' : 'Auto-unlock Caps Lock on inactivity'}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{language === 'es' ? 'Desactiva físicamente el Bloq Mayús tras un periodo ajustable de inactividad de teclado en el editor' : 'Physically turns off Caps Lock after a configurable period of keyboard inactivity in the editor'}</span>
                       </SettingsOptionCopy>
-                      <div 
+                      <div
                         className={`custom-switch ${autoUnlockCapsLock ? 'active' : ''}`}
-                        onClick={() => onAutoUnlockCapsLockChange(!autoUnlockCapsLock)}
-                        style={{ flexShrink: 0 }}
                       />
                     </label>
 
