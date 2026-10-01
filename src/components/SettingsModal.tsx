@@ -1795,11 +1795,11 @@ export default function SettingsModal({
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <select 
+                          <select
                             value={capsLockSound}
                             onChange={(e) => onCapsLockSoundChange(e.target.value)}
                             className="input"
-                            style={{ flex: 1, fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer' }}
+                            style={{ flex: '1 1 auto', minWidth: 0, fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer' }}
                           >
                             <option value="off">{language === 'es' ? 'Silenciar (Sin sonido)' : 'Muted (No sound)'}</option>
                             <option value="mechanical-click">{language === 'es' ? 'Click Mecánico ⌨️' : 'Mechanical Click ⌨️'}</option>
@@ -1810,8 +1810,7 @@ export default function SettingsModal({
                           <button
                             className="btn btn-ghost"
                             onClick={() => playSynthSound(capsLockSound)}
-                            style={{ gap: 4, fontSize: 12, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
-                            title={language === 'es' ? 'Probar sonido' : 'Test sound'}
+                            style={{ gap: 4, fontSize: 12, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', flexShrink: 0 }}
                           >
                             <Volume2 size={14} />
                             {language === 'es' ? 'Escuchar' : 'Preview'}
@@ -1826,11 +1825,11 @@ export default function SettingsModal({
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <select 
+                          <select
                             value={capsLockSoundScope}
                             onChange={(e) => onCapsLockSoundScopeChange(e.target.value)}
                             className="input"
-                            style={{ flex: 1, fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer' }}
+                            style={{ flex: '1 1 auto', minWidth: 0, fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer' }}
                           >
                             <option value="app">{language === 'es' ? 'Solo dentro de la app 📱' : 'Only inside the app 📱'}</option>
                             <option value="global">{language === 'es' ? 'Global en el sistema 🌍' : 'Global in the system 🌍'}</option>
