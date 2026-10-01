@@ -11,7 +11,7 @@ import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { playSynthSound } from '../utils/audio';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
 import Tooltip from './Tooltip';
-import { EnterGlyph, modalCardMotion } from './ModalActions';
+import { EnterGlyph, KeyHint, modalCardMotion } from './ModalActions';
 
 interface Props {
   language: Language;
@@ -1624,7 +1624,7 @@ export default function Sidebar({
             <div className="modal-actions">
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setShowNewFolder(false)}>
                 {t.general.cancel}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button type="button" className="modal-action-btn is-save" onClick={handleCreateFolder}>
                 {t.sidebar.create}
@@ -1752,7 +1752,7 @@ export default function Sidebar({
             <div className="modal-actions">
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setEditingFolder(null)}>
                 {t.general.cancel}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button type="button" className="modal-action-btn is-save" onClick={handleSaveEdit}>
                 {t.general.save}
@@ -1829,7 +1829,7 @@ export default function Sidebar({
             <div className="modal-actions">
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setFolderToDelete(null)}>
                 {t.general.cancel}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button
                 type="button"

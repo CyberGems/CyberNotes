@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Info, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Language } from '../languages';
 import {
+  KeyHint,
   EnterGlyph,
   modalCardMotion,
   modalOverlayMotion,
@@ -111,7 +112,7 @@ export default function ConfirmDialog({
               onClick={() => onResolve(false)}
             >
               {cancelText}
-              <span className="modal-key-esc">Esc</span>
+              <KeyHint>Esc</KeyHint>
             </button>
           )}
           <button

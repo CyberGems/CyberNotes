@@ -10,7 +10,7 @@ import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
 import TrayPinModal from './TrayPinModal';
 import ConfirmDialog from './ConfirmDialog';
-import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
+import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import { Download, Power, X } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
@@ -2351,7 +2351,7 @@ export default function MainApp({
                     {language === 'es' ? 'Cierra CyberNotes por completo' : 'Quits CyberNotes completely'}
                   </span>
                 </span>
-                <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
+                <KeyHint>{language === 'es' ? 'Espacio' : 'Space'}</KeyHint>
               </button>
               <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', userSelect: 'none' }}>
                 <input
@@ -2530,7 +2530,7 @@ export default function MainApp({
                   onClick={() => { void resolveDraftRecovery(false); }}
                 >
                   {language === 'es' ? 'Volver a la versión guardada' : 'Use saved version'}
-                  <span className="modal-key-esc">Esc</span>
+                  <KeyHint>Esc</KeyHint>
                 </button>
               </div>
             </motion.div>
@@ -2612,7 +2612,7 @@ export default function MainApp({
                 </button>
                 <button type="button" className="modal-action-btn is-cancel" onClick={() => setNoteToCloseWithDraft(null)}>
                   {language === 'es' ? 'Cancelar' : 'Cancel'}
-                  <span className="modal-key-esc">Esc</span>
+                  <KeyHint>Esc</KeyHint>
                 </button>
               </div>
             </motion.div>
@@ -2683,11 +2683,11 @@ export default function MainApp({
                 </button>
                 <button type="button" className="modal-action-btn is-danger" onClick={() => { void discardAndLeaveNav(); }}>
                   {language === 'es' ? 'Salir sin guardar' : 'Leave without saving'}
-                  <span className="modal-key-esc">{language === 'es' ? 'Espacio' : 'Space'}</span>
+                  <KeyHint>{language === 'es' ? 'Espacio' : 'Space'}</KeyHint>
                 </button>
                 <button type="button" className="modal-action-btn is-cancel" onClick={dismissLeaveNav}>
                   {language === 'es' ? 'Seguir aquí' : 'Stay here'}
-                  <span className="modal-key-esc">Esc</span>
+                  <KeyHint>Esc</KeyHint>
                 </button>
               </div>
             </motion.div>

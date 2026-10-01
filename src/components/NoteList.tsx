@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
 import Tooltip from './Tooltip';
-import { EnterGlyph, useModalKeys } from './ModalActions';
+import { EnterGlyph, KeyHint, useModalKeys } from './ModalActions';
 
 interface Props {
   language: Language;
@@ -1647,7 +1647,7 @@ export default function NoteList({
             <div className="modal-actions">
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setRenameTarget(null)}>
                 {t.general.cancel}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button type="button" className="modal-action-btn is-save" onClick={() => {
                 onRenameNote(renameTarget.id, renameInput);
@@ -1740,7 +1740,7 @@ export default function NoteList({
                 onClick={() => setNoteToDelete(null)}
               >
                 {t.general.cancel}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button
                 type="button"
@@ -1792,7 +1792,7 @@ export default function NoteList({
             <div className="modal-actions">
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setShowEmptyTrashConfirm(false)}>
                 {t.general.cancel}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button type="button" className="modal-action-btn is-danger" onClick={() => { void onEmptyTrash(); setShowEmptyTrashConfirm(false); }}>
                 {t.noteList.emptyTrash}

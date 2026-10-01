@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronUp, Pin, X, ExternalLink, Check } from 'lucide-react';
 import { Language } from '../languages';
+import { KeyHint } from './ModalActions';
 import Tooltip from './Tooltip';
 
 interface Props {
@@ -324,7 +325,7 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
             onClick={handleClose}
           >
             {isEs ? 'Listo' : 'Got it'}
-            <span className="modal-key-esc">Esc</span>
+            <KeyHint>Esc</KeyHint>
           </button>
           <button
             type="button"

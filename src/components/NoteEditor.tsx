@@ -28,7 +28,7 @@ import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
 import VersionHistoryModal from './VersionHistoryModal';
-import { EnterGlyph, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
+import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
@@ -1328,7 +1328,7 @@ export function TableSelect({
             <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setCustomOpen(false)}>
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button type="button" className="modal-action-btn is-save" onClick={() => insert(rows, cols)}>
                 {language === 'es' ? 'Crear' : 'Create'}
@@ -1450,7 +1450,7 @@ export function VideoInsertModal({
         <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
           <button type="button" className="modal-action-btn is-cancel" onClick={onClose}>
             {language === 'es' ? 'Cancelar' : 'Cancel'}
-            <span className="modal-key-esc">Esc</span>
+            <KeyHint>Esc</KeyHint>
           </button>
           <button
             type="button"
@@ -6238,7 +6238,7 @@ export default function NoteEditor({
             <div className="modal-actions">
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setEditLinkData(null)}>
                 {t.general.cancel}
-                <span className="modal-key-esc">Esc</span>
+                <KeyHint>Esc</KeyHint>
               </button>
               <button type="button" className="modal-action-btn is-save" onClick={() => {
                  if (editLinkData.href === '') {
@@ -6368,7 +6368,7 @@ export default function NoteEditor({
                   </button>
                   <button type="button" className="modal-action-btn is-cancel" onClick={() => { setShowLeaveEditorWarning(false); editor?.commands.focus(); }}>
                     {language === 'es' ? 'Seguir editando' : 'Keep editing'}
-                    <span className="modal-key-esc">Esc</span>
+                    <KeyHint>Esc</KeyHint>
                   </button>
                 </div>
               </motion.div>
