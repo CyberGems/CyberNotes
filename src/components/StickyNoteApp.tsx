@@ -21,6 +21,7 @@ import { applyThemeVars } from '../themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { CustomTextStyle, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
+import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 import Tooltip from './Tooltip';
 import GlobalErrorToast from './GlobalErrorToast';
 import {
@@ -336,6 +337,9 @@ export default function StickyNoteApp({ noteId }: Props) {
   noteRef.current = note;
 
   const t = TRANSLATIONS[language];
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
   const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
   // Electron applies opacity to the entire window, including context menus.
   // Temporarily show the window at full opacity while either menu is open.
@@ -387,7 +391,11 @@ export default function StickyNoteApp({ noteId }: Props) {
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        codeBlock: false,
+        blockquote: false,
       }),
+      CopyableCodeBlock,
+      CopyableBlockquote,
       TiptapImage.configure({ allowBase64: true, inline: false }),
       Underline,
       Highlight.configure({ multicolor: false }),

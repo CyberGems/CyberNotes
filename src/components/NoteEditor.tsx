@@ -41,6 +41,7 @@ import {
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
+import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 
 export interface NoteExportActions {
   markdown: () => void;
@@ -2803,7 +2804,11 @@ export default function NoteEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        codeBlock: false,
+        blockquote: false,
       }),
+      CopyableCodeBlock,
+      CopyableBlockquote,
       CustomImage.configure({
         allowBase64: true,
         inline: false,

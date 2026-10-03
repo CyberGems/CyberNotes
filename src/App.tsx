@@ -43,6 +43,10 @@ export default function App() {
   hasPasswordRef.current = hasPassword;
   autoLockMinutesRef.current = autoLockMinutes;
 
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
   const registerLockPreparation = useCallback((handler: () => Promise<void>) => {
     lockPreparationRef.current = handler;
     return () => {
