@@ -5815,14 +5815,13 @@ export default function NoteEditor({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 12,
+        gap: '4px 12px',
         fontSize: 10,
         color: 'var(--text-muted)',
         fontFamily: 'var(--font-mono)',
         letterSpacing: 0.3,
         flexShrink: 0,
         minHeight: 28,
-        whiteSpace: 'nowrap',
       }}>
         {/* Escala UI — sin etiqueta textual; tooltips descriptivos */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -5997,9 +5996,8 @@ export default function NoteEditor({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                minWidth: 0,
-                flexShrink: 1,
-                overflow: 'hidden',
+                minWidth: 'max-content',
+                flexShrink: 0,
                 color: saveStatus === 'error'
                   ? '#fca5a5'
                   : saveStatus === 'saving' || saveStatus === 'pending'
@@ -6037,6 +6035,7 @@ export default function NoteEditor({
             flexShrink: 0,
             minWidth: 0,
             overflow: 'hidden',
+            marginLeft: 'auto',
           }}>
             {showLineCounter && (
               <>

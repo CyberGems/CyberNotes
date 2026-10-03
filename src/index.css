@@ -289,16 +289,11 @@ body:has(.sticky-note-window),
   width: 60px !important;
 }
 
-/* Tira de formato en una sola fila: con ventanas angostas hace scroll
-   horizontal (sin barra visible) en vez de partirse en varias filas. */
+/* La barra inferior distribuye sus grupos en varias filas cuando el editor
+   es angosto, para mantener visibles el estado de guardado y las métricas. */
 .toolbar-strip {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-.toolbar-strip::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
+  overflow: visible;
 }
 .toolbar-strip > * {
   flex-shrink: 0;
