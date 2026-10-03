@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, type CSSProperties, type ReactNode, type DragEvent as ReactDragEvent } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, type CSSProperties, type ReactNode, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Folder, Note } from '../types';
@@ -106,6 +106,7 @@ export default function Sidebar({
   const [contextMenu, setContextMenu] = useState<{ folder: Folder; x: number; y: number } | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [showRecent, setShowRecent] = useState(false);
+  const [recentMenuLayout, setRecentMenuLayout] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const [railSearchOpen, setRailSearchOpen] = useState(false);
   const [railSearchPos, setRailSearchPos] = useState<{ top: number; left: number } | null>(null);
   const railSearchBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -334,6 +335,39 @@ export default function Sidebar({
 
   // Cerrar menú recientes al hacer click fuera
   const recentMenuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!showRecent || !recentBtnRef.current) {
+      setRecentMenuLayout(null);
+      return;
+    }
+
+    const updateLayout = () => {
+      const anchor = recentBtnRef.current?.getBoundingClientRect();
+      if (!anchor) return;
+
+      const edge = 8;
+      const gap = 4;
+      const width = Math.min(360, window.innerWidth - edge * 2);
+      const left = Math.max(edge, Math.min(anchor.left, window.innerWidth - width - edge));
+      const spaceAbove = Math.max(0, anchor.top - gap - edge);
+      const spaceBelow = Math.max(0, window.innerHeight - anchor.bottom - gap - edge);
+      const opensBelow = spaceBelow > spaceAbove;
+
+      setRecentMenuLayout({
+        left,
+        width,
+        maxHeight: opensBelow ? spaceBelow : spaceAbove,
+        ...(opensBelow
+          ? { top: anchor.bottom + gap }
+          : { bottom: window.innerHeight - anchor.top + gap }),
+      });
+    };
+
+    updateLayout();
+    window.addEventListener('resize', updateLayout);
+    return () => window.removeEventListener('resize', updateLayout);
+  }, [showRecent, rail]);
+
   useEffect(() => {
     if (!showRecent) return;
     const handler = (e: MouseEvent) => {
@@ -1275,17 +1309,20 @@ export default function Sidebar({
       </div>
 
       {/* Drop-up recientes */}
-      {showRecent && recentBtnRef.current && createPortal(
+      {showRecent && recentBtnRef.current && recentMenuLayout && createPortal(
         <div
           ref={recentMenuRef}
           className="glass-effect"
           style={{
             position: 'fixed',
-            left: Math.max(8, Math.min(recentBtnRef.current.getBoundingClientRect().left, window.innerWidth - Math.min(360, window.innerWidth - 16) - 8)),
-            bottom: window.innerHeight - recentBtnRef.current.getBoundingClientRect().top + 4,
-            width: Math.min(360, window.innerWidth - 16),
-            maxHeight: window.innerHeight - 16,
+            left: recentMenuLayout.left,
+            top: recentMenuLayout.top,
+            bottom: recentMenuLayout.bottom,
+            width: recentMenuLayout.width,
+            maxHeight: recentMenuLayout.maxHeight,
             boxSizing: 'border-box',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
             background: 'var(--bg-modal)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
