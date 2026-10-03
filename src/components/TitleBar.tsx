@@ -233,6 +233,7 @@ export default function TitleBar({
   }, []);
 
   const t = (es: string, en: string) => language === 'es' ? es : en;
+  const capsOn = !!capsStatus?.active;
   const activateMenuItem = (event: React.KeyboardEvent, action: () => void) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -363,19 +364,20 @@ export default function TitleBar({
           WebkitAppRegion: 'drag',
         } as any}
       >
-        <WelcomeGreeting
-          language={language}
-          name={displayName}
-          style={{
-            fontSize: 'calc(11px * var(--ui-scale))',
-            fontWeight: 500,
-            maxWidth: 'min(460px, 46vw)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        />
+        {!capsOn && (
+          <WelcomeGreeting
+            language={language}
+            name={displayName}
+            style={{
+              fontSize: 'calc(11px * var(--ui-scale))',
+              fontWeight: 500,
+              maxWidth: 'min(460px, 46vw)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          />
+        )}
         {(() => {
-          const capsOn = !!capsStatus?.active;
           const autoOn = !!autoUnlockCapsLock;
           const timeLeft = capsStatus?.timeLeft ?? 0;
           // ON = azul accent; OFF = muted (estilo neutro actual)
