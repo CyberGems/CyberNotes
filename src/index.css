@@ -912,6 +912,13 @@ body:has(.sticky-note-window),
   font-style: normal;
   font-weight: 600;
   user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+.copyable-block-header > span {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
 }
 .copyable-block-button {
   display: inline-flex;
@@ -2555,6 +2562,8 @@ body.sticky-is-dragging * {
 .character-map-grid button {
   min-width: 0;
   padding: 2px;
+  user-select: none;
+  -webkit-user-select: none;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
   border: 1px solid var(--border);
@@ -2664,6 +2673,8 @@ body.sticky-is-dragging * {
 }
 .character-map-preview {
   min-width: calc(36px * var(--ui-scale));
+  user-select: none;
+  -webkit-user-select: none;
   font-size: calc(26px * var(--ui-scale));
   line-height: 1.15;
   text-align: center;

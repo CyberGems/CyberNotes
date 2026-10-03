@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEditor, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
-import { EditorState } from '@tiptap/pm/state';
+import { EditorState, NodeSelection } from '@tiptap/pm/state';
 import { Node as TiptapNode } from '@tiptap/core';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
@@ -1357,9 +1357,9 @@ export function ChangeCaseSelect({
 
 /** Botón tabla estilo Word: presets cuadrados + modal personalizado. */
 export function TableSelect({
-  editor, language, hideTooltip = false,
+  editor, language, hideTooltip = false, active = false,
 }: {
-  editor: Editor | null; language: Language; hideTooltip?: boolean;
+  editor: Editor | null; language: Language; hideTooltip?: boolean; active?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
@@ -1381,14 +1381,9 @@ export function TableSelect({
       data-word-combo="table"
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setOpen((v) => !v)}
-      className="word-combo"
-      aria-label={language === 'es' ? 'Insertar tabla' : 'Insert table'}      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 30, padding: '0 8px',
-        background: open ? 'var(--accent-dim)' : 'var(--bg-surface)',
-        border: open ? '1px solid var(--accent)' : '1px solid var(--border)',
-        borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
-      }}
+      className={`btn-icon toolbar-btn word-combo${active || open ? ' is-active' : ''}`}
+      aria-label={language === 'es' ? 'Insertar tabla' : 'Insert table'}
+      style={{ height: 30, padding: '6px 8px' }}
     >
       <TableIcon size={15} />
     </button>
@@ -1618,9 +1613,9 @@ export function VideoInsertModal({
 
 /** Botón video estilo referencia: abre el modal de inserción. */
 export function VideoSelect({
-  editor, language, hideTooltip = false,
+  editor, language, hideTooltip = false, active = false,
 }: {
-  editor: Editor | null; language: Language; hideTooltip?: boolean;
+  editor: Editor | null; language: Language; hideTooltip?: boolean; active?: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   if (!editor) return null;
@@ -1639,15 +1634,9 @@ export function VideoSelect({
       data-word-combo="video"
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setModalOpen(true)}
-      className="word-combo"
+      className={`btn-icon toolbar-btn word-combo${active ? ' is-active' : ''}`}
       aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 30, padding: '0 8px',
-        background: modalOpen ? 'var(--accent-dim)' : 'var(--bg-surface)',
-        border: modalOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
-        borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
-      }}
+      style={{ height: 30, padding: '6px 8px' }}
     >
       <MonitorPlay size={15} />
     </button>
@@ -4424,7 +4413,7 @@ export default function NoteEditor({
       case 'table':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <TableSelect editor={editor} language={language} hideTooltip={tipOff} />
+            <TableSelect editor={editor} language={language} hideTooltip={tipOff} active={editor.isActive('table')} />
           </span>
         );
       case 'find':
@@ -4434,7 +4423,12 @@ export default function NoteEditor({
       case 'video':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <VideoSelect editor={editor} language={language} hideTooltip={tipOff} />
+            <VideoSelect
+              editor={editor}
+              language={language}
+              hideTooltip={tipOff}
+              active={editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name === 'videoEmbed'}
+            />
           </span>
         );
       default:
