@@ -3993,7 +3993,7 @@ export default function NoteEditor({
   const saveDate = lastSavedAt ? new Date(lastSavedAt) : null;
   const hasValidSaveDate = !!saveDate && Number.isFinite(saveDate.getTime());
   const saveTime = hasValidSaveDate
-    ? saveDate!.toLocaleTimeString(language === 'es' ? 'es-CR' : 'en-US', { hour: 'numeric', minute: '2-digit' })
+    ? saveDate!.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     : '';
   const fullSaveTimestamp = hasValidSaveDate
     ? saveDate!.toLocaleString(language === 'es' ? 'es-CR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
@@ -4002,7 +4002,7 @@ export default function NoteEditor({
     ? `${saveStatusLabel} · ${t.editor.lastSavedAt}: ${fullSaveTimestamp}`
     : `${saveStatusLabel} · ${t.editor.notSavedYet}`;
   const saveStatusDisplay = saveTime
-    ? `${saveStatusLabel} · ${saveTime}`
+    ? `${saveStatusLabel} ${saveTime}`
     : saveStatusLabel;
 
   const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
