@@ -1,4 +1,8 @@
 <p align="center">
+  English · <a href="./README.es.md">Español</a>
+</p>
+
+<p align="center">
   <a href="https://cybergems.org/apps/cybernotes/">
     <img src="https://cybergems.org/banners/cybernotes.png" alt="CyberNotes, private and flexible note-taking that stays on your device" />
   </a>
@@ -97,6 +101,41 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 
 ---
 
+## 🚀 Getting Started
+
+### Install (Recommended)
+
+1. Download the latest installer or portable build from [Releases](https://github.com/CyberGems/CyberNotes/releases/latest)
+2. Run the `CyberNotes_Setup` installer or the portable executable
+3. Launch CyberNotes. No other requirements needed: you do **not** need Node.js or npm
+
+### 🛡️ Windows SmartScreen
+
+Windows may show a SmartScreen warning the first time you run the CyberNotes installer: this is an unsigned hobby app, so Windows hasn't built reputation for the file yet. This is expected; the source is public so you can inspect exactly what it does. The same can appear when launching the portable build.
+
+To continue:
+
+<details>
+<summary><strong>See how to run the installer (step by step)</strong></summary>
+
+Windows shows this warning for any installer without a paid code-signing certificate; it does not mean the file is unsafe. Do <strong>not</strong> click "Don't run":
+
+1. Run the installer. Windows may show the blue "Windows protected your PC" dialog.
+
+![Windows SmartScreen warning](https://cybergems.org/branding/smartscreen-warning.svg)
+
+2. Click the small **More info** link.
+
+![SmartScreen dialog after More info](https://cybergems.org/branding/smartscreen-runanyway.svg)
+
+3. Click **Run anyway**. The installer starts normally.
+
+You can verify the file independently: compare the SHA with the GitHub release, scan it on VirusTotal, or build from source. More details: [SmartScreen guide on the website](https://cybergems.org/download#smartscreen).
+
+</details>
+
+---
+
 ## 🛠️ Tech Stack & Architecture
 
 - **Platform:** Windows 10 / 11
@@ -157,16 +196,16 @@ cyber-notes/
 └── package.json
 ```
 
----
+### Building from Source (Developers)
 
-## 🚀 Getting Started
+Only needed if you want to work on CyberNotes or build it yourself; regular users can skip this section.
 
-### Prerequisites
+#### Prerequisites
 
 - [Node.js](https://nodejs.org/) v18+ (LTS recommended)
 - npm or yarn
 
-### Development
+#### Development
 
 ```bash
 git clone https://github.com/CyberGems/CyberNotes.git
@@ -175,13 +214,13 @@ npm install
 npm run dev
 ```
 
-### Build for Production
+#### Build for Production
 
 ```bash
 npm run build:electron
 ```
 
-### Available Scripts
+#### Available Scripts
 
 | Command | Description |
 |---------|-------------|
@@ -192,7 +231,7 @@ npm run build:electron
 | `npm run lint` | Run TypeScript type-checking without emitting files |
 | `npm test` | Run unit tests with Vitest |
 
-### Distribution
+#### Distribution
 
 Artifacts land in `release/`:
 
@@ -200,31 +239,6 @@ Artifacts land in `release/`:
 |---|---|
 | `CyberNotes_Setup_1.14.0.exe` | NSIS installer (interactive wizard, custom install dir) |
 | `CyberNotes_Portable_1.14.0.exe` | Portable build (zero-install) |
-
-### 🛡️ Windows SmartScreen
-
-Windows may show a SmartScreen warning the first time you run the CyberNotes installer: this is an unsigned hobby app, so Windows hasn't built reputation for the file yet. This is expected; the source is public so you can inspect exactly what it does. The same can appear when launching the portable build.
-
-To continue:
-
-<details>
-<summary><strong>See how to run the installer (step by step)</strong></summary>
-
-Windows shows this warning for any installer without a paid code-signing certificate; it does not mean the file is unsafe. Do <strong>not</strong> click "Don't run":
-
-1. Run the installer. Windows may show the blue "Windows protected your PC" dialog.
-
-![Windows SmartScreen warning](https://cybergems.org/branding/smartscreen-warning.svg)
-
-2. Click the small **More info** link.
-
-![SmartScreen dialog after More info](https://cybergems.org/branding/smartscreen-runanyway.svg)
-
-3. Click **Run anyway**. The installer starts normally.
-
-You can verify the file independently: compare the SHA with the GitHub release, scan it on VirusTotal, or build from source. More details: [SmartScreen guide on the website](https://cybergems.org/download#smartscreen).
-
-</details>
 
 ---
 
