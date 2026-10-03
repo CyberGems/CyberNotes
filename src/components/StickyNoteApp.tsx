@@ -303,7 +303,8 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [showOpacityPicker, setShowOpacityPicker] = useState(false);
   const [hoveredColor, setHoveredColor] = useState<StickyColorId | null>(null);
   const [hoveredOpacity, setHoveredOpacity] = useState<number | null>(null);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'pending' | 'saving' | 'error'>('saved');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -325,6 +326,8 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [isAttention, setIsAttention] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRequestRef = useRef(0);
+  const saveRevisionRef = useRef(0);
   const attentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pasteNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const zoomPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -341,6 +344,24 @@ export default function StickyNoteApp({ noteId }: Props) {
     document.documentElement.lang = language;
   }, [language]);
   const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
+  const saveStatusLabel = saveStatus === 'error'
+    ? t.editor.saveError
+    : saveStatus === 'saving'
+      ? t.editor.saving
+      : saveStatus === 'pending'
+        ? t.editor.pendingSave
+        : t.editor.saved;
+  const saveDate = lastSavedAt ? new Date(lastSavedAt) : null;
+  const hasValidSaveDate = !!saveDate && Number.isFinite(saveDate.getTime());
+  const saveTime = hasValidSaveDate
+    ? saveDate!.toLocaleTimeString(language === 'es' ? 'es-CR' : 'en-US', { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const fullSaveTimestamp = hasValidSaveDate
+    ? saveDate!.toLocaleString(language === 'es' ? 'es-CR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    : '';
+  const saveStatusTooltip = hasValidSaveDate
+    ? `${saveStatusLabel} · ${t.editor.lastSavedAt}: ${fullSaveTimestamp}`
+    : `${saveStatusLabel} · ${t.editor.notSavedYet}`;
   // Electron applies opacity to the entire window, including context menus.
   // Temporarily show the window at full opacity while either menu is open.
   const previewOpacity = contextMenu || titleMenu ? 1 : hoveredOpacity ?? opacity;
@@ -530,6 +551,8 @@ export default function StickyNoteApp({ noteId }: Props) {
           if (fetched) {
             setNote(fetched);
             setTitle(fetched.title);
+            setLastSavedAt(fetched.updated_at || null);
+            setSaveStatus('saved');
             editorContentRef.current = fetched.content;
             if (editor) {
               loadStickyEditorContent(editor, fetched.content || '');
@@ -575,6 +598,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           loadStickyEditorContent(editor, updated.content || '');
           editorContentRef.current = updated.content;
         }
+        setLastSavedAt(updated.updated_at || null);
         setNote(updated);
       }
     });
@@ -631,23 +655,32 @@ export default function StickyNoteApp({ noteId }: Props) {
         updated_at: now,
       };
 
+      const requestId = ++saveRequestRef.current;
+      const revision = saveRevisionRef.current;
       setSaveStatus('saving');
       try {
         await window.cyberNotesAPI.saveNote(updatedNote);
-        setNote(updatedNote);
-        setSaveStatus('saved');
+        if (requestId === saveRequestRef.current) {
+          setNote(updatedNote);
+          setLastSavedAt(updatedNote.updated_at);
+          setSaveStatus(revision === saveRevisionRef.current ? 'saved' : 'pending');
+        }
       } catch (err) {
         console.error('Failed to save sticky note:', err);
-        setSaveStatus('error');
+        if (requestId === saveRequestRef.current) {
+          setSaveStatus(revision === saveRevisionRef.current ? 'error' : 'pending');
+        }
       }
     },
     [title, t.noteList.unnamedNote]
   );
 
   const scheduleSave = useCallback(() => {
-    setSaveStatus('saving');
+    saveRevisionRef.current += 1;
+    setSaveStatus('pending');
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
       saveNoteImmediately();
     }, 500);
   }, [saveNoteImmediately]);
@@ -1829,26 +1862,39 @@ export default function StickyNoteApp({ noteId }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <Tooltip
-              label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
+              label={saveStatusTooltip}
               placement="top"
               delay={STICKY_FOOTER_TIP_DELAY}
+              maxWidth="calc(100vw - 16px)"
+              wrap
             >
               <span
-                className={`sticky-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
-                aria-label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
-                style={{
-                  background: saveStatus === 'error'
-                    ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
-                    : saveStatus === 'saving'
-                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
-                      : `radial-gradient(circle at 35% 35%, #ffffff 0%, ${colorMeta.accent} 46%, rgba(0, 0, 0, 0.55) 100%)`,
-                  boxShadow: saveStatus === 'error'
-                    ? '0 0 8px rgba(239, 68, 68, 0.7)'
-                    : saveStatus === 'saving'
-                      ? '0 0 8px rgba(245, 158, 11, 0.7)'
-                      : `0 0 8px ${colorMeta.accentGlow}`,
-                }}
-              />
+                role="status"
+                aria-live="polite"
+                aria-label={saveStatusTooltip}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'default' }}
+              >
+                <span
+                  className={`sticky-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
+                  style={{
+                    background: saveStatus === 'error'
+                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
+                      : saveStatus === 'saving' || saveStatus === 'pending'
+                        ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
+                        : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
+                    boxShadow: saveStatus === 'error'
+                      ? '0 0 7px rgba(239, 68, 68, 0.65)'
+                      : saveStatus === 'saving' || saveStatus === 'pending'
+                        ? '0 0 7px rgba(245, 158, 11, 0.55)'
+                        : '0 0 7px rgba(52, 211, 153, 0.45)',
+                  }}
+                />
+                {saveTime && (
+                  <span style={{ fontSize: 9, fontVariantNumeric: 'tabular-nums', color: 'rgba(255, 255, 255, 0.58)', whiteSpace: 'nowrap' }}>
+                    {saveTime}
+                  </span>
+                )}
+              </span>
             </Tooltip>
             <StickyFooterBtn
               label={t.noteList.moveToTrash}
