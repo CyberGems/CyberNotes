@@ -1276,13 +1276,28 @@ body:has(.sticky-note-window),
 }
 
 /* ─── TitleBar Burger Menu ──────────────────────────────── */
-.more-menu-section {
+.more-menu-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
   padding: 7px 14px 3px;
   color: var(--text-muted);
+  background: transparent;
+  border: 0;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.07em;
+  text-align: left;
   text-transform: uppercase;
+  cursor: pointer;
+}
+.more-menu-section-toggle:hover,
+.more-menu-section-toggle:focus-visible {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  outline: none;
 }
 
 .menu-item {

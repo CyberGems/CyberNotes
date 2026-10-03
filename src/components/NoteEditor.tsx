@@ -75,6 +75,7 @@ interface Props {
   layoutMode: number;
   onToggleLayout: () => void;
   showLineCounter?: boolean;
+  showKeyboardIndicators?: boolean;
   showLineGutter?: boolean;
   onShowLineGutterChange?: (v: boolean) => void;
   /** Guías ↳ en el gutter para renglones de continuación (default on). */
@@ -1824,6 +1825,7 @@ export default function NoteEditor({
   layoutMode, 
   onToggleLayout, 
   showLineCounter, 
+  showKeyboardIndicators = false,
   showLineGutter = true,
   onShowLineGutterChange,
   showWrapGuides = true,
@@ -5889,6 +5891,7 @@ export default function NoteEditor({
 
         {/* Indicadores de teclado (clic para cambiar) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {showKeyboardIndicators && <>
           <Tooltip
             placement="top"
             label={language === 'es'
@@ -5981,6 +5984,7 @@ export default function NoteEditor({
             aria-hidden="true"
             style={{ width: 1, height: 14, background: 'var(--border)', opacity: 0.7, margin: '0 5px 0 3px', flexShrink: 0 }}
           />
+          </>}
           <SpellCheckSelect language={language} />
         </div>
 

@@ -58,6 +58,8 @@ interface Props {
   onShowMinimapChange: (v: boolean) => void;
   showWordCounter: boolean;
   onShowWordCounterChange: (v: boolean) => void;
+  showKeyboardIndicators: boolean;
+  onShowKeyboardIndicatorsChange: (v: boolean) => void;
   showFloatingToolbar: boolean;
   onShowFloatingToolbarChange: (v: boolean) => void;
   hiddenToolbarIds: string[];
@@ -613,6 +615,7 @@ export default function SettingsModal({
   editorFont = DEFAULT_EDITOR_FONT, onEditorFontChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
+  showKeyboardIndicators, onShowKeyboardIndicatorsChange,
   showFloatingToolbar, onShowFloatingToolbarChange,
   hiddenToolbarIds, onHiddenToolbarIdsChange,
   initialTab = 'general',
@@ -902,7 +905,7 @@ export default function SettingsModal({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
         autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
+        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
         closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk,
         stickyRestoreOnStartup: sStickyRestore !== 'false',
         stickySkipTaskbar: sStickySkip !== 'false',
@@ -919,7 +922,7 @@ export default function SettingsModal({
       language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
       autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
+      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
       closeToTray, minimizeToTray, autoStart, toggleHotkey,
       stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
     });
@@ -931,7 +934,7 @@ export default function SettingsModal({
     language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
+    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
     closeToTray, minimizeToTray, autoStart, toggleHotkey,
     stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
   ]);
@@ -2150,6 +2153,18 @@ export default function SettingsModal({
                     </span>
                   </SettingsOptionCopy>
                   <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
+                </label>
+
+                <label className="settings-option-row" onClick={() => onShowKeyboardIndicatorsChange(!showKeyboardIndicators)}>
+                  <SettingsOptionCopy icon={<Keyboard />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Indicadores de teclado' : 'Keyboard indicators'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra CAPS, NUM e INS en el pie del editor' : 'Show CAPS, NUM and INS in the editor footer'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showKeyboardIndicators ? 'active' : ''}`} />
                 </label>
 
                 <label className="settings-option-row" onClick={() => onShowFloatingToolbarChange(!showFloatingToolbar)}>

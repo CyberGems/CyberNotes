@@ -2,7 +2,6 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { Note } from '../types';
 import TitleBar from './TitleBar';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -11,7 +10,7 @@ vi.mock('./Tooltip', () => ({ default: ({ children }: { children: React.ReactNod
 vi.mock('./WelcomeGreeting', () => ({ default: () => null }));
 
 describe('More menu', () => {
-  it('shows section actions immediately and keeps the menu within a short viewport', async () => {
+  it('starts with current-note actions and keeps the menu within a short viewport', async () => {
     Object.defineProperty(window, 'cyberNotesAPI', {
       configurable: true,
       value: { isMaximized: vi.fn().mockResolvedValue(false), onMaximizedState: () => () => {} },
@@ -26,7 +25,6 @@ describe('More menu', () => {
         <TitleBar
           language="es"
           currentNoteId="note-1"
-          recentNotes={[{ id: 'note-1', title: 'Una nota' } as Note]}
           onSaveNote={onSaveNote}
         />,
       ));
@@ -37,9 +35,10 @@ describe('More menu', () => {
       expect(menu!.style.overflowY).toBe('auto');
       expect(menu!.style.maxHeight).toContain('100vh');
       expect(menu!.style.boxSizing).toBe('border-box');
-      for (const label of ['Notas recientes', 'Nota actual', 'Exportar', 'Opciones', 'Ayuda']) {
+      for (const label of ['Nota actual', 'Exportar', 'Opciones', 'Ayuda', 'Aplicación']) {
         expect(menu!.textContent).toContain(label);
       }
+      expect(menu!.textContent).not.toContain('Notas recientes');
       const save = [...menu!.querySelectorAll('button')].find(button => button.textContent?.includes('Guardar nota'));
       expect(save).toBeDefined();
       await act(async () => save!.click());

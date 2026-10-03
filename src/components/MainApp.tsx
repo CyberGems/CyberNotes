@@ -249,6 +249,7 @@ export default function MainApp({
   const [editorFont, setEditorFont] = useState<EditorFontId>(DEFAULT_EDITOR_FONT);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showWordCounter, setShowWordCounter] = useState(false);
+  const [showKeyboardIndicators, setShowKeyboardIndicators] = useState(false);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
   const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>(['h1', 'h2']);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
@@ -571,7 +572,7 @@ export default function MainApp({
       'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'show_wrap_guides', 'autosave_enabled',
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
-      'show_word_counter', 'show_floating_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
+      'show_word_counter', 'show_keyboard_indicators', 'show_floating_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
       'editor_font',
     ]);
 
@@ -603,6 +604,7 @@ export default function MainApp({
     }
     if (s.show_minimap) setShowMinimap(s.show_minimap === 'true');
     setShowWordCounter(s.show_word_counter === 'true');
+    setShowKeyboardIndicators(s.show_keyboard_indicators === 'true');
     if (s.show_floating_toolbar === null) setShowFloatingToolbar(true);
     else setShowFloatingToolbar(s.show_floating_toolbar === 'true');
     if (s.toolbar_hidden_ids) {
@@ -1796,6 +1798,11 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('show_minimap', v.toString());
   };
 
+  const handleShowKeyboardIndicatorsChange = async (v: boolean) => {
+    setShowKeyboardIndicators(v);
+    await window.cyberNotesAPI.setSetting('show_keyboard_indicators', v.toString());
+  };
+
   const handleShowLineCounterChange = async (v: boolean) => {
     setShowLineCounter(v);
     await window.cyberNotesAPI.setSetting('show_line_counter', v.toString());
@@ -1846,13 +1853,6 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('caps_lock_sound_scope', val);
   };
 
-  const recentNotesSorted = useMemo(() =>
-    [...allNotes]
-      .filter(n => !recentClearedAt || new Date(n.updated_at).getTime() > recentClearedAt)
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
-  [allNotes, recentClearedAt]);
-
-  const recentNotesTop10 = useMemo(() => recentNotesSorted.slice(0, 10), [recentNotesSorted]);
   const recentNotesTop6 = useMemo(() =>
     [...allNotes].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 6),
   [allNotes]);
@@ -1972,11 +1972,6 @@ export default function MainApp({
         onExportPdf={() => { void editorExportActionsRef.current?.pdf(); }}
         onExportText={() => editorExportActionsRef.current?.text()}
         onPrint={() => { void editorExportActionsRef.current?.print(); }}
-        onSelectNote={(id) => {
-          setSelectedNoteId(id);
-          const note = allNotes.find(n => n.id === id);
-          if (note) setSelectedFolderId(prev => prev === 'sticky' ? prev : note.folder_id);
-        }}
         currentNoteId={selectedNoteId}
         currentNotePinned={selectedNote?.pinned === 1}
         isCurrentNoteSticky={!!selectedNoteId && openStickyIds.includes(selectedNoteId)}
@@ -1988,12 +1983,6 @@ export default function MainApp({
         onToggleRaw={() => noteActionsRef.current?.toggleRaw()}
         onCycleLayout={() => noteActionsRef.current?.cycleLayout()}
         onShowHistory={() => noteActionsRef.current?.showHistory()}
-        recentNotes={recentNotesTop10}
-        onClearRecent={async () => {
-          const now = Date.now().toString();
-          await window.cyberNotesAPI.setSetting('recent_cleared_at', now);
-          setRecentClearedAt(parseInt(now));
-        }}
         autosaveEnabled={autosaveEnabled}
         onAutosaveChange={handleAutosaveEnabledChange}
         autoUnlockCapsLock={autoUnlockCapsLock}
@@ -2002,6 +1991,8 @@ export default function MainApp({
         capsStatus={capsStatus}
         showMinimap={showMinimap}
         onShowMinimapChange={handleShowMinimapChange}
+        showKeyboardIndicators={showKeyboardIndicators}
+        onShowKeyboardIndicatorsChange={handleShowKeyboardIndicatorsChange}
         showLineCounter={showLineCounter}
         onShowLineCounterChange={handleShowLineCounterChange}
         showLineGutter={showLineGutter}
@@ -2183,6 +2174,7 @@ export default function MainApp({
           editorFontId={editorFont}
           showMinimap={showMinimap}
           onShowMinimapChange={handleShowMinimapChange}
+          showKeyboardIndicators={showKeyboardIndicators}
           showLineGutter={showLineGutter}
           onShowLineGutterChange={handleShowLineGutterChange}
           showWrapGuides={showWrapGuides}
@@ -2218,6 +2210,8 @@ export default function MainApp({
           onRememberLastNoteChange={handleRememberLastNoteChange}
           showLineCounter={showLineCounter}
           onShowLineCounterChange={handleShowLineCounterChange}
+          showKeyboardIndicators={showKeyboardIndicators}
+          onShowKeyboardIndicatorsChange={handleShowKeyboardIndicatorsChange}
           showLineGutter={showLineGutter}
           onShowLineGutterChange={handleShowLineGutterChange}
           showWrapGuides={showWrapGuides}

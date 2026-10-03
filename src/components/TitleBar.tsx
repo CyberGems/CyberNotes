@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History } from 'lucide-react';
-import { Note } from '../types';
+import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History, Keyboard, ChevronDown } from 'lucide-react';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
 
@@ -17,9 +16,6 @@ interface Props {
   onExportPdf?: () => void;
   onExportText?: () => void;
   onPrint?: () => void;
-  onSelectNote?: (id: string) => void;
-  onClearRecent?: () => void;
-  recentNotes?: Note[];
   autosaveEnabled?: boolean;
   onAutosaveChange?: (v: boolean) => void;
   autoUnlockCapsLock?: boolean;
@@ -27,6 +23,8 @@ interface Props {
   autoUnlockCapsLockTimeout?: number;
   showMinimap?: boolean;
   onShowMinimapChange?: (v: boolean) => void;
+  showKeyboardIndicators?: boolean;
+  onShowKeyboardIndicatorsChange?: (v: boolean) => void;
   showLineCounter?: boolean;
   onShowLineCounterChange?: (v: boolean) => void;
   showLineGutter?: boolean;
@@ -78,9 +76,6 @@ export default function TitleBar({
   onExportPdf,
   onExportText,
   onPrint,
-  onSelectNote,
-  onClearRecent,
-  recentNotes = [],
   autosaveEnabled = true,
   onAutosaveChange,
   autoUnlockCapsLock = false,
@@ -88,6 +83,8 @@ export default function TitleBar({
   autoUnlockCapsLockTimeout = 10,
   showMinimap = false,
   onShowMinimapChange,
+  showKeyboardIndicators = false,
+  onShowKeyboardIndicatorsChange,
   showLineCounter = true,
   onShowLineCounterChange,
   showLineGutter = true,
@@ -119,6 +116,7 @@ export default function TitleBar({
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [exitConfirm, setExitConfirm] = useState(false);
+  const [openMoreSection, setOpenMoreSection] = useState<'note' | 'export' | 'options' | 'help' | 'app' | null>('note');
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -183,6 +181,10 @@ export default function TitleBar({
   }, [menuOpen]);
 
   useEffect(() => {
+    if (menuRef.current) menuRef.current.scrollTop = 0;
+  }, [openMoreSection]);
+
+  useEffect(() => {
     const handleMenuShortcut = (event: KeyboardEvent) => {
       if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key.toLowerCase() !== 'm') return;
@@ -239,12 +241,24 @@ export default function TitleBar({
   const menuSwitch = (active: boolean) => (
     <span aria-hidden="true" className={`custom-switch is-compact ${active ? 'active' : ''}`} />
   );
+  const moreSectionHeader = (section: 'note' | 'export' | 'options' | 'help' | 'app', label: string) => (
+    <button
+      type="button"
+      role="menuitem"
+      className="more-menu-section-toggle"
+      aria-expanded={openMoreSection === section}
+      onClick={() => setOpenMoreSection(current => current === section ? null : section)}
+    >
+      <span>{label}</span>
+      <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.65, transform: openMoreSection === section ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s ease' }} />
+    </button>
+  );
   return (
     <div
       className="glass-effect titlebar-glass"
       onDoubleClick={(e) => {
         const target = e.target as HTMLElement;
-        if (target.closest('button, input, textarea, select, [data-no-drag], .btn-icon, .menu-item')) {
+        if (target.closest('button, input, textarea, select, [data-no-drag], .btn-icon, .menu-item, .more-menu-section-toggle')) {
           return;
         }
         window.cyberNotesAPI.windowMaximizeToggle();
@@ -506,36 +520,9 @@ export default function TitleBar({
                 <span>{t('Donar', 'Donate')}</span>
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-              {/* Secciones visibles sin un clic adicional. */}
-              {recentNotes.length > 0 && (
-                <>
-                  <div className="more-menu-section">{t('Notas recientes', 'Recent notes')}</div>
-                  {recentNotes.slice(0, 10).map(note => (
-                    <button
-                      key={note.id}
-                      className="menu-item"
-                      onClick={() => { setMenuOpen(false); onSelectNote?.(note.id); }}
-                      style={{ padding: '4px 10px', fontSize: 11 }}
-                    >
-                      <FileText size={13} style={{ opacity: 0.7 }} />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {note.title || t('Sin título', 'Untitled')}
-                      </span>
-                    </button>
-                  ))}
-                  <button
-                    className="menu-item"
-                    onClick={() => onClearRecent?.()}
-                    style={{ padding: '4px 10px', fontSize: 10, color: 'var(--text-muted)' }}
-                  >
-                    {t('Limpiar recientes', 'Clear recently opened')}
-                  </button>
-                  <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-                </>
-              )}
-
-              <div className="more-menu-section">{t('Nota actual', 'Current note')}</div>
-              <div role="group" aria-label={t('Nota actual', 'Current note')}>
+              {moreSectionHeader('note', t('Nota actual', 'Current note'))}
+              {openMoreSection === 'note' && (
+                <div role="group" aria-label={t('Nota actual', 'Current note')}>
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
@@ -624,11 +611,13 @@ export default function TitleBar({
                     <span style={{ flex: 1 }}>{t('Eliminar nota', 'Delete note')}</span>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
                   </button>
-              </div>
+                </div>
+              )}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              <div className="more-menu-section">{t('Exportar', 'Export')}</div>
-              <div role="group" aria-label={t('Exportar', 'Export')}>
+              {moreSectionHeader('export', t('Exportar', 'Export'))}
+              {openMoreSection === 'export' && (
+                <div role="group" aria-label={t('Exportar', 'Export')}>
                   <button
                     className="menu-item"
                     onClick={() => { setMenuOpen(false); onExportPdf?.(); }}
@@ -679,10 +668,13 @@ export default function TitleBar({
                     <span style={{ flex: 1 }}>{t('Imprimir', 'Print')}</span>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
                   </button>
-              </div>
+                </div>
+              )}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              <div className="more-menu-section">{t('Opciones', 'Options')}</div>
+              {moreSectionHeader('options', t('Opciones', 'Options'))}
+              {openMoreSection === 'options' && (
+                <div role="group" aria-label={t('Opciones', 'Options')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -742,6 +734,17 @@ export default function TitleBar({
                 className="menu-item"
                 role="menuitem"
                 tabIndex={0}
+                onClick={() => onShowKeyboardIndicatorsChange?.(!showKeyboardIndicators)}
+                onKeyDown={e => activateMenuItem(e, () => onShowKeyboardIndicatorsChange?.(!showKeyboardIndicators))}
+              >
+                <Keyboard size={14} style={{ opacity: 0.7 }} />
+                <span style={{ flex: 1 }}>{t('Indicadores de teclado', 'Keyboard indicators')}</span>
+                {menuSwitch(showKeyboardIndicators)}
+              </div>
+              <div
+                className="menu-item"
+                role="menuitem"
+                tabIndex={0}
                 onClick={() => onShowWordCounterChange?.(!showWordCounter)}
                 onKeyDown={e => activateMenuItem(e, () => onShowWordCounterChange?.(!showWordCounter))}
               >
@@ -771,20 +774,14 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Recordar sesión', 'Remember session')}</span>
                 {menuSwitch(rememberLastNote)}
               </div>
+                </div>
+              )}
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              <div className="more-menu-section">{t('Ayuda', 'Help')}</div>
-              <div role="group" aria-label={t('Ayuda', 'Help')}>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Pin size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Mantener visible en la bandeja', 'Keep visible in system tray')}</span>
-                  </button>
-                  <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />
+              {moreSectionHeader('help', t('Ayuda', 'Help'))}
+              {openMoreSection === 'help' && (
+                <div role="group" aria-label={t('Ayuda', 'Help')}>
                   <button
                     className="menu-item"
                     onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki'); }}
@@ -834,7 +831,21 @@ export default function TitleBar({
                     <Download size={13} style={{ opacity: 0.7 }} />
                     <span>{t('Buscar actualizaciones', 'Check for updates')}</span>
                   </button>
-              </div>
+                </div>
+              )}
+
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+              {moreSectionHeader('app', t('Aplicación', 'App'))}
+              {openMoreSection === 'app' && (
+                <div role="group" aria-label={t('Aplicación', 'App')}>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Pin size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Mantener visible en la bandeja', 'Keep visible in system tray')}</span>
+                  </button>
               {minimizeToTray && (
                 <button
                   className="menu-item"
@@ -885,6 +896,8 @@ export default function TitleBar({
                   <Power size={14} style={{ color: '#ef4444' }} />
                   <span>{t('Salir', 'Exit')}</span>
                 </button>
+              )}
+                </div>
               )}
             </div>,
             document.body
