@@ -330,7 +330,8 @@ export default function LockScreen({
             <button
               type="button"
               className="btn-icon"
-              onClick={() => window.cyberNotesAPI.windowClose()}
+              onClick={() => window.cyberNotesAPI.windowForceClose()}
+              aria-label={t.lockScreen.close}
               style={{ width: 28, height: 28, color: 'var(--text-muted)' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--danger)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
