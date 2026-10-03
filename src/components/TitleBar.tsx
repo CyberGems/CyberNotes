@@ -464,7 +464,7 @@ export default function TitleBar({
                         display: 'block',
                         height: '100%',
                         width: `${Math.max(4, Math.min(100, (timeLeft / autoUnlockCapsLockTimeout) * 100))}%`,
-                        background: '#ef4444',
+                        background: 'var(--accent)',
                         borderRadius: 2,
                         transition: 'width 1s linear',
                       }}

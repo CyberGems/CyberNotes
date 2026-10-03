@@ -37,7 +37,7 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages,
+    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
@@ -1760,8 +1760,8 @@ export function applyChangeCaseText(text: string, kind: ChangeCaseKind): string 
   }
 }
 
-/** Orden de Mayús+F3 (como Word: minúsculas → MAYÚSCULAS → Capitalizar). */
-export const CHANGE_CASE_CYCLE: ChangeCaseKind[] = ['lower', 'upper', 'capitalize'];
+/** Orden de Mayús+F3: coincide con los cinco estilos del selector. */
+export const CHANGE_CASE_CYCLE: ChangeCaseKind[] = ['sentence', 'lower', 'upper', 'capitalize', 'toggle'];
 
 /**
  * Aplica el cambio a la selección; con cursor colapsado, a la palabra bajo
@@ -3035,13 +3035,12 @@ export default function NoteEditor({
           }
         }
 
-        // Mayús+F3 = rotar minúsculas → MAYÚSCULAS → Capitalizar (como Word).
+        // Mayús+F3 recorre los cinco estilos disponibles en el selector.
         if (event.key === 'F3' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
           event.preventDefault();
           if (editor) {
             const kind = CHANGE_CASE_CYCLE[changeCaseCycleRef.current % CHANGE_CASE_CYCLE.length];
-            changeCaseCycleRef.current += 1;
-            applyChangeCase(editor, kind);
+            if (applyChangeCase(editor, kind)) changeCaseCycleRef.current += 1;
           }
           return true;
         }
@@ -6671,7 +6670,7 @@ export default function NoteEditor({
                 }}
                 className="glass-effect"
               >
-                <span style={{ color: 'var(--accent)' }} aria-hidden>ℹ️</span>
+                <Info size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
                 <span>{capsToast}</span>
               </motion.div>
             )}
