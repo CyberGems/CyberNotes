@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { Language } from '../languages';
 
 interface GlobalErrorToastProps {
@@ -59,43 +60,67 @@ export default function GlobalErrorToast({ language }: GlobalErrorToastProps) {
     };
   }, []);
 
-  if (!visible) return null;
   const t = STRINGS[language];
 
   return (
-    <div
-      role="alert"
-      style={{
-        position: 'fixed',
-        bottom: 20,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 20000,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        maxWidth: 'min(480px, calc(100vw - 32px))',
-        padding: '10px 12px',
-        borderRadius: 10,
-        background: 'var(--bg-modal)',
-        border: '1px solid var(--danger)',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
-        fontSize: 13,
-        color: 'var(--text-primary)',
-      }}
-    >
-      <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0 }} />
-      <span style={{ flex: 1 }}>{t.message}</span>
-      <button
-        type="button"
-        onClick={() => setVisible(false)}
-        aria-label={t.dismiss}
-        title={t.dismiss}
-        className="btn-icon"
-        style={{ flexShrink: 0 }}
-      >
-        <X size={14} />
-      </button>
-    </div>
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          role="alert"
+          initial={{ opacity: 0, y: 10, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: 16,
+            right: 16,
+            margin: '0 auto',
+            zIndex: 20000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: 'max-content',
+            maxWidth: 'min(500px, calc(100vw - 32px))',
+            padding: '10px 10px 10px 12px',
+            borderRadius: 12,
+            background: 'linear-gradient(145deg, var(--bg-modal), var(--bg-surface))',
+            border: '1px solid color-mix(in srgb, var(--danger) 38%, var(--border))',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+            fontSize: 13,
+            color: 'var(--text-primary)',
+            backdropFilter: 'blur(14px)',
+          }}
+          className="glass-effect"
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 26,
+              height: 26,
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+              borderRadius: 8,
+              color: 'var(--danger)',
+              background: 'color-mix(in srgb, var(--danger) 14%, transparent)',
+            }}
+          >
+            <AlertTriangle size={15} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0, lineHeight: 1.35 }}>{t.message}</span>
+          <button
+            type="button"
+            onClick={() => setVisible(false)}
+            aria-label={t.dismiss}
+            className="btn-icon"
+            style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, color: 'var(--text-muted)' }}
+          >
+            <X size={14} />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

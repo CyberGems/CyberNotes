@@ -2576,7 +2576,10 @@ export default function NoteEditor({
         capsAutoUnlockPendingRef.current = false;
         setCapsToast(TRANSLATIONS[language].editor.capsLockToastAuto);
         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-        toastTimeoutRef.current = setTimeout(() => setCapsToast(null), 2200);
+        toastTimeoutRef.current = setTimeout(() => {
+          setCapsToast(null);
+          toastTimeoutRef.current = null;
+        }, 3600);
       } else if (!isCapsLockActive) {
         // Apagado manual: no toast
         capsAutoUnlockPendingRef.current = false;
@@ -6650,28 +6653,59 @@ export default function NoteEditor({
             {capsToast && (
               <motion.div
                 key="caps-toast"
-                initial={{ opacity: 0, y: -10, scale: 0.96 }}
+                role="status"
+                aria-live="polite"
+                initial={{ opacity: 0, y: -8, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 28 }}
                 style={{
-                  background: 'var(--bg-modal)',
-                  border: '1px solid var(--accent)',
-                  color: 'var(--accent-light)',
-                  padding: '8px 18px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
+                  background: 'linear-gradient(145deg, var(--bg-modal), var(--bg-surface))',
+                  border: '1px solid color-mix(in srgb, var(--accent) 38%, var(--border))',
+                  color: 'var(--text-primary)',
+                  padding: '9px 10px 9px 12px',
+                  borderRadius: 12,
+                  fontSize: 13,
                   fontWeight: 600,
-                  boxShadow: '0 8px 28px rgba(0,0,0,0.45), 0 0 16px var(--accent-glow)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.42), 0 0 18px color-mix(in srgb, var(--accent-glow) 55%, transparent)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  maxWidth: 'min(420px, 92vw)',
+                  gap: 10,
+                  maxWidth: 'min(460px, calc(100vw - 32px))',
+                  pointerEvents: 'auto',
+                  backdropFilter: 'blur(14px)',
                 }}
                 className="glass-effect"
               >
-                <Info size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
-                <span>{capsToast}</span>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 26,
+                    height: 26,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                    borderRadius: 8,
+                    color: 'var(--accent)',
+                    background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+                  }}
+                >
+                  <Info size={15} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0, lineHeight: 1.35 }}>{capsToast}</span>
+                <button
+                  type="button"
+                  className="btn-icon"
+                  aria-label={TRANSLATIONS[language].editor.capsToastDismiss}
+                  onClick={() => {
+                    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                    toastTimeoutRef.current = null;
+                    setCapsToast(null);
+                  }}
+                  style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, color: 'var(--text-muted)' }}
+                >
+                  <X size={14} />
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
