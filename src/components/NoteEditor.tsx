@@ -358,14 +358,24 @@ export function planWrapGuides(rows: VisualRow[]): WrapGuidePlan {
 interface LogicalLineUnit {
   node: any;
   pos: number;
+  segmentIndex?: number;
+  segmentStart?: number;
+  segmentEnd?: number;
 }
 
+const logicalLineUnitsCache = new WeakMap<object, LogicalLineUnit[]>();
+const logicalLineIndicesCache = new WeakMap<object, WeakMap<object, Map<number, number[]>>>();
+
 /**
- * El contador y el gutter comparten una misma unidad: un bloque de texto,
- * una fila de tabla o un bloque atómico. Las celdas de una fila cuentan como
- * una sola línea visual; sus párrafos internos no duplican el número.
+ * El contador y el gutter comparten líneas de texto, saltos explícitos, filas
+ * de tabla y bloques atómicos. Las celdas de una fila cuentan juntas. El
+ * resultado se guarda por documento inmutable para no recorrerlo al mover el
+ * cursor o repintar el gutter durante el scroll.
  */
 function collectLogicalLineUnits(doc: any): LogicalLineUnit[] {
+  const cached = logicalLineUnitsCache.get(doc);
+  if (cached) return cached;
+
   const lines: LogicalLineUnit[] = [];
   const visit = (node: any, pos: number) => {
     const tableRole = node.type?.spec?.tableRole;
@@ -373,7 +383,42 @@ function collectLogicalLineUnits(doc: any): LogicalLineUnit[] {
       lines.push({ node, pos });
       return;
     }
-    if (node.isTextblock || (node.isBlock && (node.isAtom || node.isLeaf))) {
+    if (node.isTextblock) {
+      const isCodeBlock = Boolean(node.type?.spec?.code);
+      let segmentStart = 0;
+      let segmentIndex = 0;
+      let hasExplicitBreak = false;
+      const addSegment = (segmentEnd: number) => {
+        lines.push({ node, pos, segmentIndex, segmentStart, segmentEnd });
+        segmentIndex++;
+        segmentStart = segmentEnd;
+      };
+
+      node.forEach((child: any, offset: number) => {
+        if (child.isText) {
+          const text = child.text || '';
+          for (let i = 0; i < text.length; i++) {
+            if (text[i] !== '\n') continue;
+            const breakOffset = offset + i;
+            addSegment(breakOffset);
+            segmentStart = breakOffset + 1;
+            hasExplicitBreak = true;
+          }
+        } else if (child.type?.name === 'hardBreak' || child.type?.spec?.linebreakReplacement) {
+          addSegment(offset);
+          segmentStart = offset + child.nodeSize;
+          hasExplicitBreak = true;
+        }
+      });
+
+      if (isCodeBlock || hasExplicitBreak) {
+        addSegment(node.content.size);
+      } else {
+        lines.push({ node, pos });
+      }
+      return;
+    }
+    if (node.isBlock && (node.isAtom || node.isLeaf)) {
       lines.push({ node, pos });
       return;
     }
@@ -381,6 +426,19 @@ function collectLogicalLineUnits(doc: any): LogicalLineUnit[] {
   };
 
   doc.forEach((child: any, offset: number) => visit(child, offset));
+  const byNode = new WeakMap<object, Map<number, number[]>>();
+  lines.forEach((line, index) => {
+    let byPosition = byNode.get(line.node);
+    if (!byPosition) {
+      byPosition = new Map();
+      byNode.set(line.node, byPosition);
+    }
+    const indices = byPosition.get(line.pos) ?? [];
+    indices.push(index);
+    byPosition.set(line.pos, indices);
+  });
+  logicalLineIndicesCache.set(doc, byNode);
+  logicalLineUnitsCache.set(doc, lines);
   return lines;
 }
 
@@ -3330,8 +3388,17 @@ export default function NoteEditor({
       for (let depth = selection.$head.depth; depth >= 0; depth--) {
         const node = selection.$head.node(depth);
         const pos = depth === 0 ? 0 : selection.$head.before(depth);
-        currentLineIndex = logicalLines.findIndex(line => line.node === node && line.pos === pos);
-        if (currentLineIndex >= 0) break;
+        const matchingIndices = logicalLineIndicesCache.get(doc)?.get(node)?.get(pos);
+        if (!matchingIndices?.length) continue;
+
+        const parentOffset = selection.$head.parentOffset;
+        const matchingSegment = matchingIndices.find(index => {
+          const line = logicalLines[index];
+          return line.segmentStart !== undefined && line.segmentEnd !== undefined &&
+            parentOffset >= line.segmentStart && parentOffset <= line.segmentEnd;
+        });
+        currentLineIndex = matchingSegment ?? matchingIndices[0];
+        break;
       }
     }
 
@@ -3348,7 +3415,10 @@ export default function NoteEditor({
     if (currentLineIndex < 0) currentLineIndex = logicalLines.length - 1;
 
     const currentUnit = logicalLines[currentLineIndex];
-    const textBefore = doc.textBetween(currentUnit.pos, headPos, '\n');
+    const lineStart = currentUnit.segmentStart === undefined
+      ? currentUnit.pos
+      : currentUnit.pos + 1 + currentUnit.segmentStart;
+    const textBefore = doc.textBetween(lineStart, Math.max(lineStart, headPos), '\n');
     const currentCol = textBefore.split('\n').pop()!.length + 1;
     setLineInfo({ line: currentLineIndex + 1, col: currentCol, total: logicalLines.length });
   }, []);
@@ -3401,51 +3471,38 @@ export default function NoteEditor({
       const seenMarkY = new Set<number>();
       const seenLink = new Set<string>();
       const logicalLines = collectLogicalLineUnits(liveEditor.state.doc);
-
-      logicalLines.forEach((line, index) => {
-        const node = liveEditor.view.nodeDOM(line.pos);
-        const element = node instanceof HTMLElement ? node : node?.parentElement;
-        if (!element) return;
-        if (intersectionObserverActiveRef.current && !visibleGutterNodesRef.current.has(element)) return;
+      const lineElementsByPos = new Map<number, HTMLElement | null>();
+      const getLineElement = (pos: number): HTMLElement | null => {
+        if (lineElementsByPos.has(pos)) return lineElementsByPos.get(pos) ?? null;
+        const node = liveEditor.view.nodeDOM(pos);
+        const element = node instanceof HTMLElement ? node : node?.parentElement ?? null;
+        lineElementsByPos.set(pos, element);
+        return element;
+      };
+      const isVisible = (element: Element) => {
+        if (intersectionObserverActiveRef.current) return visibleGutterNodesRef.current.has(element);
         const rect = element.getBoundingClientRect();
-        if (rect.height <= 0 || (!intersectionObserverActiveRef.current && (rect.bottom < viewport.top || rect.top > viewport.bottom))) return;
-        const y = rect.top - wrapBox.top;
-        const key = Math.round(y);
-        if (seenLineY.has(key)) return;
-        seenLineY.add(key);
-        lineNumberHtml.push(`<span class="line-number-mark" style="top:${y.toFixed(1)}px">${index + 1}</span>`);
-      });
+        return rect.bottom >= viewport.top && rect.top <= viewport.bottom;
+      };
+      const getCodeTextBlock = (element: HTMLElement) => (
+        element.matches('pre') ? element : element.querySelector('pre') as HTMLElement | null
+      ) || element;
+      const getSegmentTextBlock = (line: LogicalLineUnit, element: HTMLElement) => (
+        line.node.type?.spec?.code ? getCodeTextBlock(element) : element
+      );
+      const segmentedTextBlocks = new Set<Element>();
+      for (const line of logicalLines) {
+        if (line.segmentIndex === undefined) continue;
+        const element = getLineElement(line.pos);
+        if (element) segmentedTextBlocks.add(getSegmentTextBlock(line, element));
+      }
 
-      if (showWrapGuidesRef.current) {
-        const segmentRects: DOMRect[] = [];
+      const collectVisualSegments = (block: Element): VisualRow[][] => {
+        const rawSegments: DOMRect[][] = [];
+        let segmentRects: DOMRect[] = [];
         const flushSegment = () => {
-          if (segmentRects.length === 0 || guideHtml.length >= MAX_GUIDES) {
-            segmentRects.length = 0;
-            return;
-          }
-          const plan = planWrapGuides(
-            groupVisualRows(segmentRects.map(r => ({ top: r.top, bottom: r.bottom, left: r.left }))),
-          );
-          segmentRects.length = 0;
-
-          for (const y of plan.marks) {
-            if (guideHtml.length >= MAX_GUIDES) return;
-            const relativeY = y - wrapBox.top;
-            const key = Math.round(relativeY);
-            if (seenMarkY.has(key)) continue;
-            seenMarkY.add(key);
-            guideHtml.push(`<span class="wrap-guide-mark" style="top:${relativeY.toFixed(1)}px">→</span>`);
-          }
-          if (plan.link && guideHtml.length < MAX_GUIDES) {
-            const top = plan.link.top - wrapBox.top;
-            const key = `${Math.round(top)}:${Math.round(plan.link.height)}`;
-            if (!seenLink.has(key)) {
-              seenLink.add(key);
-              guideHtml.push(
-                `<span class="wrap-guide-link" style="top:${top.toFixed(1)}px;height:${plan.link.height.toFixed(1)}px"></span>`,
-              );
-            }
-          }
+          rawSegments.push(segmentRects);
+          segmentRects = [];
         };
         const addTextRects = (text: Text, start: number, end: number) => {
           if (end <= start) return;
@@ -3471,24 +3528,97 @@ export default function NoteEditor({
             return;
           }
           if (node instanceof HTMLBRElement) {
+            if (node.classList.contains('ProseMirror-trailingBreak')) return;
             flushSegment();
             return;
           }
           node.childNodes.forEach(visitInline);
         };
+        block.childNodes.forEach(visitInline);
+        flushSegment();
+        return rawSegments.map(rects => groupVisualRows(
+          rects.map(rect => ({ top: rect.top, bottom: rect.bottom, left: rect.left })),
+        ));
+      };
 
-        const blocks = dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre');
-        blocks.forEach(block => {
-          if (intersectionObserverActiveRef.current) {
-            if (!visibleGutterNodesRef.current.has(block)) return;
-          } else {
-            const blockBox = block.getBoundingClientRect();
-            if (blockBox.bottom < viewport.top || blockBox.top > viewport.bottom) return;
+      const visualSegmentsByBlock = new Map<Element, VisualRow[][]>();
+      const textBlocks = Array.from(dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre'));
+      for (const block of textBlocks) {
+        const hasWrapGuides = showWrapGuidesRef.current && isVisible(block);
+        if (!hasWrapGuides && !segmentedTextBlocks.has(block)) continue;
+        if (!isVisible(block)) continue;
+        const segments = collectVisualSegments(block);
+        visualSegmentsByBlock.set(block, segments);
+        if (!hasWrapGuides) continue;
+
+        for (const rows of segments) {
+          if (rows.length < 2 || guideHtml.length >= MAX_GUIDES) continue;
+          const plan = planWrapGuides(rows);
+          for (const y of plan.marks) {
+            if (guideHtml.length >= MAX_GUIDES) break;
+            const relativeY = y - wrapBox.top;
+            const key = Math.round(relativeY);
+            if (seenMarkY.has(key)) continue;
+            seenMarkY.add(key);
+            guideHtml.push(`<span class="wrap-guide-mark" style="top:${relativeY.toFixed(1)}px">→</span>`);
           }
-          block.childNodes.forEach(visitInline);
-          flushSegment();
-        });
+          if (plan.link && guideHtml.length < MAX_GUIDES) {
+            const top = plan.link.top - wrapBox.top;
+            const key = `${Math.round(top)}:${Math.round(plan.link.height)}`;
+            if (!seenLink.has(key)) {
+              seenLink.add(key);
+              guideHtml.push(
+                `<span class="wrap-guide-link" style="top:${top.toFixed(1)}px;height:${plan.link.height.toFixed(1)}px"></span>`,
+              );
+            }
+          }
+        }
       }
+
+      const segmentedLineTops = new Map<Element, number[]>();
+      for (const block of segmentedTextBlocks) {
+        const segments = visualSegmentsByBlock.get(block);
+        if (!segments) continue;
+        const blockRect = block.getBoundingClientRect();
+        const style = window.getComputedStyle(block);
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.3 || 16;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const borderTop = parseFloat(style.borderTopWidth) || 0;
+        const tops: number[] = [];
+        for (let i = 0; i < segments.length; i++) {
+          if (segments[i].length > 0) {
+            tops[i] = segments[i][0].top;
+            continue;
+          }
+          let previous = i - 1;
+          while (previous >= 0 && segments[previous].length === 0) previous--;
+          if (previous >= 0) {
+            tops[i] = segments[previous][segments[previous].length - 1].top + lineHeight * (i - previous);
+            continue;
+          }
+          let next = i + 1;
+          while (next < segments.length && segments[next].length === 0) next++;
+          tops[i] = next < segments.length
+            ? segments[next][0].top - lineHeight * (next - i)
+            : blockRect.top + borderTop + paddingTop + lineHeight * i;
+        }
+        segmentedLineTops.set(block, tops);
+      }
+
+      logicalLines.forEach((line, index) => {
+        const element = getLineElement(line.pos);
+        if (!element || !isVisible(element)) return;
+        const rect = element.getBoundingClientRect();
+        if (rect.height <= 0) return;
+        const textBlock = line.segmentIndex === undefined ? null : getSegmentTextBlock(line, element);
+        const y = line.segmentIndex !== undefined && textBlock
+          ? (segmentedLineTops.get(textBlock)?.[line.segmentIndex] ?? rect.top) - wrapBox.top
+          : rect.top - wrapBox.top;
+        const key = Math.round(y);
+        if (seenLineY.has(key)) return;
+        seenLineY.add(key);
+        lineNumberHtml.push(`<span class="line-number-mark" style="top:${y.toFixed(1)}px">${index + 1}</span>`);
+      });
 
       layer.innerHTML = lineNumberHtml.concat(guideHtml).join('');
     } catch {
@@ -3538,10 +3668,23 @@ export default function NoteEditor({
       if (!observer || !liveEditor || liveEditor.view.isDestroyed) return;
       const dom = liveEditor.view.dom as HTMLElement;
       const nextNodes = new Set<Element>();
+      const lineElementsByPos = new Map<number, HTMLElement | null>();
       for (const line of collectLogicalLineUnits(liveEditor.state.doc)) {
-        const node = liveEditor.view.nodeDOM(line.pos);
-        if (node instanceof HTMLElement) nextNodes.add(node);
-        else if (node?.parentElement) nextNodes.add(node.parentElement);
+        let element: HTMLElement | null;
+        if (lineElementsByPos.has(line.pos)) {
+          element = lineElementsByPos.get(line.pos) ?? null;
+        } else {
+          const node = liveEditor.view.nodeDOM(line.pos);
+          element = node instanceof HTMLElement ? node : node?.parentElement ?? null;
+          lineElementsByPos.set(line.pos, element);
+        }
+        if (element) {
+          nextNodes.add(element);
+          if (line.segmentIndex !== undefined && line.node.type?.spec?.code) {
+            const textBlock = element.matches('pre') ? element : element.querySelector('pre');
+            if (textBlock) nextNodes.add(textBlock);
+          }
+        }
       }
       if (showWrapGuidesRef.current) {
         dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre').forEach(node => nextNodes.add(node));
