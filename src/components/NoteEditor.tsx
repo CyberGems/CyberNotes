@@ -928,6 +928,7 @@ export function WordFontFamilySelect({
   const matched = matchFontFamilyOption(activeFamily);
   const baseFont = EDITOR_FONTS.find(f => f.id === baseFontId) || EDITOR_FONTS[0];
   const baseFontName = baseFont.name;
+  const defaultOption = matchFontFamilyOption(baseFont.family);
   // En blur los atributos se vacían: conservar la última vista en vez de
   // saltar a la base (con foco y sin familia, la base sí es lo correcto).
   const lastMatchedRef = useRef<string | null>(null);
@@ -987,33 +988,23 @@ export function WordFontFamilySelect({
             onClick={() => setOpen(false)}
           />
           <div data-word-menu="true" style={{ ...wordMenuBoxStyle, ...menuStyle }}>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { editor.chain().focus().unsetFontFamily().run(); setOpen(false); }}
-              className={`word-menu-item${!matched ? ' is-active' : ' is-muted'}`}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-                padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-                border: 'none', textAlign: 'left',
-              }}
-            >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {baseFontName}
-                {' — '}
-                {t.editor.fontFamilyDefault}
-              </span>
-              {!matched && <span>✓</span>}
-            </button>
-            <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }} />
             {FONT_FAMILY_OPTIONS.map((opt) => {
-              const isCurrent = matched?.label === opt.label;
+              const isDefault = defaultOption?.label === opt.label;
+              const isCurrent = matched ? matched.label === opt.label : isDefault;
               return (
                 <button
                   key={opt.label}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { editor.chain().focus().setFontFamily(opt.family).run(); setOpen(false); }}
+                  onClick={() => {
+                    if (isDefault) {
+                      editor.chain().focus().unsetFontFamily().run();
+                      lastMatchedRef.current = null;
+                    } else {
+                      editor.chain().focus().setFontFamily(opt.family).run();
+                    }
+                    setOpen(false);
+                  }}
                   className={`word-menu-item${isCurrent ? ' is-active' : ''}`}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
@@ -1022,7 +1013,9 @@ export function WordFontFamilySelect({
                     fontFamily: opt.family, fontSize: compact ? 12 : 14,
                   }}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {opt.label}{isDefault && ` — ${t.editor.fontFamilyDefault}`}
+                  </span>
                   {isCurrent && <span style={{ fontFamily: 'inherit' }}>✓</span>}
                 </button>
               );
