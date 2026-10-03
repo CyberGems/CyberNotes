@@ -15,7 +15,7 @@ interface TooltipProps {
 
 const VIEWPORT_MARGIN = 8; // separación mínima respecto al borde de la ventana
 const GAP = 8;             // separación respecto al elemento ancla
-const SHORTCUT_PATTERN = /(?:(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta)(?:\+(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta))*\+(?:F\d{1,2}|Enter|Space|Espacio|Supr|Delete|Del|Backspace|Tab|Escape|Esc|[A-Z0-9]|,|\.)(?![A-Za-z0-9]))|\b(?:F\d{1,2}|Enter|Space|Espacio|Supr|Delete|Del|Backspace|Tab|Escape|Esc)\b/i;
+const SHORTCUT_PATTERN = /(?:(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta)(?:\+(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta))*\+(?:F\d{1,2}|Enter|Space|Espacio|Supr|Delete|Del|Backspace|Tab|Escape|Esc|[A-Z0-9]|,|\.)(?![A-Za-z0-9]))|\b(?:F\d{1,2}|Enter|Space|Espacio|Supr|Backspace|Tab|Escape|Esc)\b/i;
 
 export function TooltipShortcut({ children }: { children: ReactNode }) {
   return <kbd className="tooltip-shortcut-key">{children}</kbd>;
