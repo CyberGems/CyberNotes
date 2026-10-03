@@ -1736,12 +1736,14 @@ ipcMain.on('tray-menu-ready', (_event, rect) => {
   trayMenuWin.setBounds(geo);
 });
 
+const MAIN_WINDOW_MIN_WIDTH = 840;
+const MAIN_WINDOW_MIN_HEIGHT = 560;
+
 function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
   width: number;
   height: number;
-  x?: number;
-  y?: number;
-  center: boolean;
+  x: number;
+  y: number;
 } {
   const primaryDisplay = screen.getPrimaryDisplay();
   const primaryWorkArea = primaryDisplay.workArea;
@@ -1755,16 +1757,7 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
       parsed = JSON.parse(savedBoundsJson);
     } catch (_) {}
   }
-
-  if (!parsed || typeof parsed !== 'object') {
-    return {
-      width: defaultWidth,
-      height: defaultHeight,
-      x: undefined,
-      y: undefined,
-      center: true,
-    };
-  }
+  if (!parsed || typeof parsed !== 'object') parsed = {};
 
   let width = typeof parsed.width === 'number' && parsed.width >= 500 ? parsed.width : defaultWidth;
   let height = typeof parsed.height === 'number' && parsed.height >= 400 ? parsed.height : defaultHeight;
@@ -1795,14 +1788,13 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
   // Restaurada siempre centrada en su pantalla: evita ventanas a caballo
   // entre monitores con distinta escala.
   const wa = target.workArea;
-  width = Math.min(width, wa.width);
-  height = Math.min(height, wa.height);
+  width = Math.min(Math.max(width, MAIN_WINDOW_MIN_WIDTH), Math.max(MAIN_WINDOW_MIN_WIDTH, wa.width - 32));
+  height = Math.min(Math.max(height, MAIN_WINDOW_MIN_HEIGHT), Math.max(MAIN_WINDOW_MIN_HEIGHT, wa.height - 32));
   return {
     width,
     height,
     x: Math.round(wa.x + (wa.width - width) / 2),
     y: Math.round(wa.y + (wa.height - height) / 2),
-    center: false,
   };
 }
 
@@ -1818,10 +1810,10 @@ function createWindow() {
     height: winBounds.height,
     x: winBounds.x,
     y: winBounds.y,
-    center: winBounds.center,
+    center: false,
     // 840x560 lógicos caben en 1280x800 físicos al 150% de escala.
-    minWidth: 840,
-    minHeight: 560,
+    minWidth: MAIN_WINDOW_MIN_WIDTH,
+    minHeight: MAIN_WINDOW_MIN_HEIGHT,
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0d0d14',
@@ -1834,6 +1826,11 @@ function createWindow() {
     },
     show: false,
   });
+
+  // On Windows with mixed display scales, BrowserWindow's constructor can
+  // enlarge the requested size when placing the window on a secondary display.
+  // setBounds uses the correct display scale once the native window exists.
+  mainWindow.setBounds(winBounds);
 
   // Guardar estado al cambiar (debounce: evitar N flushes durante resize/drag)
   let windowStateTimer: ReturnType<typeof setTimeout> | null = null;
