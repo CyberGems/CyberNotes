@@ -151,7 +151,7 @@ export default function LockScreen({
   const hasBg = !!bgImage;
 
   const titleBarStyle = {
-    position: 'absolute',
+    position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
@@ -187,7 +187,8 @@ export default function LockScreen({
         WebkitUserSelect: 'none',
         background: 'radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 42%), radial-gradient(circle at 15% 18%, color-mix(in srgb, var(--accent-light) 7%, transparent) 0%, transparent 28%), var(--bg-app)',
         position: 'relative',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
         ['--glass-blur' as string]: `${glassBlur}px`,
         ['--bg-overlay-opacity' as string]: String(bgOpacity),
       }}
@@ -207,6 +208,13 @@ export default function LockScreen({
         }
         .lock-screen-card {
           animation: lockCardIn 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+          flex-shrink: 0;
+        }
+        @media (max-height: 560px) {
+          .lock-screen-root {
+            justify-content: flex-start !important;
+            padding: 48px 16px 16px;
+          }
         }
         .lock-screen-halo {
           position: absolute;

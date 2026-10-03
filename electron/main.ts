@@ -11,7 +11,7 @@ import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyO
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
-import { isVisiblyMaximized, needsPlacementCorrection } from './windowState';
+import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -1742,12 +1742,7 @@ const MAIN_WINDOW_MIN_HEIGHT = 560;
 const MAIN_WINDOW_HORIZONTAL_MARGIN = 48;
 const MAIN_WINDOW_VERTICAL_MARGIN = 16;
 
-function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-} {
+function getValidWindowBounds(savedBoundsJson: string | null | undefined) {
   const primaryDisplay = screen.getPrimaryDisplay();
   const primaryWorkArea = primaryDisplay.workArea;
 
@@ -1762,8 +1757,8 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
   }
   if (!parsed || typeof parsed !== 'object') parsed = {};
 
-  let width = typeof parsed.width === 'number' && parsed.width >= 500 ? parsed.width : defaultWidth;
-  let height = typeof parsed.height === 'number' && parsed.height >= 400 ? parsed.height : defaultHeight;
+  const width = typeof parsed.width === 'number' && parsed.width >= 320 ? parsed.width : defaultWidth;
+  const height = typeof parsed.height === 'number' && parsed.height >= 240 ? parsed.height : defaultHeight;
   const x = typeof parsed.x === 'number' ? parsed.x : undefined;
   const y = typeof parsed.y === 'number' ? parsed.y : undefined;
 
@@ -1788,17 +1783,13 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
   }
   if (!target) target = primaryDisplay;
 
-  // Restaurada siempre centrada en su pantalla: evita ventanas a caballo
-  // entre monitores con distinta escala.
-  const wa = target.workArea;
-  width = Math.min(Math.max(width, MAIN_WINDOW_MIN_WIDTH), Math.max(MAIN_WINDOW_MIN_WIDTH, wa.width - MAIN_WINDOW_HORIZONTAL_MARGIN * 2));
-  height = Math.min(Math.max(height, MAIN_WINDOW_MIN_HEIGHT), Math.max(MAIN_WINDOW_MIN_HEIGHT, wa.height - MAIN_WINDOW_VERTICAL_MARGIN * 2));
-  return {
-    width,
-    height,
-    x: Math.round(wa.x + (wa.width - width) / 2),
-    y: Math.round(wa.y + (wa.height - height) / 2),
-  };
+  // El mínimo preferido se reduce si no cabe en el área útil del monitor.
+  return fitWindowToWorkArea(
+    { width, height },
+    target.workArea,
+    { width: MAIN_WINDOW_MIN_WIDTH, height: MAIN_WINDOW_MIN_HEIGHT },
+    { width: MAIN_WINDOW_HORIZONTAL_MARGIN, height: MAIN_WINDOW_VERTICAL_MARGIN },
+  );
 }
 
 function createWindow() {
@@ -1806,7 +1797,7 @@ function createWindow() {
   const boundsJson = queryGet('SELECT value FROM settings WHERE key = ?', ['window_bounds']);
   const isMaximizedVal = queryGet('SELECT value FROM settings WHERE key = ?', ['is_maximized']);
 
-  const winBounds = getValidWindowBounds(boundsJson?.value);
+  const { bounds: winBounds, minimum: winMinimum } = getValidWindowBounds(boundsJson?.value);
 
   mainWindow = new BrowserWindow({
     width: winBounds.width,
@@ -1814,9 +1805,8 @@ function createWindow() {
     x: winBounds.x,
     y: winBounds.y,
     center: false,
-    // 840x560 lógicos caben en 1280x800 físicos al 150% de escala.
-    minWidth: MAIN_WINDOW_MIN_WIDTH,
-    minHeight: MAIN_WINDOW_MIN_HEIGHT,
+    minWidth: winMinimum.width,
+    minHeight: winMinimum.height,
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0d0d14',
@@ -1870,13 +1860,13 @@ function createWindow() {
       }
 
       if (!isMax && !isMin && !isFull) {
-        if (bounds.width >= 500 && bounds.height >= 400) {
+        if (bounds.width >= 320 && bounds.height >= 240) {
           runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...bounds, displayId: display.id })], { flushNow: immediate });
         }
       } else {
         try {
           const nb = mainWindow.getNormalBounds();
-          if (nb && nb.width >= 500 && nb.height >= 400) {
+          if (nb && nb.width >= 320 && nb.height >= 240) {
             const disp = screen.getDisplayMatching(nb);
             runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...nb, displayId: disp.id })], { flushNow: immediate });
           }
@@ -1952,7 +1942,43 @@ function createWindow() {
   mainWindow.on('closed', () => {
     if (placementTimer) clearTimeout(placementTimer);
     if (placementEndTimer) clearTimeout(placementEndTimer);
+    screen.removeListener('display-metrics-changed', onDisplayMetricsChanged);
+    screen.removeListener('display-removed', onDisplayRemoved);
   });
+
+  // A window moved onto a smaller display needs a smaller native minimum too.
+  // Otherwise Windows can keep it larger than the destination work area.
+  const fitToCurrentDisplay = (repositionIfOutside: boolean) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const isMax = mainWindow.isMaximized();
+    const isMin = mainWindow.isMinimized();
+    const isFull = mainWindow.isFullScreen();
+    const current = isMax || isMin || isFull ? mainWindow.getNormalBounds() : mainWindow.getBounds();
+    const workArea = screen.getDisplayMatching(current).workArea;
+    const fitted = fitWindowToWorkArea(
+      current,
+      workArea,
+      { width: MAIN_WINDOW_MIN_WIDTH, height: MAIN_WINDOW_MIN_HEIGHT },
+      { width: MAIN_WINDOW_HORIZONTAL_MARGIN, height: MAIN_WINDOW_VERTICAL_MARGIN },
+    );
+    const [minWidth, minHeight] = mainWindow.getMinimumSize();
+    if (minWidth !== fitted.minimum.width || minHeight !== fitted.minimum.height) {
+      mainWindow.setMinimumSize(fitted.minimum.width, fitted.minimum.height);
+    }
+    if (isMax || isMin || isFull) return;
+    const tooLarge = current.width > fitted.bounds.width + 3 || current.height > fitted.bounds.height + 3;
+    const outside = current.x < workArea.x || current.y < workArea.y
+      || current.x + current.width > workArea.x + workArea.width
+      || current.y + current.height > workArea.y + workArea.height;
+    if (tooLarge || (repositionIfOutside && outside)) {
+      mainWindow.setBounds(fitted.bounds);
+    }
+  };
+  const onDisplayMetricsChanged = () => fitToCurrentDisplay(true);
+  const onDisplayRemoved = () => fitToCurrentDisplay(true);
+  mainWindow.on('moved', () => fitToCurrentDisplay(false));
+  screen.on('display-metrics-changed', onDisplayMetricsChanged);
+  screen.on('display-removed', onDisplayRemoved);
 
   // Manejar cierre (Bandeja de sistema)
   // Primera vez: preguntar qué hacer (estilo CyberPaste) salvo elección recordada.

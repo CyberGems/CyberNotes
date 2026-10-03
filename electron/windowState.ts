@@ -1,4 +1,33 @@
 type WindowRect = { x: number; y: number; width: number; height: number };
+type WindowSize = Pick<WindowRect, 'width' | 'height'>;
+
+export function fitWindowToWorkArea(
+  desired: WindowSize,
+  workArea: WindowRect,
+  preferredMinimum: WindowSize,
+  margins: WindowSize,
+): { bounds: WindowRect; minimum: WindowSize } {
+  const horizontalMargin = Math.min(margins.width, Math.floor(Math.max(0, workArea.width - 1) / 4));
+  const verticalMargin = Math.min(margins.height, Math.floor(Math.max(0, workArea.height - 1) / 4));
+  const maxWidth = Math.max(1, workArea.width - horizontalMargin * 2);
+  const maxHeight = Math.max(1, workArea.height - verticalMargin * 2);
+  const minimum = {
+    width: Math.min(preferredMinimum.width, maxWidth),
+    height: Math.min(preferredMinimum.height, maxHeight),
+  };
+  const width = Math.min(Math.max(desired.width, minimum.width), maxWidth);
+  const height = Math.min(Math.max(desired.height, minimum.height), maxHeight);
+
+  return {
+    bounds: {
+      x: Math.round(workArea.x + (workArea.width - width) / 2),
+      y: Math.round(workArea.y + (workArea.height - height) / 2),
+      width,
+      height,
+    },
+    minimum,
+  };
+}
 
 /** Persist maximization only when the visible bounds also fill the display. */
 export function isVisiblyMaximized(isMaximized: boolean, bounds: WindowRect, workArea: WindowRect): boolean {
