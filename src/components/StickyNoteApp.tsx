@@ -328,7 +328,7 @@ export default function StickyNoteApp({ noteId }: Props) {
     canPaste: boolean;
   } | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
-  const titleMenuArmedAtRef = useRef(0);
+  const titleMenuRequestRef = useRef<{ x: number; y: number; at: number } | null>(null);
   const titleMenuRef = useRef<HTMLDivElement | null>(null);
   const [pasteNotice, setPasteNotice] = useState<'too-large' | 'failed' | null>(null);
   const [isAttention, setIsAttention] = useState(false);
@@ -909,6 +909,8 @@ export default function StickyNoteApp({ noteId }: Props) {
     if (!editor) return;
     e.preventDefault();
     e.stopPropagation();
+    titleMenuRequestRef.current = null;
+    setTitleMenu(null);
 
     const margin = 8;
     const menuWidth = 184;
@@ -917,6 +919,27 @@ export default function StickyNoteApp({ noteId }: Props) {
       x: Math.min(e.clientX, Math.max(margin, window.innerWidth - menuWidth - margin)),
       y: Math.min(e.clientY, Math.max(margin, window.innerHeight - menuHeight - margin)),
     });
+  };
+
+  const handleTitleContextMenu = (e: React.MouseEvent<HTMLInputElement>) => {
+    // Electron cancela el menú nativo y envía las sugerencias. El menú de la
+    // app se abre aquí mismo, sin depender de que llegue ese mensaje.
+    e.stopPropagation();
+    const input = e.currentTarget;
+    titleMenuRequestRef.current = { x: e.clientX, y: e.clientY, at: Date.now() };
+    setContextMenu(null);
+    setTitleMenu({
+      x: e.clientX,
+      y: e.clientY,
+      suggestions: [],
+      misspelledWord: '',
+      hasSelection: input.selectionStart !== input.selectionEnd,
+      hasContent: input.value.length > 0,
+      canPaste: false,
+    });
+    navigator.clipboard?.readText?.()
+      .then(text => setTitleMenu(menu => (menu ? { ...menu, canPaste: text.length > 0 } : menu)))
+      .catch(() => setTitleMenu(menu => (menu ? { ...menu, canPaste: true } : menu)));
   };
 
   const handleEditorMouseDownCapture = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -931,6 +954,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   // Close menus on outside click
   useEffect(() => {
     const handleClick = () => {
+      titleMenuRequestRef.current = null;
       setShowColorPicker(false);
       setShowOpacityPicker(false);
       setHoveredColor(null);
@@ -940,6 +964,7 @@ export default function StickyNoteApp({ noteId }: Props) {
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        titleMenuRequestRef.current = null;
         setContextMenu(null);
         setTitleMenu(null);
       }
@@ -952,28 +977,17 @@ export default function StickyNoteApp({ noteId }: Props) {
     };
   }, []);
 
-  // Menú del título con los datos del main (solo si el clic nació en el input).
+  // Completar el menú abierto por el input con sugerencias de Electron.
   useEffect(() => {
-    const api = window.cyberNotesAPI as any;
-    if (!api?.onContextMenuData) return;
-    return api.onContextMenuData((data: any) => {
-      if (Date.now() - titleMenuArmedAtRef.current > 250) return;
-      const input = titleInputRef.current;
-      const hasSelection = !!input && input.selectionStart !== input.selectionEnd;
-      const hasContent = (input?.value?.length ?? 0) > 0;
-      const margin = 8;
-      setTitleMenu({
-        x: Math.max(margin, Math.min(data.x ?? 0, window.innerWidth - 200 - margin)),
-        y: Math.max(margin, Math.min(data.y ?? 0, window.innerHeight - 220 - margin)),
+    return window.cyberNotesAPI.onContextMenuData((data: any) => {
+      const request = titleMenuRequestRef.current;
+      if (!request || Date.now() - request.at > 1000) return;
+      if (Math.abs(data.x - request.x) > 4 || Math.abs(data.y - request.y) > 4) return;
+      setTitleMenu(menu => menu ? {
+        ...menu,
         suggestions: data.suggestions || [],
         misspelledWord: data.misspelledWord || '',
-        hasSelection,
-        hasContent,
-        canPaste: false,
-      });
-      navigator.clipboard?.readText?.()
-        .then(text => setTitleMenu(m => (m ? { ...m, canPaste: text.length > 0 } : m)))
-        .catch(() => setTitleMenu(m => (m ? { ...m, canPaste: true } : m)));
+      } : menu);
     });
   }, []);
 
@@ -1091,11 +1105,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             maxLength={NOTE_TITLE_MAX_LENGTH}
             onChange={(e) => handleTitleChange(e.target.value)}
             onPointerDown={handleTitlePointerDown}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              titleMenuArmedAtRef.current = Date.now();
-            }}
+            onContextMenu={handleTitleContextMenu}
             placeholder={t.editor.placeholderTitle}
             style={{
               background: 'transparent',
