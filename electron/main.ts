@@ -11,7 +11,7 @@ import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyO
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
-import { isVisiblyMaximized } from './windowState';
+import { isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -1837,6 +1837,23 @@ function createWindow() {
 
   // Guardar estado al cambiar (debounce: evitar N flushes durante resize/drag)
   let windowStateTimer: ReturnType<typeof setTimeout> | null = null;
+  let initialPlacementActive = isMaximizedVal?.value !== 'true';
+  let placementTimer: ReturnType<typeof setTimeout> | null = null;
+  let placementEndTimer: ReturnType<typeof setTimeout> | null = null;
+  const correctInitialPlacement = () => {
+    if (!initialPlacementActive || !mainWindow || mainWindow.isDestroyed()
+      || !mainWindow.isVisible() || mainWindow.isMaximized()) return;
+    if (needsPlacementCorrection(mainWindow.getBounds(), winBounds)) {
+      mainWindow.setBounds(winBounds);
+    }
+  };
+  const schedulePlacementCorrection = () => {
+    if (!initialPlacementActive || placementTimer) return;
+    placementTimer = setTimeout(() => {
+      placementTimer = null;
+      correctInitialPlacement();
+    }, 0);
+  };
   const saveWindowState = (immediate = false) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -1877,10 +1894,15 @@ function createWindow() {
     windowStateTimer = setTimeout(doSave, 300);
   };
 
-  mainWindow.on('resize', () => saveWindowState(false));
-  mainWindow.on('move', () => saveWindowState(false));
+  mainWindow.on('resize', () => { schedulePlacementCorrection(); saveWindowState(false); });
+  mainWindow.on('move', () => { schedulePlacementCorrection(); saveWindowState(false); });
+  // These events are emitted for manual moves/resizes, not setBounds. Once the
+  // user changes the window, its position and size take precedence.
+  mainWindow.on('will-move', () => { initialPlacementActive = false; });
+  mainWindow.on('will-resize', () => { initialPlacementActive = false; });
   mainWindow.on('close', () => saveWindowState(true));
   mainWindow.on('maximize', () => {
+    initialPlacementActive = false;
     saveWindowState(true);
     mainWindow?.webContents.send('window:maximized-state', true);
   });
@@ -1920,12 +1942,16 @@ function createWindow() {
     }
     updateTrayMenu();
   });
-  // A second placement after the first native show handles delayed DPI sizing
-  // when Windows restores a custom size on a differently scaled display.
+  // Windows can move a restored window again after its first show on a monitor
+  // with a different scale. Correct those native move/resize events until the
+  // user interacts with the window or startup placement has settled.
   mainWindow.once('show', () => {
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
-      mainWindow.setBounds(winBounds);
-    }
+    correctInitialPlacement();
+    placementEndTimer = setTimeout(() => { initialPlacementActive = false; }, 10_000);
+  });
+  mainWindow.on('closed', () => {
+    if (placementTimer) clearTimeout(placementTimer);
+    if (placementEndTimer) clearTimeout(placementEndTimer);
   });
 
   // Manejar cierre (Bandeja de sistema)

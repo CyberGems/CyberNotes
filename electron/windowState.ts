@@ -12,3 +12,12 @@ export function isVisiblyMaximized(isMaximized: boolean, bounds: WindowRect, wor
     && Math.abs(bounds.x + bounds.width - workArea.x - workArea.width) <= edgeTolerance
     && Math.abs(bounds.y + bounds.height - workArea.y - workArea.height) <= edgeTolerance;
 }
+
+/** Ignore the one or two DIP of rounding produced by mixed display scales. */
+export function needsPlacementCorrection(actual: WindowRect, expected: WindowRect): boolean {
+  const tolerance = 3;
+  return Math.abs(actual.x - expected.x) > tolerance
+    || Math.abs(actual.y - expected.y) > tolerance
+    || Math.abs(actual.width - expected.width) > tolerance
+    || Math.abs(actual.height - expected.height) > tolerance;
+}
