@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History, Keyboard, ChevronDown } from 'lucide-react';
-import Tooltip from './Tooltip';
+import Tooltip, { TooltipShortcut } from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
 
 interface Props {
@@ -969,9 +969,9 @@ export default function TitleBar({
         </button>
         </Tooltip>
         <Tooltip placement="bottom" label={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
             <span>{closeToTray ? t('Cerrar a la bandeja', 'Close to tray') : t('Cerrar', 'Close')}</span>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 4, padding: '0 4px' }}>Alt+F4</span>
+            <TooltipShortcut>Alt+F4</TooltipShortcut>
           </span>
         }>
         <button

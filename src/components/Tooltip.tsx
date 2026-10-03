@@ -15,6 +15,44 @@ interface TooltipProps {
 
 const VIEWPORT_MARGIN = 8; // separación mínima respecto al borde de la ventana
 const GAP = 8;             // separación respecto al elemento ancla
+const SHORTCUT_PATTERN = /(?:(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta)(?:\+(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta))*\+(?:F\d{1,2}|Enter|Space|Espacio|Supr|Delete|Del|Backspace|Tab|Escape|Esc|[A-Z0-9]|,|\.)(?![A-Za-z0-9]))|\b(?:F\d{1,2}|Enter|Space|Espacio|Supr|Delete|Del|Backspace|Tab|Escape|Esc)\b/i;
+
+export function TooltipShortcut({ children }: { children: ReactNode }) {
+  return <kbd className="tooltip-shortcut-key">{children}</kbd>;
+}
+
+function formatTooltipLabel(label: ReactNode): ReactNode {
+  if (typeof label !== 'string') return label;
+
+  // Elimina los paréntesis que solo envuelven la combinación (y conserva los
+  // detalles adicionales, como el número de vista, fuera del chip).
+  const normalized = label.replace(/\(([^()]*)\)/g, (group, contents: string) => {
+    const text = contents.trim();
+    const match = SHORTCUT_PATTERN.exec(text);
+    return match?.index === 0 ? text : group;
+  });
+  const matcher = new RegExp(SHORTCUT_PATTERN.source, 'gi');
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = matcher.exec(normalized)) !== null) {
+    const prefix = normalized.slice(cursor, match.index);
+    if (prefix) parts.push(<span key={`text-${cursor}`}>{prefix.trimEnd()}</span>);
+    parts.push(
+      <TooltipShortcut key={`shortcut-${match.index}`}>
+        {match[0]}
+      </TooltipShortcut>,
+    );
+    cursor = matcher.lastIndex;
+  }
+
+  if (cursor === 0) return label;
+  if (cursor < normalized.length) {
+    parts.push(<span key={`text-${cursor}`}>{normalized.slice(cursor)}</span>);
+  }
+  return <span className="tooltip-label-with-shortcuts">{parts}</span>;
+}
 
 function clamp(value: number, min: number, max: number) {
   if (max < min) return min; // el tooltip es más grande que el espacio: prioriza el margen
@@ -160,7 +198,7 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, maxW
               animation: 'tooltipPop 0.14s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
-            {label}
+            {formatTooltipLabel(label)}
             <div style={{
               position: 'absolute',
               width: 8,

@@ -456,6 +456,26 @@ body:has(.sticky-note-window),
   height: 10px;
   flex: 0 0 10px;
 }
+.tooltip-label-with-shortcuts {
+  display: inline;
+}
+.tooltip-shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
 
 .modal-actions.is-stack {
   flex-direction: column;
