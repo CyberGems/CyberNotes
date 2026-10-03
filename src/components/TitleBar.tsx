@@ -500,7 +500,9 @@ export default function TitleBar({
           <Tooltip placement="bottom" label={t('Más opciones (Alt+M)', 'More options (Alt+M)')}>
           <button
             ref={burgerRef}
-            className="btn-icon titlebar-btn"
+            className={`btn-icon titlebar-btn${menuOpen ? ' is-open' : ''}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
             onClick={() => {
               if (!menuOpen && burgerRef.current) {
                 const r = burgerRef.current.getBoundingClientRect();

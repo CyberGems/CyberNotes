@@ -37,11 +37,12 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info,
+    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info, Sigma,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
+import CharacterMapModal from './CharacterMapModal';
 
 export interface NoteExportActions {
   markdown: () => void;
@@ -1764,7 +1765,7 @@ export type ToolbarItemId =
   | 'bullet' | 'ordered'
   | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
   | 'quote' | 'code'
-  | 'link' | 'image' | 'table' | 'find' | 'video';
+  | 'link' | 'image' | 'table' | 'find' | 'video' | 'characters';
 
 export interface ToolbarItemDef {
   id: ToolbarItemId;
@@ -1802,6 +1803,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'table', labelEs: 'Insertar tabla', labelEn: 'Insert table', icon: TableIcon },
   { id: 'video', labelEs: 'Insertar video', labelEn: 'Insert video', icon: MonitorPlay },
   { id: 'find', labelEs: 'Buscar en la nota', labelEn: 'Find in note', icon: Search },
+  { id: 'characters', labelEs: 'Mapa de caracteres', labelEn: 'Character map', icon: Sigma },
 ];
 
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
@@ -1815,7 +1817,7 @@ export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
-  ['link', 'image', 'table', 'video', 'find'],
+  ['link', 'image', 'table', 'video', 'find', 'characters'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
@@ -2318,6 +2320,7 @@ export default function NoteEditor({
         : 'inset 0 1px 3px rgba(0,0,0,0.2)';
   const [isRaw, setIsRaw] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [characterMapOpen, setCharacterMapOpen] = useState(false);
   const changeCaseCycleRef = useRef(0);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -4426,6 +4429,8 @@ export default function NoteEditor({
         );
       case 'find':
         return <ToolbarBtn {...ctxProps} active={findOpen || menuHl} onClick={() => { if (findOpen) closeFindBar(); else openFindBar(); }} title={language === 'es' ? 'Buscar en la nota (F3)' : 'Find in note (F3)'}><Search size={15} /></ToolbarBtn>;
+      case 'characters':
+        return <ToolbarBtn {...ctxProps} active={characterMapOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setCharacterMapOpen(true); }} title={language === 'es' ? 'Mapa de caracteres' : 'Character map'}><Sigma size={15} /></ToolbarBtn>;
       case 'video':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
@@ -4617,6 +4622,14 @@ export default function NoteEditor({
           language={language}
           onClose={() => setShowHistory(false)}
           onRestore={handleRestoreRevision}
+        />
+      )}
+      {characterMapOpen && editor && (
+        <CharacterMapModal
+          editor={editor}
+          language={language}
+          uiScale={uiScale}
+          onClose={() => setCharacterMapOpen(false)}
         />
       )}
       {/* Pestañas (Tabs) Premium */}
@@ -5342,9 +5355,12 @@ export default function NoteEditor({
                     const moreTipOff = !!toolbarMenu || showMoreMenu;
                     const moreTrigger = (
                       <button
+                        type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
-                        className="btn-icon toolbar-btn"
+                        className={`btn-icon toolbar-btn${showMoreMenu ? ' is-active' : ''}`}
+                        aria-haspopup="menu"
+                        aria-expanded={showMoreMenu}
                         style={{ position: 'relative' }}
                       >                      <MoreHorizontal size={15} />
                         <span style={{
