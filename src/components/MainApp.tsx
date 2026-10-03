@@ -1853,10 +1853,6 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('caps_lock_sound_scope', val);
   };
 
-  const recentNotesTop6 = useMemo(() =>
-    [...allNotes].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 6),
-  [allNotes]);
-
   const startDragSidebar = (e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -1959,6 +1955,7 @@ export default function MainApp({
 
       <TitleBar
         language={language}
+        uiScale={uiScale}
         displayName={displayName}
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
@@ -2018,7 +2015,6 @@ export default function MainApp({
               selectedFolderId={selectedFolderId}
               noteCount={allNotes.length}
               trashCount={trashCount}
-              recentNotes={recentNotesTop6}
               allNotes={allNotes}
               stickyNoteIds={openStickyIds}
               openedHistory={openedHistory}

@@ -6,6 +6,7 @@ import WelcomeGreeting from './WelcomeGreeting';
 
 interface Props {
   language?: 'es' | 'en';
+  uiScale?: number;
   displayName?: string | null;
   onLock?: () => void;
   onOpenSettings?: () => void;
@@ -66,6 +67,7 @@ function formatCapsTime(sec: number): string {
 
 export default function TitleBar({
   language = 'es',
+  uiScale = 1,
   displayName,
   onLock,
   onOpenSettings,
@@ -241,6 +243,25 @@ export default function TitleBar({
   const menuSwitch = (active: boolean) => (
     <span aria-hidden="true" className={`custom-switch is-compact ${active ? 'active' : ''}`} />
   );
+  const menuScale = Math.max(0.8, Math.min(1.5, uiScale));
+  const menuScaleVars = {
+    '--more-menu-item-font-size': `${12 * menuScale}px`,
+    '--more-menu-item-padding-y': `${8 * menuScale}px`,
+    '--more-menu-item-padding-x': `${14 * menuScale}px`,
+    '--more-menu-item-gap': `${10 * menuScale}px`,
+    '--more-menu-shortcut-font-size': `${9 * menuScale}px`,
+    '--more-menu-section-font-size': `${10 * menuScale}px`,
+    '--more-menu-section-padding-y': `${7 * menuScale}px`,
+    '--more-menu-section-padding-x': `${14 * menuScale}px`,
+    '--more-menu-icon-size': `${14 * menuScale}px`,
+    '--more-menu-switch-width': `${32 * menuScale}px`,
+    '--more-menu-switch-height': `${18 * menuScale}px`,
+    '--more-menu-switch-radius': `${9 * menuScale}px`,
+    '--more-menu-switch-inset': `${2 * menuScale}px`,
+    '--more-menu-switch-thumb': `${14 * menuScale}px`,
+    '--more-menu-switch-active-left': `${16 * menuScale}px`,
+    '--more-menu-switch-check-size': `${10 * menuScale}px`,
+  } as CSSProperties;
   const moreSectionHeader = (section: 'note' | 'export' | 'options' | 'help' | 'app', label: string) => (
     <button
       type="button"
@@ -492,23 +513,25 @@ export default function TitleBar({
           </Tooltip>
 
           {menuOpen && createPortal(
-            <div ref={menuRef} role="menu" aria-label={t('Más opciones', 'More options')} style={{
+            <div ref={menuRef} role="menu" aria-label={t('Más opciones', 'More options')} className="glass-effect more-menu" style={{
               position: 'fixed',
               top: menuPos.top,
               right: menuPos.right,
-              width: 240,
+              width: `${240 * menuScale}px`,
+              maxWidth: 'calc(100vw - 16px)',
               background: 'var(--bg-modal)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
               zIndex: 99999,
-              padding: '6px 0',
+              padding: `${6 * menuScale}px 0`,
               display: 'flex',
               flexDirection: 'column',
               maxHeight: `calc(100vh - ${menuPos.top + 8}px)`,
               boxSizing: 'border-box',
               overflowY: 'auto',
               overscrollBehavior: 'contain',
+              ...menuScaleVars,
             }}>
               {/* Donar primero (convención de la suite) + separador */}
               <button
@@ -532,7 +555,7 @@ export default function TitleBar({
                   >
                     <Save size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Guardar nota', 'Save note')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+S</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+S</span>
                   </button>
                   <button
                     className="menu-item"
@@ -543,7 +566,7 @@ export default function TitleBar({
                   >
                     <Copy size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Duplicar nota', 'Duplicate note')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+D</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+D</span>
                   </button>
                   <button
                     className="menu-item"
@@ -554,7 +577,7 @@ export default function TitleBar({
                   >
                     <Star size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{currentNotePinned ? t('Quitar de favoritos', 'Remove from favorites') : t('Marcar favorita', 'Add to favorites')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+S</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+S</span>
                   </button>
                   <button
                     className="menu-item"
@@ -565,7 +588,7 @@ export default function TitleBar({
                   >
                     <AppWindow size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{isCurrentNoteSticky ? t('Mostrar flotante', 'Show floating note') : t('Abrir flotante', 'Open floating note')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+A</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+A</span>
                   </button>
                   <button
                     className="menu-item"
@@ -576,7 +599,7 @@ export default function TitleBar({
                   >
                     <Braces size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Vista HTML', 'HTML view')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+H</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+H</span>
                   </button>
                   <button
                     className="menu-item"
@@ -587,7 +610,7 @@ export default function TitleBar({
                   >
                     <PanelLeft size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Cambiar vista', 'Switch view')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+L</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+L</span>
                   </button>
                   <button
                     className="menu-item"
@@ -598,7 +621,7 @@ export default function TitleBar({
                   >
                     <History size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Historial de versiones', 'Version history')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+R</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+R</span>
                   </button>
                   <button
                     className="menu-item"
@@ -609,7 +632,7 @@ export default function TitleBar({
                   >
                     <Trash2 size={13} style={{ color: '#f87171', opacity: 0.9 }} />
                     <span style={{ flex: 1 }}>{t('Eliminar nota', 'Delete note')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
                   </button>
                 </div>
               )}
@@ -626,7 +649,7 @@ export default function TitleBar({
                   >
                     <FileDown size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Exportar PDF', 'Export PDF')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+P</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+P</span>
                   </button>
                   <button
                     className="menu-item"
@@ -636,7 +659,7 @@ export default function TitleBar({
                   >
                     <FileText size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Markdown (.md)', 'Markdown (.md)')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+M</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+M</span>
                   </button>
                   <button
                     className="menu-item"
@@ -646,7 +669,7 @@ export default function TitleBar({
                   >
                     <FileText size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Texto plano (.txt)', 'Plain text (.txt)')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+T</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+T</span>
                   </button>
                   <button
                     className="menu-item"
@@ -656,7 +679,7 @@ export default function TitleBar({
                   >
                     <Globe size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('HTML (.html)', 'HTML (.html)')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+H</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+H</span>
                   </button>
                   <button
                     className="menu-item"
@@ -666,7 +689,7 @@ export default function TitleBar({
                   >
                     <Printer size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Imprimir', 'Print')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
                   </button>
                 </div>
               )}

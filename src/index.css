@@ -1282,16 +1282,49 @@ body:has(.sticky-note-window),
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  padding: 7px 14px 3px;
+  padding: var(--more-menu-section-padding-y, 7px) var(--more-menu-section-padding-x, 14px);
   color: var(--text-muted);
   background: transparent;
   border: 0;
-  font-size: 10px;
+  font-size: var(--more-menu-section-font-size, 10px);
   font-weight: 700;
   letter-spacing: 0.07em;
   text-align: left;
   text-transform: uppercase;
   cursor: pointer;
+}
+.more-menu .menu-item {
+  gap: var(--more-menu-item-gap, 10px) !important;
+  padding: var(--more-menu-item-padding-y, 8px) var(--more-menu-item-padding-x, 14px) !important;
+  font-size: var(--more-menu-item-font-size, 12px) !important;
+}
+.more-menu .menu-item > svg,
+.more-menu-section-toggle > svg {
+  width: var(--more-menu-icon-size, 14px) !important;
+  height: var(--more-menu-icon-size, 14px) !important;
+  flex-shrink: 0;
+}
+.more-menu .menu-item > span:not(.more-menu-shortcut) {
+  font-size: inherit !important;
+}
+.more-menu .menu-item > .more-menu-shortcut {
+  flex: none;
+  font-size: var(--more-menu-shortcut-font-size, 9px) !important;
+}
+.more-menu .custom-switch.is-compact {
+  width: var(--more-menu-switch-width, 32px);
+  min-width: var(--more-menu-switch-width, 32px);
+  height: var(--more-menu-switch-height, 18px);
+  border-radius: var(--more-menu-switch-radius, 9px);
+}
+.more-menu .custom-switch.is-compact::after {
+  left: var(--more-menu-switch-inset, 2px);
+  width: var(--more-menu-switch-thumb, 14px);
+  height: var(--more-menu-switch-thumb, 14px);
+}
+.more-menu .custom-switch.is-compact.active::after {
+  left: var(--more-menu-switch-active-left, 16px);
+  background-size: var(--more-menu-switch-check-size, 10px) var(--more-menu-switch-check-size, 10px);
 }
 .more-menu-section-toggle:hover,
 .more-menu-section-toggle:focus-visible {

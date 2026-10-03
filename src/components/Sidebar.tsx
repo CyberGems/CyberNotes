@@ -5,7 +5,7 @@ import { Folder, Note } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import {
   Plus, FolderOpen, Settings, Lock, Search, X,
-  ChevronRight, Pencil, Trash2, FileText, Clock, Inbox, Star, AppWindow,
+  ChevronRight, Pencil, Trash2, BrushCleaning, FileText, Clock, Inbox, Star, AppWindow,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { playSynthSound } from '../utils/audio';
@@ -19,7 +19,6 @@ interface Props {
   selectedFolderId: string | null;
   noteCount: number;
   trashCount: number;
-  recentNotes: Note[];
   allNotes: Note[];
   stickyNoteIds: string[];
   openedHistory?: Record<string, number>;
@@ -90,7 +89,7 @@ function timeAgo(iso: string, language: Language): string {
 }
 
 export default function Sidebar({
-  language, folders, selectedFolderId, noteCount, trashCount, recentNotes, allNotes, stickyNoteIds, onSelectNote,
+  language, folders, selectedFolderId, noteCount, trashCount, allNotes, stickyNoteIds, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
   onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, rail = false, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
@@ -398,7 +397,7 @@ export default function Sidebar({
 
   // Lista de notas recientes según la pestaña activa (Editadas / Abiertas / Creadas).
   // Memoizada: antes se reordenaba con Date parsing en cada render (cada click de tab).
-  const RECENT_LIMIT = 6;
+  const RECENT_LIMIT = 10;
   const recentForTab = useMemo(() => {
     if (recentTab === 'opened') {
       return [...allNotes]
@@ -1242,9 +1241,11 @@ export default function Sidebar({
           className="glass-effect"
           style={{
             position: 'fixed',
-            left: recentBtnRef.current.getBoundingClientRect().left,
+            left: Math.max(8, Math.min(recentBtnRef.current.getBoundingClientRect().left, window.innerWidth - Math.min(360, window.innerWidth - 16) - 8)),
             bottom: window.innerHeight - recentBtnRef.current.getBoundingClientRect().top + 4,
-            width: 360,
+            width: Math.min(360, window.innerWidth - 16),
+            maxHeight: window.innerHeight - 16,
+            boxSizing: 'border-box',
             background: 'var(--bg-modal)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
@@ -1314,8 +1315,8 @@ export default function Sidebar({
             })}
           </div>
 
-          {/* Lista de notas (altura fija para 6 elementos) */}
-          <div style={{ minHeight: 312, maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* Lista compacta para mostrar hasta 10 notas */}
+          <div style={{ minHeight: 0, maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
             {recentForTab.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '40px 10px', textAlign: 'center' }}>
                 {t.noteList.noNotes}
@@ -1325,7 +1326,7 @@ export default function Sidebar({
                 const parentFolder = note.folder_id ? folders.find(f => f.id === note.folder_id) : null;
                 return (
                 <div key={note.id}>
-                  {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />}
+                  {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '1px 0' }} />}
                   <Tooltip
                     placement="right"
                     delay={400}
@@ -1348,8 +1349,8 @@ export default function Sidebar({
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'flex-start',
-                      gap: 2,
-                      padding: '8px 12px',
+                      gap: 1,
+                      padding: '4px 10px',
                       background: 'transparent',
                       color: 'var(--text-primary)',
                       border: 'none',
@@ -1360,7 +1361,7 @@ export default function Sidebar({
                     }}
                   >
                     <span style={{
-                      fontSize: 12.5,
+                      fontSize: 11.5,
                       fontWeight: 600,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -1370,7 +1371,7 @@ export default function Sidebar({
                       {note.title || t.noteList.unnamedNote}
                     </span>
                     <span style={{
-                      fontSize: 12, color: 'var(--text-muted)',
+                      fontSize: 10.5, color: 'var(--text-muted)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       width: '100%',
                     }}>
@@ -1440,7 +1441,7 @@ export default function Sidebar({
                 transition: 'background 0.12s, color 0.12s',
               }}
             >
-              <Trash2 size={14} />
+              <BrushCleaning size={14} />
               {t.sidebar.clearHistory}
             </button>
           )}
