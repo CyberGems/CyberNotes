@@ -347,7 +347,9 @@ export default function StickyNoteApp({ noteId }: Props) {
 
   const t = TRANSLATIONS[language];
   const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
-  const previewOpacity = hoveredOpacity ?? opacity;
+  // Electron applies opacity to the entire window, including context menus.
+  // Temporarily show the window at full opacity while either menu is open.
+  const previewOpacity = contextMenu || titleMenu ? 1 : hoveredOpacity ?? opacity;
 
   /** Mismo rango que la escala del editor principal (0.8–1.5). */
   const clampZoom = (value: number): number => {

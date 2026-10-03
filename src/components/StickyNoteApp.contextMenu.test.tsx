@@ -35,7 +35,7 @@ describe('floating note title context menu', () => {
       value: {
         getSettings: vi.fn().mockResolvedValue({}),
         isSessionLocked: vi.fn().mockResolvedValue(false),
-        getStickyConfig: vi.fn().mockResolvedValue(null),
+        getStickyConfig: vi.fn().mockResolvedValue({ opacity: 0.7 }),
         getNoteById: vi.fn().mockResolvedValue(note),
         setStickyWindowChrome: vi.fn(),
         onNoteUpdated: () => () => {},
@@ -55,6 +55,7 @@ describe('floating note title context menu', () => {
       await act(async () => {
         root.render(<StickyNoteApp noteId={note.id} />);
       });
+      expect(window.cyberNotesAPI.setStickyWindowChrome).toHaveBeenLastCalledWith(note.id, 'cyber-yellow', 0.7);
       const input = container.querySelector('.sticky-note-header input');
       expect(input).not.toBeNull();
 
@@ -69,11 +70,24 @@ describe('floating note title context menu', () => {
       });
       expect(event.defaultPrevented).toBe(false);
       expect(container.querySelector('.sticky-context-menu')?.textContent).toContain('Seleccionar todo');
+      expect(window.cyberNotesAPI.setStickyWindowChrome).toHaveBeenLastCalledWith(note.id, 'cyber-yellow', 1);
 
       await act(async () => {
         sendContextData?.({ x: 30, y: 20, suggestions: ['Example'], misspelledWord: 'Exemple' });
       });
       expect(container.querySelector('.sticky-context-menu')?.textContent).toContain('Exemple');
+
+      await act(async () => window.dispatchEvent(new MouseEvent('click')));
+      expect(container.querySelector('.sticky-context-menu')).toBeNull();
+      expect(window.cyberNotesAPI.setStickyWindowChrome).toHaveBeenLastCalledWith(note.id, 'cyber-yellow', 0.7);
+
+      const editorBody = container.querySelector('.tiptap');
+      expect(editorBody).not.toBeNull();
+      await act(async () => {
+        editorBody!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+      });
+      expect(container.querySelector('.sticky-context-menu')).not.toBeNull();
+      expect(window.cyberNotesAPI.setStickyWindowChrome).toHaveBeenLastCalledWith(note.id, 'cyber-yellow', 1);
     } finally {
       await act(async () => root.unmount());
       container.remove();
