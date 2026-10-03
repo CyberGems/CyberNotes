@@ -332,6 +332,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const pasteNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const zoomPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickyToolbarScrollRef = useRef<HTMLDivElement | null>(null);
   const stickyEditorRef = useRef<Editor | null>(null);
   const zoomRef = useRef(1);
   const editorContentRef = useRef<string>('');
@@ -354,7 +355,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const saveDate = lastSavedAt ? new Date(lastSavedAt) : null;
   const hasValidSaveDate = !!saveDate && Number.isFinite(saveDate.getTime());
   const saveTime = hasValidSaveDate
-    ? saveDate!.toLocaleTimeString(language === 'es' ? 'es-CR' : 'en-US', { hour: 'numeric', minute: '2-digit' })
+    ? saveDate!.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     : '';
   const fullSaveTimestamp = hasValidSaveDate
     ? saveDate!.toLocaleString(language === 'es' ? 'es-CR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
@@ -497,6 +498,23 @@ export default function StickyNoteApp({ noteId }: Props) {
       scheduleSave();
     },
   });
+
+  // La rueda desplaza horizontalmente la barra cuando los botones no caben.
+  useEffect(() => {
+    if (loading || !editor) return;
+    const toolbar = stickyToolbarScrollRef.current;
+    if (!toolbar) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      const delta = event.deltaX || event.deltaY;
+      if (!delta || toolbar.scrollWidth <= toolbar.clientWidth) return;
+      const previousScrollLeft = toolbar.scrollLeft;
+      toolbar.scrollLeft += delta;
+      if (toolbar.scrollLeft !== previousScrollLeft) event.preventDefault();
+    };
+    toolbar.addEventListener('wheel', onWheel, { passive: false });
+    return () => toolbar.removeEventListener('wheel', onWheel);
+  }, [editor, loading]);
 
   // Ref sincronizado para los atajos de teclado (el handler se define antes).
   stickyEditorRef.current = editor;
@@ -1727,7 +1745,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             gap: 4,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <div ref={stickyToolbarScrollRef} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <StickyFooterBtn
               label={t.editor.stickyUndo}
               onClick={() => editor.chain().focus().undo().run()}
