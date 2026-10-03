@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { toNoteMeta, extractThumb, extractPreview } from './notes';
+import { toNoteMeta, extractThumb, extractPreview, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from './notes';
 import type { Note } from '../types';
 
 const baseNote: Note = {
@@ -63,5 +63,16 @@ describe('extractPreview', () => {
 
   it('returns empty string for empty input', () => {
     expect(extractPreview('')).toBe('');
+  });
+});
+
+describe('clampNoteTitle', () => {
+  it('deja intactos los títulos dentro del límite', () => {
+    expect(clampNoteTitle('Mi nota')).toBe('Mi nota');
+  });
+
+  it('recorta al máximo y tolera entradas vacías', () => {
+    expect(clampNoteTitle('a'.repeat(NOTE_TITLE_MAX_LENGTH + 50))).toHaveLength(NOTE_TITLE_MAX_LENGTH);
+    expect(clampNoteTitle('')).toBe('');
   });
 });

@@ -243,6 +243,17 @@ body:has(.sticky-note-window),
   transform: scale(0.92);
 }
 
+/* Sugerencias de la suite en Acerca de: discretas en idle (como la suite),
+   plenas en hover. */
+.suite-app-btn img {
+  opacity: 0.55;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+.suite-app-btn:hover img {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
 /* Botones de la barra del editor: hover/press por CSS en vez de motion,
    para que cada render no pague layout effects de 20+ botones animados. */
 .toolbar-btn {
@@ -685,7 +696,7 @@ body:has(.sticky-note-window),
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 11px;
-  opacity: 0.4;
+  opacity: 0.55;
   user-select: none;
   pointer-events: none;
   font-weight: 500;
@@ -707,6 +718,41 @@ body:has(.sticky-note-window),
   border-right: 1px solid var(--border);
   pointer-events: none;
   z-index: 0;
+}
+
+/* ─── Wrap Guides (↳ en el gutter para renglones de continuación) ─── */
+.wrap-guides-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+.wrap-guide-mark {
+  position: absolute;
+  left: 27px;
+  width: 12px;
+  text-align: center;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-muted);
+  opacity: 0.38;
+  user-select: none;
+}
+/* Línea vertical que conecta las flechas de un mismo bloque (estilo Kate). */
+.wrap-guide-link {
+  position: absolute;
+  left: 41px;
+  width: 1.5px;
+  background: var(--text-muted);
+  opacity: 0.3;
+  border-radius: 1px;
+  user-select: none;
 }
 
 
@@ -1880,6 +1926,27 @@ html.tab-dragging * {
 }
 .settings-general-stack > *:has(> .settings-option-copy):has(> .custom-switch) > .custom-switch {
   align-self: center;
+}
+/* Fila inline dentro de una card compuesta (p. ej. Bloq Mayús): el copy
+   cede el espacio y el switch queda dentro, centrado verticalmente.
+   Gana a las reglas de apilado de arriba por especificidad. */
+.settings-general-stack label.settings-inline-row.settings-inline-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  cursor: pointer;
+}
+.settings-general-stack label.settings-inline-row.settings-inline-row > .settings-option-copy {
+  width: auto;
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.settings-general-stack label.settings-inline-row.settings-inline-row > .custom-switch {
+  align-self: center;
+  flex-shrink: 0;
 }
 .settings-caps-lock-details {
   min-width: 0;

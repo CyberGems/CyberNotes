@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer, Copy, Star, AppWindow, Sparkles } from 'lucide-react';
+import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
@@ -43,6 +43,11 @@ interface Props {
   onDuplicateNote?: (id: string) => void;
   onToggleNoteFavorite?: (id: string) => void;
   onToggleNoteSticky?: (id: string) => void;
+  onSaveNote?: () => void;
+  onDeleteNote?: () => void;
+  onToggleRaw?: () => void;
+  onCycleLayout?: () => void;
+  onShowHistory?: () => void;
   minimizeToTray?: boolean;
   closeToTray?: boolean;
   /** Caps Lock físico activo + countdown (desde NoteEditor) */
@@ -99,6 +104,11 @@ export default function TitleBar({
   onDuplicateNote,
   onToggleNoteFavorite,
   onToggleNoteSticky,
+  onSaveNote,
+  onDeleteNote,
+  onToggleRaw,
+  onCycleLayout,
+  onShowHistory,
   minimizeToTray = false,
   closeToTray = false,
   capsStatus,
@@ -490,6 +500,16 @@ export default function TitleBar({
               display: 'flex',
               flexDirection: 'column',
             }}>
+              {/* Donar primero (convención de la suite) + separador */}
+              <button
+                className="menu-item"
+                onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate'); }}
+                style={{ padding: '4px 10px', fontSize: 11 }}
+              >
+                <Heart size={13} style={{ color: '#F43F5E', opacity: 1 }} fill="#F43F5E" stroke="none" />
+                <span>{t('Donar', 'Donate')}</span>
+              </button>
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
               {/* Recent Notes Submenu */}
               {recentNotes.length > 0 && (
                 <>
@@ -566,8 +586,20 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onSaveNote?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Control+S"
+                  >
+                    <Save size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Guardar nota', 'Save note')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+S</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
                     onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onDuplicateNote?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Control+D"
                   >
                     <Copy size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Duplicar nota', 'Duplicate note')}</span>
@@ -578,18 +610,66 @@ export default function TitleBar({
                     disabled={!currentNoteId}
                     onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteFavorite?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+S"
                   >
                     <Star size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{currentNotePinned ? t('Quitar de favoritos', 'Remove from favorites') : t('Marcar favorita', 'Add to favorites')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+S</span>
                   </button>
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
                     onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteSticky?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+A"
                   >
                     <AppWindow size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{isCurrentNoteSticky ? t('Mostrar flotante', 'Show floating note') : t('Abrir flotante', 'Open floating note')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+A</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onToggleRaw?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+H"
+                  >
+                    <Braces size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Vista HTML', 'HTML view')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+H</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onCycleLayout?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+L"
+                  >
+                    <PanelLeft size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Cambiar vista', 'Switch view')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+L</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onShowHistory?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+R"
+                  >
+                    <History size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Historial de versiones', 'Version history')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+R</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onDeleteNote?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+Delete"
+                  >
+                    <Trash2 size={13} style={{ color: '#f87171', opacity: 0.9 }} />
+                    <span style={{ flex: 1 }}>{t('Eliminar nota', 'Delete note')}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
                   </button>
                 </div>
               )}
@@ -822,14 +902,6 @@ export default function TitleBar({
                   >
                     <Globe size={13} style={{ opacity: 0.7 }} />
                     <span>{t('Sitio web', 'Website')}</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate'); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Heart size={13} style={{ color: '#F43F5E', opacity: 1 }} fill="#F43F5E" stroke="none" />
-                    <span>{t('Donar', 'Donate')}</span>
                   </button>
                   <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />
                   <button

@@ -6,6 +6,7 @@ import { Plus, Trash2, Star, Search, ArrowUpDown, ChevronDown, ChevronRight, Che
 import { motion, AnimatePresence } from 'motion/react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
+import { NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import Tooltip from './Tooltip';
 import { EnterGlyph, KeyHint, useModalKeys } from './ModalActions';
 
@@ -122,6 +123,227 @@ const OVERSCAN = 8;
 const FLOATING_GROUP_KEY = 'floating';
 const FLOATING_GROUP_READY_KEY = 'note_list_floating_group_ready';
 
+/**
+ * Botón de doble acción estilo Examinar (CyberLauncher): la zona izquierda
+ * ejecuta la acción principal y el chevron derecho despliega el flyout.
+ * Hover sobre el chevron abre; clic en el chevron fija/suelta; el flyout se
+ * cierra al salir (450ms), con Escape, resize o clic fuera.
+ */
+function DualActionButton({
+  language,
+  mainContent,
+  mainLabel,
+  mainTooltip,
+  onMain,
+  chevronTooltip,
+  menuAlign = 'left',
+  menuMinWidth = 172,
+  renderMenu,
+  mainStyle,
+}: {
+  language: Language;
+  mainContent: React.ReactNode;
+  mainLabel: string;
+  mainTooltip: React.ReactNode;
+  onMain: () => void;
+  chevronTooltip: React.ReactNode;
+  menuAlign?: 'left' | 'right';
+  menuMinWidth?: number;
+  renderMenu: (close: () => void) => React.ReactNode;
+  mainStyle?: React.CSSProperties;
+}) {
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | { top: number; right: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | null>(null);
+  const pinnedRef = useRef(false);
+  const openRef = useRef(false);
+  openRef.current = open;
+
+  const cancelClose = () => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+  const closeMenu = useCallback(() => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    pinnedRef.current = false;
+    setOpen(false);
+  }, []);
+  const scheduleClose = () => {
+    cancelClose();
+    if (pinnedRef.current) return;
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      setOpen(false);
+    }, 450);
+  };
+  const updatePos = () => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (menuAlign === 'right') {
+      setMenuPos({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+    } else {
+      const margin = 8;
+      setMenuPos({ top: rect.bottom + 4, left: Math.max(margin, Math.min(rect.left, window.innerWidth - menuMinWidth - margin)) });
+    }
+  };
+
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+  }, []);
+
+  // Cierre global: Escape, resize y clic fuera (pill y flyout).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-dual-menu]')) return;
+      if (wrapRef.current?.contains(target)) return;
+      closeMenu();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMenu();
+    };
+    const onResize = () => closeMenu();
+    window.addEventListener('mousedown', onDown, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('mousedown', onDown, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [open, closeMenu]);
+
+  const togglePin = () => {
+    cancelClose();
+    if (openRef.current && pinnedRef.current) {
+      pinnedRef.current = false;
+      setOpen(false);
+    } else {
+      updatePos();
+      pinnedRef.current = true;
+      setOpen(true);
+    }
+  };
+  const runMain = () => {
+    closeMenu();
+    onMain();
+  };
+
+  return (
+    <div
+      ref={wrapRef}
+      onMouseEnter={cancelClose}
+      onMouseLeave={scheduleClose}
+      style={{ position: 'relative', flexShrink: 0 }}
+    >
+      <div
+        role="group"
+        aria-label={mainLabel}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'stretch',
+          borderRadius: 8,
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: open ? '1px solid var(--accent)' : '1px solid var(--border)',
+          boxShadow: open ? '0 0 8px var(--accent-glow)' : 'none',
+          overflow: 'hidden',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
+        }}
+      >
+        {/* Sin tooltips encimados mientras el flyout propio está abierto
+            (misma convención que la barra del editor): el tooltip se
+            posaba sobre la primera opción del menú. */}
+        <Tooltip placement="bottom" label={open ? null : mainTooltip}>
+          <button
+            type="button"
+            onClick={runMain}
+            aria-label={mainLabel}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'var(--accent-dim)';
+              e.currentTarget.style.color = 'var(--accent-light)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--text-muted)';
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 10px', border: 'none', background: 'transparent',
+              color: 'var(--text-muted)', cursor: 'pointer',
+              fontSize: 'calc(12px * var(--ui-scale))', fontWeight: 500,
+              fontFamily: 'inherit', lineHeight: 1.2, whiteSpace: 'nowrap',
+              ...mainStyle,
+            }}
+          >
+            {mainContent}
+          </button>
+        </Tooltip>
+        <div aria-hidden="true" style={{ width: 1, background: 'var(--border)', margin: '5px 0', flexShrink: 0 }} />
+        <Tooltip placement="bottom" label={open ? null : chevronTooltip}>
+          <button
+            type="button"
+            onClick={togglePin}
+            onMouseEnter={e => {
+              cancelClose();
+              updatePos();
+              setOpen(true);
+              e.currentTarget.style.background = 'var(--accent-dim)';
+              e.currentTarget.style.color = 'var(--accent-light)';
+            }}
+            onMouseLeave={e => {
+              if (!openRef.current) {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--text-muted)';
+              }
+            }}
+            aria-label={typeof chevronTooltip === 'string' ? chevronTooltip : mainLabel}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '0 7px', border: 'none', cursor: 'pointer',
+              background: open ? 'var(--accent-dim)' : 'transparent',
+              color: open ? 'var(--accent-light)' : 'var(--text-muted)',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+          >
+            <ChevronDown size={12} style={{ opacity: 0.8, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+          </button>
+        </Tooltip>
+      </div>
+      {createPortal(
+        <AnimatePresence>
+          {open && menuPos && (
+            <motion.div
+              data-dual-menu="true"
+              role="menu"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.14 }}
+              className="new-note-split-menu"
+              style={{ ...menuPos, minWidth: menuMinWidth }}
+              onMouseEnter={cancelClose}
+              onMouseLeave={scheduleClose}
+            >
+              {renderMenu(closeMenu)}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 function NewNoteSplitButton({
   language,
   createNoteLabel,
@@ -144,56 +366,15 @@ function NewNoteSplitButton({
   onRequestCreateFolder: () => void;
 }) {
   const t = TRANSLATIONS[language];
-  const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
-  const closeTimer = useRef<number | null>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const hasExtras = showNoteOption || showFloatingOption || showFavoriteOption || showFolderOption;
+  const hasExtras = showFloatingOption || showFavoriteOption || showNoteOption || showFolderOption;
 
-  const cancelClose = () => {
-    if (closeTimer.current !== null) {
-      window.clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  };
-
-  const updatePos = () => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-  };
-
-  const openMenu = () => {
-    cancelClose();
-    updatePos();
-    setOpen(true);
-  };
-
-  const scheduleClose = () => {
-    cancelClose();
-    closeTimer.current = window.setTimeout(() => {
-      setOpen(false);
-      closeTimer.current = null;
-    }, 160);
-  };
-
-  useEffect(() => () => cancelClose(), []);
-
-  return (
-    <div
-      ref={wrapRef}
-      className="new-note-split"
-      onMouseEnter={hasExtras ? openMenu : undefined}
-      onMouseLeave={hasExtras ? scheduleClose : undefined}
-    >
+  if (!hasExtras) {
+    return (
       <button
         className="new-note-btn"
         type="button"
         onClick={() => onCreateNote()}
         aria-label={createNoteAriaLabel}
-        aria-haspopup={hasExtras ? 'menu' : undefined}
-        aria-expanded={hasExtras ? open : undefined}
         style={{
           minWidth: 96,
           justifyContent: 'center',
@@ -207,71 +388,70 @@ function NewNoteSplitButton({
       >
         <Plus size={14} style={{ flexShrink: 0 }} />
         {createNoteLabel}
-        <ChevronDown size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
       </button>
-      {createPortal(
-        <AnimatePresence>
-          {open && hasExtras && menuPos && (
-            <motion.div
-              className="new-note-split-menu"
-              role="menu"
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.14 }}
-              style={{ top: menuPos.top, right: menuPos.right }}
-              onMouseEnter={openMenu}
-              onMouseLeave={scheduleClose}
-            >
-              {showNoteOption && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="new-note-split-item"
-                  onClick={() => { onCreateNote('note'); setOpen(false); }}
-                >
-                  <FileText size={14} />
-                  {t.noteList.newNoteShort}
-                </button>
-              )}
-              {showFloatingOption && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="new-note-split-item"
-                  onClick={() => { onCreateNote('floating'); setOpen(false); }}
-                >
-                  <AppWindow size={14} />
-                  {t.noteList.newFloatingNote}
-                </button>
-              )}
-              {showFavoriteOption && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="new-note-split-item"
-                  onClick={() => { onCreateNote('favorite'); setOpen(false); }}
-                >
-                  <Star size={14} />
-                  {t.noteList.newFavoriteShort}
-                </button>
-              )}
-              {showFolderOption && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="new-note-split-item"
-                  onClick={() => { onRequestCreateFolder(); setOpen(false); }}
-                >
-                  <FolderPlus size={14} />
-                  {t.noteList.newFolderShort}
-                </button>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
+    );
+  }
+
+  return (
+    <div className="new-note-split">
+      <DualActionButton
+        language={language}
+        mainContent={<><Plus size={14} style={{ flexShrink: 0 }} />{createNoteLabel}</>}
+        mainLabel={createNoteAriaLabel}
+        mainTooltip={t.noteList.addNote}
+        onMain={() => onCreateNote()}
+        chevronTooltip={language === 'es' ? 'Más opciones para crear' : 'More create options'}
+        menuAlign="right"
+        mainStyle={{ minWidth: 96, justifyContent: 'center' }}
+        renderMenu={(close) => (
+          <>
+            {showNoteOption && (
+              <button
+                type="button"
+                role="menuitem"
+                className="new-note-split-item"
+                onClick={() => { onCreateNote('note'); close(); }}
+              >
+                <FileText size={14} />
+                {t.noteList.newNoteShort}
+              </button>
+            )}
+            {showFloatingOption && (
+              <button
+                type="button"
+                role="menuitem"
+                className="new-note-split-item"
+                onClick={() => { onCreateNote('floating'); close(); }}
+              >
+                <AppWindow size={14} />
+                {t.noteList.newFloatingNote}
+              </button>
+            )}
+            {showFavoriteOption && (
+              <button
+                type="button"
+                role="menuitem"
+                className="new-note-split-item"
+                onClick={() => { onCreateNote('favorite'); close(); }}
+              >
+                <Star size={14} />
+                {t.noteList.newFavoriteShort}
+              </button>
+            )}
+            {showFolderOption && (
+              <button
+                type="button"
+                role="menuitem"
+                className="new-note-split-item"
+                onClick={() => { onRequestCreateFolder(); close(); }}
+              >
+                <FolderPlus size={14} />
+                {t.noteList.newFolderShort}
+              </button>
+            )}
+          </>
+        )}
+      />
     </div>
   );
 }
@@ -292,7 +472,16 @@ export default function NoteList({
   const createNoteTooltip = t.noteList.addNote;
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'alpha' | 'alpha-desc'>('updated');
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
-  const [showSortMenu, setShowSortMenu] = useState(false);
+  // Orden de ciclo al pulsar la zona izquierda del botón (el chevron abre el menú).
+  const SORT_ORDER: Array<'updated' | 'created' | 'alpha' | 'alpha-desc'> = ['updated', 'created', 'alpha', 'alpha-desc'];
+  const sortLabel = sortBy === 'updated'
+    ? (language === 'es' ? 'Recientes' : 'Recent')
+    : sortBy === 'created'
+      ? (language === 'es' ? 'Creadas' : 'Created')
+      : sortBy === 'alpha' ? 'A-Z' : 'Z-A';
+  const cycleSort = useCallback(() => {
+    setSortBy(prev => SORT_ORDER[(SORT_ORDER.indexOf(prev) + 1) % SORT_ORDER.length]);
+  }, []);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, note: Note } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [isHovering, setIsHovering] = useState(false);
@@ -483,51 +672,10 @@ export default function NoteList({
     });
   }, []);
 
-  const [viewMenuOpen, setViewMenuOpen] = useState(false);
-  const [viewMenuPos, setViewMenuPos] = useState<{ top: number; left: number } | null>(null);
-  const viewBtnRef = useRef<HTMLButtonElement | null>(null);
-
   const applyViewMode = (m: ViewMode) => {
     setViewMode(m);
     void window.cyberNotesAPI?.setSetting('note_list_view_mode', m);
-    setViewMenuOpen(false);
   };
-
-  const openViewMenu = () => {
-    const el = viewBtnRef.current;
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      const MENU_W = 200;
-      const margin = 8;
-      setViewMenuPos({
-        top: rect.bottom + 4,
-        left: Math.max(margin, Math.min(rect.left, window.innerWidth - MENU_W - margin)),
-      });
-    }
-    setViewMenuOpen(true);
-  };
-
-  // Cierre del desplegable: clic fuera, resize y Escape.
-  useEffect(() => {
-    if (!viewMenuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.closest?.('[data-view-menu]')) return;
-      setViewMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setViewMenuOpen(false);
-    };
-    const onResize = () => setViewMenuOpen(false);
-    window.addEventListener('mousedown', onDown, true);
-    window.addEventListener('resize', onResize);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', onDown, true);
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [viewMenuOpen]);
 
   // Alt+V: alternar vista de la lista (mnemotecnia Vistas/Views).
   useEffect(() => {
@@ -801,7 +949,7 @@ export default function NoteList({
             folder={folder}
             isSelected={selectedNoteId === note.id}
             isContextActive={contextMenu?.note.id === note.id}
-            isStickyOpen={!isStickyFolder && !isFloatingGroup && openStickyIds.includes(note.id)}
+            isStickyOpen={openStickyIds.includes(note.id)}
             isTrash={isTrashFolder}
             onClick={() => {
               onSelectNote(note.id);
@@ -1066,34 +1214,51 @@ export default function NoteList({
             )}
             {getHeaderTitle()}
           </h2>
-          {isTrashFolder ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Tooltip placement="bottom" label={t.noteList.restoreAll}>
-                <button
-                  className="btn-icon"
-                  type="button"
-                  onClick={onRestoreAllTrash}
-                  disabled={trashCount === 0}
-                  aria-label={t.noteList.restoreAll}
-                  style={{ padding: 6, color: 'var(--accent-light)' }}
-                >
-                  <RotateCcw size={14} />
-                </button>
-              </Tooltip>
-              <Tooltip placement="bottom" label={t.noteList.emptyTrash}>
-                <button
-                  className="btn-icon"
-                  type="button"
-                  onClick={() => setShowEmptyTrashConfirm(true)}
-                  disabled={trashCount === 0}
-                  aria-label={t.noteList.emptyTrash}
-                  style={{ padding: 6, color: 'var(--danger)' }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </Tooltip>
-            </div>
-          ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {isTrashFolder && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Tooltip placement="bottom" label={t.noteList.restoreAll}>
+                  <button
+                    className="btn-icon"
+                    type="button"
+                    onClick={onRestoreAllTrash}
+                    disabled={trashCount === 0}
+                    aria-label={t.noteList.restoreAll}
+                    style={{ padding: 6, color: 'var(--accent-light)' }}
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                </Tooltip>
+                <Tooltip placement="bottom" label={t.noteList.emptyTrash}>
+                  <button
+                    className="btn-icon"
+                    type="button"
+                    onClick={() => setShowEmptyTrashConfirm(true)}
+                    disabled={trashCount === 0}
+                    aria-label={t.noteList.emptyTrash}
+                    style={{ padding: 6, color: 'var(--danger)' }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </Tooltip>
+              </div>
+            )}
+            <span style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              {sortedNotes.length} {sortedNotes.length === 1 ? (language === 'es' ? 'nota' : 'note') : (language === 'es' ? 'notas' : 'notes')}
+            </span>
+          </div>
+        </div>
+
+        {isTrashFolder && (
+          <div style={{ fontSize: 'calc(10.5px * var(--ui-scale))', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+            {t.noteList.trashRetention}
+          </div>
+        )}
+
+        {/* Fila de acciones: solo Nueva lleva etiqueta; Orden y Vista son
+            solo icono + chevron (el tooltip indica el estado actual) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!isTrashFolder && (
             <NewNoteSplitButton
               language={language}
               createNoteLabel={createNoteLabel}
@@ -1106,159 +1271,111 @@ export default function NoteList({
               onRequestCreateFolder={onRequestCreateFolder}
             />
           )}
-        </div>
-
-        {isTrashFolder && (
-          <div style={{ fontSize: 'calc(10.5px * var(--ui-scale))', color: 'var(--text-muted)', lineHeight: 1.35 }}>
-            {t.noteList.trashRetention}
-          </div>
-        )}
-
-        {/* Sort & View Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setShowSortMenu(!showSortMenu)}
-                className="btn-icon"
-                style={{ fontSize: 'calc(11px * var(--ui-scale))', gap: 4, color: 'var(--text-muted)' }}
-              >
-                <ArrowUpDown size={12} />
-                {sortBy === 'updated' 
-                  ? (language === 'es' ? 'Recientes' : 'Recent') 
-                  : sortBy === 'created' 
-                    ? (language === 'es' ? 'Creadas' : 'Created') 
-                    : sortBy === 'alpha' ? 'A-Z' : 'Z-A'}
-                <ChevronDown size={10} />
-              </button>
-              {showSortMenu && (
+          <DualActionButton
+            language={language}
+            mainContent={<ArrowUpDown size={13} />}
+            mainLabel={language === 'es' ? `Ordenar por ${sortLabel}` : `Sort by ${sortLabel}`}
+            mainTooltip={language === 'es' ? `Orden: ${sortLabel} (clic para cambiar)` : `Sort: ${sortLabel} (click to change)`}
+            onMain={cycleSort}
+            chevronTooltip={language === 'es' ? 'Elegir orden' : 'Choose sort order'}
+            menuAlign="left"
+            mainStyle={{ padding: '5px 9px' }}
+              renderMenu={(close) => (
                 <>
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={() => setShowSortMenu(false)} />
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 0, marginTop: 4,
-                    background: 'var(--bg-modal)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)', padding: 4, zIndex: 101, minWidth: 165, width: 'max-content',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                  }}>
-                    {[
-                      { id: 'updated', label: language === 'es' ? 'Actualización' : 'Modification' },
-                      { id: 'created', label: language === 'es' ? 'Creación' : 'Creation' },
-                      { id: 'alpha', label: language === 'es' ? 'Alfabético (A-Z)' : 'Alphabetical (A-Z)' },
-                      { id: 'alpha-desc', label: language === 'es' ? 'Alfabético (Z-A)' : 'Alphabetical (Z-A)' },
-                    ].map(opt => (
+                  {([
+                    { id: 'updated', label: language === 'es' ? 'Actualización' : 'Modification' },
+                    { id: 'created', label: language === 'es' ? 'Creación' : 'Creation' },
+                    { id: 'alpha', label: language === 'es' ? 'Alfabético (A-Z)' : 'Alphabetical (A-Z)' },
+                    { id: 'alpha-desc', label: language === 'es' ? 'Alfabético (Z-A)' : 'Alphabetical (Z-A)' },
+                  ] as const).map(opt => {
+                    const active = sortBy === opt.id;
+                    return (
                       <button
                         key={opt.id}
-                        onClick={() => { setSortBy(opt.id as any); setShowSortMenu(false); }}
-                        style={{
-                          width: '100%', padding: '6px 10px', textAlign: 'left', fontSize: 'calc(11.5px * var(--ui-scale))',
-                          background: sortBy === opt.id ? 'var(--accent-dim)' : 'transparent',
-                          color: sortBy === opt.id ? 'var(--accent-light)' : 'var(--text-secondary)',
-                          border: 'none', borderRadius: 4, cursor: 'pointer',
-                        }}
+                        type="button"
+                        role="menuitem"
+                        className="new-note-split-item"
+                        onClick={() => { setSortBy(opt.id); close(); }}
+                        style={active ? { color: 'var(--accent-light)', background: 'var(--accent-dim)' } : undefined}
                       >
-                        {opt.label}
+                        <span style={{ flex: 1 }}>{opt.label}</span>
+                        {active && <Check size={13} style={{ flexShrink: 0 }} />}
                       </button>
-                    ))}
-                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-                    <button
-                      onClick={() => {
-                        handleToggleGroupByDate();
-                        setShowSortMenu(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '6px 10px',
-                        textAlign: 'left',
-                        fontSize: 'calc(11.5px * var(--ui-scale))',
-                        background: 'transparent',
-                        color: groupByDate ? 'var(--accent-light)' : 'var(--text-secondary)',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                      }}
-                    >
-                      <span>{language === 'es' ? 'Agrupar por fecha' : 'Group by date'}</span>
-                      <span style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: 3,
-                        border: `1.5px solid ${groupByDate ? 'var(--accent)' : 'var(--border)'}`,
-                        background: groupByDate ? 'var(--accent)' : 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}>
-                        {groupByDate && <Check size={10} style={{ color: 'var(--bg-app)', strokeWidth: 3 }} />}
-                      </span>
-                    </button>
-                  </div>
+                    );
+                  })}
+                  <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="new-note-split-item"
+                    onClick={() => {
+                      handleToggleGroupByDate();
+                      close();
+                    }}
+                    style={{ justifyContent: 'space-between' }}
+                  >
+                    <span>{language === 'es' ? 'Agrupar por fecha' : 'Group by date'}</span>
+                    <span style={{
+                      width: 14,
+                      height: 14,
+                      borderRadius: 3,
+                      border: `1.5px solid ${groupByDate ? 'var(--accent)' : 'var(--border)'}`,
+                      background: groupByDate ? 'var(--accent)' : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      {groupByDate && <Check size={10} style={{ color: 'var(--bg-app)', strokeWidth: 3 }} />}
+                    </span>
+                  </button>
                 </>
               )}
-            </div>
+            />
 
-            <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
-
-            <Tooltip placement="bottom" label={language === 'es' ? 'Cambiar vista (Alt+V)' : 'Switch view (Alt+V)'}>
-            <button
-              ref={viewBtnRef}
-              onClick={() => (viewMenuOpen ? setViewMenuOpen(false) : openViewMenu())}
-              className="btn-icon"
-              aria-haspopup="menu"
-              aria-expanded={viewMenuOpen}
-              style={{ padding: 2, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 1 }}
-            >
-              {viewMode === 'normal'
+            <DualActionButton
+              language={language}
+              mainContent={viewMode === 'normal'
                 ? <LayoutList size={14} />
                 : viewMode === 'compact'
                   ? <StretchHorizontal size={14} />
                   : viewMode === 'dense'
                     ? <Rows3 size={14} />
                     : <LayoutGrid size={14} />}
-              <ChevronDown size={11} style={{ opacity: 0.7 }} />
-            </button>
-            </Tooltip>
-            {viewMenuOpen && viewMenuPos && createPortal(
-              <div
-                data-view-menu="true"
-                className="new-note-split-menu"
-                role="menu"
-                style={{ top: viewMenuPos.top, left: viewMenuPos.left, minWidth: 190 }}
-              >
-                {([
-                  { id: 'normal', icon: <LayoutList size={14} />, es: 'Normal', en: 'Standard' },
-                  { id: 'compact', icon: <StretchHorizontal size={14} />, es: 'Compacta', en: 'Compact' },
-                  { id: 'dense', icon: <Rows3 size={14} />, es: 'Densa', en: 'Dense' },
-                  { id: 'grid', icon: <LayoutGrid size={14} />, es: 'Tarjetas', en: 'Grid' },
-                ] as const).map((item) => {
-                  const active = viewMode === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      role="menuitem"
-                      className="new-note-split-item"
-                      onClick={() => applyViewMode(item.id)}
-                      style={active ? { color: 'var(--accent-light)', background: 'var(--accent-dim)' } : undefined}
-                    >
-                      {item.icon}
-                      <span style={{ flex: 1 }}>{language === 'es' ? item.es : item.en}</span>
-                      {active && <Check size={13} style={{ flexShrink: 0 }} />}
-                    </button>
-                  );
-                })}
-              </div>,
-              document.body
-            )}
-          </div>
-          
-          <span style={{ fontSize: 'calc(12px * var(--ui-scale))', color: 'var(--text-secondary)', fontWeight: 500 }}>
-            {sortedNotes.length} {sortedNotes.length === 1 ? (language === 'es' ? 'nota' : 'note') : (language === 'es' ? 'notas' : 'notes')}
-          </span>
+              mainLabel={language === 'es' ? 'Cambiar vista' : 'Switch view'}
+              mainTooltip={language === 'es' ? 'Cambiar vista (Alt+V, clic para alternar)' : 'Switch view (Alt+V, click to cycle)'}
+              onMain={() => handleToggleViewMode()}
+              chevronTooltip={language === 'es' ? 'Elegir vista' : 'Choose view'}
+              menuAlign="left"
+              menuMinWidth={190}
+              mainStyle={{ padding: '5px 9px' }}
+              renderMenu={(close) => (
+                <>
+                  {([
+                    { id: 'normal', icon: <LayoutList size={14} />, es: 'Normal', en: 'Standard' },
+                    { id: 'compact', icon: <StretchHorizontal size={14} />, es: 'Compacta', en: 'Compact' },
+                    { id: 'dense', icon: <Rows3 size={14} />, es: 'Densa', en: 'Dense' },
+                    { id: 'grid', icon: <LayoutGrid size={14} />, es: 'Tarjetas', en: 'Grid' },
+                  ] as const).map((item) => {
+                    const active = viewMode === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="menuitem"
+                        className="new-note-split-item"
+                        onClick={() => { applyViewMode(item.id); close(); }}
+                        style={active ? { color: 'var(--accent-light)', background: 'var(--accent-dim)' } : undefined}
+                      >
+                        {item.icon}
+                        <span style={{ flex: 1 }}>{language === 'es' ? item.es : item.en}</span>
+                        {active && <Check size={13} style={{ flexShrink: 0 }} />}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            />
         </div>
       </div>
 
@@ -1333,7 +1450,7 @@ export default function NoteList({
                                     viewMode={viewMode}
                                     isSelected={selectedNoteId === note.id}
                                     isContextActive={contextMenu?.note.id === note.id}
-                                    isStickyOpen={!isStickyFolder && !group.isFloatingGroup && openStickyIds.includes(note.id)}
+                                    isStickyOpen={openStickyIds.includes(note.id)}
                                     isTrash={isTrashFolder}
                                     onClick={() => {
                                       onSelectNote(note.id);
@@ -1372,7 +1489,7 @@ export default function NoteList({
                                 viewMode={viewMode}
                                 isSelected={selectedNoteId === note.id}
                                 isContextActive={contextMenu?.note.id === note.id}
-                                isStickyOpen={false}
+                                isStickyOpen={openStickyIds.includes(note.id)}
                                 isTrash={isTrashFolder}
                                 onClick={() => {
                                   onSelectNote(note.id);
@@ -1410,7 +1527,7 @@ export default function NoteList({
                             viewMode={viewMode}
                             isSelected={selectedNoteId === note.id}
                             isContextActive={contextMenu?.note.id === note.id}
-                            isStickyOpen={!isStickyFolder && openStickyIds.includes(note.id)}
+                            isStickyOpen={openStickyIds.includes(note.id)}
                             isTrash={isTrashFolder}
                             onClick={() => {
                               onSelectNote(note.id);
@@ -1632,6 +1749,7 @@ export default function NoteList({
               autoFocus
               type="text"
               value={renameInput}
+              maxLength={NOTE_TITLE_MAX_LENGTH}
               onChange={e => setRenameInput(e.target.value)}
               className="input"
               placeholder={language === 'es' ? 'Nombre de la nota' : 'Note name'}
@@ -1676,8 +1794,8 @@ export default function NoteList({
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                color: 'var(--danger)',
+                background: isTrashFolder ? 'rgba(239, 68, 68, 0.15)' : 'var(--accent-dim)',
+                color: isTrashFolder ? 'var(--danger)' : 'var(--accent-light)',
                 width: 42,
                 height: 42,
                 borderRadius: '50%',
@@ -1685,8 +1803,8 @@ export default function NoteList({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                boxShadow: '0 0 12px rgba(239, 68, 68, 0.2)',
+                border: isTrashFolder ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--accent)',
+                boxShadow: isTrashFolder ? '0 0 12px rgba(239, 68, 68, 0.2)' : '0 0 12px var(--accent-glow)',
               }}>
                 <Trash2 size={20} />
               </div>
@@ -1706,7 +1824,7 @@ export default function NoteList({
               background: 'var(--bg-surface)',
               padding: '12px 16px',
               borderRadius: 'var(--radius-sm)',
-              borderLeft: '3px solid var(--danger)',
+              borderLeft: isTrashFolder ? '3px solid var(--danger)' : '3px solid var(--accent)',
               fontWeight: 500,
               fontStyle: 'italic',
             }} className="truncate">
@@ -1744,7 +1862,8 @@ export default function NoteList({
               </button>
               <button
                 type="button"
-                className="modal-action-btn is-danger"
+                className={isTrashFolder ? 'modal-action-btn is-danger' : 'modal-action-btn is-save'}
+                style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 onClick={async () => {
                   if (!isTrashFolder && dontAskMoveToTrash) {
                     setSkipMoveToTrashConfirmation(true);
@@ -1851,6 +1970,10 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
     }
   }, [note.folder_id]);
 
+  // Papelera: tinte rojizo sutil para distinguirlas sin cambiar el layout.
+  const trashBaseBg = 'rgba(239, 68, 68, 0.05)';
+  const baseBg = isSelected || isContextActive ? 'var(--bg-active)' : isTrash ? trashBaseBg : 'rgba(255,255,255,0.01)';
+
   return (
     <div
       onClick={onClick}
@@ -1877,11 +2000,11 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
             : 'calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale))',
         margin: '0 calc(12px * var(--ui-scale))',
         borderRadius: 'var(--radius-md)',
-        background: isSelected || isContextActive ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
+        background: baseBg,
         cursor: isDragging ? 'grabbing' : 'pointer',
         position: 'relative',
         transition: 'all var(--transition)',
-        border: isSelected || isContextActive ? '1px solid var(--accent)' : '1px solid var(--border)',
+        border: isSelected || isContextActive ? '1px solid var(--accent)' : isTrash ? '1px solid rgba(239, 68, 68, 0.22)' : '1px solid var(--border)',
         boxShadow: isSelected || isContextActive ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
         display: 'flex',
         flexDirection: 'column',
@@ -1894,16 +2017,17 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
       }}
       onMouseLeave={e => {
-        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.01)';
+        if (!isSelected) (e.currentTarget as HTMLElement).style.background = isTrash ? trashBaseBg : 'rgba(255,255,255,0.01)';
       }}
     >
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isDense ? 4 : 6, marginBottom: viewMode === 'normal' ? 4 : 2, flexShrink: 0, paddingRight: isDense && folder ? 56 : 28 }}>
-            {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
+            {isTrash && <Trash2 size={13} color="#f87171" style={{ flexShrink: 0 }} />}
+            {note.pinned === 1 && <Star size={13} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" style={{ flexShrink: 0 }} />}
             {isStickyOpen && (
               <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
-                <AppWindow size={12} color="var(--accent-light)" style={{ flexShrink: 0 }} />
+                <AppWindow size={12} color={FILTER_COLORS.sticky} style={{ flexShrink: 0 }} />
               </Tooltip>
             )}
             <span style={{
@@ -2113,6 +2237,8 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
   const [isDragging, setIsDragging] = useState(false);
   const t = TRANSLATIONS[language];
   const thumb = note.thumb || null;
+  // Papelera: mismo tinte sutil que las filas.
+  const cardBaseBg = isSelected || isContextActive ? 'var(--bg-active)' : isTrash ? 'rgba(239, 68, 68, 0.05)' : 'rgba(255,255,255,0.01)';
 
   return (
     <div
@@ -2136,11 +2262,11 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
         aspectRatio: '1 / 1',
         boxSizing: 'border-box',
         borderRadius: 'var(--radius-md)',
-        background: isSelected || isContextActive ? 'var(--bg-active)' : 'rgba(255,255,255,0.01)',
+        background: cardBaseBg,
         cursor: isDragging ? 'grabbing' : 'pointer',
         position: 'relative',
         transition: 'all var(--transition)',
-        border: isSelected || isContextActive ? '1px solid var(--accent)' : '1px solid var(--border)',
+        border: isSelected || isContextActive ? '1px solid var(--accent)' : isTrash ? '1px solid rgba(239, 68, 68, 0.22)' : '1px solid var(--border)',
         boxShadow: isSelected || isContextActive ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
         display: 'flex',
         flexDirection: 'column',
@@ -2152,7 +2278,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
         if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
       }}
       onMouseLeave={e => {
-        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.01)';
+        if (!isSelected) (e.currentTarget as HTMLElement).style.background = isTrash ? 'rgba(239, 68, 68, 0.05)' : 'rgba(255,255,255,0.01)';
       }}
     >
       <div style={{
@@ -2196,10 +2322,11 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
           fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600,
           color: 'var(--text-primary)', lineHeight: 1.25, minWidth: 0,
         }}>
-          {note.pinned === 1 && <Star size={13} color="var(--accent-light)" fill="currentColor" stroke="none" style={{ flexShrink: 0 }} />}
+          {isTrash && <Trash2 size={13} color="#f87171" style={{ flexShrink: 0 }} />}
+          {note.pinned === 1 && <Star size={13} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" style={{ flexShrink: 0 }} />}
           {isStickyOpen && (
             <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
-              <AppWindow size={12} color="var(--accent-light)" style={{ flexShrink: 0 }} />
+              <AppWindow size={12} color={FILTER_COLORS.sticky} style={{ flexShrink: 0 }} />
             </Tooltip>
           )}
           <span style={{

@@ -327,7 +327,7 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 <Tooltip key={app.slug} label={app.pitch} placement="top">
                   <button
                     type="button"
-                    className="btn-icon"
+                    className="btn-icon suite-app-btn"
                     style={{ width: 40, height: 40, borderRadius: 10 }}
                     onClick={() => window.cyberNotesAPI.openExternal(`${SITE_URL}/apps/${app.slug}/`)}
                     aria-label={app.pitch}

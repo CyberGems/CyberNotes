@@ -5,7 +5,7 @@ import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
@@ -34,6 +34,8 @@ interface Props {
   onShowLineCounterChange: (v: boolean) => void;
   showLineGutter: boolean;
   onShowLineGutterChange: (v: boolean) => void;
+  showWrapGuides: boolean;
+  onShowWrapGuidesChange: (v: boolean) => void;
   autosaveEnabled: boolean;
   onAutosaveEnabledChange: (v: boolean) => void;
   autoUnlockCapsLock: boolean;
@@ -599,6 +601,7 @@ export default function SettingsModal({
   rememberLastNote, onRememberLastNoteChange,
   showLineCounter, onShowLineCounterChange,
   showLineGutter, onShowLineGutterChange,
+  showWrapGuides, onShowWrapGuidesChange,
   autosaveEnabled, onAutosaveEnabledChange,
   autoUnlockCapsLock, onAutoUnlockCapsLockChange,
   autoUnlockCapsLockTimeout, onAutoUnlockCapsLockTimeoutChange,
@@ -896,7 +899,7 @@ export default function SettingsModal({
 
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
-        autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+        autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
         capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
         closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk,
@@ -913,7 +916,7 @@ export default function SettingsModal({
     if (!loaded || !initialSnapshotRef.current) return;
     const currentSnapshot = JSON.stringify({
       language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
-      autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+      autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
       capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
       closeToTray, minimizeToTray, autoStart, toggleHotkey,
@@ -925,7 +928,7 @@ export default function SettingsModal({
   }, [
     loaded,
     language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
-    autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+    autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
     capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
     closeToTray, minimizeToTray, autoStart, toggleHotkey,
@@ -1719,12 +1722,7 @@ export default function SettingsModal({
                     gap: 12,
                   }}>
                     <label
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                      }}
+                      className="settings-inline-row"
                       onClick={() => onAutoUnlockCapsLockChange(!autoUnlockCapsLock)}
                     >
                       <SettingsOptionCopy icon={<Keyboard />}>
@@ -2115,6 +2113,18 @@ export default function SettingsModal({
                     </span>
                   </SettingsOptionCopy>
                   <div className={`custom-switch ${showLineGutter ? 'active' : ''}`} />
+                </label>
+
+                <label className="settings-option-row" onClick={() => onShowWrapGuidesChange(!showWrapGuides)}>
+                  <SettingsOptionCopy icon={<WrapText />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Guías de continuación de línea' : 'Wrapped line guides'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Marca los renglones de continuación en el gutter' : 'Mark wrapped continuation rows in the gutter'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showWrapGuides ? 'active' : ''}`} />
                 </label>
 
                 <label className="settings-option-row" onClick={() => onShowMinimapChange(!showMinimap)}>

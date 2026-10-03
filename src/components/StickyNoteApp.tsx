@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
 import { EditorView } from '@tiptap/pm/view';
@@ -19,8 +19,8 @@ import { STICKY_BACKGROUNDS } from '../../shared/sticky';
 import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
-import { extractPreview, extractThumb } from '../utils/notes';
-import { FontSize, FontFamily, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
+import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
+import { CustomTextStyle, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
 import Tooltip from './Tooltip';
 import GlobalErrorToast from './GlobalErrorToast';
 import {
@@ -45,6 +45,7 @@ import {
   Clipboard,
   CheckSquare,
   Trash2,
+  BookPlus,
   Blend,
   Lock,
   GripVertical,
@@ -315,6 +316,20 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  // Menú contextual del título: mismo que el de las notas (sugerencias de
+  // ortografía + edición). El main reenvía `context-menu-data` también a las
+  // flotantes; aquí solo se atiende si el clic nació en el input.
+  const [titleMenu, setTitleMenu] = useState<{
+    x: number; y: number;
+    suggestions: string[];
+    misspelledWord?: string;
+    hasSelection: boolean;
+    hasContent: boolean;
+    canPaste: boolean;
+  } | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const titleMenuArmedAtRef = useRef(0);
+  const titleMenuRef = useRef<HTMLDivElement | null>(null);
   const [pasteNotice, setPasteNotice] = useState<'too-large' | 'failed' | null>(null);
   const [isAttention, setIsAttention] = useState(false);
 
@@ -392,8 +407,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       TableCell,
       // Necesario para leer y escribir tamaños y fuentes por selección (misma
       // marca que el editor principal; sin esto, el sticky los borraría al guardar).
-      FontSize,
-      FontFamily,
+      CustomTextStyle,
       // Videos: solo lectura/escritura segura (el mini no inserta).
       VideoEmbed,
       Link.configure({ openOnClick: false }),
@@ -639,6 +653,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   }, [saveNoteImmediately]);
 
   const handleTitleChange = (val: string) => {
+    val = clampNoteTitle(val);
     setTitle(val);
     scheduleSave();
   };
@@ -921,9 +936,13 @@ export default function StickyNoteApp({ noteId }: Props) {
       setHoveredColor(null);
       setHoveredOpacity(null);
       setContextMenu(null);
+      setTitleMenu(null);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setContextMenu(null);
+      if (event.key === 'Escape') {
+        setContextMenu(null);
+        setTitleMenu(null);
+      }
     };
     window.addEventListener('click', handleClick);
     window.addEventListener('keydown', handleKeyDown);
@@ -932,6 +951,51 @@ export default function StickyNoteApp({ noteId }: Props) {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  // Menú del título con los datos del main (solo si el clic nació en el input).
+  useEffect(() => {
+    const api = window.cyberNotesAPI as any;
+    if (!api?.onContextMenuData) return;
+    return api.onContextMenuData((data: any) => {
+      if (Date.now() - titleMenuArmedAtRef.current > 250) return;
+      const input = titleInputRef.current;
+      const hasSelection = !!input && input.selectionStart !== input.selectionEnd;
+      const hasContent = (input?.value?.length ?? 0) > 0;
+      const margin = 8;
+      setTitleMenu({
+        x: Math.max(margin, Math.min(data.x ?? 0, window.innerWidth - 200 - margin)),
+        y: Math.max(margin, Math.min(data.y ?? 0, window.innerHeight - 220 - margin)),
+        suggestions: data.suggestions || [],
+        misspelledWord: data.misspelledWord || '',
+        hasSelection,
+        hasContent,
+        canPaste: false,
+      });
+      navigator.clipboard?.readText?.()
+        .then(text => setTitleMenu(m => (m ? { ...m, canPaste: text.length > 0 } : m)))
+        .catch(() => setTitleMenu(m => (m ? { ...m, canPaste: true } : m)));
+    });
+  }, []);
+
+  // Reposiciona el menú del título tras medirlo (las sugerencias varían el alto).
+  useLayoutEffect(() => {
+    if (!titleMenu) return;
+    const el = titleMenuRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let nextX = titleMenu.x;
+    let nextY = titleMenu.y;
+    if (nextX + rect.width + margin > window.innerWidth) {
+      nextX = Math.max(margin, window.innerWidth - rect.width - margin);
+    }
+    if (nextY + rect.height + margin > window.innerHeight) {
+      nextY = Math.max(margin, window.innerHeight - rect.height - margin);
+    }
+    if (nextX !== titleMenu.x || nextY !== titleMenu.y) {
+      setTitleMenu(m => (m ? { ...m, x: nextX, y: nextY } : m));
+    }
+  }, [titleMenu]);
 
   const hasEditorSelection = editor ? !editor.state.selection.empty : false;
   const hasEditorContent = editor ? editor.state.doc.content.size > 0 : false;
@@ -1022,9 +1086,16 @@ export default function StickyNoteApp({ noteId }: Props) {
           </span>
           <input
             type="text"
+            ref={titleInputRef}
             value={title}
+            maxLength={NOTE_TITLE_MAX_LENGTH}
             onChange={(e) => handleTitleChange(e.target.value)}
             onPointerDown={handleTitlePointerDown}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              titleMenuArmedAtRef.current = Date.now();
+            }}
             placeholder={t.editor.placeholderTitle}
             style={{
               background: 'transparent',
@@ -1399,6 +1470,173 @@ export default function StickyNoteApp({ noteId }: Props) {
             type="button"
             role="menuitem"
             onMouseDown={() => { setContextMenu(null); setShowDeleteConfirm(true); }}
+          >
+            <Trash2 size={13} style={{ color: '#f87171' }} />
+            <span>{t.general.delete}</span>
+          </button>
+        </div>
+      )}
+
+      {titleMenu && (
+        <div
+          ref={titleMenuRef}
+          className="sticky-context-menu"
+          role="menu"
+          style={{ left: titleMenu.x, top: titleMenu.y, minWidth: 200 }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {titleMenu.suggestions.length > 0 && (
+            <>
+              {titleMenu.suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  role="menuitem"
+                  onMouseDown={() => {
+                    (window.cyberNotesAPI as any)?.replaceMisspelling?.(suggestion);
+                    setTitleMenu(null);
+                  }}
+                >
+                  <span style={{ flex: 1, fontWeight: 600 }}>{suggestion}</span>
+                </button>
+              ))}
+              <div className="sticky-context-separator" />
+            </>
+          )}
+          {titleMenu.misspelledWord && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onMouseDown={() => {
+                  (window.cyberNotesAPI as any)?.addToDictionary?.(titleMenu.misspelledWord!);
+                  setTitleMenu(null);
+                }}
+                style={{ color: '#4ade80' }}
+              >
+                <BookPlus size={13} />
+                <span>{language === 'es' ? `Agregar "${titleMenu.misspelledWord}" al diccionario` : `Add "${titleMenu.misspelledWord}" to dictionary`}</span>
+              </button>
+              <div className="sticky-context-separator" />
+            </>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            disabled
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('undo');
+              setTitleMenu(null);
+            }}
+          >
+            <Undo2 size={13} />
+            <span>{language === 'es' ? 'Deshacer' : 'Undo'}</span>
+            <kbd>Ctrl+Z</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('redo');
+              setTitleMenu(null);
+            }}
+          >
+            <Redo2 size={13} />
+            <span>{language === 'es' ? 'Rehacer' : 'Redo'}</span>
+            <kbd>Ctrl+Y</kbd>
+          </button>
+          <div className="sticky-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasSelection}
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('cut');
+              setTitleMenu(null);
+            }}
+          >
+            <Scissors size={13} />
+            <span>{language === 'es' ? 'Cortar' : 'Cut'}</span>
+            <kbd>Ctrl+X</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasSelection}
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('copy');
+              setTitleMenu(null);
+            }}
+          >
+            <Copy size={13} />
+            <span>{language === 'es' ? 'Copiar' : 'Copy'}</span>
+            <kbd>Ctrl+C</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.canPaste}
+            onMouseDown={() => {
+              const input = titleInputRef.current;
+              setTitleMenu(null);
+              if (!input) return;
+              navigator.clipboard.readText().then(text => {
+                const start = input.selectionStart || 0;
+                const end = input.selectionEnd || 0;
+                const val = input.value;
+                handleTitleChange(val.slice(0, start) + text + val.slice(end));
+                setTimeout(() => {
+                  titleInputRef.current?.setSelectionRange(start + text.length, start + text.length);
+                }, 0);
+              }).catch(() => {
+                input.focus();
+                document.execCommand('paste');
+              });
+            }}
+          >
+            <Clipboard size={13} />
+            <span>{language === 'es' ? 'Pegar' : 'Paste'}</span>
+            <kbd>Ctrl+V</kbd>
+          </button>
+          <div className="sticky-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasContent}
+            onMouseDown={() => {
+              titleInputRef.current?.select();
+              setTitleMenu(null);
+            }}
+          >
+            <CheckSquare size={13} />
+            <span>{language === 'es' ? 'Seleccionar todo' : 'Select all'}</span>
+            <kbd>Ctrl+A</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasSelection}
+            onMouseDown={() => {
+              const input = titleInputRef.current;
+              if (input) {
+                const start = input.selectionStart || 0;
+                const end = input.selectionEnd || 0;
+                handleTitleChange(input.value.slice(0, start) + input.value.slice(end));
+                setTimeout(() => {
+                  titleInputRef.current?.setSelectionRange(start, start);
+                }, 0);
+              }
+              setTitleMenu(null);
+            }}
           >
             <Trash2 size={13} style={{ color: '#f87171' }} />
             <span>{t.general.delete}</span>

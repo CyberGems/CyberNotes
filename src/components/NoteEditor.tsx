@@ -23,7 +23,7 @@ import { Note, Folder, type NoteRevision } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { EDITOR_FONTS, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { playSynthSound } from '../utils/audio';
-import { extractPreview, extractThumb } from '../utils/notes';
+import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
@@ -50,6 +50,17 @@ export interface NoteExportActions {
   print: () => Promise<void>;
 }
 
+/** Acciones de la barra de nota para hotkeys y el menú Nota actual. */
+export interface NoteActionHandlers {
+  manualSave: () => void;
+  requestDelete: () => void;
+  toggleFavorite: () => void;
+  toggleSticky: () => void;
+  toggleRaw: () => void;
+  cycleLayout: () => void;
+  showHistory: () => void;
+}
+
 interface Props {
   language: Language;
   note: Note | null;
@@ -63,6 +74,9 @@ interface Props {
   showLineCounter?: boolean;
   showLineGutter?: boolean;
   onShowLineGutterChange?: (v: boolean) => void;
+  /** Guías ↳ en el gutter para renglones de continuación (default on). */
+  showWrapGuides?: boolean;
+  onShowWrapGuidesChange?: (v: boolean) => void;
   showWordCounter?: boolean;
   /** Barra flotante ante selección de texto (default on). */
   showFloatingToolbar?: boolean;
@@ -95,6 +109,7 @@ interface Props {
   canReopenClosedTab?: boolean;
   onReorderTabs?: (fromId: string, toId: string, edge: 'before' | 'after') => void;
   onRegisterExportActions?: (actions: NoteExportActions | null) => void;
+  onRegisterNoteActions?: (actions: NoteActionHandlers | null) => void;
   draftCache?: Record<string, { title: string; content: string }>;
   onEditDraft?: (id: string, title: string, content: string) => void | Promise<void>;
   onDiscardDraft?: (id: string) => void;
@@ -131,11 +146,13 @@ const CustomImage = Image.extend({
 });
 
 /**
- * Marca de tamaño de letra estilo Word (span con font-size). TextStyle no la
- * trae por defecto, así que se extiende con los comandos estándar set/unset.
+ * Marca combinada de tamaño + familia por selección, estilo Word (spans con
+ * font-size / font-family). Un solo `TextStyle` extendido: registrar dos
+ * extensiones con el mismo nombre 'textStyle' duplicaba el mark y TipTap
+ * avisaba `Duplicate extension names found: ['textStyle']`.
  * Se persiste sola en el HTML y el minimapa la hereda al clonar el DOM.
  */
-export const FontSize = TextStyle.extend({
+export const CustomTextStyle = TextStyle.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -145,6 +162,14 @@ export const FontSize = TextStyle.extend({
         renderHTML: (attributes) => {
           if (!attributes.fontSize) return {};
           return { style: `font-size: ${attributes.fontSize}` };
+        },
+      },
+      fontFamily: {
+        default: null,
+        parseHTML: (element) => (element as HTMLElement).style.fontFamily || null,
+        renderHTML: (attributes) => {
+          if (!attributes.fontFamily) return {};
+          return { style: `font-family: ${attributes.fontFamily}` };
         },
       },
     };
@@ -160,6 +185,14 @@ export const FontSize = TextStyle.extend({
         () =>
         ({ chain }) =>
           chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run(),
+      setFontFamily:
+        (fontFamily: string) =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontFamily }).run(),
+      unsetFontFamily:
+        () =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontFamily: null }).removeEmptyTextStyle().run(),
     };
   },
 });
@@ -176,40 +209,6 @@ declare module '@tiptap/core' {
     };
   }
 }
-
-/**
- * Marca de familia tipográfica por selección (span con font-family).
- * Aplica solo al rango seleccionado, no es el ajuste global de Ajustes.
- * Se persiste en el HTML igual que FontSize.
- */
-export const FontFamily = TextStyle.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      fontFamily: {
-        default: null,
-        parseHTML: (element) => (element as HTMLElement).style.fontFamily || null,
-        renderHTML: (attributes) => {
-          if (!attributes.fontFamily) return {};
-          return { style: `font-family: ${attributes.fontFamily}` };
-        },
-      },
-    };
-  },
-  addCommands() {
-    return {
-      ...this.parent?.(),
-      setFontFamily:
-        (fontFamily: string) =>
-        ({ chain }) =>
-          chain().setMark('textStyle', { fontFamily }).run(),
-      unsetFontFamily:
-        () =>
-        ({ chain }) =>
-          chain().setMark('textStyle', { fontFamily: null }).removeEmptyTextStyle().run(),
-    };
-  },
-});
 
 /**
  * ¿La tabla bajo el cursor tiene fila/columna de encabezado? Lee el nodo
@@ -288,6 +287,68 @@ function buildFindDecos(doc: any, query: string, current: number): DecorationSet
       Decoration.inline(r.from, r.to, { class: i === norm ? 'find-match-current' : 'find-match' }),
     ),
   );
+}
+
+/**
+ * Agrupa rects de un rango en renglones visuales por solape vertical.
+ * Los fragmentos inline (links, negritas, fuentes mixtas) del mismo renglón
+ * tienen tops levemente distintos: compararlos por igualdad creaba filas
+ * fantasma y marcas donde no hay wrap. Dos rects son el mismo renglón si se
+ * solapan al menos un 40% de la altura del menor.
+ */
+export interface VisualRow {
+  top: number;
+  bottom: number;
+  left: number;
+}
+
+export function groupVisualRows(rects: Array<{ top: number; bottom: number; left: number }>): VisualRow[] {
+  const rows: VisualRow[] = [];
+  for (const r of rects) {
+    if (!(r.bottom > r.top)) continue;
+    const h = r.bottom - r.top;
+    const hit = rows.find(q => {
+      const overlap = Math.min(q.bottom, r.bottom) - Math.max(q.top, r.top);
+      if (overlap <= 0) return false;
+      const qh = q.bottom - q.top;
+      return overlap >= Math.min(qh, h) * 0.4;
+    });
+    if (hit) {
+      hit.top = Math.min(hit.top, r.top);
+      hit.bottom = Math.max(hit.bottom, r.bottom);
+      hit.left = Math.min(hit.left, r.left);
+    } else {
+      rows.push({ top: r.top, bottom: r.bottom, left: r.left });
+    }
+  }
+  rows.sort((a, b) => a.top - b.top || a.left - b.left);
+  return rows;
+}
+
+/**
+ * Planifica las guías estilo Kate para un bloque con wrap: una flecha → por
+ * renglón de continuación y, si hay dos o más, una línea vertical que los
+ * conecta. Solo renglones que arrancan al borde del bloque (en texto
+ * centrado/derecha se omiten antes que mentir). Coordenadas ya relativas
+ * al contenido; `centerY` de cada renglón para las marcas.
+ */
+export interface WrapGuidePlan {
+  marks: number[];
+  link: { top: number; height: number } | null;
+}
+
+export function planWrapGuides(rows: VisualRow[]): WrapGuidePlan {
+  if (rows.length < 2) return { marks: [], link: null };
+  const firstLeft = rows[0].left;
+  const marks = rows
+    .slice(1)
+    .filter(row => row.left <= firstLeft + 12)
+    .map(row => (row.top + row.bottom) / 2);
+  if (marks.length === 0) return { marks, link: null };
+  const link = marks.length >= 2
+    ? { top: marks[0], height: marks[marks.length - 1] - marks[0] }
+    : null;
+  return { marks, link };
 }
 
 /**
@@ -1769,6 +1830,8 @@ export default function NoteEditor({
   showLineCounter, 
   showLineGutter = true,
   onShowLineGutterChange,
+  showWrapGuides = true,
+  onShowWrapGuidesChange,
   showWordCounter = false,
   showFloatingToolbar = true,
   hiddenToolbarIds = [],
@@ -1798,6 +1861,7 @@ export default function NoteEditor({
   canReopenClosedTab = false,
   onReorderTabs,
   onRegisterExportActions,
+  onRegisterNoteActions,
   draftCache = {},
   onEditDraft,
   onDiscardDraft,
@@ -1892,9 +1956,13 @@ export default function NoteEditor({
   showMinimapRef.current = showMinimap; // mantener actualizado para callbacks estables
   // El BubbleMenu de TipTap mueve su nodo al popper de tippy: desmontarlo
   // con el editor vivo rompe el DOM (NotFoundError). Nunca se desmonta;
-  // su visibilidad se gobierna con shouldShow mediante este ref.
+  // su visibilidad se gobierna con shouldShow mediante estos refs (incluido
+  // readOnly: al entrar a Papelera el editor pasa a solo lectura pero el
+  // menú sigue montado y simplemente deja de mostrarse).
   const showFloatingToolbarRef = useRef(showFloatingToolbar);
   showFloatingToolbarRef.current = showFloatingToolbar;
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
   const [minimapScale, setMinimapScale] = useState(0.075);
   const minimapScaleRef = useRef(0.075);
@@ -2149,13 +2217,6 @@ export default function NoteEditor({
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
   const isFloatingNote = !!(note?.id && openStickyIds.includes(note.id));
-  const identityColor = pinned && isFloatingNote
-    ? null
-    : pinned
-      ? FILTER_COLORS.favorites
-      : isFloatingNote
-        ? FILTER_COLORS.sticky
-        : null;
   const identityBorder = pinned && isFloatingNote
     ? '1px solid color-mix(in srgb, #f59e0b 55%, #22d3ee)'
     : pinned
@@ -2196,6 +2257,7 @@ export default function NoteEditor({
   const localTitleRef = useRef(localTitle);
 
   const updateTitle = (newTitle: string) => {
+    newTitle = clampNoteTitle(newTitle);
     setLocalTitle(newTitle);
     localTitleRef.current = newTitle;
     const current = currentNoteRef.current;
@@ -2778,8 +2840,7 @@ export default function NoteEditor({
       TableRow,
       TableHeader,
       TableCell,
-      FontSize,
-      FontFamily,
+      CustomTextStyle,
       VideoEmbed,
     ],
     editorProps: {
@@ -3202,6 +3263,115 @@ export default function NoteEditor({
     setTextMetrics({ words, chars, readingTime });
   };
 
+  // ─── Guías de continuación en el gutter (↳) ─────────────────────────
+  // Marca sutil de los renglones con wrap: el gutter numera por bloque
+  // (contador CSS), así que los renglones extra quedaban mudos. Se mide con
+  // rangos DOM (exacto ante headings y tamaños mixtos) y se pinta por DOM
+  // directo, sin re-renders, igual que el indicador del minimapa.
+  const wrapGuidesRef = useRef<HTMLDivElement>(null);
+  const showWrapGuidesRef = useRef(showWrapGuides);
+  showWrapGuidesRef.current = showWrapGuides;
+  const wrapGuidesRaf = useRef(0);
+
+  const paintWrapGuides = useCallback(() => {
+    const layer = wrapGuidesRef.current;
+    const liveEditor = editorRef.current;
+    if (!layer) return;
+    if (!liveEditor || liveEditor.view.isDestroyed || !showLineGutter || !showWrapGuidesRef.current || isRaw) {
+      if (layer.childNodes.length > 0) layer.innerHTML = '';
+      return;
+    }
+    try {
+      const dom = liveEditor.view.dom as HTMLElement;
+      const wrapBox = layer.getBoundingClientRect();
+      if (wrapBox.width <= 0) return;
+      const range = document.createRange();
+      // Tope generoso: al alcanzarlo se pinta parcial (nunca se congela en un
+      // pintado viejo). Con dedupe, 2500 cubre documentos larguísimos.
+      const MAX_GUIDES = 2500;
+      const markHtml: string[] = [];
+      const seenMarkY = new Set<number>();
+      const seenLink = new Set<string>();
+      // Todos los bloques de texto a cualquier profundidad (citas con varios
+      // párrafos, código, listas anidadas, celdas): los duplicados por
+      // anidado (LI+P, cita+P) caen en la misma Y y se colapsan abajo.
+      const blocks = dom.querySelectorAll(
+        'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre',
+      );
+      const collect = (el: Element) => {
+        if (!(el instanceof HTMLElement) || markHtml.length >= MAX_GUIDES) return;
+        range.selectNodeContents(el);
+        const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 1);
+        if (rects.length === 0) return;
+        // Fuera rects gigantes (imágenes/widgets inline): distorsionarían el
+        // agrupado. Mediana baja para que un solo gigante no se salve solo.
+        const heights = rects.map(r => r.bottom - r.top).sort((a, b) => a - b);
+        const median = heights[Math.floor((heights.length - 1) / 2)] || 0;
+        const plan = planWrapGuides(
+          groupVisualRows(
+            rects.filter(r => median <= 0 || (r.bottom - r.top) <= median * 2.5),
+          ).map(r => ({
+            top: r.top - wrapBox.top,
+            bottom: r.bottom - wrapBox.top,
+            left: r.left,
+          })),
+        );
+        for (const y of plan.marks) {
+          if (markHtml.length >= MAX_GUIDES) return;
+          const key = Math.round(y);
+          if (seenMarkY.has(key)) continue;
+          seenMarkY.add(key);
+          markHtml.push(`<span class="wrap-guide-mark" style="top:${y.toFixed(1)}px">→</span>`);
+        }
+        if (plan.link) {
+          if (markHtml.length >= MAX_GUIDES) return;
+          const key = `${Math.round(plan.link.top)}:${Math.round(plan.link.height)}`;
+          if (!seenLink.has(key)) {
+            seenLink.add(key);
+            markHtml.push(
+              `<span class="wrap-guide-link" style="top:${plan.link.top.toFixed(1)}px;height:${plan.link.height.toFixed(1)}px"></span>`,
+            );
+          }
+        }
+      };
+      Array.from(blocks).forEach(collect);
+      layer.innerHTML = markHtml.join('');
+    } catch {
+      /* DOM en transición: se reintenta en el próximo update */
+    }
+  }, [showLineGutter, isRaw]);
+
+  const scheduleWrapGuides = useCallback(() => {
+    if (wrapGuidesRaf.current) return;
+    wrapGuidesRaf.current = requestAnimationFrame(() => {
+      wrapGuidesRaf.current = 0;
+      paintWrapGuides();
+    });
+  }, [paintWrapGuides]);
+
+  // Recalcular ante contenido, nota, zoom, fuente, gutter y resize
+  // (imágenes que cargan cambian alturas: ResizeObserver al dom).
+  useEffect(() => {
+    scheduleWrapGuides();
+    const liveEditor = editorRef.current;
+    liveEditor?.on('update', scheduleWrapGuides);
+    const scroller = scrollContainerRef.current;
+    const ro = new ResizeObserver(scheduleWrapGuides);
+    if (scroller) ro.observe(scroller);
+    const dom = liveEditor?.view?.dom as HTMLElement | undefined;
+    if (dom) ro.observe(dom);
+    window.addEventListener('resize', scheduleWrapGuides);
+    return () => {
+      liveEditor?.off('update', scheduleWrapGuides);
+      ro.disconnect();
+      window.removeEventListener('resize', scheduleWrapGuides);
+      if (wrapGuidesRaf.current) {
+        cancelAnimationFrame(wrapGuidesRaf.current);
+        wrapGuidesRaf.current = 0;
+      }
+    };
+  }, [editor, note?.id, uiScale, editorFontId, showLineGutter, showWrapGuides, isRaw, scheduleWrapGuides]);
+
   const handleManualSave = useCallback(() => {
     if (!editor || !note || hydratedNoteIdRef.current !== note.id) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -3396,13 +3566,62 @@ export default function NoteEditor({
     }, 500);
   }, [onSave, autosaveEnabled, onEditDraft]);
 
-  const handlePin = () => {
+  const handlePin = useCallback(() => {
     if (!note) return;
     const newPinned = pinned ? 0 : 1;
     setPinned(!pinned);
     onSave({ ...note, pinned: newPinned });
     currentNoteRef.current = { ...note, pinned: newPinned };
-  };
+  }, [note, pinned, onSave]);
+
+  const toggleStickyNote = useCallback(() => {
+    if (!note?.id) return;
+    if (isFloatingNote) {
+      window.cyberNotesAPI.revealStickyNote(note.id);
+    } else {
+      window.cyberNotesAPI.openStickyNote(note.id);
+    }
+  }, [note?.id, isFloatingNote]);
+
+  // Acciones de la barra de nota expuestas a hotkeys y al menú Nota actual.
+  const noteActions = useMemo<NoteActionHandlers>(() => ({
+    manualSave: () => { void handleManualSave(); },
+    requestDelete: () => { if (note?.id) onRequestDeleteNote?.(note.id); },
+    toggleFavorite: () => handlePin(),
+    toggleSticky: () => toggleStickyNote(),
+    toggleRaw: () => setIsRaw(v => !v),
+    cycleLayout: () => onToggleLayout(),
+    showHistory: () => { if (note) setShowHistory(true); },
+  }), [handleManualSave, note, onRequestDeleteNote, handlePin, toggleStickyNote, onToggleLayout]);
+
+  useEffect(() => {
+    if (!onRegisterNoteActions) return;
+    onRegisterNoteActions(noteActions);
+    return () => onRegisterNoteActions(null);
+  }, [onRegisterNoteActions, noteActions]);
+
+  // Atajos de la barra de acciones (ver tooltips de cada botón):
+  // Alt+C caps auto, Alt+S favorita, Alt+A flotante, Alt+H HTML,
+  // Alt+L vista, Alt+R historial. Se omiten en campos, diálogos y menús.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (!note) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'c' && k !== 's' && k !== 'a' && k !== 'h' && k !== 'l' && k !== 'r') return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [role="dialog"], [role="menu"], [data-word-menu]')) return;
+      e.preventDefault();
+      if (k === 'c') onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock);
+      else if (k === 's') handlePin();
+      else if (k === 'a') toggleStickyNote();
+      else if (k === 'h') setIsRaw(v => !v);
+      else if (k === 'l') onToggleLayout();
+      else if (k === 'r') setShowHistory(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [note, autoUnlockCapsLock, onAutoUnlockCapsLockChange, handlePin, toggleStickyNote, onToggleLayout]);
 
   const convertHtmlToMarkdown = (html: string): string => {
     if (!html) return '';
@@ -3566,7 +3785,7 @@ export default function NoteEditor({
   };
 
   const exportMenu = (
-    <div style={{ position: 'relative', display: 'flex', zIndex: 40 }}>
+    <div data-export-menu="true" style={{ position: 'relative', display: 'flex', zIndex: 40 }}>
       <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota' : 'Export note'}>
         <button
           type="button"
@@ -3664,7 +3883,12 @@ export default function NoteEditor({
 
   useEffect(() => {
     if (!showExportMenu) return;
-    const close = () => setShowExportMenu(false);
+    // Ignora clics dentro del propio conjunto botón+menú: sin esto, el
+    // mousedown cerraba y el onClick del botón reabría en el mismo gesto.
+    const close = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('[data-export-menu]')) return;
+      setShowExportMenu(false);
+    };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [showExportMenu]);
@@ -4328,26 +4552,30 @@ export default function NoteEditor({
       }}>
         {/* Top glowing cyber border line */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%)', opacity: 0.6 }} />
-        {(pinned || isFloatingNote) && (
+
+        {/* Aviso de Papelera: la nota es de solo lectura (readOnly solo es
+            true en la vista de Papelera). Atenúa también el título de abajo. */}
+        {readOnly && note && (
           <div
-            aria-hidden="true"
+            role="status"
             style={{
-              position: 'absolute',
-              left: 0,
-              top: 14,
-              bottom: 14,
-              width: 3,
-              borderRadius: 2,
-              background: pinned && isFloatingNote
-                ? 'linear-gradient(180deg, #f59e0b 0%, #22d3ee 100%)'
-                : (identityColor || FILTER_COLORS.favorites),
-              boxShadow: pinned && isFloatingNote
-                ? '0 0 10px rgba(245, 158, 11, 0.35), 0 0 10px rgba(34, 211, 238, 0.28)'
-                : `0 0 10px ${identityColor}88`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '7px 12px',
+              marginBottom: 10,
+              borderRadius: 8,
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              fontSize: 'calc(12px * var(--ui-scale))',
+              color: '#fca5a5',
             }}
-          />
+          >
+            <Trash2 size={13} style={{ flexShrink: 0 }} />
+            <span>{t.noteList.trashReadOnly}</span>
+          </div>
         )}
-        
+
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
           {showBackButton && (
             <Tooltip placement="bottom" label={language === 'es' ? 'Atrás' : 'Back'}>
@@ -4415,6 +4643,7 @@ export default function NoteEditor({
               }}
               placeholder={t.editor.placeholderTitle}
               className="title-input"
+              maxLength={NOTE_TITLE_MAX_LENGTH}
               style={{
                 width: '100%',
                 fontSize: 'calc(26px * var(--ui-scale))',
@@ -4423,6 +4652,7 @@ export default function NoteEditor({
                 border: identityBorder,
                 outline: 'none',
                 color: 'var(--text-primary)',
+                opacity: readOnly ? 0.6 : 1,
                 marginBottom: 4,
                 letterSpacing: '-0.02em',
                 padding: '8px 16px',
@@ -4509,11 +4739,7 @@ export default function NoteEditor({
             {/* Grupo 1: Estado y Marcadores (Bloq Mayús, Favorito) */}
             <Tooltip
               placement="bottom"
-              label={
-                autoUnlockCapsLock
-                  ? t.editor.capsLockAutoOn
-                  : t.editor.capsLockAutoOff
-              }
+              label={language === 'es' ? 'Mayús auto (Alt+C)' : 'Auto Caps (Alt+C)'}
             >
             <button
               type="button"
@@ -4550,7 +4776,7 @@ export default function NoteEditor({
             </Tooltip>
 
             {/* Favorite */}
-            <Tooltip placement="bottom" label={pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}>
+            <Tooltip placement="bottom" label={pinned ? (language === 'es' ? 'Quitar de favoritos (Alt+S)' : 'Remove from favorites (Alt+S)') : (language === 'es' ? 'Marcar favorito (Alt+S)' : 'Add to favorites (Alt+S)')}>
             <button
               type="button"
               onClick={handlePin}
@@ -4577,17 +4803,10 @@ export default function NoteEditor({
             </Tooltip>
 
             {/* Abrir / mostrar nota flotante */}
-            <Tooltip placement="bottom" label={isFloatingNote ? t.noteList.showFloatingNote : t.noteList.openSticky}>
+            <Tooltip placement="bottom" label={`${isFloatingNote ? t.noteList.showFloatingNote : t.noteList.openSticky} (Alt+A)`}>
               <button
                 type="button"
-                onClick={() => {
-                  if (!note?.id) return;
-                  if (isFloatingNote) {
-                    window.cyberNotesAPI.revealStickyNote(note.id);
-                  } else {
-                    window.cyberNotesAPI.openStickyNote(note.id);
-                  }
-                }}
+                onClick={toggleStickyNote}
                 style={{
                   ...noteActionBtnStyle(isFloatingNote),
                   ...(isFloatingNote ? {
@@ -4634,7 +4853,7 @@ export default function NoteEditor({
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
 
             {/* Grupo 2: Vistas y Edición (HTML, Columnas) */}
-            <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Ver código fuente)' : 'HTML View (Source code)'}>
+            <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Alt+H)' : 'HTML view (Alt+H)'}>
             <button
               type="button"
               onClick={() => setIsRaw(!isRaw)}
@@ -4653,7 +4872,7 @@ export default function NoteEditor({
             </Tooltip>
 
             {/* Cambiar vista */}
-            <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Actual: ${layoutMode} columnas)` : `Change view (Current: ${layoutMode} columns)`}>
+            <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Alt+L, actual: ${layoutMode})` : `Switch view (Alt+L, current: ${layoutMode})`}>
             <button
               type="button"
               onClick={onToggleLayout}
@@ -4674,7 +4893,7 @@ export default function NoteEditor({
             {exportMenu}
 
             {/* Historial de versiones */}
-            <Tooltip placement="bottom" label={language === 'es' ? 'Historial de versiones' : 'Version history'}>
+            <Tooltip placement="bottom" label={language === 'es' ? 'Historial de versiones (Alt+R)' : 'Version history (Alt+R)'}>
             <button
               type="button"
               onClick={() => setShowHistory(true)}
@@ -4880,12 +5099,16 @@ export default function NoteEditor({
         {/* Barra flotante de formato (estilo Word): solo ante selección de
             texto. Convive con la barra fija y el menú de click derecho.
             Los desplegables de fuente/tamaño usan portal con z-index
-            superior, así que la tapan sin necesidad de desmontarla. */}
-        {editor && !readOnly && (
+            superior, así que la tapan sin necesidad de desmontarla.
+            OJO: siempre montada mientras haya editor (también en readOnly /
+            Papelera): tippy mueve su nodo fuera del árbol React y desmontarla
+            lanza NotFoundError en removeChild. Se oculta vía shouldShow. */}
+        {editor && (
           <BubbleMenu
             editor={editor}
             tippyOptions={{ placement: 'top', offset: [0, 8], arrow: false }}
             shouldShow={({ editor: e, state }) => {
+              if (readOnlyRef.current) return false;
               if (!showFloatingToolbarRef.current) return false;
               if (!e.isEditable) return false;
               const { selection } = state;
@@ -5176,6 +5399,12 @@ export default function NoteEditor({
               }}
             />
           </Tooltip>
+        )}
+
+        {/* Capa de guías de continuación (↳) del gutter: la pinta
+            paintWrapGuides por DOM directo y se desplaza con el contenido. */}
+        {showLineGutter && (
+          <div ref={wrapGuidesRef} aria-hidden="true" className="wrap-guides-layer" />
         )}
 
         <div 
@@ -5477,6 +5706,26 @@ export default function NoteEditor({
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
             >
               {language === 'es' ? 'Ocultar barra de líneas' : 'Hide line numbers'}
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onShowWrapGuidesChange?.(!showWrapGuides);
+                setGutterMenu(null);
+              }}
+              style={{
+                textAlign: 'left', padding: '6px 10px', fontSize: 13,
+                background: 'transparent', border: 'none', borderRadius: 4,
+                color: 'var(--text-primary)', cursor: 'pointer',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              {showWrapGuides
+                ? (language === 'es' ? 'Ocultar guías de continuación' : 'Hide wrap guides')
+                : (language === 'es' ? 'Mostrar guías de continuación' : 'Show wrap guides')}
             </button>
           </div>
         </>,

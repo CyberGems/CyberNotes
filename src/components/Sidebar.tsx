@@ -706,9 +706,7 @@ export default function Sidebar({
               ? activeDropTargetId === 'all'
                 ? '1px solid var(--accent)'
                 : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
-              : selectedFolderId === null && !searchQuery
-                ? '1px solid var(--accent)'
-                : '1px solid transparent',
+              : '1px solid transparent',
             background: isNoteDragging && activeDropTargetId === 'all'
               ? 'var(--accent-dim)'
               : selectedFolderId === null && !searchQuery
@@ -728,16 +726,13 @@ export default function Sidebar({
             position: 'relative',
             boxShadow: isNoteDragging && activeDropTargetId === 'all'
               ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
-              : selectedFolderId === null && !searchQuery
-                ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
-                : 'none',
+              : 'none',
             transform: isNoteDragging && activeDropTargetId === 'all' ? 'translateX(4px) scale(1.01)' : 'none',
           }}
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === null && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -793,8 +788,7 @@ export default function Sidebar({
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'favorites' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -858,8 +852,7 @@ export default function Sidebar({
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'sticky' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -920,9 +913,7 @@ export default function Sidebar({
               ? activeDropTargetId === 'floating'
                 ? '1px solid var(--accent)'
                 : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
-              : selectedFolderId === 'floating' && !searchQuery
-                ? '1px solid var(--accent)'
-                : '1px solid transparent',
+              : '1px solid transparent',
             background: isNoteDragging && activeDropTargetId === 'floating'
               ? 'var(--accent-dim)'
               : selectedFolderId === 'floating' && !searchQuery
@@ -942,16 +933,13 @@ export default function Sidebar({
             position: 'relative',
             boxShadow: isNoteDragging && activeDropTargetId === 'floating'
               ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
-              : selectedFolderId === 'floating' && !searchQuery
-                ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
-                : 'none',
+              : 'none',
             transform: isNoteDragging && activeDropTargetId === 'floating' ? 'translateX(4px) scale(1.01)' : 'none',
           }}
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'floating' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -1007,8 +995,7 @@ export default function Sidebar({
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'trash' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 },
             },

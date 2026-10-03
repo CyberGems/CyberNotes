@@ -1109,6 +1109,22 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   win.webContents.once('dom-ready', revealStickyWindow);
   win.once('ready-to-show', revealStickyWindow);
 
+  // Mismo menú contextual del título que la ventana principal: se reenvían
+  // los datos (sugerencias de ortografía) al renderer de la flotante. El
+  // cuerpo conserva su propio menú (lo pinta el renderer al recibir esto).
+  win.webContents.on('context-menu', (event, params) => {
+    if (win.isDestroyed()) return;
+    event.preventDefault();
+    win.webContents.send('context-menu-data', {
+      x: params.x,
+      y: params.y,
+      suggestions: params.dictionarySuggestions,
+      misspelledWord: params.misspelledWord,
+      linkURL: params.linkURL,
+      imageSrc: null,
+    });
+  });
+
   if (isDev) {
     win.loadURL(getDevRendererUrl({ sticky: noteId }));
   } else {
@@ -2053,7 +2069,9 @@ ipcMain.handle('open-dev-tools', () => {
 ipcMain.handle('open-data-folder', () => shell.openPath(userDataPath));
 ipcMain.handle('open-logs-folder', () => shell.openPath(path.join(userDataPath, 'logs')));
 ipcMain.handle('log:renderer-error', (_e: any, message: string) => logRendererError(message));
-ipcMain.handle('replace-misspelling', (_e: any, word: string) => mainWindow?.webContents.replaceMisspelling(word));
+ipcMain.handle('replace-misspelling', (e: any, word: string) =>
+  // En la ventana que lo pide (principal o flotante), no siempre la principal.
+  (e.sender as any)?.replaceMisspelling?.(word));
 ipcMain.handle('add-to-dictionary', (_e: any, word: string) => {
   if (typeof word !== 'string') return false;
   const clean = word.trim().slice(0, 100);

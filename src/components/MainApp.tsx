@@ -5,7 +5,7 @@ import { EditorFontId, applyEditorFont, DEFAULT_EDITOR_FONT } from '../fonts';
 import TitleBar from './TitleBar';
 import Sidebar from './Sidebar';
 import NoteList from './NoteList';
-import NoteEditor, { type NoteExportActions, isToolbarItemId } from './NoteEditor';
+import NoteEditor, { type NoteExportActions, type NoteActionHandlers, isToolbarItemId } from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
 import TrayPinModal from './TrayPinModal';
@@ -14,7 +14,7 @@ import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayS
 import { Download, Power, X } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
-import { toNoteMeta, extractThumb } from '../utils/notes';
+import { toNoteMeta, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabSwitchStart, tabSwitchResolve } from '../utils/tabPerf';
 import UpdaterBanner from './UpdaterBanner';
 import { FILTER_COLORS } from './FolderIcon';
@@ -238,6 +238,7 @@ export default function MainApp({
   const [closeToTray, setCloseToTray] = useState(false);
   const [showLineCounter, setShowLineCounter] = useState(false);
   const [showLineGutter, setShowLineGutter] = useState(true);
+  const [showWrapGuides, setShowWrapGuides] = useState(true);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [autoUnlockCapsLock, setAutoUnlockCapsLock] = useState(true);
   const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(5);
@@ -286,6 +287,11 @@ export default function MainApp({
 
   const registerEditorExportActions = useCallback((actions: NoteExportActions | null) => {
     editorExportActionsRef.current = actions;
+  }, []);
+
+  const noteActionsRef = useRef<NoteActionHandlers | null>(null);
+  const registerNoteActions = useCallback((actions: NoteActionHandlers | null) => {
+    noteActionsRef.current = actions;
   }, []);
 
   useEffect(() => {
@@ -562,7 +568,7 @@ export default function MainApp({
     await loadDrafts();
     const s = await window.cyberNotesAPI.getSettings([
       'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity', 'auto_lock_minutes',
-      'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
+      'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'show_wrap_guides', 'autosave_enabled',
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
       'show_word_counter', 'show_floating_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
@@ -581,6 +587,8 @@ export default function MainApp({
 
     if (s.show_line_gutter === null) setShowLineGutter(true);
     else setShowLineGutter(s.show_line_gutter === 'true');
+    if (s.show_wrap_guides === null) setShowWrapGuides(true);
+    else setShowWrapGuides(s.show_wrap_guides === 'true');
     setShowLineCounter(s.show_line_counter === 'true');
     setAutosaveEnabled(s.autosave_enabled === 'true');
     setConfirmLeaveDismissed(s.confirm_leave_note_dismissed === 'true');
@@ -934,6 +942,7 @@ export default function MainApp({
   const handleRenameNote = async (id: string, title: string) => {
     const note = allNotes.find(n => n.id === id);
     if (!note) return;
+    title = clampNoteTitle(title);
     
     // Si la nota posee borrador en caché, actualizamos el título del borrador
     if (draftCache[id]) {
@@ -1070,7 +1079,7 @@ export default function MainApp({
     const copy: Note = {
       id: window.crypto.randomUUID(),
       folder_id: full?.folder_id ?? meta.folder_id,
-      title: `${baseTitle} ${language === 'es' ? '(copia)' : '(copy)'}`.slice(0, 500),
+      title: `${baseTitle} ${language === 'es' ? '(copia)' : '(copy)'}`.slice(0, NOTE_TITLE_MAX_LENGTH),
       content: full?.content ?? '',
       preview: full?.preview ?? meta.preview ?? '',
       thumb: full?.thumb ?? meta.thumb ?? '',
@@ -1797,6 +1806,11 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('show_line_gutter', v.toString());
   };
 
+  const handleShowWrapGuidesChange = async (v: boolean) => {
+    setShowWrapGuides(v);
+    await window.cyberNotesAPI.setSetting('show_wrap_guides', v.toString());
+  };
+
   const handleShowFloatingToolbarChange = async (v: boolean) => {
     setShowFloatingToolbar(v);
     await window.cyberNotesAPI.setSetting('show_floating_toolbar', v.toString());
@@ -1969,6 +1983,11 @@ export default function MainApp({
         onDuplicateNote={handleDuplicateNote}
         onToggleNoteFavorite={handleToggleSelectedFavorite}
         onToggleNoteSticky={handleToggleSelectedSticky}
+        onSaveNote={() => noteActionsRef.current?.manualSave()}
+        onDeleteNote={() => noteActionsRef.current?.requestDelete()}
+        onToggleRaw={() => noteActionsRef.current?.toggleRaw()}
+        onCycleLayout={() => noteActionsRef.current?.cycleLayout()}
+        onShowHistory={() => noteActionsRef.current?.showHistory()}
         recentNotes={recentNotesTop10}
         onClearRecent={async () => {
           const now = Date.now().toString();
@@ -2154,6 +2173,7 @@ export default function MainApp({
           canReopenClosedTab={closedTabHistory.length > 0}
           onReorderTabs={handleReorderTabs}
           onRegisterExportActions={registerEditorExportActions}
+          onRegisterNoteActions={registerNoteActions}
           draftCache={draftCache}
           onEditDraft={handleEditDraft}
           onDiscardDraft={handleDiscardDraft}
@@ -2165,6 +2185,8 @@ export default function MainApp({
           onShowMinimapChange={handleShowMinimapChange}
           showLineGutter={showLineGutter}
           onShowLineGutterChange={handleShowLineGutterChange}
+          showWrapGuides={showWrapGuides}
+          onShowWrapGuidesChange={handleShowWrapGuidesChange}
           showWordCounter={showWordCounter}
           showFloatingToolbar={showFloatingToolbar}
           hiddenToolbarIds={hiddenToolbarIds}
@@ -2198,6 +2220,8 @@ export default function MainApp({
           onShowLineCounterChange={handleShowLineCounterChange}
           showLineGutter={showLineGutter}
           onShowLineGutterChange={handleShowLineGutterChange}
+          showWrapGuides={showWrapGuides}
+          onShowWrapGuidesChange={handleShowWrapGuidesChange}
           autosaveEnabled={autosaveEnabled}
           onAutosaveEnabledChange={handleAutosaveEnabledChange}
           autoUnlockCapsLock={autoUnlockCapsLock}
