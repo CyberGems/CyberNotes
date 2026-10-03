@@ -1738,6 +1738,8 @@ ipcMain.on('tray-menu-ready', (_event, rect) => {
 
 const MAIN_WINDOW_MIN_WIDTH = 840;
 const MAIN_WINDOW_MIN_HEIGHT = 560;
+const MAIN_WINDOW_HORIZONTAL_MARGIN = 48;
+const MAIN_WINDOW_VERTICAL_MARGIN = 16;
 
 function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
   width: number;
@@ -1788,8 +1790,8 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
   // Restaurada siempre centrada en su pantalla: evita ventanas a caballo
   // entre monitores con distinta escala.
   const wa = target.workArea;
-  width = Math.min(Math.max(width, MAIN_WINDOW_MIN_WIDTH), Math.max(MAIN_WINDOW_MIN_WIDTH, wa.width - 32));
-  height = Math.min(Math.max(height, MAIN_WINDOW_MIN_HEIGHT), Math.max(MAIN_WINDOW_MIN_HEIGHT, wa.height - 32));
+  width = Math.min(Math.max(width, MAIN_WINDOW_MIN_WIDTH), Math.max(MAIN_WINDOW_MIN_WIDTH, wa.width - MAIN_WINDOW_HORIZONTAL_MARGIN * 2));
+  height = Math.min(Math.max(height, MAIN_WINDOW_MIN_HEIGHT), Math.max(MAIN_WINDOW_MIN_HEIGHT, wa.height - MAIN_WINDOW_VERTICAL_MARGIN * 2));
   return {
     width,
     height,
@@ -1916,6 +1918,13 @@ function createWindow() {
       mainWindow?.webContents.send('session:force-lock');
     }
     updateTrayMenu();
+  });
+  // A second placement after the first native show handles delayed DPI sizing
+  // when Windows restores a custom size on a differently scaled display.
+  mainWindow.once('show', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
+      mainWindow.setBounds(winBounds);
+    }
   });
 
   // Manejar cierre (Bandeja de sistema)
