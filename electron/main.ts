@@ -2580,7 +2580,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'auto_lock_minutes', 'auto_check_updates',
   'last_note_id', 'open_note_ids', 'opened_history', 'recent_cleared_at',
   'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity',
-  'remember_last_note', 'minimize_to_tray', 'close_to_tray',
+  'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'close_choice_remembered',
   'show_line_counter', 'show_line_gutter', 'show_word_counter', 'show_minimap',
   'autosave_enabled', 'confirm_leave_note_dismissed', 'confirm_move_note_to_trash_dismissed',
   'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',

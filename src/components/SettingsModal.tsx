@@ -73,6 +73,7 @@ const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
 const DISMISSIBLE_CONFIRMATION_KEYS = [
   'confirm_move_note_to_trash_dismissed',
   'confirm_leave_note_dismissed',
+  'close_choice_remembered',
 ] as const;
 
 type SettingsIconTone = 'accent' | 'warning' | 'danger' | 'success';
@@ -1552,8 +1553,8 @@ export default function SettingsModal({
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {language === 'es'
-                          ? 'Vuelve a mostrar las confirmaciones que marcaste como no mostrar más'
-                          : 'Show again the confirmations you chose not to display'}
+                          ? 'Vuelve a mostrar las confirmaciones omitidas y la elección al cerrar'
+                          : 'Show dismissed confirmations and the close-window choice again'}
                       </span>
                     </SettingsOptionCopy>
                     <button
