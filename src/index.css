@@ -2402,6 +2402,12 @@ body.sticky-is-dragging * {
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   border-radius: 10px;
 }
+.character-map-pin.is-active {
+  color: var(--accent-light);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .character-map-body {
   display: flex;
   flex-direction: column;
@@ -2565,6 +2571,76 @@ body.sticky-is-dragging * {
 }
 .character-map-grid button.is-inserted {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 60%, transparent);
+}
+.character-map-grid button.is-batch-selected {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 54%, transparent);
+}
+.character-map-batch-row {
+  min-width: 0;
+  min-height: calc(40px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 3px 5px 3px 11px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.character-map-batch-row:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.character-map-batch-row input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: calc(16px * var(--ui-scale));
+  letter-spacing: 0.02em;
+}
+.character-map-batch-row input::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: calc(11px * var(--ui-scale));
+  letter-spacing: 0;
+  opacity: 0.8;
+}
+.character-map-copy-button {
+  flex: 0 0 auto;
+  font-size: calc(11px * var(--ui-scale));
+  white-space: nowrap;
+}
+.character-map-add-button {
+  min-height: calc(30px * var(--ui-scale));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 0 calc(9px * var(--ui-scale));
+  color: var(--accent-light);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, var(--border));
+  border-radius: 7px;
+  font: inherit;
+  font-size: calc(10.5px * var(--ui-scale));
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+.character-map-add-button:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  transform: translateY(-1px);
+}
+.character-map-add-button:active {
+  transform: translateY(0) scale(0.98);
 }
 .character-map-empty {
   grid-column: 1 / -1;
