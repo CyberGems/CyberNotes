@@ -7,7 +7,7 @@ import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
 import { initUpdater, setAutoUpdate } from './updater';
 import { initLogger, writeLog, logRendererError } from './logger';
-import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId } from '../shared/sticky';
+import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
@@ -843,20 +843,13 @@ function clampStickySize(width: number, height: number, maxWidth: number, maxHei
   };
 }
 
-function clampStickyWindowOpacity(value: number): number {
-  const bounded = Math.min(1, Math.max(0.1, value));
-  return [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1].reduce((closest, option) => (
-    Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
-  ), 0.9);
-}
-
 function applyStickyWindowChrome(win: BrowserWindow, color?: string, opacity?: number): void {
   if (win.isDestroyed()) return;
   if (color) {
     win.setBackgroundColor(STICKY_BACKGROUNDS[asStickyColorId(color)]);
   }
   if (typeof opacity === 'number' && Number.isFinite(opacity)) {
-    win.setOpacity(clampStickyWindowOpacity(opacity));
+    win.setOpacity(normalizeStickyOpacity(opacity));
   }
 }
 
@@ -1201,7 +1194,7 @@ function getStickyConfig(noteId: string) {
   const row = queryGet('SELECT color, opacity, pinned_top, zoom FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
     color: row?.color || 'cyber-yellow',
-    opacity: clampStickyWindowOpacity(readNumericSetting(row?.opacity, 0.9)),
+    opacity: normalizeStickyOpacity(readNumericSetting(row?.opacity, 0.9)),
     pinned_top: row ? row.pinned_top !== 0 : true,
     zoom: clampStickyZoom(row?.zoom ?? 1.0),
   };
@@ -1210,7 +1203,7 @@ function getStickyConfig(noteId: string) {
 function saveStickyConfig(noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean; zoom?: number }) {
   const current = getStickyConfig(noteId);
   const color = config.color !== undefined ? config.color : current.color;
-  const opacity = config.opacity !== undefined ? config.opacity : current.opacity;
+  const opacity = normalizeStickyOpacity(config.opacity !== undefined ? config.opacity : current.opacity);
   const pinnedTop = config.pinned_top !== undefined ? (config.pinned_top ? 1 : 0) : (current.pinned_top ? 1 : 0);
   const zoom = config.zoom !== undefined ? clampStickyZoom(config.zoom) : current.zoom;
 

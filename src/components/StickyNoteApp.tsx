@@ -15,7 +15,7 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Note, ThemeId } from '../types';
 import type { StickyColorId } from '../../shared/sticky';
-import { STICKY_BACKGROUNDS } from '../../shared/sticky';
+import { DEFAULT_STICKY_OPACITY, STICKY_BACKGROUNDS, STICKY_OPACITY_OPTIONS, normalizeStickyOpacity } from '../../shared/sticky';
 import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
@@ -151,16 +151,6 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     border: 'rgba(163, 230, 53, 0.35)',
     headerBg: '#1c2a0c',
   },
-};
-
-const DEFAULT_STICKY_OPACITY = 0.9;
-const OPACITY_OPTIONS = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
-
-const normalizeStickyOpacity = (value: number) => {
-  const bounded = Math.min(1, Math.max(0.1, value));
-  return OPACITY_OPTIONS.reduce((closest, option) => (
-    Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
-  ), DEFAULT_STICKY_OPACITY);
 };
 
 const MAX_STICKY_IMAGE_DIMENSION = 1400;
@@ -1316,7 +1306,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                 }}
                 onMouseLeave={() => setHoveredOpacity(null)}
               >
-                {OPACITY_OPTIONS.map((op) => (
+                {STICKY_OPACITY_OPTIONS.map((op) => (
                   <button
                     className="sticky-note-button"
                     key={op}

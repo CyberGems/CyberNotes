@@ -26,6 +26,18 @@ export const STICKY_COLOR_IDS: readonly StickyColorId[] = [
 
 export const DEFAULT_STICKY_COLOR: StickyColorId = 'cyber-yellow';
 
+export const DEFAULT_STICKY_OPACITY = 0.9;
+/** 60% de opacidad equivale al máximo de 40% de transparencia. */
+export const STICKY_OPACITY_OPTIONS = [1, 0.9, 0.8, 0.7, 0.6] as const;
+
+export function normalizeStickyOpacity(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_STICKY_OPACITY;
+  const bounded = Math.min(1, Math.max(0.6, value));
+  return STICKY_OPACITY_OPTIONS.reduce((closest, option) => (
+    Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
+  ), DEFAULT_STICKY_OPACITY as number);
+}
+
 export const STICKY_BACKGROUNDS: Record<StickyColorId, string> = {
   'cyber-yellow': '#1c160c',
   'neon-cyan': '#0a1820',
