@@ -5988,48 +5988,6 @@ export default function NoteEditor({
           <SpellCheckSelect language={language} />
         </div>
 
-        {note && (
-          <Tooltip placement="top" label={saveStatusTooltip}>
-            <span
-              role="status"
-              aria-live="polite"
-              aria-label={saveStatusTooltip}
-              className="note-save-status"
-              data-save-status={saveStatus}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                minWidth: 'max-content',
-                flexShrink: 0,
-                color: saveStatus === 'error'
-                  ? '#fca5a5'
-                  : saveStatus === 'saving' || saveStatus === 'pending'
-                    ? 'var(--text-secondary)'
-                    : 'var(--text-muted)',
-                opacity: saveStatus === 'saved' ? 0.85 : 1,
-              }}
-            >
-              <span
-                className={`note-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
-                style={{
-                  background: saveStatus === 'error'
-                    ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
-                    : saveStatus === 'saving' || saveStatus === 'pending'
-                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
-                      : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
-                  boxShadow: saveStatus === 'error'
-                    ? '0 0 7px rgba(239, 68, 68, 0.65)'
-                    : saveStatus === 'saving' || saveStatus === 'pending'
-                      ? '0 0 7px rgba(245, 158, 11, 0.55)'
-                      : '0 0 7px rgba(52, 211, 153, 0.45)',
-                }}
-              />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{saveStatusDisplay}</span>
-            </span>
-          </Tooltip>
-        )}
-
         {/* Métricas compactas: números + tooltips */}
         {(showLineCounter || showWordCounter) && (
           <div style={{
@@ -6106,6 +6064,49 @@ export default function NoteEditor({
               </>
             )}
           </div>
+        )}
+
+        {note && (
+          <Tooltip placement="top" label={saveStatusTooltip}>
+            <span
+              role="status"
+              aria-live="polite"
+              aria-label={saveStatusTooltip}
+              className="note-save-status"
+              data-save-status={saveStatus}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                minWidth: 'max-content',
+                flexShrink: 0,
+                marginLeft: 8,
+                color: saveStatus === 'error'
+                  ? '#fca5a5'
+                  : saveStatus === 'saving' || saveStatus === 'pending'
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-muted)',
+                opacity: saveStatus === 'saved' ? 0.85 : 1,
+              }}
+            >
+              <span
+                className={`note-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
+                style={{
+                  background: saveStatus === 'error'
+                    ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
+                    : saveStatus === 'saving' || saveStatus === 'pending'
+                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
+                      : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
+                  boxShadow: saveStatus === 'error'
+                    ? '0 0 7px rgba(239, 68, 68, 0.65)'
+                    : saveStatus === 'saving' || saveStatus === 'pending'
+                      ? '0 0 7px rgba(245, 158, 11, 0.55)'
+                      : '0 0 7px rgba(52, 211, 153, 0.45)',
+                }}
+              />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{saveStatusDisplay}</span>
+            </span>
+          </Tooltip>
         )}
       </div>
 
