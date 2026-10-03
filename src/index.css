@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    CyberNotes — Design System
-   Fonts: Inter (UI) + JetBrains Mono (code) + Montserrat (bundled)
+   Fonts: Inter (UI) + JetBrains Mono (code) + Arial (editor default)
 ═══════════════════════════════════════════════════════════════ */
 
 /* Nota: los @font-face viven en index.html (única casa). Las familias sin
@@ -18,7 +18,7 @@
   /* Font */
   --font-ui: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-editor: 'Montserrat', 'Inter', system-ui, sans-serif;
+  --font-editor: Arial, 'Helvetica Neue', sans-serif;
 
   /* Radii */
   --radius-sm: 6px;
