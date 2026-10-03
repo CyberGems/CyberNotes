@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
@@ -37,12 +37,14 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info, Sigma,
+    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info, Sigma, Smile,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
 import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 import CharacterMapModal from './CharacterMapModal';
+
+const EmojiPickerModal = lazy(() => import('./EmojiPickerModal'));
 
 export interface NoteExportActions {
   markdown: () => void;
@@ -1754,7 +1756,7 @@ export type ToolbarItemId =
   | 'bullet' | 'ordered'
   | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
   | 'quote' | 'code'
-  | 'link' | 'image' | 'table' | 'find' | 'video' | 'characters';
+  | 'link' | 'image' | 'table' | 'find' | 'video' | 'characters' | 'emojis';
 
 export interface ToolbarItemDef {
   id: ToolbarItemId;
@@ -1793,6 +1795,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'video', labelEs: 'Insertar video', labelEn: 'Insert video', icon: MonitorPlay },
   { id: 'find', labelEs: 'Buscar en la nota', labelEn: 'Find in note', icon: Search },
   { id: 'characters', labelEs: 'Mapa de caracteres', labelEn: 'Character map', icon: Sigma },
+  { id: 'emojis', labelEs: 'Emojis', labelEn: 'Emoji picker', icon: Smile },
 ];
 
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
@@ -1806,7 +1809,7 @@ export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
-  ['link', 'image', 'table', 'video', 'find', 'characters'],
+  ['link', 'image', 'table', 'video', 'find', 'characters', 'emojis'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
@@ -2310,6 +2313,7 @@ export default function NoteEditor({
   const [isRaw, setIsRaw] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [characterMapOpen, setCharacterMapOpen] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const changeCaseCycleRef = useRef(0);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -4420,6 +4424,8 @@ export default function NoteEditor({
         return <ToolbarBtn {...ctxProps} active={findOpen || menuHl} onClick={() => { if (findOpen) closeFindBar(); else openFindBar(); }} title={language === 'es' ? 'Buscar en la nota (F3)' : 'Find in note (F3)'}><Search size={15} /></ToolbarBtn>;
       case 'characters':
         return <ToolbarBtn {...ctxProps} active={characterMapOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setCharacterMapOpen(true); }} title={language === 'es' ? 'Mapa de caracteres' : 'Character map'}><Sigma size={15} /></ToolbarBtn>;
+      case 'emojis':
+        return <ToolbarBtn {...ctxProps} active={emojiPickerOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setEmojiPickerOpen(true); }} title={language === 'es' ? 'Selector de emojis' : 'Emoji picker'}><Smile size={15} /></ToolbarBtn>;
       case 'video':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
@@ -4625,6 +4631,18 @@ export default function NoteEditor({
           uiScale={uiScale}
           onClose={() => setCharacterMapOpen(false)}
         />
+      )}
+      {emojiPickerOpen && editor && (
+        <Suspense fallback={(
+          <div className="modal-overlay character-map-overlay emoji-picker-overlay" style={{ ...modalOverlayStyle, zIndex: 10020, '--ui-scale': uiScale.toString() } as CSSProperties} role="status">
+            <div className="modal emoji-picker-loading">
+              <span className="character-map-title-icon"><Smile size={19} aria-hidden="true" /></span>
+              <span>{language === 'es' ? 'Cargando emojis…' : 'Loading emojis…'}</span>
+            </div>
+          </div>
+        )}>
+          <EmojiPickerModal editor={editor} language={language} uiScale={uiScale} onClose={() => setEmojiPickerOpen(false)} />
+        </Suspense>
       )}
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (

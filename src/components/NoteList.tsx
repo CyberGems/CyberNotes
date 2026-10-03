@@ -1546,6 +1546,8 @@ export default function NoteList({
         </AnimatePresence>
         </div>
 
+        {hiddenCount > 0 && <div className="note-list-bottom-fade" aria-hidden="true" />}
+
         {/* X Más pill (solo filas: en tarjetas no hay virtualización) */}
         {viewMode !== 'grid' && (
         <div style={{
