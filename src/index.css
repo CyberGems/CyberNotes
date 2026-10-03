@@ -1346,6 +1346,7 @@ body:has(.sticky-note-window),
   left: var(--more-menu-switch-active-left, 16px);
   background-size: var(--more-menu-switch-check-size, 10px) var(--more-menu-switch-check-size, 10px);
 }
+.more-menu-section-toggle.is-open,
 .more-menu-section-toggle:hover,
 .more-menu-section-toggle:focus-visible {
   color: var(--text-primary);

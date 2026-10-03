@@ -267,7 +267,7 @@ export default function TitleBar({
     <button
       type="button"
       role="menuitem"
-      className="more-menu-section-toggle"
+      className={`more-menu-section-toggle${openMoreSection === section ? ' is-open' : ''}`}
       aria-expanded={openMoreSection === section}
       onClick={() => setOpenMoreSection(current => current === section ? null : section)}
     >
@@ -485,7 +485,7 @@ export default function TitleBar({
         style={{ display: 'flex', alignItems: 'center', gap: 2, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
         {/* Settings Button */}
-        <Tooltip placement="bottom" label={t('Configuración (Ctrl+,)', 'Settings (Ctrl+,)')}>
+        <Tooltip placement="bottom" label={t('Configuración general (Ctrl+,)', 'General settings (Ctrl+,)')}>
           <button
             className="btn-icon titlebar-btn"
             onClick={onOpenSettings}
@@ -697,9 +697,10 @@ export default function TitleBar({
               )}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              {moreSectionHeader('options', t('Opciones', 'Options'))}
+              {moreSectionHeader('options', t('Ajustes rápidos', 'Quick settings'))}
               {openMoreSection === 'options' && (
-                <div role="group" aria-label={t('Opciones', 'Options')}>
+                <div role="group" aria-label={t('Ajustes rápidos', 'Quick settings')}>
+              <Tooltip placement="top" label={t('Guarda los cambios automáticamente mientras escribes.', 'Saves changes automatically as you type.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -711,6 +712,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Autoguardado', 'Autosave')}</span>
                 {menuSwitch(autosaveEnabled)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Desactiva Bloq Mayús automáticamente tras un periodo de inactividad.', 'Turns Caps Lock off automatically after a period of inactivity.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -722,6 +725,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Auto-unlock Caps', 'Auto-unlock Caps')}</span>
                 {menuSwitch(autoUnlockCapsLock)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra una vista general del documento junto al editor.', 'Shows an overview of the document beside the editor.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -733,6 +738,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Minimapa', 'Minimap')}</span>
                 {menuSwitch(showMinimap)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra el total de líneas en la barra de estado.', 'Shows the line total in the status bar.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -744,6 +751,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Contador líneas', 'Line counter')}</span>
                 {menuSwitch(showLineCounter)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra los números junto a cada línea.', 'Shows line numbers beside each line.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -755,6 +764,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Líneas numeradas', 'Line gutter')}</span>
                 {menuSwitch(showLineGutter)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra los estados de Bloq Mayús, Num y Insert.', 'Shows Caps Lock, Num Lock, and Insert states.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -766,6 +777,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Indicadores de teclado', 'Keyboard indicators')}</span>
                 {menuSwitch(showKeyboardIndicators)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra el recuento de palabras en la barra de estado.', 'Shows the word count in the status bar.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -777,6 +790,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Contador palabras', 'Word counter')}</span>
                 {menuSwitch(showWordCounter)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra una barra de formato al seleccionar texto.', 'Shows a formatting toolbar when you select text.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -788,6 +803,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Barra flotante', 'Floating toolbar')}</span>
                 {menuSwitch(showFloatingToolbar)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Reabre la última nota al iniciar la aplicación.', 'Reopens your last note when the app starts.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -799,6 +816,7 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Recordar sesión', 'Remember session')}</span>
                 {menuSwitch(rememberLastNote)}
               </div>
+              </Tooltip>
                 </div>
               )}
 
