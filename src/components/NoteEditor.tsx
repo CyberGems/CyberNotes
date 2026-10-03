@@ -62,6 +62,8 @@ export interface NoteActionHandlers {
   showHistory: () => void;
 }
 
+type NoteSaveStatus = 'saved' | 'pending' | 'saving' | 'error';
+
 interface Props {
   language: Language;
   note: Note | null;
@@ -2249,6 +2251,47 @@ export default function NoteEditor({
   const [textMetrics, setTextMetrics] = useState({ words: 0, chars: 0, readingTime: 0 });
   const [localTitle, setLocalTitle] = useState(note?.title || '');
   const localTitleRef = useRef(localTitle);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
+  hasUnsavedChangesRef.current = hasUnsavedChanges;
+  const autosaveEnabledRef = useRef(autosaveEnabled);
+  autosaveEnabledRef.current = autosaveEnabled;
+  const [saveStatus, setSaveStatus] = useState<NoteSaveStatus>(() => (
+    note && draftCache[note.id] ? 'pending' : 'saved'
+  ));
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(note?.updated_at || null);
+  const saveRequestRef = useRef(0);
+  const editRevisionRef = useRef(0);
+
+  const markSavePending = useCallback(() => {
+    editRevisionRef.current += 1;
+    setSaveStatus('pending');
+  }, []);
+
+  const persistNote = useCallback(async (updatedNote: Note): Promise<boolean> => {
+    const requestId = ++saveRequestRef.current;
+    const revision = editRevisionRef.current;
+    setSaveStatus('saving');
+    try {
+      await onSave(updatedNote);
+      const isLatestRequest = requestId === saveRequestRef.current;
+      if (isLatestRequest) {
+        setLastSavedAt(new Date().toISOString());
+        const manualDraftRemains = !autosaveEnabledRef.current && hasUnsavedChangesRef.current;
+        setSaveStatus(revision === editRevisionRef.current && !manualDraftRemains ? 'saved' : 'pending');
+      }
+      return isLatestRequest;
+    } catch (error) {
+      console.error('Failed to save note:', error);
+      if (requestId === saveRequestRef.current) {
+        if (revision === editRevisionRef.current) isDirtyRef.current = true;
+        setSaveStatus('error');
+      }
+      return false;
+    }
+  }, [onSave]);
+  const persistNoteRef = useRef(persistNote);
+  persistNoteRef.current = persistNote;
 
   const updateTitle = (newTitle: string) => {
     newTitle = clampNoteTitle(newTitle);
@@ -2259,14 +2302,16 @@ export default function NoteEditor({
       const updated = { ...current, title: newTitle };
       currentNoteRef.current = updated;
       if (autosaveEnabled) {
-        onSave(updated);
+        markSavePending();
+        void persistNote(updated);
       } else {
+        markSavePending();
         setHasUnsavedChanges(true);
+        hasUnsavedChangesRef.current = true;
         onEditDraft?.(current.id, newTitle, editor?.getHTML() || '');
       }
     }
   };
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   /** El brillo del botón Guardar entra poco después del despliegue (no durante). */
   const [saveShineOn, setSaveShineOn] = useState(false);
   useEffect(() => {
@@ -2468,12 +2513,7 @@ export default function NoteEditor({
     return () => window.removeEventListener('keydown', onKey);
   }, [videoMenu]);
 
-  // Refs sincronizados en cada render: garantizan valores frescos dentro de los
-  // callbacks de TipTap (onBlur) evitando cualquier cierre obsoleto (stale closure).
-  const autosaveEnabledRef = useRef(autosaveEnabled);
-  autosaveEnabledRef.current = autosaveEnabled;
-  const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
-  hasUnsavedChangesRef.current = hasUnsavedChanges;
+  // Refs sincronizados arriba: garantizan valores frescos dentro de callbacks de TipTap.
 
   // 1. Initial check on startup / mount
   useEffect(() => {
@@ -3053,7 +3093,7 @@ export default function NoteEditor({
           if (autosaveEnabledRef.current) {
             const preview = extractPreview(html);
             const thumb = extractThumb(html);
-            onSave({ ...current, content: html, preview, thumb });
+            void persistNote({ ...current, content: html, preview, thumb });
             isDirtyRef.current = false;
           } else {
             // Modo manual: NO persistir al perder el foco; solo mantener el borrador al día.
@@ -3220,8 +3260,8 @@ export default function NoteEditor({
         if (isDirtyRef.current) {
           const html = editor.getHTML();
           const preview = extractPreview(html);
-          await onSave({ ...current, content: html, preview, thumb: extractThumb(html) });
           isDirtyRef.current = false;
+          await persistNote({ ...current, content: html, preview, thumb: extractThumb(html) });
         }
         return;
       }
@@ -3237,7 +3277,7 @@ export default function NoteEditor({
 
     onRegisterDraftFlush(flushBeforeLock);
     return () => onRegisterDraftFlush(null);
-  }, [editor, onEditDraft, onRegisterDraftFlush, onSave]);
+  }, [editor, onEditDraft, onRegisterDraftFlush, persistNote]);
 
   const updateLineInfo = (editor: any) => {
     if (!showLineCounter) return;
@@ -3370,7 +3410,7 @@ export default function NoteEditor({
     };
   }, [editor, note?.id, uiScale, editorFontId, showLineGutter, showWrapGuides, isRaw, scheduleWrapGuides]);
 
-  const handleManualSave = useCallback(() => {
+  const handleManualSave = useCallback(async () => {
     if (!editor || !note || hydratedNoteIdRef.current !== note.id) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     if (draftSyncTimer.current) {
@@ -3379,10 +3419,15 @@ export default function NoteEditor({
     }
     const html = editor.getHTML();
     const preview = extractPreview(html);
-    onSave({ ...note, content: html, title: localTitle, preview, thumb: extractThumb(html) });
-    setHasUnsavedChanges(false);
     isDirtyRef.current = false;
-  }, [editor, note, localTitle, onSave]);
+    const revision = editRevisionRef.current;
+    const didSave = await persistNote({ ...note, content: html, title: localTitle, preview, thumb: extractThumb(html) });
+    if (didSave && revision === editRevisionRef.current) {
+      hasUnsavedChangesRef.current = false;
+      setHasUnsavedChanges(false);
+      setSaveStatus('saved');
+    }
+  }, [editor, note, localTitle, persistNote]);
 
   /** Restaura una versión del historial: recarga el editor y persiste. */
   const handleRestoreRevision = useCallback((rev: NoteRevision) => {
@@ -3410,10 +3455,11 @@ export default function NoteEditor({
     updateTextMetrics(editor);
     updateLineInfo(editor);
     syncMinimapHtml(true);
+    hasUnsavedChangesRef.current = false;
     setHasUnsavedChanges(false);
-    onSave(restored);
+    void persistNote(restored);
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
-  }, [editor, note, onSave, syncMinimapHtml]);
+  }, [editor, note, persistNote, syncMinimapHtml]);
 
   // Descarta el borrador y restaura el editor al último estado guardado en disco.
   const handleRevertToSaved = useCallback(() => {
@@ -3429,6 +3475,7 @@ export default function NoteEditor({
     setLocalTitle(note.title || '');
     localTitleRef.current = note.title || '';
     isDirtyRef.current = false;
+    hasUnsavedChangesRef.current = false;
     setHasUnsavedChanges(false);
     onDiscardDraft?.(note.id);
     hydratedNoteIdRef.current = note.id;
@@ -3450,10 +3497,15 @@ export default function NoteEditor({
   // Actualizar editor cuando cambia la nota seleccionada o cuando se monta/desmonta
   useLayoutEffect(() => {
     const draft = note ? draftCache[note.id] : null;
+    saveRequestRef.current += 1;
+    editRevisionRef.current += 1;
     setPinned(note?.pinned === 1);
     setLocalTitle(draft ? draft.title : (note?.title || ''));
     localTitleRef.current = draft ? draft.title : (note?.title || '');
+    hasUnsavedChangesRef.current = !!draft;
     setHasUnsavedChanges(!!draft);
+    setLastSavedAt(note?.updated_at || null);
+    setSaveStatus(draft ? 'pending' : 'saved');
 
     hydratedNoteIdRef.current = null;
     setVideoMenu(null);
@@ -3527,7 +3579,7 @@ export default function NoteEditor({
         if (current && editor && autosaveEnabledRef.current) {
           const html = editor.getHTML();
           const preview = extractPreview(html);
-          onSave({ ...current, content: html, preview, thumb: extractThumb(html) });
+          void persistNoteRef.current({ ...current, content: html, preview, thumb: extractThumb(html) });
           isDirtyRef.current = false;
         }
       }
@@ -3543,8 +3595,10 @@ export default function NoteEditor({
     const current = currentNoteRef.current;
     if (!current || hydratedNoteIdRef.current !== current.id) return;
     const noteId = current.id;
+    markSavePending();
     if (!autosaveEnabled) {
       setHasUnsavedChanges(true);
+      hasUnsavedChangesRef.current = true;
       // Throttle: no bombardear al padre en cada tecla (solo marcar dirty + sync periódico)
       if (draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
       draftSyncTimer.current = setTimeout(() => {
@@ -3559,18 +3613,18 @@ export default function NoteEditor({
       if (!current || current.id !== noteId || hydratedNoteIdRef.current !== noteId) return;
       const preview = extractPreview(html);
       const thumb = extractThumb(html);
-      onSave({ ...current, content: html, preview, thumb });
+      void persistNote({ ...current, content: html, preview, thumb });
       isDirtyRef.current = false;
     }, 500);
-  }, [onSave, autosaveEnabled, onEditDraft]);
+  }, [persistNote, autosaveEnabled, onEditDraft, markSavePending]);
 
   const handlePin = useCallback(() => {
     if (!note) return;
     const newPinned = pinned ? 0 : 1;
     setPinned(!pinned);
-    onSave({ ...note, pinned: newPinned });
+    void persistNote({ ...note, pinned: newPinned });
     currentNoteRef.current = { ...note, pinned: newPinned };
-  }, [note, pinned, onSave]);
+  }, [note, pinned, persistNote]);
 
   const toggleStickyNote = useCallback(() => {
     if (!note?.id) return;
@@ -3926,6 +3980,28 @@ export default function NoteEditor({
   }, [editor, readOnly]);
 
   const t = TRANSLATIONS[language];
+
+  const saveStatusLabel = saveStatus === 'error'
+    ? t.editor.saveError
+    : saveStatus === 'saving'
+      ? t.editor.saving
+      : saveStatus === 'pending'
+        ? (autosaveEnabled ? t.editor.pendingSave : t.editor.unsavedChanges)
+        : t.editor.saved;
+  const saveDate = lastSavedAt ? new Date(lastSavedAt) : null;
+  const hasValidSaveDate = !!saveDate && Number.isFinite(saveDate.getTime());
+  const saveTime = hasValidSaveDate
+    ? saveDate!.toLocaleTimeString(language === 'es' ? 'es-CR' : 'en-US', { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const fullSaveTimestamp = hasValidSaveDate
+    ? saveDate!.toLocaleString(language === 'es' ? 'es-CR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    : '';
+  const saveStatusTooltip = hasValidSaveDate
+    ? `${saveStatusLabel} · ${t.editor.lastSavedAt}: ${fullSaveTimestamp}`
+    : `${saveStatusLabel} · ${t.editor.notSavedYet}`;
+  const saveStatusDisplay = saveTime
+    ? `${saveStatusLabel} · ${saveTime}`
+    : saveStatusLabel;
 
   const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
 
@@ -5908,6 +5984,49 @@ export default function NoteEditor({
           />
           <SpellCheckSelect language={language} />
         </div>
+
+        {note && (
+          <Tooltip placement="top" label={saveStatusTooltip}>
+            <span
+              role="status"
+              aria-live="polite"
+              aria-label={saveStatusTooltip}
+              className="note-save-status"
+              data-save-status={saveStatus}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                minWidth: 0,
+                flexShrink: 1,
+                overflow: 'hidden',
+                color: saveStatus === 'error'
+                  ? '#fca5a5'
+                  : saveStatus === 'saving' || saveStatus === 'pending'
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-muted)',
+                opacity: saveStatus === 'saved' ? 0.85 : 1,
+              }}
+            >
+              <span
+                className={`note-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
+                style={{
+                  background: saveStatus === 'error'
+                    ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
+                    : saveStatus === 'saving' || saveStatus === 'pending'
+                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
+                      : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
+                  boxShadow: saveStatus === 'error'
+                    ? '0 0 7px rgba(239, 68, 68, 0.65)'
+                    : saveStatus === 'saving' || saveStatus === 'pending'
+                      ? '0 0 7px rgba(245, 158, 11, 0.55)'
+                      : '0 0 7px rgba(52, 211, 153, 0.45)',
+                }}
+              />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{saveStatusDisplay}</span>
+            </span>
+          </Tooltip>
+        )}
 
         {/* Métricas compactas: números + tooltips */}
         {(showLineCounter || showWordCounter) && (

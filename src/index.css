@@ -2256,6 +2256,16 @@ body.sticky-is-dragging * {
 .sticky-save-led.is-saving {
   animation: sticky-save-pulse 0.9s ease-in-out infinite;
 }
+.note-save-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.note-save-led.is-saving {
+  animation: sticky-save-pulse 0.9s ease-in-out infinite;
+}
 @keyframes sticky-save-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
