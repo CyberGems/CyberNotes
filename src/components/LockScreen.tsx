@@ -276,7 +276,7 @@ export default function LockScreen({
 
       {/* Ambient glow (subtle when wallpaper is present) */}
       <div style={{
-        position: 'absolute',
+        position: 'fixed',
         width: 600,
         height: 600,
         borderRadius: '50%',
