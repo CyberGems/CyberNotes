@@ -11,6 +11,7 @@ import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyO
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
+import { isVisiblyMaximized } from './windowState';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -1841,7 +1842,9 @@ function createWindow() {
 
     const doSave = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
-      const isMax = mainWindow.isMaximized();
+      const bounds = mainWindow.getBounds();
+      const display = screen.getDisplayMatching(bounds);
+      const isMax = isVisiblyMaximized(mainWindow.isMaximized(), bounds, display.workArea);
       const isMin = mainWindow.isMinimized();
       const isFull = mainWindow.isFullScreen();
 
@@ -1850,10 +1853,8 @@ function createWindow() {
       }
 
       if (!isMax && !isMin && !isFull) {
-        const b = mainWindow.getBounds();
-        if (b.width >= 500 && b.height >= 400) {
-          const disp = screen.getDisplayMatching(b);
-          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...b, displayId: disp.id })], { flushNow: immediate });
+        if (bounds.width >= 500 && bounds.height >= 400) {
+          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...bounds, displayId: display.id })], { flushNow: immediate });
         }
       } else {
         try {
