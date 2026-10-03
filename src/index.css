@@ -693,20 +693,13 @@ body:has(.sticky-note-window),
 
 /* ─── Line Numbers Gutter ─── */
 .show-line-numbers .ProseMirror {
-  counter-reset: line;
   padding-left: 70px !important;
 }
 
-.show-line-numbers .ProseMirror > * {
-  position: relative;
-}
-
-.show-line-numbers .ProseMirror > *::before {
-  counter-increment: line;
-  content: counter(line);
+.line-number-mark {
   position: absolute;
-  left: -48px;
-  width: 32px;
+  left: 18px;
+  width: 44px;
   text-align: right;
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -716,8 +709,8 @@ body:has(.sticky-note-window),
   pointer-events: none;
   font-weight: 500;
   padding-right: 12px;
-  border-right: 1px solid transparent;
-  display: inline-block;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
   line-height: 1.3; /* Match paragraph line height */
 }
 
@@ -740,7 +733,6 @@ body:has(.sticky-note-window),
   position: absolute;
   left: 0;
   top: 0;
-  bottom: 0;
   width: 50px;
   pointer-events: none;
   z-index: 1;

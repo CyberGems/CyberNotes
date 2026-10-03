@@ -355,6 +355,35 @@ export function planWrapGuides(rows: VisualRow[]): WrapGuidePlan {
   return { marks, link };
 }
 
+interface LogicalLineUnit {
+  node: any;
+  pos: number;
+}
+
+/**
+ * El contador y el gutter comparten una misma unidad: un bloque de texto,
+ * una fila de tabla o un bloque atómico. Las celdas de una fila cuentan como
+ * una sola línea visual; sus párrafos internos no duplican el número.
+ */
+function collectLogicalLineUnits(doc: any): LogicalLineUnit[] {
+  const lines: LogicalLineUnit[] = [];
+  const visit = (node: any, pos: number) => {
+    const tableRole = node.type?.spec?.tableRole;
+    if (tableRole === 'row' || node.type?.name === 'tableRow') {
+      lines.push({ node, pos });
+      return;
+    }
+    if (node.isTextblock || (node.isBlock && (node.isAtom || node.isLeaf))) {
+      lines.push({ node, pos });
+      return;
+    }
+    node.forEach?.((child: any, offset: number) => visit(child, pos + 1 + offset));
+  };
+
+  doc.forEach((child: any, offset: number) => visit(child, offset));
+  return lines;
+}
+
 /**
  * Reemplaza un rango conservando las marcas del borde inicial.
  * Devuelve false si el editor no está listo (sin lanzar).
@@ -3283,19 +3312,50 @@ export default function NoteEditor({
     return () => onRegisterDraftFlush(null);
   }, [editor, onEditDraft, onRegisterDraftFlush, persistNote]);
 
-  const updateLineInfo = (editor: any) => {
-    if (!showLineCounter) return;
-    const { from } = editor.state.selection;
-    const textBefore = editor.state.doc.textBetween(0, from, '\n');
-    const linesBefore = textBefore.split('\n');
-    const currentLine = linesBefore.length;
-    const currentCol = linesBefore[linesBefore.length - 1].length + 1;
-    
-    const totalText = editor.getText();
-    const totalLines = totalText.split('\n').length;
-    
-    setLineInfo({ line: currentLine, col: currentCol, total: totalLines });
-  };
+  const updateLineInfo = useCallback((editor: any) => {
+    const doc = editor.state.doc;
+    const logicalLines = collectLogicalLineUnits(doc);
+    if (logicalLines.length === 0) {
+      setLineInfo({ line: 1, col: 1, total: 1 });
+      return;
+    }
+
+    const selection = editor.state.selection;
+    const headPos = selection.$head?.pos ?? selection.to;
+    let currentLineIndex = -1;
+
+    // Prefer the selection head's actual ancestor, so a reversed selection
+    // reports the active end and nested table/list blocks resolve correctly.
+    if (selection.$head) {
+      for (let depth = selection.$head.depth; depth >= 0; depth--) {
+        const node = selection.$head.node(depth);
+        const pos = depth === 0 ? 0 : selection.$head.before(depth);
+        currentLineIndex = logicalLines.findIndex(line => line.node === node && line.pos === pos);
+        if (currentLineIndex >= 0) break;
+      }
+    }
+
+    if (currentLineIndex < 0) {
+      if (selection.node) {
+        currentLineIndex = logicalLines.findIndex(line => line.node === selection.node);
+      }
+    }
+    if (currentLineIndex < 0) {
+      currentLineIndex = logicalLines.findIndex(line =>
+        headPos >= line.pos && headPos <= line.pos + line.node.nodeSize,
+      );
+    }
+    if (currentLineIndex < 0) currentLineIndex = logicalLines.length - 1;
+
+    const currentUnit = logicalLines[currentLineIndex];
+    const textBefore = doc.textBetween(currentUnit.pos, headPos, '\n');
+    const currentCol = textBefore.split('\n').pop()!.length + 1;
+    setLineInfo({ line: currentLineIndex + 1, col: currentCol, total: logicalLines.length });
+  }, []);
+
+  useEffect(() => {
+    if (editor) updateLineInfo(editor);
+  }, [editor, showLineCounter, updateLineInfo]);
 
   const updateTextMetrics = (editor: any) => {
     const text = editor.getText();
@@ -3305,12 +3365,13 @@ export default function NoteEditor({
     setTextMetrics({ words, chars, readingTime });
   };
 
-  // ─── Guías de continuación en el gutter (↳) ─────────────────────────
-  // Marca sutil de los renglones con wrap: el gutter numera por bloque
-  // (contador CSS), así que los renglones extra quedaban mudos. Se mide con
-  // rangos DOM (exacto ante headings y tamaños mixtos) y se pinta por DOM
-  // directo, sin re-renders, igual que el indicador del minimapa.
+  // ─── Números y guías de continuación del gutter ─────────────────────
+  // Ambos indicadores comparten unidades de línea y coordenadas DOM. La capa
+  // sigue el viewport desplazable y se repinta al hacer scroll.
   const wrapGuidesRef = useRef<HTMLDivElement>(null);
+  const visibleGutterNodesRef = useRef<Set<Element>>(new Set());
+  const intersectionObserverActiveRef = useRef(false);
+  const syncGutterObserverRef = useRef<(() => void) | null>(null);
   const showWrapGuidesRef = useRef(showWrapGuides);
   showWrapGuidesRef.current = showWrapGuides;
   const wrapGuidesRaf = useRef(0);
@@ -3319,65 +3380,117 @@ export default function NoteEditor({
     const layer = wrapGuidesRef.current;
     const liveEditor = editorRef.current;
     if (!layer) return;
-    if (!liveEditor || liveEditor.view.isDestroyed || !showLineGutter || !showWrapGuidesRef.current || isRaw) {
+    if (!liveEditor || liveEditor.view.isDestroyed || !showLineGutter || isRaw) {
       if (layer.childNodes.length > 0) layer.innerHTML = '';
       return;
     }
     try {
       const dom = liveEditor.view.dom as HTMLElement;
+      const scroller = scrollContainerRef.current;
+      if (!scroller) return;
+      layer.style.top = `${scroller.scrollTop}px`;
+      layer.style.height = `${scroller.clientHeight}px`;
       const wrapBox = layer.getBoundingClientRect();
       if (wrapBox.width <= 0) return;
+      const viewport = scroller.getBoundingClientRect();
       const range = document.createRange();
-      // Tope generoso: al alcanzarlo se pinta parcial (nunca se congela en un
-      // pintado viejo). Con dedupe, 2500 cubre documentos larguísimos.
       const MAX_GUIDES = 2500;
-      const markHtml: string[] = [];
+      const lineNumberHtml: string[] = [];
+      const guideHtml: string[] = [];
+      const seenLineY = new Set<number>();
       const seenMarkY = new Set<number>();
       const seenLink = new Set<string>();
-      // Todos los bloques de texto a cualquier profundidad (citas con varios
-      // párrafos, código, listas anidadas, celdas): los duplicados por
-      // anidado (LI+P, cita+P) caen en la misma Y y se colapsan abajo.
-      const blocks = dom.querySelectorAll(
-        'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre',
-      );
-      const collect = (el: Element) => {
-        if (!(el instanceof HTMLElement) || markHtml.length >= MAX_GUIDES) return;
-        range.selectNodeContents(el);
-        const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 1);
-        if (rects.length === 0) return;
-        // Fuera rects gigantes (imágenes/widgets inline): distorsionarían el
-        // agrupado. Mediana baja para que un solo gigante no se salve solo.
-        const heights = rects.map(r => r.bottom - r.top).sort((a, b) => a - b);
-        const median = heights[Math.floor((heights.length - 1) / 2)] || 0;
-        const plan = planWrapGuides(
-          groupVisualRows(
-            rects.filter(r => median <= 0 || (r.bottom - r.top) <= median * 2.5),
-          ).map(r => ({
-            top: r.top - wrapBox.top,
-            bottom: r.bottom - wrapBox.top,
-            left: r.left,
-          })),
-        );
-        for (const y of plan.marks) {
-          if (markHtml.length >= MAX_GUIDES) return;
-          const key = Math.round(y);
-          if (seenMarkY.has(key)) continue;
-          seenMarkY.add(key);
-          markHtml.push(`<span class="wrap-guide-mark" style="top:${y.toFixed(1)}px">→</span>`);
-        }
-        if (plan.link) {
-          if (markHtml.length >= MAX_GUIDES) return;
-          const key = `${Math.round(plan.link.top)}:${Math.round(plan.link.height)}`;
-          if (!seenLink.has(key)) {
-            seenLink.add(key);
-            markHtml.push(
-              `<span class="wrap-guide-link" style="top:${plan.link.top.toFixed(1)}px;height:${plan.link.height.toFixed(1)}px"></span>`,
-            );
+      const logicalLines = collectLogicalLineUnits(liveEditor.state.doc);
+
+      logicalLines.forEach((line, index) => {
+        const node = liveEditor.view.nodeDOM(line.pos);
+        const element = node instanceof HTMLElement ? node : node?.parentElement;
+        if (!element) return;
+        if (intersectionObserverActiveRef.current && !visibleGutterNodesRef.current.has(element)) return;
+        const rect = element.getBoundingClientRect();
+        if (rect.height <= 0 || (!intersectionObserverActiveRef.current && (rect.bottom < viewport.top || rect.top > viewport.bottom))) return;
+        const y = rect.top - wrapBox.top;
+        const key = Math.round(y);
+        if (seenLineY.has(key)) return;
+        seenLineY.add(key);
+        lineNumberHtml.push(`<span class="line-number-mark" style="top:${y.toFixed(1)}px">${index + 1}</span>`);
+      });
+
+      if (showWrapGuidesRef.current) {
+        const segmentRects: DOMRect[] = [];
+        const flushSegment = () => {
+          if (segmentRects.length === 0 || guideHtml.length >= MAX_GUIDES) {
+            segmentRects.length = 0;
+            return;
           }
-        }
-      };
-      Array.from(blocks).forEach(collect);
-      layer.innerHTML = markHtml.join('');
+          const plan = planWrapGuides(
+            groupVisualRows(segmentRects.map(r => ({ top: r.top, bottom: r.bottom, left: r.left }))),
+          );
+          segmentRects.length = 0;
+
+          for (const y of plan.marks) {
+            if (guideHtml.length >= MAX_GUIDES) return;
+            const relativeY = y - wrapBox.top;
+            const key = Math.round(relativeY);
+            if (seenMarkY.has(key)) continue;
+            seenMarkY.add(key);
+            guideHtml.push(`<span class="wrap-guide-mark" style="top:${relativeY.toFixed(1)}px">→</span>`);
+          }
+          if (plan.link && guideHtml.length < MAX_GUIDES) {
+            const top = plan.link.top - wrapBox.top;
+            const key = `${Math.round(top)}:${Math.round(plan.link.height)}`;
+            if (!seenLink.has(key)) {
+              seenLink.add(key);
+              guideHtml.push(
+                `<span class="wrap-guide-link" style="top:${top.toFixed(1)}px;height:${plan.link.height.toFixed(1)}px"></span>`,
+              );
+            }
+          }
+        };
+        const addTextRects = (text: Text, start: number, end: number) => {
+          if (end <= start) return;
+          range.setStart(text, start);
+          range.setEnd(text, end);
+          for (const rect of Array.from(range.getClientRects())) {
+            if (rect.width > 1 && rect.height > 1) segmentRects.push(rect);
+          }
+        };
+        const visitInline = (node: Node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const text = node as Text;
+            const value = text.nodeValue || '';
+            let start = 0;
+            for (let i = 0; i < value.length; i++) {
+              if (value[i] === '\n') {
+                addTextRects(text, start, i);
+                flushSegment();
+                start = i + 1;
+              }
+            }
+            addTextRects(text, start, value.length);
+            return;
+          }
+          if (node instanceof HTMLBRElement) {
+            flushSegment();
+            return;
+          }
+          node.childNodes.forEach(visitInline);
+        };
+
+        const blocks = dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre');
+        blocks.forEach(block => {
+          if (intersectionObserverActiveRef.current) {
+            if (!visibleGutterNodesRef.current.has(block)) return;
+          } else {
+            const blockBox = block.getBoundingClientRect();
+            if (blockBox.bottom < viewport.top || blockBox.top > viewport.bottom) return;
+          }
+          block.childNodes.forEach(visitInline);
+          flushSegment();
+        });
+      }
+
+      layer.innerHTML = lineNumberHtml.concat(guideHtml).join('');
     } catch {
       /* DOM en transición: se reintenta en el próximo update */
     }
@@ -3395,17 +3508,80 @@ export default function NoteEditor({
   // (imágenes que cargan cambian alturas: ResizeObserver al dom).
   useEffect(() => {
     scheduleWrapGuides();
+    if (!showLineGutter || isRaw) return;
     const liveEditor = editorRef.current;
-    liveEditor?.on('update', scheduleWrapGuides);
     const scroller = scrollContainerRef.current;
+    const observedNodes = new Set<Element>();
+    visibleGutterNodesRef.current.clear();
+    intersectionObserverActiveRef.current = false;
+    const observer = scroller && typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver((entries) => {
+          let changed = false;
+          for (const entry of entries) {
+            const target = entry.target;
+            if (!observedNodes.has(target)) continue;
+            if (entry.isIntersecting) {
+              if (!visibleGutterNodesRef.current.has(target)) {
+                visibleGutterNodesRef.current.add(target);
+                changed = true;
+              }
+            } else if (visibleGutterNodesRef.current.delete(target)) {
+              changed = true;
+            }
+          }
+          intersectionObserverActiveRef.current = true;
+          if (changed) scheduleWrapGuides();
+        }, { root: scroller, rootMargin: '100px 0px' })
+      : null;
+
+    const syncObservedNodes = () => {
+      if (!observer || !liveEditor || liveEditor.view.isDestroyed) return;
+      const dom = liveEditor.view.dom as HTMLElement;
+      const nextNodes = new Set<Element>();
+      for (const line of collectLogicalLineUnits(liveEditor.state.doc)) {
+        const node = liveEditor.view.nodeDOM(line.pos);
+        if (node instanceof HTMLElement) nextNodes.add(node);
+        else if (node?.parentElement) nextNodes.add(node.parentElement);
+      }
+      if (showWrapGuidesRef.current) {
+        dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre').forEach(node => nextNodes.add(node));
+      }
+
+      for (const node of observedNodes) {
+        if (nextNodes.has(node)) continue;
+        observer.unobserve(node);
+        observedNodes.delete(node);
+        visibleGutterNodesRef.current.delete(node);
+      }
+      for (const node of nextNodes) {
+        if (observedNodes.has(node)) continue;
+        observedNodes.add(node);
+        observer.observe(node);
+      }
+    };
+    const handleEditorUpdate = () => {
+      syncObservedNodes();
+      scheduleWrapGuides();
+    };
+
+    syncGutterObserverRef.current = syncObservedNodes;
+    syncObservedNodes();
+    liveEditor?.on('update', handleEditorUpdate);
     const ro = new ResizeObserver(scheduleWrapGuides);
     if (scroller) ro.observe(scroller);
     const dom = liveEditor?.view?.dom as HTMLElement | undefined;
     if (dom) ro.observe(dom);
+    scroller?.addEventListener('scroll', scheduleWrapGuides, { passive: true });
     window.addEventListener('resize', scheduleWrapGuides);
     return () => {
-      liveEditor?.off('update', scheduleWrapGuides);
+      liveEditor?.off('update', handleEditorUpdate);
+      observer?.disconnect();
+      observedNodes.clear();
+      if (syncGutterObserverRef.current === syncObservedNodes) syncGutterObserverRef.current = null;
+      visibleGutterNodesRef.current.clear();
+      intersectionObserverActiveRef.current = false;
       ro.disconnect();
+      scroller?.removeEventListener('scroll', scheduleWrapGuides);
       window.removeEventListener('resize', scheduleWrapGuides);
       if (wrapGuidesRaf.current) {
         cancelAnimationFrame(wrapGuidesRaf.current);
@@ -3456,6 +3632,8 @@ export default function NoteEditor({
     isDirtyRef.current = false;
     loadEditorContent(editor, content);
     hydratedNoteIdRef.current = note.id;
+    syncGutterObserverRef.current?.();
+    scheduleWrapGuides();
     updateTextMetrics(editor);
     updateLineInfo(editor);
     syncMinimapHtml(true);
@@ -3463,7 +3641,7 @@ export default function NoteEditor({
     setHasUnsavedChanges(false);
     void persistNote(restored);
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
-  }, [editor, note, persistNote, syncMinimapHtml]);
+  }, [editor, note, persistNote, scheduleWrapGuides, syncMinimapHtml, updateLineInfo]);
 
   // Descarta el borrador y restaura el editor al último estado guardado en disco.
   const handleRevertToSaved = useCallback(() => {
@@ -3476,6 +3654,9 @@ export default function NoteEditor({
     isSelectionChangingRef.current = true;
     hydratedNoteIdRef.current = null;
     loadEditorContent(editor, note.content || '');
+    syncGutterObserverRef.current?.();
+    scheduleWrapGuides();
+    updateLineInfo(editor);
     setLocalTitle(note.title || '');
     localTitleRef.current = note.title || '';
     isDirtyRef.current = false;
@@ -3485,7 +3666,7 @@ export default function NoteEditor({
     hydratedNoteIdRef.current = note.id;
     syncMinimapHtml(true);
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
-  }, [editor, note, onDiscardDraft, syncMinimapHtml]);
+  }, [editor, note, onDiscardDraft, scheduleWrapGuides, syncMinimapHtml, updateLineInfo]);
 
   useModalKeys({
     enabled: showLeaveEditorWarning,
