@@ -1110,6 +1110,25 @@ body:has(.sticky-note-window),
   background-size: 12px 12px;
 }
 
+/* More menu uses the settings switch appearance at its compact size. */
+.custom-switch.is-compact {
+  width: 32px;
+  min-width: 32px;
+  height: 18px;
+  border-radius: 9px;
+}
+
+.custom-switch.is-compact::after {
+  left: 2px;
+  width: 14px;
+  height: 14px;
+}
+
+.custom-switch.is-compact.active::after {
+  left: 16px;
+  background-size: 10px 10px;
+}
+
 /* Editor Immersive Focus Glow */
 .editor-glass {
   position: relative;

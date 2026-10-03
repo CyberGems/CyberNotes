@@ -234,26 +234,9 @@ export default function TitleBar({
     }
   };
 
-  const toggleStyle = (active: boolean): React.CSSProperties => ({
-    width: 32,
-    height: 18,
-    borderRadius: 9,
-    background: active ? 'var(--accent)' : 'var(--border)',
-    position: 'relative',
-    transition: 'background 0.2s',
-    flexShrink: 0,
-    cursor: 'pointer',
-  });
-
-  const toggleDot: React.CSSProperties = {
-    width: 14,
-    height: 14,
-    borderRadius: '50%',
-    background: '#fff',
-    position: 'absolute',
-    top: 2,
-    transition: 'left 0.2s',
-  };
+  const menuSwitch = (active: boolean) => (
+    <span aria-hidden="true" className={`custom-switch is-compact ${active ? 'active' : ''}`} />
+  );
   return (
     <div
       className="glass-effect titlebar-glass"
@@ -699,9 +682,7 @@ export default function TitleBar({
               >
                 <Save size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Autoguardado', 'Autosave')}</span>
-                <div style={toggleStyle(autosaveEnabled)}>
-                  <div style={{ ...toggleDot, left: autosaveEnabled ? 16 : 2 }} />
-                </div>
+                {menuSwitch(autosaveEnabled)}
               </div>
               <div
                 className="menu-item"
@@ -712,9 +693,7 @@ export default function TitleBar({
               >
                 <span style={{ fontSize: 13, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, opacity: 0.7 }}>⇪</span>
                 <span style={{ flex: 1 }}>{t('Auto-unlock Caps', 'Auto-unlock Caps')}</span>
-                <div style={toggleStyle(autoUnlockCapsLock)}>
-                  <div style={{ ...toggleDot, left: autoUnlockCapsLock ? 16 : 2 }} />
-                </div>
+                {menuSwitch(autoUnlockCapsLock)}
               </div>
               <div
                 className="menu-item"
@@ -725,9 +704,7 @@ export default function TitleBar({
               >
                 <Map size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Minimapa', 'Minimap')}</span>
-                <div style={toggleStyle(showMinimap)}>
-                  <div style={{ ...toggleDot, left: showMinimap ? 16 : 2 }} />
-                </div>
+                {menuSwitch(showMinimap)}
               </div>
               <div
                 className="menu-item"
@@ -738,9 +715,7 @@ export default function TitleBar({
               >
                 <BarChart3 size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Contador líneas', 'Line counter')}</span>
-                <div style={toggleStyle(showLineCounter)}>
-                  <div style={{ ...toggleDot, left: showLineCounter ? 16 : 2 }} />
-                </div>
+                {menuSwitch(showLineCounter)}
               </div>
               <div
                 className="menu-item"
@@ -751,9 +726,7 @@ export default function TitleBar({
               >
                 <List size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Líneas numeradas', 'Line gutter')}</span>
-                <div style={toggleStyle(showLineGutter)}>
-                  <div style={{ ...toggleDot, left: showLineGutter ? 16 : 2 }} />
-                </div>
+                {menuSwitch(showLineGutter)}
               </div>
               <div
                 className="menu-item"
@@ -764,9 +737,7 @@ export default function TitleBar({
               >
                 <Hash size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Contador palabras', 'Word counter')}</span>
-                <div style={toggleStyle(showWordCounter)}>
-                  <div style={{ ...toggleDot, left: showWordCounter ? 16 : 2 }} />
-                </div>
+                {menuSwitch(showWordCounter)}
               </div>
               <div
                 className="menu-item"
@@ -777,9 +748,7 @@ export default function TitleBar({
               >
                 <Sparkles size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Barra flotante', 'Floating toolbar')}</span>
-                <div style={toggleStyle(showFloatingToolbar)}>
-                  <div style={{ ...toggleDot, left: showFloatingToolbar ? 16 : 2 }} />
-                </div>
+                {menuSwitch(showFloatingToolbar)}
               </div>              <div
                 className="menu-item"
                 role="menuitem"
@@ -789,9 +758,7 @@ export default function TitleBar({
               >
                 <Pin size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Recordar sesión', 'Remember session')}</span>
-                <div style={toggleStyle(rememberLastNote)}>
-                  <div style={{ ...toggleDot, left: rememberLastNote ? 16 : 2 }} />
-                </div>
+                {menuSwitch(rememberLastNote)}
               </div>
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
