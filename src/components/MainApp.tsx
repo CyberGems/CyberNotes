@@ -191,13 +191,15 @@ export default function MainApp({
   }, [showFirstCloseDialog, chooseFirstClose]);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
-  // Fase 1 responsive: bajo este ancho lógico el sidebar colapsa a rail de
-  // iconos (automático; el layoutMode manual sigue mandando en columnas).
-  const [isSidebarRail, setIsSidebarRail] = useState(
+  // En ancho angosto usa automáticamente el rail de iconos. El usuario puede
+  // alternarlo manualmente mientras quiera recuperar espacio para el editor.
+  const [isSidebarNarrow, setIsSidebarNarrow] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < SIDEBAR_RAIL_BREAKPOINT,
   );
+  const [sidebarRailOverride, setSidebarRailOverride] = useState<boolean | null>(null);
+  const isSidebarRail = sidebarRailOverride ?? isSidebarNarrow;
   useEffect(() => {
-    const onResize = () => setIsSidebarRail(window.innerWidth < SIDEBAR_RAIL_BREAKPOINT);
+    const onResize = () => setIsSidebarNarrow(window.innerWidth < SIDEBAR_RAIL_BREAKPOINT);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -1798,6 +1800,10 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('show_minimap', v.toString());
   };
 
+  const handleToggleSidebarRail = () => {
+    setSidebarRailOverride(!isSidebarRail);
+  };
+
   const handleShowKeyboardIndicatorsChange = async (v: boolean) => {
     setShowKeyboardIndicators(v);
     await window.cyberNotesAPI.setSetting('show_keyboard_indicators', v.toString());
@@ -2011,6 +2017,7 @@ export default function MainApp({
             <Sidebar
               language={language}
               rail={isSidebarRail}
+              onToggleRail={handleToggleSidebarRail}
               folders={folders}
               selectedFolderId={selectedFolderId}
               noteCount={allNotes.length}

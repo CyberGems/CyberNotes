@@ -5541,6 +5541,75 @@ export default function NoteEditor({
 
       </div>
 
+      {/* Carril de toggle del gutter: permanece accesible en ambos estados. */}
+      <Tooltip
+        placement="right"
+        label={showLineGutter
+          ? (language === 'es' ? 'Ocultar números de línea' : 'Hide line numbers')
+          : (language === 'es' ? 'Mostrar números de línea' : 'Show line numbers')}
+      >
+        <button
+          type="button"
+          className="editor-edge-rail-toggle"
+          aria-label={showLineGutter
+            ? (language === 'es' ? 'Ocultar números de línea' : 'Hide line numbers')
+            : (language === 'es' ? 'Mostrar números de línea' : 'Show line numbers')}
+          aria-pressed={showLineGutter}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onShowLineGutterChange?.(!showLineGutter)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openGutterMenu(e.clientX, e.clientY);
+          }}
+          style={{
+            position: 'absolute',
+            left: showLineGutter ? 50 : 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 10,
+            height: 56,
+            zIndex: 8,
+            padding: 0,
+            border: 'none',
+            borderRadius: '0 6px 6px 0',
+            cursor: 'pointer',
+            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'left 0.22s ease, background 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+            const line = e.currentTarget.querySelector('[data-gutter-rail]') as HTMLElement | null;
+            if (line) {
+              line.style.background = 'var(--accent)';
+              line.style.boxShadow = '0 0 8px var(--accent-glow)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            const line = e.currentTarget.querySelector('[data-gutter-rail]') as HTMLElement | null;
+            if (line) {
+              line.style.background = 'rgba(255,255,255,0.22)';
+              line.style.boxShadow = 'none';
+            }
+          }}
+        >
+          <span
+            data-gutter-rail
+            style={{
+              width: 2,
+              height: 36,
+              borderRadius: 2,
+              background: 'rgba(255,255,255,0.22)',
+              transition: 'background 0.15s ease, box-shadow 0.15s ease',
+            }}
+          />
+        </button>
+      </Tooltip>
+
       {/* ─── Minimap (retraíble) ─────────────────────────────────── */}
       {/* Carril de toggle: siempre visible a la derecha del editor */}
       <Tooltip

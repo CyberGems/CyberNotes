@@ -6,6 +6,7 @@ import { Language, TRANSLATIONS } from '../languages';
 import {
   Plus, FolderOpen, Settings, Lock, Search, X,
   ChevronRight, Pencil, Trash2, BrushCleaning, FileText, Clock, Inbox, Star, AppWindow,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { playSynthSound } from '../utils/audio';
@@ -35,6 +36,7 @@ interface Props {
   onSearch: (q: string) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
   rail?: boolean;
+  onToggleRail: () => void;
   getAvailableColors: (currentFolderId?: string) => { all: string[]; available: string[]; usedColors: Set<string> };
   triggerNewFolderSignal?: number;
 }
@@ -91,7 +93,7 @@ function timeAgo(iso: string, language: Language): string {
 export default function Sidebar({
   language, folders, selectedFolderId, noteCount, trashCount, allNotes, stickyNoteIds, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
-  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, rail = false, getAvailableColors,
+  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, rail = false, onToggleRail, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
   triggerNewFolderSignal,
 }: Props) {
@@ -433,50 +435,66 @@ export default function Sidebar({
       {/* Search (el rail trae su propio acceso) */}
       {!rail && (
       <div style={{ padding: '12px 12px 8px' }}>
-        <div style={{ position: 'relative' }}>
-          <Search size={14} style={{
-            position: 'absolute', left: 10, top: '50%',
-            transform: 'translateY(-50%)', color: 'var(--text-muted)',
-            pointerEvents: 'none',
-          }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+            <Search size={14} style={{
+              position: 'absolute', left: 10, top: '50%',
+              transform: 'translateY(-50%)', color: 'var(--text-muted)',
+              pointerEvents: 'none',
+            }} />
+            <Tooltip
+              placement="bottom"
+              label={language === 'es' ? 'Buscar notas (Esc para limpiar)' : 'Search notes (Esc to clear)'}
+            >
+            <input
+              id="cybernotes-search-input"
+              type="text"
+              value={searchQuery}
+              onChange={e => onSearch(e.target.value)}
+              onKeyDown={e => {
+                // Esc limpia la búsqueda y devuelve la lista a su vista normal.
+                if (e.key === 'Escape' && searchQuery) {
+                  e.preventDefault();
+                  onSearch('');
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder={`${t.general.search} (Ctrl+F)`}
+              className="input"
+              onContextMenu={inputMenu.onContextMenu}
+              style={{ padding: '7px 10px 7px 32px', paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))' }}
+            />
+            </Tooltip>
+            {searchQuery && (
+              <Tooltip
+                placement="right"
+                label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+              >
+              <button
+                className="btn-icon"
+                onClick={() => onSearch('')}
+                aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: 2 }}
+              >
+                <X size={12} />
+              </button>
+              </Tooltip>
+            )}
+          </div>
           <Tooltip
             placement="bottom"
-            label={language === 'es' ? 'Buscar notas (Esc para limpiar)' : 'Search notes (Esc to clear)'}
+            label={language === 'es' ? 'Colapsar columna izquierda' : 'Collapse left sidebar'}
           >
-          <input
-            id="cybernotes-search-input"
-            type="text"
-            value={searchQuery}
-            onChange={e => onSearch(e.target.value)}
-            onKeyDown={e => {
-              // Esc limpia la búsqueda y devuelve la lista a su vista normal.
-              if (e.key === 'Escape' && searchQuery) {
-                e.preventDefault();
-                onSearch('');
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder={`${t.general.search} (Ctrl+F)`}
-            className="input"
-            onContextMenu={inputMenu.onContextMenu}
-            style={{ padding: '7px 10px 7px 32px', paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))' }}
-          />
-          </Tooltip>
-          {searchQuery && (
-            <Tooltip
-              placement="right"
-              label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
-            >
             <button
+              type="button"
               className="btn-icon"
-              onClick={() => onSearch('')}
-              aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: 2 }}
+              aria-label={language === 'es' ? 'Colapsar columna izquierda' : 'Collapse left sidebar'}
+              onClick={onToggleRail}
+              style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8 }}
             >
-              <X size={12} />
+              <PanelLeftClose size={15} />
             </button>
-            </Tooltip>
-          )}
+          </Tooltip>
         </div>
       </div>
       )}
@@ -1232,6 +1250,28 @@ export default function Sidebar({
             {!rail && <span>{language === 'es' ? 'Bloquear' : 'Lock'}</span>}
           </button>
         </Tooltip>
+        {rail && (
+          <Tooltip
+            placement="top"
+            label={language === 'es' ? 'Expandir columna izquierda' : 'Expand left sidebar'}
+          >
+            <button
+              type="button"
+              className="btn btn-ghost"
+              aria-label={language === 'es' ? 'Expandir columna izquierda' : 'Expand left sidebar'}
+              onClick={onToggleRail}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '7px 8px',
+              }}
+            >
+              <PanelLeftOpen size={14} />
+            </button>
+          </Tooltip>
+        )}
       </div>
 
       {/* Drop-up recientes */}

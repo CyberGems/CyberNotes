@@ -1303,12 +1303,12 @@ export default function SettingsModal({
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={language === 'es' ? 'Ajustes' : 'Settings'}
+        aria-label={language === 'es' ? 'Configuración' : 'Settings'}
       >
         <div className="settings-header">
           <div className="settings-header-title">
             <Settings size={15} />
-            <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
+            <span>{language === 'es' ? 'Configuración' : 'Settings'}</span>
           </div>
           <Tooltip label={language === 'es' ? 'Cerrar' : 'Close'} placement="bottom">
           <button
