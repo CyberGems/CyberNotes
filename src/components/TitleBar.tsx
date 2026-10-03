@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History } from 'lucide-react';
+import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History } from 'lucide-react';
 import { Note } from '../types';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
@@ -118,10 +118,6 @@ export default function TitleBar({
   const menuRef = useRef<HTMLDivElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
-  const [recentSubOpen, setRecentSubOpen] = useState(false);
-  const [noteSubOpen, setNoteSubOpen] = useState(false);
-  const [exportSubOpen, setExportSubOpen] = useState(false);
-  const [helpSubOpen, setHelpSubOpen] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
 
   useEffect(() => {
@@ -134,10 +130,6 @@ export default function TitleBar({
     if (menuOpen) {
       document.addEventListener('mousedown', close);
     } else {
-      setRecentSubOpen(false);
-      setNoteSubOpen(false);
-      setExportSubOpen(false);
-      setHelpSubOpen(false);
       setExitConfirm(false);
     }
     return () => document.removeEventListener('mousedown', close);
@@ -499,6 +491,10 @@ export default function TitleBar({
               padding: '6px 0',
               display: 'flex',
               flexDirection: 'column',
+              maxHeight: `calc(100vh - ${menuPos.top + 8}px)`,
+              boxSizing: 'border-box',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
             }}>
               {/* Donar primero (convención de la suite) + separador */}
               <button
@@ -510,83 +506,40 @@ export default function TitleBar({
                 <span>{t('Donar', 'Donate')}</span>
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-              {/* Recent Notes Submenu */}
+              {/* Secciones visibles sin un clic adicional. */}
               {recentNotes.length > 0 && (
                 <>
+                  <div className="more-menu-section">{t('Notas recientes', 'Recent notes')}</div>
+                  {recentNotes.slice(0, 10).map(note => (
+                    <button
+                      key={note.id}
+                      className="menu-item"
+                      onClick={() => { setMenuOpen(false); onSelectNote?.(note.id); }}
+                      style={{ padding: '4px 10px', fontSize: 11 }}
+                    >
+                      <FileText size={13} style={{ opacity: 0.7 }} />
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {note.title || t('Sin título', 'Untitled')}
+                      </span>
+                    </button>
+                  ))}
                   <button
                     className="menu-item"
-                    onClick={() => setRecentSubOpen(!recentSubOpen)}
+                    onClick={() => onClearRecent?.()}
+                    style={{ padding: '4px 10px', fontSize: 10, color: 'var(--text-muted)' }}
                   >
-                    <FileText size={14} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Notas recientes', 'Recent notes')}</span>
-                    <span style={{
-                      fontSize: 10,
-                      color: 'var(--text-muted)',
-                      transform: recentSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.15s',
-                    }}>▶</span>
+                    {t('Limpiar recientes', 'Clear recently opened')}
                   </button>
-                  {recentSubOpen && (
-                    <div style={{
-                      borderLeft: '2px solid var(--border)',
-                      marginLeft: 19,
-                      paddingLeft: 0,
-                    }}>
-                      {recentNotes.slice(0, 10).map(note => (
-                        <button
-                          key={note.id}
-                          className="menu-item"
-                          onClick={() => { setMenuOpen(false); onSelectNote?.(note.id); }}
-                          style={{ padding: '4px 10px', fontSize: 11 }}
-                        >
-                          <span style={{
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {note.title || (language === 'es' ? 'Sin título' : 'Untitled')}
-                          </span>
-                        </button>
-                      ))}
-                      <div style={{ height: 1, background: 'var(--border)', margin: '2px 8px' }} />
-                      <button
-                        className="menu-item"
-                        onClick={() => { onClearRecent?.(); setRecentSubOpen(false); }}
-                        style={{ padding: '4px 10px', fontSize: 10, color: 'var(--text-muted)' }}
-                      >
-                        {t('Limpiar recientes', 'Clear recently opened')}
-                      </button>
-                    </div>
-                  )}
                   <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
                 </>
               )}
 
-              {/* Submenú Nota actual (atajos de teclado para la nota abierta) */}
-              <button
-                className="menu-item"
-                onClick={() => setNoteSubOpen(!noteSubOpen)}
-              >
-                <FileText size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Nota actual', 'Current note')}</span>
-                <span style={{
-                  fontSize: 10,
-                  color: 'var(--text-muted)',
-                  transform: noteSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                }}>▶</span>
-              </button>
-              {noteSubOpen && (
-                <div style={{
-                  borderLeft: '2px solid var(--border)',
-                  marginLeft: 19,
-                  paddingLeft: 0,
-                }}>
+              <div className="more-menu-section">{t('Nota actual', 'Current note')}</div>
+              <div role="group" aria-label={t('Nota actual', 'Current note')}>
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onSaveNote?.(); }}
+                    onClick={() => { setMenuOpen(false); onSaveNote?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Control+S"
                   >
@@ -597,7 +550,7 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onDuplicateNote?.(currentNoteId); } }}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onDuplicateNote?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Control+D"
                   >
@@ -608,7 +561,7 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteFavorite?.(currentNoteId); } }}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onToggleNoteFavorite?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+S"
                   >
@@ -619,7 +572,7 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteSticky?.(currentNoteId); } }}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onToggleNoteSticky?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+A"
                   >
@@ -630,7 +583,7 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onToggleRaw?.(); }}
+                    onClick={() => { setMenuOpen(false); onToggleRaw?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+H"
                   >
@@ -641,7 +594,7 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onCycleLayout?.(); }}
+                    onClick={() => { setMenuOpen(false); onCycleLayout?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+L"
                   >
@@ -652,7 +605,7 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onShowHistory?.(); }}
+                    onClick={() => { setMenuOpen(false); onShowHistory?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+R"
                   >
@@ -663,7 +616,7 @@ export default function TitleBar({
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); setNoteSubOpen(false); onDeleteNote?.(); }}
+                    onClick={() => { setMenuOpen(false); onDeleteNote?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+Delete"
                   >
@@ -671,35 +624,14 @@ export default function TitleBar({
                     <span style={{ flex: 1 }}>{t('Eliminar nota', 'Delete note')}</span>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
                   </button>
-                </div>
-              )}
+              </div>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              {/* Export Submenu */}
-              <button
-                className="menu-item"
-                onClick={() => setExportSubOpen(!exportSubOpen)}
-                aria-haspopup="true"
-                aria-expanded={exportSubOpen}
-              >
-                <Upload size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Exportar', 'Export')}</span>
-                <span style={{
-                  fontSize: 10,
-                  color: 'var(--text-muted)',
-                  transform: exportSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                }}>▶</span>
-              </button>
-              {exportSubOpen && (
-                <div style={{
-                  borderLeft: '2px solid var(--border)',
-                  marginLeft: 19,
-                  paddingLeft: 0,
-                }}>
+              <div className="more-menu-section">{t('Exportar', 'Export')}</div>
+              <div role="group" aria-label={t('Exportar', 'Export')}>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportPdf?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportPdf?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+P"
                   >
@@ -709,7 +641,7 @@ export default function TitleBar({
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportMarkdown?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportMarkdown?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+M"
                   >
@@ -719,7 +651,7 @@ export default function TitleBar({
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportText?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportText?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+T"
                   >
@@ -729,7 +661,7 @@ export default function TitleBar({
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportHtml?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportHtml?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+H"
                   >
@@ -739,7 +671,7 @@ export default function TitleBar({
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onPrint?.(); }}
+                    onClick={() => { setMenuOpen(false); onPrint?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+P"
                   >
@@ -747,12 +679,10 @@ export default function TitleBar({
                     <span style={{ flex: 1 }}>{t('Imprimir', 'Print')}</span>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
                   </button>
-                </div>
-              )}
-
+              </div>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              {/* Toggles */}
+              <div className="more-menu-section">{t('Opciones', 'Options')}</div>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -829,7 +759,8 @@ export default function TitleBar({
                 <Sparkles size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Barra flotante', 'Floating toolbar')}</span>
                 {menuSwitch(showFloatingToolbar)}
-              </div>              <div
+              </div>
+              <div
                 className="menu-item"
                 role="menuitem"
                 tabIndex={0}
@@ -843,25 +774,8 @@ export default function TitleBar({
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              <button
-                className="menu-item"
-                onClick={() => setHelpSubOpen(!helpSubOpen)}
-              >
-                <HelpCircle size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Ayuda', 'Help')}</span>
-                <span style={{
-                  fontSize: 10,
-                  color: 'var(--text-muted)',
-                  transform: helpSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                }}>▶</span>
-              </button>
-              {helpSubOpen && (
-                <div style={{
-                  borderLeft: '2px solid var(--border)',
-                  marginLeft: 19,
-                  paddingLeft: 0,
-                }}>
+              <div className="more-menu-section">{t('Ayuda', 'Help')}</div>
+              <div role="group" aria-label={t('Ayuda', 'Help')}>
                   <button
                     className="menu-item"
                     onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
@@ -920,8 +834,7 @@ export default function TitleBar({
                     <Download size={13} style={{ opacity: 0.7 }} />
                     <span>{t('Buscar actualizaciones', 'Check for updates')}</span>
                   </button>
-                </div>
-              )}
+              </div>
               {minimizeToTray && (
                 <button
                   className="menu-item"
