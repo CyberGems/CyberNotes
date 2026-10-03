@@ -6,7 +6,10 @@ import TitleBar from './TitleBar';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('./Tooltip', () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock('./Tooltip', () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
+  TooltipShortcut: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+}));
 vi.mock('./WelcomeGreeting', () => ({ default: () => null }));
 
 describe('More menu', () => {

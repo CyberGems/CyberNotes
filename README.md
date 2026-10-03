@@ -53,11 +53,12 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Links & Images**: Auto-link detection, image insertion with size and alignment controls, local thumbnail previews
 - **Markdown Shortcuts**: Type `##`, `>`, `-`, `` ``` `` for instant formatting
 - **Document Tools**: Line/column counter, word/character count, reading time, document minimap, line numbers
+- **Save Feedback**: Live saved, saving, unsaved and error states with timestamps in the editor and floating notes
 - **Save Options**: Autosave as you type, manual save with draft protection, confirm on close/navigation
 
 ### 📁 Organization
 - **Folders**: Custom names, 20 icon options, 20 unique colors (enforced uniqueness)
-- **Floating Notes**: Detach notes as always-on-top desktop sticky widgets
+- **Floating Notes**: Detach notes as always-on-top desktop sticky widgets; reach overflow toolbar actions with the mouse wheel
 - **Multi-Tab Interface**: Work with multiple notes simultaneously
 - **Favorites & Pinning**: Pin important notes for quick access
 - **Drag & Drop**: Move notes between folders effortlessly
@@ -71,7 +72,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Offline Recovery**: One-time recovery code with hint and rate-limited reset from the lock screen
 - **Auto-Lock**: Configurable inactivity timeout (1 min to 24 hours)
 - **Privacy Shield**: Screen shield when app is hidden or minimized
-- **Caps Lock Manager**: Auto-off after inactivity with visual countdown and sound notifications (5 synthesized presets)
+- **Caps Lock Manager**: Auto-off after inactivity with a themed title-bar countdown and dismissible notice, plus sound notifications (5 synthesized presets)
 
 ### 🎨 Customization
 - **6 Visual Themes**: Cyber Dark, Midnight, Forest, Cyber Neon, Light, Graphite
@@ -81,6 +82,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **UI Scaling**: Adjust interface size to your preference
 - **Tab Width**: Normal or wide, minimap toggle, density controls
 - **Greeting Name**: Personalize time-based greetings
+- **Responsive Layouts**: Compact menus, title bar and editor footer adapt to narrower windows
 
 ### 🖥️ Desktop Integration
 - **System Tray**: Minimize/close to tray, custom DPI-aware tray menu
@@ -237,8 +239,8 @@ Artifacts land in `release/`:
 
 | Artifact | Description |
 |---|---|
-| `CyberNotes_Setup_1.14.0.exe` | NSIS installer (interactive wizard, custom install dir) |
-| `CyberNotes_Portable_1.14.0.exe` | Portable build (zero-install) |
+| `CyberNotes_Setup_1.15.0.exe` | NSIS installer (interactive wizard, custom install dir) |
+| `CyberNotes_Portable_1.15.0.exe` | Portable build (zero-install) |
 
 ---
 
@@ -251,6 +253,7 @@ Artifacts land in `release/`:
 | `Ctrl+Shift+N` | Create a new folder |
 | `Ctrl+F` | Focus search bar |
 | `Ctrl+S` | Save note manually |
+| `Shift+F3` | Cycle sentence, lowercase, uppercase, capitalize each word, and toggle case |
 | `↑` / `↓` | Navigate notes in list |
 | `Enter` | Open selected note in editor |
 | `Escape` | Return focus to note list / close modal |

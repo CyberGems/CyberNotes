@@ -8,7 +8,7 @@
 
 <!-- Maintainer: Rewrite the marked paragraph for every release. Use 25-45 words, lead with user-facing changes, and do not repeat the app name or version. -->
 <!-- changelog-summary:start -->
-Square grid cards arrive with text peeks, collapsible groups, a views dropdown and an Alt+V shortcut, alongside a security access log with opt-out and PIN recovery hints. Plus updates that always ask first, smoother tab switches, a recents facelift, and delete actions everywhere.
+Save states now include timestamps in the editor and floating notes, while compact menus, footers, and responsive layouts adapt better to narrow windows. Themed Caps Lock inactivity cues, five-way Shift+F3 case cycling, clearer tooltips, improved floating-note navigation, and custom installer artwork polish daily use.
 <!-- changelog-summary:end -->
 
 > **New to CyberNotes?** A privacy-focused Windows notes app with rich text, folders, tabs, floating notes, and fully local data.
@@ -17,10 +17,10 @@ Square grid cards arrive with text peeks, collapsible groups, a views dropdown a
 
 ### ✨ Key Features & Highlights
 
-- 🃏 **Grid cards view**: square cards with cover images or text peeks, collapsible favorite, floating and date groups, a views dropdown with Alt+V shortcut, and inline badges that never overlap text.
-- 🛡️ **Security access log**: last 50 unlocks, failed attempts, auto-locks and credential changes in Settings, with one-click clear, an opt-out toggle, and Forgot PIN plus Enter hint on the lock screen.
-- ✅ **Updates ask first**: notices always show the changelog in your language with Download, Skip and View release; nothing downloads or installs without your click, and the close-window dialog is now option cards.
-- ✨ **Flow polish**: delete from the tab menu and the editor header, Esc clearing search, smoother tab switches without loader flicker or scroll jumps, a cleaner recents menu, and a Space key for Leave without saving.
+- 💾 **Save feedback at a glance**: timestamped saved, saving and unsaved states in the editor and floating notes, with compact indicators that fit narrow layouts.
+- 🧭 **More room on screen**: responsive title bar and editor footer, scale-aware More menu, denser recent notes, narrow-window layouts, and mouse-wheel navigation for hidden floating-toolbar buttons.
+- ⌨️ **Clearer keyboard cues**: themed Caps Lock inactivity countdown and dismissible notice, one toggle for Caps/Num/Insert indicators, and Shift+F3 cycling through all five case styles.
+- 🖥️ **Desktop and editor polish**: more reliable window restore across monitors and DPI changes, consistent shortcut tooltips, copy controls for code and quotes, and custom NSIS installer artwork.
 
 <details>
 <summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
@@ -28,7 +28,7 @@ Square grid cards arrive with text peeks, collapsible groups, a views dropdown a
 ### 🚀 Novedades de esta versión
 
 <!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
-Las tarjetas cuadradas llegan con peeks de texto, grupos colapsables, menú de vistas y atajo Alt+V, junto a un registro de accesos con opt-out y ayuda de PIN. Además, avisos que siempre piden confirmación, cambios de pestaña suaves, recientes renovados y borrado en todas partes.
+El guardado ahora muestra la hora en el editor y las notas flotantes; menús y pies se adaptan a ventanas angostas. Se añaden señales de inactividad de Bloq Mayús, cinco estilos con Mayús+F3, tooltips más claros, mejor navegación flotante y arte personalizado para el instalador.
 
 ---
 
@@ -36,10 +36,10 @@ Las tarjetas cuadradas llegan con peeks de texto, grupos colapsables, menú de v
 
 <!-- Maintainer: Espejo en español de los puntos de arriba. -->
 
-- 🃏 **Vista de tarjetas**: tarjetas cuadradas con portada o peek de texto, grupos colapsables de favoritas, flotantes y fechas, menú de vistas con atajo Alt+V e insignias que nunca tapan texto.
-- 🛡️ **Registro de accesos**: últimos 50 desbloqueos, intentos, bloqueos y cambios de clave en Ajustes, con limpiar en un clic, interruptor opt-out y PIN olvidado más Enter en el login.
-- ✅ **Avisos con confirmación**: los avisos siempre muestran el changelog en tu idioma con Descargar, Omitir y Ver release; nada se descarga ni instala sin tu clic, y el diálogo de cierre ahora son tarjetas.
-- ✨ **Pulido de flujo**: borrado desde menú de pestaña y header, Esc que limpia la búsqueda, cambios de pestaña sin parpadeos ni saltos, recientes renovados y Espacio para Salir sin guardar.
+- 💾 **Confirmación de guardado**: estados con hora para guardado automático y manual en el editor y las notas flotantes, con indicadores compactos para ventanas angostas.
+- 🧭 **Más espacio en pantalla**: barra superior y pie del editor adaptables, menú Más según la escala, recientes más densos, diseños compactos y rueda del mouse para recorrer botones ocultos.
+- ⌨️ **Señales de teclado más claras**: cuenta regresiva y aviso cerrable para Bloq Mayús, un solo control para Caps/Num/Insert y Mayús+F3 con los cinco estilos de mayúsculas.
+- 🖥️ **Mejoras de escritorio y edición**: restauración de ventanas más fiable entre monitores y escalas, tooltips de atajos coherentes, controles para copiar código y citas, y arte NSIS personalizado.
 
 </details>
 

@@ -53,11 +53,12 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Enlaces e imágenes**: detección automática de enlaces, inserción de imágenes con controles de tamaño y alineación, vistas previas en miniatura locales
 - **Atajos de Markdown**: escribe `##`, `>`, `-`, `` ``` `` para formatear al instante
 - **Herramientas de documento**: contador de líneas y columnas, recuento de palabras y caracteres, tiempo de lectura, minimapa del documento y números de línea
+- **Estado de guardado**: estados de guardado, guardando, pendiente y error con hora en el editor y las notas flotantes
 - **Opciones de guardado**: guardado automático al escribir, guardado manual con protección de borrador y confirmación al cerrar o navegar
 
 ### 📁 Organización
 - **Carpetas**: nombres personalizados, 20 opciones de icono y 20 colores únicos (unicidad garantizada)
-- **Notas flotantes**: separa las notas como widgets adhesivos de escritorio siempre visibles
+- **Notas flotantes**: separa las notas como widgets adhesivos siempre visibles; recorre acciones ocultas de la barra con la rueda del mouse
 - **Interfaz de varias pestañas**: trabaja con varias notas a la vez
 - **Favoritos y anclaje**: fija notas importantes para acceso rápido
 - **Arrastrar y soltar**: mueve notas entre carpetas sin esfuerzo
@@ -71,7 +72,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Recuperación sin conexión**: código de recuperación de un solo uso con pista y restablecimiento limitado por tasa desde la pantalla de bloqueo
 - **Bloqueo automático**: tiempo de inactividad configurable (1 minuto a 24 horas)
 - **Escudo de privacidad**: escudo de pantalla cuando la app está oculta o minimizada
-- **Gestor de Bloc Mayús**: apagado automático tras la inactividad con cuenta regresiva visual y avisos de sonido (5 preajustes sintetizados)
+- **Gestor de Bloc Mayús**: apagado automático tras la inactividad con cuenta regresiva temática en la barra y aviso cerrable, además de sonidos (5 preajustes sintetizados)
 
 ### 🎨 Personalización
 - **6 temas visuales**: CyberNotes (oscuro), Cian Medianoche, Verde Bosque, Magenta Neón, Blanco Claro y Gris Grafito
@@ -81,6 +82,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Escalado de la interfaz**: ajusta el tamaño de la interfaz a tu gusto
 - **Anchura de pestañas**: normal o ancha, conmutador de minimapa y controles de densidad
 - **Nombre de saludo**: personaliza los saludos según la hora
+- **Diseños adaptables**: menús, barra superior y pie del editor compactos para ventanas angostas
 
 ### 🖥️ Integración con escritorio
 - **Bandeja del sistema**: minimizar o cerrar a la bandeja, menú de bandeja personalizado consciente de DPI
@@ -235,8 +237,8 @@ Los artefactos quedan en `release/`:
 
 | Artefacto | Descripción |
 |---|---|
-| `CyberNotes_Setup_1.14.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
-| `CyberNotes_Portable_1.14.0.exe` | Build portable (sin instalación) |
+| `CyberNotes_Setup_1.15.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
+| `CyberNotes_Portable_1.15.0.exe` | Build portable (sin instalación) |
 ---
 
 ## ⌨️ Atajos de teclado
@@ -248,6 +250,7 @@ Los artefactos quedan en `release/`:
 | `Ctrl+Shift+N` | Crear una carpeta nueva |
 | `Ctrl+F` | Enfocar la barra de búsqueda |
 | `Ctrl+S` | Guardar la nota manualmente |
+| `Mayús+F3` | Alternar entre modo oración, minúsculas, MAYÚSCULAS, Capitalizar y alternar mayúsculas |
 | `↑` / `↓` | Navegar por las notas de la lista |
 | `Intro` | Abrir la nota seleccionada en el editor |
 | `Escape` | Devolver el foco a la lista de notas / cerrar la ventana |
