@@ -334,7 +334,10 @@ export default function LockScreen({
               )}
             </button>
           </Tooltip>
-          <Tooltip placement="bottom" label={t.lockScreen.close}>
+          <Tooltip
+            placement="bottom"
+            label={language === 'es' ? 'Cerrar (Alt+F4)' : 'Close (Alt+F4)'}
+          >
             <button
               type="button"
               className="btn-icon"

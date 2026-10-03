@@ -6081,6 +6081,7 @@ export default function NoteEditor({
                 minWidth: 'max-content',
                 flexShrink: 0,
                 marginLeft: 8,
+                userSelect: 'none',
                 color: saveStatus === 'error'
                   ? '#fca5a5'
                   : saveStatus === 'saving' || saveStatus === 'pending'
@@ -6104,7 +6105,7 @@ export default function NoteEditor({
                       : '0 0 7px rgba(52, 211, 153, 0.45)',
                 }}
               />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{saveStatusDisplay}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', userSelect: 'none' }}>{saveStatusDisplay}</span>
             </span>
           </Tooltip>
         )}
