@@ -75,6 +75,15 @@ export interface Theme {
 
 export type AppView = 'lock' | 'setup' | 'app';
 
+export type UpdateStatus =
+  | { state: 'checking' }
+  | { state: 'available'; version: string; releaseNotes?: string; releaseUrl?: string }
+  | { state: 'not-available'; version: string }
+  | { state: 'downloading'; percent: number; version?: string; bytesPerSecond?: number; transferred?: number; total?: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'installing'; version: string }
+  | { state: 'error'; message: string };
+
 // Window API type
 declare global {
   interface Window {
@@ -157,17 +166,11 @@ declare global {
       printDocument: (title: string, html: string) => Promise<boolean>;
       // Updates / About
       checkForUpdates: () => Promise<{ ok: boolean; version?: string; error?: string }>;
+      getUpdateStatus: () => Promise<UpdateStatus | null>;
       downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;
       installUpdate: () => Promise<void>;
       cancelAutoInstall: () => Promise<boolean>;
-      onUpdateStatus: (callback: (status: {
-        state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'installing' | 'error';
-        version?: string;
-        percent?: number;
-        message?: string;
-        releaseNotes?: string;
-        releaseUrl?: string;
-      }) => void) => () => void;
+      onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
       getVersions: () => Promise<{
         app: string;
         electron: string;

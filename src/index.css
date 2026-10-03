@@ -2402,12 +2402,24 @@ body.sticky-is-dragging * {
   border-color: color-mix(in srgb, var(--success) 40%, transparent);
 }
 .about-auto-update {
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   margin: 0;
   gap: 8px;
   justify-content: center;
-  padding-top: 2px;
+  padding: 2px 0 0;
+  cursor: pointer;
 }
-.about-auto-update span {
+.about-auto-update:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.about-auto-update > span:last-child {
   font-size: 12px;
   color: var(--text-secondary);
 }

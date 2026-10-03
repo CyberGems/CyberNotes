@@ -10,6 +10,7 @@ let manualCheck = false;
 // instalar requieren siempre un clic del usuario en el aviso.
 let isDownloading = false;
 let downloadedVersion: string | null = null;
+let latestUpdateStatus: UpdateStatus | null = null;
 let periodicTimer: ReturnType<typeof setInterval> | null = null;
 let listenersRegistered = false;
 
@@ -71,6 +72,9 @@ async function fetchReleaseDetails(
 }
 
 function broadcast(status: UpdateStatus): void {
+  latestUpdateStatus = status.state === 'checking' || status.state === 'not-available'
+    ? null
+    : status;
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('update:status', status);
   }
@@ -193,6 +197,8 @@ export function setAutoUpdate(enabled: boolean): void {
 function registerUpdateIpc(): void {
   if ((registerUpdateIpc as any)._done) return;
   (registerUpdateIpc as any)._done = true;
+
+  ipcMain.handle('update:get-status', () => latestUpdateStatus);
 
   ipcMain.handle('update:check', async () => {
     manualCheck = true;

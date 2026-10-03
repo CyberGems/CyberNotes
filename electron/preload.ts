@@ -177,6 +177,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
 
   // -- Updates / About --
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  getUpdateStatus: () => ipcRenderer.invoke('update:get-status'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   cancelAutoInstall: () => ipcRenderer.invoke('update:cancelAutoInstall'),
