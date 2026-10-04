@@ -52,7 +52,8 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Word-Style Font Sizes**: Size dropdown and floating bubble in the editor, one-tap cycling in floating notes
 - **Links & Images**: Auto-link detection, image insertion with size and alignment controls, local thumbnail previews
 - **Markdown Shortcuts**: Type `##`, `>`, `-`, `` ``` `` for instant formatting
-- **Document Tools**: Line/column counter, word/character count, reading time, document minimap, line numbers
+- **Document Tools**: Line/column counter, word/character count, reading time, document minimap, line numbers and wrapped-line markers
+- **Character & Emoji Pickers**: Search categorized Unicode symbols and Emoji 18.0; insert one item or collect several at once
 - **Save Feedback**: Live saved, saving, unsaved and error states with timestamps in the editor and floating notes
 - **Save Options**: Autosave as you type, manual save with draft protection, confirm on close/navigation
 
@@ -60,6 +61,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Folders**: Custom names, 20 icon options, 20 unique colors (enforced uniqueness)
 - **Floating Notes**: Detach notes as always-on-top desktop sticky widgets; reach overflow toolbar actions with the mouse wheel
 - **Multi-Tab Interface**: Work with multiple notes simultaneously
+- **Compact Workspace**: Collapse the sidebar or line-number gutter to make more room for editing
 - **Favorites & Pinning**: Pin important notes for quick access
 - **Drag & Drop**: Move notes between folders effortlessly
 - **Instant Search**: Full-text search across titles, previews, and content
@@ -82,7 +84,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **UI Scaling**: Adjust interface size to your preference
 - **Tab Width**: Normal or wide, minimap toggle, density controls
 - **Greeting Name**: Personalize time-based greetings
-- **Responsive Layouts**: Compact menus, title bar and editor footer adapt to narrower windows
+- **Responsive Layouts**: Screen-aware menus, title bar and editor footer adapt to narrower windows
 
 ### 🖥️ Desktop Integration
 - **System Tray**: Minimize/close to tray, custom DPI-aware tray menu
@@ -239,8 +241,8 @@ Artifacts land in `release/`:
 
 | Artifact | Description |
 |---|---|
-| `CyberNotes_Setup_1.15.0.exe` | NSIS installer (interactive wizard, custom install dir) |
-| `CyberNotes_Portable_1.15.0.exe` | Portable build (zero-install) |
+| `CyberNotes_Setup_1.16.0.exe` | NSIS installer (interactive wizard, custom install dir) |
+| `CyberNotes_Portable_1.16.0.exe` | Portable build (zero-install) |
 
 ---
 

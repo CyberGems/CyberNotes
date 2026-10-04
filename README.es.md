@@ -52,7 +52,8 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Tamaños de fuente al estilo Word**: desplegable de tamaño y burbuja flotante en el editor, ciclado con un toque en las notas flotantes
 - **Enlaces e imágenes**: detección automática de enlaces, inserción de imágenes con controles de tamaño y alineación, vistas previas en miniatura locales
 - **Atajos de Markdown**: escribe `##`, `>`, `-`, `` ``` `` para formatear al instante
-- **Herramientas de documento**: contador de líneas y columnas, recuento de palabras y caracteres, tiempo de lectura, minimapa del documento y números de línea
+- **Herramientas de documento**: contador de líneas y columnas, recuento de palabras y caracteres, tiempo de lectura, minimapa, números de línea e indicadores de continuación
+- **Mapa de caracteres y emojis**: busca símbolos Unicode y emojis 18.0 por categoría; inserta uno o reúne varios a la vez
 - **Estado de guardado**: estados de guardado, guardando, pendiente y error con hora en el editor y las notas flotantes
 - **Opciones de guardado**: guardado automático al escribir, guardado manual con protección de borrador y confirmación al cerrar o navegar
 
@@ -60,6 +61,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Carpetas**: nombres personalizados, 20 opciones de icono y 20 colores únicos (unicidad garantizada)
 - **Notas flotantes**: separa las notas como widgets adhesivos siempre visibles; recorre acciones ocultas de la barra con la rueda del mouse
 - **Interfaz de varias pestañas**: trabaja con varias notas a la vez
+- **Espacio compacto**: contrae la barra lateral o la columna de números de línea para dar más espacio a la edición
 - **Favoritos y anclaje**: fija notas importantes para acceso rápido
 - **Arrastrar y soltar**: mueve notas entre carpetas sin esfuerzo
 - **Búsqueda instantánea**: búsqueda de texto completo en títulos, vistas previas y contenido
@@ -82,7 +84,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Escalado de la interfaz**: ajusta el tamaño de la interfaz a tu gusto
 - **Anchura de pestañas**: normal o ancha, conmutador de minimapa y controles de densidad
 - **Nombre de saludo**: personaliza los saludos según la hora
-- **Diseños adaptables**: menús, barra superior y pie del editor compactos para ventanas angostas
+- **Diseños adaptables**: menús que se ajustan a la pantalla, barra superior y pie del editor para ventanas angostas
 
 ### 🖥️ Integración con escritorio
 - **Bandeja del sistema**: minimizar o cerrar a la bandeja, menú de bandeja personalizado consciente de DPI
@@ -237,8 +239,8 @@ Los artefactos quedan en `release/`:
 
 | Artefacto | Descripción |
 |---|---|
-| `CyberNotes_Setup_1.15.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
-| `CyberNotes_Portable_1.15.0.exe` | Build portable (sin instalación) |
+| `CyberNotes_Setup_1.16.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
+| `CyberNotes_Portable_1.16.0.exe` | Build portable (sin instalación) |
 ---
 
 ## ⌨️ Atajos de teclado
