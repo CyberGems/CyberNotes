@@ -79,6 +79,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   const searchRef = useRef<HTMLInputElement | null>(null);
   const batchInputRef = useRef<HTMLInputElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const ensureActiveVisibleRef = useRef(false);
   const insertionRangeRef = useRef({ from: editor.state.selection.from, to: editor.state.selection.to });
   const [initialViewState] = useState(readViewState);
   const scrollTopRef = useRef(initialViewState.scrollTop);
@@ -86,6 +87,8 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   const [category, setCategory] = useState<EmojiFilter>(initialViewState.category);
   const [activeIndex, setActiveIndex] = useState(0);
   const [gridMetrics, setGridMetrics] = useState({ columns: 8, rowStep: 57, rowGap: 5, viewportHeight: 0, scrollTop: 0 });
+  const gridMetricsRef = useRef(gridMetrics);
+  gridMetricsRef.current = gridMetrics;
   const [selected, setSelected] = useState<EmojiEntry | null>(null);
   const [multiSelect, setMultiSelect] = useState(false);
   const [batchEmojis, setBatchEmojis] = useState('');
@@ -200,18 +203,21 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
     }
   }, [category, query]);
   useEffect(() => {
+    if (!ensureActiveVisibleRef.current) return;
+    ensureActiveVisibleRef.current = false;
     if (filteredEntries.length === 0) return;
-    const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, gridMetrics.scrollTop - 3) / gridMetrics.rowStep) - 2);
-    const lastVisibleRow = Math.ceil((gridMetrics.scrollTop + gridMetrics.viewportHeight) / gridMetrics.rowStep) + 2;
-    const row = Math.floor(activeIndex / gridMetrics.columns);
+    const metrics = gridMetricsRef.current;
+    const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, metrics.scrollTop - 3) / metrics.rowStep) - 2);
+    const lastVisibleRow = Math.ceil((metrics.scrollTop + metrics.viewportHeight) / metrics.rowStep) + 2;
+    const row = Math.floor(activeIndex / metrics.columns);
     if (row < firstVisibleRow || row >= lastVisibleRow) {
-      const top = row * gridMetrics.rowStep;
+      const top = row * metrics.rowStep;
       if (gridRef.current) gridRef.current.scrollTop = top;
       setGridMetrics(current => ({ ...current, scrollTop: top }));
       return;
     }
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-emoji-index="${Math.min(activeIndex, filteredEntries.length - 1)}"]`)?.scrollIntoView?.({ block: 'nearest' });
-  }, [activeIndex, filteredEntries.length, gridMetrics]);
+  }, [activeIndex, filteredEntries.length]);
 
   const activeEntry = filteredEntries.length > 0 ? filteredEntries[Math.min(activeIndex, filteredEntries.length - 1)] : null;
   const totalRows = Math.ceil(filteredEntries.length / gridMetrics.columns);
@@ -240,9 +246,11 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown' && filteredEntries.length > 0) {
       event.preventDefault();
+      ensureActiveVisibleRef.current = filteredEntries.length > 1;
       setActiveIndex(index => (index + 1) % filteredEntries.length);
     } else if (event.key === 'ArrowUp' && filteredEntries.length > 0) {
       event.preventDefault();
+      ensureActiveVisibleRef.current = filteredEntries.length > 1;
       setActiveIndex(index => (index - 1 + filteredEntries.length) % filteredEntries.length);
     } else if (event.key === 'Enter') {
       event.preventDefault();

@@ -2385,6 +2385,8 @@ body.sticky-is-dragging * {
   position: relative;
   overflow: hidden;
   animation: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .character-map-header {
   padding: calc(14px * var(--ui-scale)) calc(18px * var(--ui-scale));
@@ -2452,6 +2454,8 @@ body.sticky-is-dragging * {
   background: transparent;
   font: inherit;
   font-size: calc(13px * var(--ui-scale));
+  user-select: text;
+  -webkit-user-select: text;
 }
 .character-map-search input::placeholder {
   color: var(--text-muted);
@@ -2616,6 +2620,8 @@ body.sticky-is-dragging * {
   font-family: var(--font-ui);
   font-size: calc(16px * var(--ui-scale));
   letter-spacing: 0.02em;
+  user-select: text;
+  -webkit-user-select: text;
 }
 .character-map-batch-row input::placeholder {
   color: var(--text-muted);
@@ -2768,10 +2774,12 @@ body.sticky-is-dragging * {
 }
 .emoji-picker-grid button {
   font-size: calc(25px * var(--ui-scale));
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Noto Emoji", sans-serif;
   line-height: 1;
 }
 .emoji-picker-preview {
   font-size: calc(30px * var(--ui-scale));
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Noto Emoji", sans-serif;
 }
 .emoji-picker-loading {
   width: min(calc(380px * var(--ui-scale, 1)), calc(100vw - 40px));
