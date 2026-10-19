@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.14.0",
   "author": "CyberGems",
+  "license": "GPL-3.0-only",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
