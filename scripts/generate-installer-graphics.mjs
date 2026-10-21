@@ -67,49 +67,6 @@ async function main() {
   const sidebarBmp = encodeBMP(sidebarInfo.width, sidebarInfo.height, rawSidebar);
   fs.writeFileSync(path.join(outDir, 'installerSidebar.bmp'), sidebarBmp);
   console.log(`Saved installerSidebar.bmp (${sidebarBmp.length} bytes) and installerSidebar.png`);
-
-  console.log('Generating installer header (150x57)...');
-  // For header, create a clean modern 150x57 banner:
-  // soft tech gradient on white/pale cyan with logo on right
-  const logoSharp = sharp(path.resolve('public/icon.png'))
-    .resize(44, 44, { fit: 'contain' });
-  const logoBuf = await logoSharp.png().toBuffer();
-
-  const svgHeader = `
-    <svg width="150" height="57" viewBox="0 0 150 57" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#FFFFFF" />
-          <stop offset="60%" stop-color="#F0F9FF" />
-          <stop offset="100%" stop-color="#E0F2FE" />
-        </linearGradient>
-      </defs>
-      <rect width="150" height="57" fill="url(#headerGrad)" />
-      <circle cx="124" cy="28" r="24" fill="#0EA5E9" opacity="0.08" />
-      <circle cx="124" cy="28" r="16" fill="#06B6D4" opacity="0.06" />
-    </svg>
-  `;
-
-  const headerSharp = sharp(Buffer.from(svgHeader))
-    .composite([
-      {
-        input: logoBuf,
-        top: 6,
-        left: 98,
-      },
-    ]);
-
-  await headerSharp.clone().png().toFile(path.join(outDir, 'installerHeader.png'));
-
-  const { data: rawHeader, info: headerInfo } = await headerSharp
-    .clone()
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const headerBmp = encodeBMP(headerInfo.width, headerInfo.height, rawHeader);
-  fs.writeFileSync(path.join(outDir, 'installerHeader.bmp'), headerBmp);
-  console.log(`Saved installerHeader.bmp (${headerBmp.length} bytes) and installerHeader.png`);
 }
 
 main().catch(console.error);
