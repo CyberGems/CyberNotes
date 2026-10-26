@@ -38,7 +38,7 @@ describe('More menu', () => {
       expect(menu!.style.overflowY).toBe('auto');
       expect(menu!.style.maxHeight).toContain('100vh');
       expect(menu!.style.boxSizing).toBe('border-box');
-      for (const label of ['Nota actual', 'Exportar', 'Opciones', 'Ayuda', 'Aplicación']) {
+      for (const label of ['Nota actual', 'Exportar', 'Ajustes rápidos', 'Ayuda', 'Aplicación']) {
         expect(menu!.textContent).toContain(label);
       }
       expect(menu!.textContent).not.toContain('Notas recientes');
