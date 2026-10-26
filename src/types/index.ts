@@ -185,6 +185,7 @@ declare global {
       openExternal: (url: string) => Promise<boolean>;
       // Assets
       selectAndSaveImage: () => Promise<string | null>;
+      saveImageBinary: (data: ArrayBuffer | Uint8Array, mime: string) => Promise<string | null>;
       // Events
       onStatusBarUrl: (callback: (url: string) => void) => () => void;
       onContextMenuData: (callback: (data: any) => void) => () => void;

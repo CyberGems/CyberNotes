@@ -2,14 +2,24 @@
  * Web Audio API synthesizer for retro-futuristic sound alerts in CyberNotes.
  * Zero external files, 100% offline-friendly, high-performance, and ultra-low latency.
  */
+
+// Un único AudioContext reutilizado: crear uno por sonido agotaba instancias
+// (Chromium limita los contextos vivos) y generaba basura por cada clic.
+let sharedCtx: AudioContext | null = null;
+function getSharedContext(): AudioContext | null {
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!sharedCtx || sharedCtx.state === 'closed') sharedCtx = new AudioContextClass();
+  if (sharedCtx.state === 'suspended') void sharedCtx.resume();
+  return sharedCtx;
+}
+
 export function playSynthSound(preset: string) {
   if (preset === 'off' || !preset) return;
 
   try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return;
-    
-    const ctx = new AudioContextClass();
+    const ctx = getSharedContext();
+    if (!ctx) return;
 
     if (preset === 'mechanical-click') {
       // Metallic tactile hardware key click

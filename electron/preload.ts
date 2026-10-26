@@ -158,6 +158,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
 
   // -- Images --
   selectAndSaveImage: () => ipcRenderer.invoke('images:selectAndSave'),
+  saveImageBinary: (data: ArrayBuffer | Uint8Array, mime: string) => ipcRenderer.invoke('images:saveBinary', data, mime),
 
   // -- Import / Export --
   exportData: () => ipcRenderer.invoke('data:export'),

@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useCallback, useState, useLayoutEffe
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
-import { useEditor, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
+import { useEditor, useEditorState, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
 import { EditorState, NodeSelection } from '@tiptap/pm/state';
 import { Node as TiptapNode } from '@tiptap/core';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -1018,7 +1018,12 @@ export function WordFontFamilySelect({
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: compact ? 150 : 200 });
-  const activeFamily = (editor?.getAttributes('textStyle')?.fontFamily as string | null) || null;
+  // Suscripción fina: el combo se actualiza por sí solo cuando cambia la
+  // familia de la selección (el shell ya no se re-renderiza por transacción).
+  const activeFamily = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ((e?.getAttributes('textStyle')?.fontFamily as string | undefined) ?? null),
+  });
   const matched = matchFontFamilyOption(activeFamily);
   const baseFont = EDITOR_FONTS.find(f => f.id === baseFontId) || EDITOR_FONTS[0];
   const baseFontName = baseFont.name;
@@ -1137,18 +1142,29 @@ export function WordFontSizeSelect({
   const justFocusedRef = useRef(false);
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: 72, align: 'right', width: 120 });
-  const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
-  const directNum = parseFontSizeNumber(activeFontSize);
+  // Suscripción fina: sin re-render por transacción del shell, este combo
+  // necesita actualizarse por sí solo cuando cambian el tamaño directo de la
+  // selección o el del texto vecino al cursor.
+  const { direct: directFontSize, neighbor: neighborFontSize } = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      if (!e) return { direct: null as string | null, neighbor: null as number | null };
+      const direct = (e.getAttributes('textStyle')?.fontSize as string | undefined) ?? null;
+      const neighbor = direct ? null : getCaretNeighborFontSize(e);
+      return { direct, neighbor };
+    },
+  }) ?? { direct: null as string | null, neighbor: null as number | null };
+  const directNum = parseFontSizeNumber(directFontSize);
   // Tamaño "actual": marca directa, vecino del caret o base. Siempre hay
   // un número visible aunque no haya texto seleccionado.
-  const neighborNum = editor && !directNum ? getCaretNeighborFontSize(editor) : null;
+  const neighborNum = neighborFontSize;
   const docNum = directNum ?? neighborNum;
   const displayNum = docNum ?? defaultSize;
   const t = TRANSLATIONS[language];
 
   useEffect(() => {
     if (!focused) setDraft(null);
-  }, [activeFontSize, focused]);
+  }, [directFontSize, focused]);
 
   if (!editor) return null;
   const shown = draft ?? String(displayNum);
@@ -2164,7 +2180,9 @@ export default function NoteEditor({
       return;
     }
     if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
-    minimapSyncTimer.current = setTimeout(run, 150);
+    // 400 ms: clonar el DOM completo del editor es caro; sincronizarlo cada
+    // 150 ms mientras se escribe competía con el render del documento real.
+    minimapSyncTimer.current = setTimeout(run, 400);
   }, [updateMinimapIndicator]);
 
   // Escala = ancho del ProseMirror real / ancho del minimapa (mismo wrapping que el documento)
@@ -2386,15 +2404,14 @@ export default function NoteEditor({
     if (current && hydratedNoteIdRef.current === current.id) {
       const updated = { ...current, title: newTitle };
       currentNoteRef.current = updated;
-      if (autosaveEnabled) {
-        markSavePending();
-        void persistNote(updated);
-      } else {
-        markSavePending();
+      // Mismo camino con debounce que el cuerpo del editor: persistir por
+      // pulsación disparaba IPC + SQL + re-render de las listas por letra.
+      markSavePending();
+      if (!autosaveEnabled) {
         setHasUnsavedChanges(true);
         hasUnsavedChangesRef.current = true;
-        onEditDraft?.(current.id, newTitle, editor?.getHTML() || '');
       }
+      scheduleAutoSave();
     }
   };
   /** El brillo del botón Guardar entra poco después del despliegue (no durante). */
@@ -3150,23 +3167,41 @@ export default function NoteEditor({
 
         return false;
       },
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
+        if (files.length === 0 || !editorRef.current?.isEditable) return false;
+        event.preventDefault();
+        void insertImageFiles(files);
+        return true;
+      },
+      handleDrop: (_view, event, _slice, moved) => {
+        if (moved) return false;
+        const files = Array.from(event.dataTransfer?.files ?? []).filter((f) => f.type.startsWith('image/'));
+        if (files.length === 0 || !editorRef.current?.isEditable) return false;
+        event.preventDefault();
+        void insertImageFiles(files);
+        return true;
+      },
     },
     content: '',
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
+    // false: el shell completo no se re-renderiza en cada transacción de
+    // ProseMirror. Los estados que la UI lee del editor (activos de la barra,
+    // undo/redo, atributos de imagen) viven en useEditorState, que re-renderiza
+    // solo cuando cambian; los contadores van coalescidos en scheduleMetrics.
+    shouldRerenderOnTransaction: false,
+    onUpdate: () => {
       const current = currentNoteRef.current;
       const isHydrated = !!current && hydratedNoteIdRef.current === current.id;
       if (!isSelectionChangingRef.current && isHydrated) {
         isDirtyRef.current = true;
-        scheduleAutoSave(html);
+        scheduleAutoSave();
       }
-      updateLineInfo(editor);
-      updateTextMetrics(editor);
+      scheduleMetrics();
       // Actualizar minimap al editar (rAF coalesce llamadas múltiples)
       syncMinimapHtml();
     },
-    onSelectionUpdate: ({ editor }) => {
-      updateLineInfo(editor);
+    onSelectionUpdate: () => {
+      scheduleMetrics();
     },
     onFocus: () => {
       setIsFocused(true);
@@ -3332,6 +3367,53 @@ export default function NoteEditor({
   // Sincronizar editorRef después de que useEditor lo haya inicializado
   editorRef.current = editor;
 
+  // Estados del editor que pinta la UI. Con shouldRerenderOnTransaction en
+  // false, este hook es la única vía por la que la barra de herramientas,
+  // el menú flotante y los menús de imagen reaccionan a cambios de selección
+  // o de formato: solo re-renderiza cuando algún valor de aquí cambia de
+  // verdad (deepEqual), no en cada transacción de ProseMirror.
+  const editorUi = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      if (!e) return null;
+      const imageAttrs = e.getAttributes('image');
+      return {
+        canUndo: e.can().undo(),
+        canRedo: e.can().redo(),
+        selectionEmpty: e.state.selection.empty,
+        bold: e.isActive('bold'),
+        italic: e.isActive('italic'),
+        underline: e.isActive('underline'),
+        strike: e.isActive('strike'),
+        highlight: e.isActive('highlight'),
+        h1: e.isActive('heading', { level: 1 }),
+        h2: e.isActive('heading', { level: 2 }),
+        bulletList: e.isActive('bulletList'),
+        orderedList: e.isActive('orderedList'),
+        alignLeft: e.isActive({ textAlign: 'left' }),
+        alignCenter: e.isActive({ textAlign: 'center' }),
+        alignRight: e.isActive({ textAlign: 'right' }),
+        alignJustify: e.isActive({ textAlign: 'justify' }),
+        blockquote: e.isActive('blockquote'),
+        codeBlock: e.isActive('codeBlock'),
+        link: e.isActive('link'),
+        image: e.isActive('image'),
+        table: e.isActive('table'),
+        imageAlign: (imageAttrs?.align as string | undefined) ?? 'center',
+        imageWidth: (imageAttrs?.width as string | undefined) ?? null,
+        fontSize: (e.getAttributes('textStyle')?.fontSize as string | undefined) ?? null,
+      };
+    },
+  });
+  const ui = editorUi ?? {
+    canUndo: false, canRedo: false, selectionEmpty: true, bold: false, italic: false,
+    underline: false, strike: false, highlight: false, h1: false, h2: false,
+    bulletList: false, orderedList: false, alignLeft: false, alignCenter: false,
+    alignRight: false, alignJustify: false, blockquote: false, codeBlock: false,
+    link: false, image: false, table: false, imageAlign: 'center', imageWidth: null,
+    fontSize: null,
+  };
+
   useEffect(() => {
     if (!onRegisterDraftFlush) return;
 
@@ -3423,13 +3505,28 @@ export default function NoteEditor({
     if (editor) updateLineInfo(editor);
   }, [editor, showLineCounter, updateLineInfo]);
 
-  const updateTextMetrics = (editor: any) => {
+  const updateTextMetrics = useCallback((editor: any) => {
     const text = editor.getText();
     const chars = text.length;
     const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
     const readingTime = Math.ceil(words / 200);
     setTextMetrics({ words, chars, readingTime });
-  };
+  }, []);
+
+  // Métricas (línea/col y palabras/caracteres) con coalescido de 120 ms:
+  // ambas recorren el documento completo y hacerlo por tecla es O(doc) por
+  // pulsación. Coalesciendo, el indicador sigue percibiéndose inmediato.
+  const metricsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleMetrics = useCallback(() => {
+    if (metricsTimer.current) return;
+    metricsTimer.current = setTimeout(() => {
+      metricsTimer.current = null;
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed) return;
+      updateLineInfo(ed);
+      updateTextMetrics(ed);
+    }, 120);
+  }, [updateLineInfo, updateTextMetrics]);
 
   // ─── Números y guías de continuación del gutter ─────────────────────
   // Ambos indicadores comparten unidades de línea y coordenadas DOM. La capa
@@ -3915,7 +4012,7 @@ export default function NoteEditor({
     currentNoteRef.current = note;
   }, [note]);
 
-  const scheduleAutoSave = useCallback((html: string) => {
+  const scheduleAutoSave = useCallback(() => {
     const current = currentNoteRef.current;
     if (!current || hydratedNoteIdRef.current !== current.id) return;
     const noteId = current.id;
@@ -3927,7 +4024,7 @@ export default function NoteEditor({
       if (draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
       draftSyncTimer.current = setTimeout(() => {
         if (currentNoteRef.current?.id !== noteId || hydratedNoteIdRef.current !== noteId) return;
-        onEditDraft?.(noteId, localTitleRef.current, html);
+        onEditDraft?.(noteId, localTitleRef.current, editorRef.current?.getHTML() || '');
       }, 300);
       return;
     }
@@ -3935,9 +4032,13 @@ export default function NoteEditor({
     saveTimer.current = setTimeout(() => {
       const current = currentNoteRef.current;
       if (!current || current.id !== noteId || hydratedNoteIdRef.current !== noteId) return;
+      // getHTML se calcula aquí, una vez al vencimiento del debounce, y no en
+      // cada tecla: serializar el documento entero por pulsación era uno de
+      // los mayores costes del hot path.
+      const html = editorRef.current?.getHTML() || '';
       const preview = extractPreview(html);
       const thumb = extractThumb(html);
-      void persistNote({ ...current, content: html, preview, thumb });
+      void persistNote({ ...current, title: localTitleRef.current, content: html, preview, thumb });
       isDirtyRef.current = false;
     }, 500);
   }, [persistNote, autosaveEnabled, onEditDraft, markSavePending]);
@@ -4282,6 +4383,25 @@ export default function NoteEditor({
     editor.chain().focus().setImage({ src: url }).run();
   };
 
+  /**
+   * Imágenes pegadas o arrastradas al editor: se guardan como archivo en
+   * images/ (vía images:saveBinary) y se inserta la URL file:. Sin esto,
+   * Chromium pegaría la imagen embebida en base64 dentro del HTML de la nota
+   * y la base volvería a inflarse con cada copia/revisión.
+   */
+  const insertImageFiles = useCallback(async (files: File[]) => {
+    for (const file of files) {
+      try {
+        const buf = await file.arrayBuffer();
+        const url = await window.cyberNotesAPI.saveImageBinary(new Uint8Array(buf), file.type);
+        if (!url) continue;
+        editorRef.current?.chain().focus().setImage({ src: url }).run();
+      } catch {
+        /* imagen no insertable: continuar con la siguiente */
+      }
+    }
+  }, []);
+
   const handleCopySelection = useCallback(() => {
     if (!editor || editor.state.selection.empty) return;
     const { from, to } = editor.state.selection;
@@ -4327,7 +4447,7 @@ export default function NoteEditor({
     ? `${saveStatusLabel} ${saveTime}`
     : saveStatusLabel;
 
-  const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
+  const activeFontSize = ui.fontSize;
 
   const renderedToolbarGroups = TOOLBAR_GROUPS
     .map((group) => group.filter((gid) => !hiddenToolbarSet.has(gid)))
@@ -4353,11 +4473,11 @@ export default function NoteEditor({
     };
     switch (id) {
       case 'undo':
-        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().undo().run()} disabled={!ui.canUndo} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>;
       case 'redo':
-        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().redo().run()} disabled={!ui.canRedo} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>;
       case 'copy':
-        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleCopySelection} disabled={editor.state.selection.empty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleCopySelection} disabled={ui.selectionEmpty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>;
       case 'paste':
         return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => { void handlePasteFromClipboard(); }} disabled={readOnly} title={language === 'es' ? 'Pegar (Ctrl+V)' : 'Paste (Ctrl+V)'}><Clipboard size={15} /></ToolbarBtn>;
       case 'fontFamily':
@@ -4379,45 +4499,45 @@ export default function NoteEditor({
           </span>
         );
       case 'bold':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold') || menuHl} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBold().run()} active={ui.bold || menuHl} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={15} /></ToolbarBtn>;
       case 'italic':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic') || menuHl} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleItalic().run()} active={ui.italic || menuHl} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={15} /></ToolbarBtn>;
       case 'underline':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline') || menuHl} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline || menuHl} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={15} /></ToolbarBtn>;
       case 'strike':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike') || menuHl} title={language === 'es' ? 'Tachado (Ctrl+Mayús+S)' : 'Strikethrough (Ctrl+Shift+S)'}><Strikethrough size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={ui.strike || menuHl} title={language === 'es' ? 'Tachado (Ctrl+Mayús+S)' : 'Strikethrough (Ctrl+Shift+S)'}><Strikethrough size={15} /></ToolbarBtn>;
       case 'highlight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight') || menuHl} title={language === 'es' ? 'Resaltar (Ctrl+H)' : 'Highlight (Ctrl+H)'}><Highlighter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={ui.highlight || menuHl} title={language === 'es' ? 'Resaltar (Ctrl+H)' : 'Highlight (Ctrl+H)'}><Highlighter size={15} /></ToolbarBtn>;
       case 'clearFormat':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} active={menuHl} title={language === 'es' ? 'Limpiar formato (Ctrl+Espacio)' : 'Clear formatting (Ctrl+Space)'}><RemoveFormatting size={15} /></ToolbarBtn>;
       case 'h1':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 }) || menuHl} title={language === 'es' ? 'Título 1 (Ctrl+1)' : 'Heading 1 (Ctrl+1)'}><Heading1 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={ui.h1 || menuHl} title={language === 'es' ? 'Título 1 (Ctrl+1)' : 'Heading 1 (Ctrl+1)'}><Heading1 size={15} /></ToolbarBtn>;
       case 'h2':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 }) || menuHl} title={language === 'es' ? 'Título 2 (Ctrl+2)' : 'Heading 2 (Ctrl+2)'}><Heading2 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={ui.h2 || menuHl} title={language === 'es' ? 'Título 2 (Ctrl+2)' : 'Heading 2 (Ctrl+2)'}><Heading2 size={15} /></ToolbarBtn>;
       case 'bullet':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList') || menuHl} title={language === 'es' ? 'Lista (Ctrl+8)' : 'Bullet List (Ctrl+8)'}><List size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={ui.bulletList || menuHl} title={language === 'es' ? 'Lista (Ctrl+8)' : 'Bullet List (Ctrl+8)'}><List size={15} /></ToolbarBtn>;
       case 'ordered':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList') || menuHl} title={language === 'es' ? 'Lista numerada (Ctrl+7)' : 'Numbered List (Ctrl+7)'}><ListOrdered size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={ui.orderedList || menuHl} title={language === 'es' ? 'Lista numerada (Ctrl+7)' : 'Numbered List (Ctrl+7)'}><ListOrdered size={15} /></ToolbarBtn>;
       case 'alignLeft':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' }) || menuHl} title={language === 'es' ? 'Alinear a la izquierda (Ctrl+L)' : 'Align left (Ctrl+L)'}><AlignLeft size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={ui.alignLeft || menuHl} title={language === 'es' ? 'Alinear a la izquierda (Ctrl+L)' : 'Align left (Ctrl+L)'}><AlignLeft size={15} /></ToolbarBtn>;
       case 'alignCenter':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' }) || menuHl} title={language === 'es' ? 'Centrar (Ctrl+E)' : 'Center (Ctrl+E)'}><AlignCenter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={ui.alignCenter || menuHl} title={language === 'es' ? 'Centrar (Ctrl+E)' : 'Center (Ctrl+E)'}><AlignCenter size={15} /></ToolbarBtn>;
       case 'alignRight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' }) || menuHl} title={language === 'es' ? 'Alinear a la derecha (Ctrl+R)' : 'Align right (Ctrl+R)'}><AlignRight size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={ui.alignRight || menuHl} title={language === 'es' ? 'Alinear a la derecha (Ctrl+R)' : 'Align right (Ctrl+R)'}><AlignRight size={15} /></ToolbarBtn>;
       case 'alignJustify':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' }) || menuHl} title={language === 'es' ? 'Justificar (Ctrl+J)' : 'Justify (Ctrl+J)'}><AlignJustify size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={ui.alignJustify || menuHl} title={language === 'es' ? 'Justificar (Ctrl+J)' : 'Justify (Ctrl+J)'}><AlignJustify size={15} /></ToolbarBtn>;
       case 'quote':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote') || menuHl} title={language === 'es' ? 'Cita (Ctrl+Q)' : 'Blockquote (Ctrl+Q)'}><Quote size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={ui.blockquote || menuHl} title={language === 'es' ? 'Cita (Ctrl+Q)' : 'Blockquote (Ctrl+Q)'}><Quote size={15} /></ToolbarBtn>;
       case 'code':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock') || menuHl} title={language === 'es' ? 'Bloque de código (Ctrl+Alt+C)' : 'Code block (Ctrl+Alt+C)'}><Code size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={ui.codeBlock || menuHl} title={language === 'es' ? 'Bloque de código (Ctrl+Alt+C)' : 'Code block (Ctrl+Alt+C)'}><Code size={15} /></ToolbarBtn>;
       case 'link':
-        return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={editor.isActive('link') || menuHl} title={language === 'es' ? 'Insertar link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}><LinkIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={ui.link || menuHl} title={language === 'es' ? 'Insertar link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}><LinkIcon size={15} /></ToolbarBtn>;
       case 'image':
         return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen (Ctrl+G)' : 'Insert Image (Ctrl+G)'}><ImageIcon size={15} /></ToolbarBtn>;
       case 'table':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <TableSelect editor={editor} language={language} hideTooltip={tipOff} active={editor.isActive('table')} />
+            <TableSelect editor={editor} language={language} hideTooltip={tipOff} active={ui.table} />
           </span>
         );
       case 'find':
@@ -5556,9 +5676,9 @@ export default function NoteEditor({
                 boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
               }}
             >
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={14} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={14} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={ui.bold} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={ui.italic} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
               <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 3px' }} />
               <ToolbarBtn
                 onClick={() => {
@@ -5585,7 +5705,7 @@ export default function NoteEditor({
 
         {/* Barra de imagen flotante: posicionada absolutamente para no desplazar el contenido */}
         <AnimatePresence>
-          {editor?.isActive('image') && (
+          {editor && ui.image && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -5611,9 +5731,9 @@ export default function NoteEditor({
             >
               <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>{language === 'es' ? 'Imagen:' : 'Image:'}</span>
               <div style={{ display: 'flex', gap: 4 }}>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()} active={editor.getAttributes('image').align === 'left'} title={language === 'es' ? 'Izquierda' : 'Left'}><AlignLeft size={14} /></ToolbarBtn>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()} active={editor.getAttributes('image').align === 'center'} title={language === 'es' ? 'Centro' : 'Center'}><AlignCenter size={14} /></ToolbarBtn>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()} active={editor.getAttributes('image').align === 'right'} title={language === 'es' ? 'Derecha' : 'Right'}><AlignRight size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()} active={ui.imageAlign === 'left'} title={language === 'es' ? 'Izquierda' : 'Left'}><AlignLeft size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()} active={ui.imageAlign === 'center'} title={language === 'es' ? 'Centro' : 'Center'}><AlignCenter size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()} active={ui.imageAlign === 'right'} title={language === 'es' ? 'Derecha' : 'Right'}><AlignRight size={14} /></ToolbarBtn>
               </div>
               <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
               <div style={{ display: 'flex', gap: 4 }}>
@@ -5626,8 +5746,8 @@ export default function NoteEditor({
                     style={{
                       padding: '4px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4,
                       border: '1px solid var(--border)', cursor: 'pointer',
-                      background: editor.getAttributes('image').width === size ? 'var(--accent)' : 'transparent',
-                      color: editor.getAttributes('image').width === size ? '#fff' : 'var(--text-muted)',
+                      background: ui.imageWidth === size ? 'var(--accent)' : 'transparent',
+                      color: ui.imageWidth === size ? '#fff' : 'var(--text-muted)',
                     }}
                   >
                     {size}
@@ -5640,7 +5760,7 @@ export default function NoteEditor({
 
         {/* Barra de tabla: filas/columnas mientras el cursor está en una tabla */}
         <AnimatePresence>
-          {editor?.isActive('table') && !editor?.isActive('image') && (
+          {editor && ui.table && !ui.image && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
