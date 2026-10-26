@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "installer-graphics": "node scripts/generate-installer-graphics.mjs"
+    "installer-graphics": "node scripts/generate-installer-graphics.mjs",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "appId": "com.cybernotes.app",
@@ -63,10 +64,6 @@
     },
     "extraResources": [
       {
-        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
-        "to": "sql-wasm.wasm"
-      },
-      {
         "from": "electron/open-taskbar-settings.exe",
         "to": "open-taskbar-settings.exe"
       }
@@ -91,12 +88,12 @@
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",
     "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.8.9",
     "lucide-react": "^0.511.0",
     "motion": "^12.12.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sql.js": "^1.14.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -115,5 +112,8 @@
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.7",
     "vitest": "^5.0.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }

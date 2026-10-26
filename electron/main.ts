@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
@@ -74,6 +75,12 @@ function getTrayIcon(): string | Electron.NativeImage {
 const bcrypt = require('bcryptjs');
 
 // ─── Paths de datos ────────────────────────────────────────────────────────
+// Gancho de pruebas/CI: redirige el perfil completo (BD, imágenes, backups)
+// para correr la app aislada del perfil real. También permite fumar la app
+// junto a una instalación de producción sin pelear por el single-instance.
+if (process.env.CYBERNOTES_USER_DATA_DIR) {
+  app.setPath('userData', path.resolve(process.env.CYBERNOTES_USER_DATA_DIR));
+}
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
 const imagesPath = path.join(userDataPath, 'images');
@@ -83,76 +90,130 @@ initLogger(userDataPath);
 // ─── uuid ─────────────────────────────────────────────────────────────────
 const { v4: uuidv4 } = require('uuid');
 
-// ─── SQL.js DB ────────────────────────────────────────────────────────────
+// ─── SQLite (better-sqlite3, archivo nativo con WAL) ─────────────────────
+// Persistencia incremental: cada transacción escribe solo las páginas sucias
+// al archivo. Sustituye a sql.js, que re-serializaba la base completa en cada
+// guardado y bloqueaba el proceso principal mientras trabajaba el editor.
 let db: any = null;
-let SQL: any = null;
 
 /** Columnas ligeras para listados (sin content HTML completo). */
 const NOTE_META_COLS = 'id, folder_id, title, preview, thumb, pinned, created_at, updated_at, deleted_at';
 const TRASH_RETENTION_DAYS = 30;
 
-const DB_FLUSH_MS = 1500;
-let dbDirty = false;
-let dbFlushTimer: ReturnType<typeof setTimeout> | null = null;
-
-function saveDbToDisk() {
-  if (!db) return;
-  const data = db.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
-  dbDirty = false;
-}
-
-/** Programa un flush diferido; coalescea muchas escrituras (autosave, settings, etc.). */
-function scheduleDbFlush(delayMs = DB_FLUSH_MS) {
-  dbDirty = true;
-  if (dbFlushTimer) clearTimeout(dbFlushTimer);
-  dbFlushTimer = setTimeout(() => {
-    dbFlushTimer = null;
-    if (dbDirty) saveDbToDisk();
-  }, delayMs);
-}
-
-/** Fuerza escritura inmediata (quit, export, import, operaciones críticas). */
-function flushDbNow() {
-  if (dbFlushTimer) {
-    clearTimeout(dbFlushTimer);
-    dbFlushTimer = null;
-  }
-  if (dbDirty || db) {
-    // Siempre exportar si hay dirty; si no dirty y solo se pide flush, no-op salvo dirty
-    if (dbDirty) saveDbToDisk();
-  }
-}
-
 function ensureColumn(table: string, column: string, typeSql: string) {
   const cols = queryAll(`PRAGMA table_info(${table})`);
   if (!cols.some((c: any) => c.name === column)) {
-    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeSql}`);
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeSql}`);
   }
 }
 
-async function initDatabase() {
-  // Resolver path del WASM de sql.js
-  const sqlWasmPath = isDev 
-    ? path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm')
-    : path.join(process.resourcesPath, 'sql-wasm.wasm');
-  
-  // Inicializar sql.js con el archivo WASM
-  const initSqlJs = require('sql.js');
-  SQL = await initSqlJs({
-    locateFile: () => sqlWasmPath,
-  });
+// ─── Migración única: imágenes base64 → archivos en images/ ──────────────
+// El HTML de notas y revisiones podía incrustar imágenes como data:URL
+// base64 (pegado directo en el editor). Eso inflaba la base: cada imagen se
+// duplicaba en cada snapshot de revisión. Esta pasada extrae cada imagen a
+// images/ (deduplicada por hash SHA-1 del binario) y deja solo la URL file:.
+const BASE64_IMAGE_RE = /data:image\/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)/g;
 
-  // Cargar DB desde disco si existe, o crear nueva
-  if (fs.existsSync(dbPath)) {
-    const fileBuffer = fs.readFileSync(dbPath);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
+function sniffImageExt(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'gif';
+  if (buf.slice(0, 4).toString('latin1') === 'RIFF' && buf.slice(8, 12).toString('latin1') === 'WEBP') return 'webp';
+  const head = buf.slice(0, 200).toString('utf8').trim().toLowerCase();
+  if (head.startsWith('<svg') || head.startsWith('<?xml')) return 'svg';
+  return null;
+}
+
+function migrateBase64ImagesToFiles(): void {
+  if (!db) return;
+  const flag = queryGet("SELECT value FROM settings WHERE key = 'base64_images_migrated'");
+  if (flag?.value === 'true') return;
+  if (!fs.existsSync(imagesPath)) fs.mkdirSync(imagesPath, { recursive: true });
+
+  const fileUrlFor = new Map<string, string>();
+  const REJECTED = '\u0000rejected';
+  let filesWritten = 0;
+
+  const toFileUrl = (dataUrl: string): string | null => {
+    const cached = fileUrlFor.get(dataUrl);
+    if (cached !== undefined) return cached === REJECTED ? null : cached;
+    const m = /^data:image\/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+    if (!m) {
+      fileUrlFor.set(dataUrl, REJECTED);
+      return null;
+    }
+    let buf: Buffer;
+    try {
+      buf = Buffer.from(m[2], 'base64');
+    } catch {
+      fileUrlFor.set(dataUrl, REJECTED);
+      return null;
+    }
+    const ext = sniffImageExt(buf);
+    if (!ext || buf.length === 0 || buf.length > IMAGE_MAX_BYTES) {
+      fileUrlFor.set(dataUrl, REJECTED);
+      return null;
+    }
+    const hash = crypto.createHash('sha1').update(buf).digest('hex');
+    const dest = path.join(imagesPath, `${hash}.${ext}`);
+    if (!fs.existsSync(dest)) {
+      fs.writeFileSync(dest, buf);
+      filesWritten++;
+    }
+    const url = `file:///${dest.replace(/\\/g, '/')}`;
+    fileUrlFor.set(dataUrl, url);
+    return url;
+  };
+
+  const migrateColumn = (table: string, pkCol: string, col: string): number => {
+    const rows = queryAll(`SELECT ${pkCol} AS pk, ${col} AS val FROM ${table} WHERE ${col} LIKE '%data:image/%'`);
+    const updates: Array<{ pk: any; next: string }> = [];
+    for (const row of rows) {
+      const val: string = row.val ?? '';
+      if (!val.includes('data:image/')) continue;
+      const next = val.replace(BASE64_IMAGE_RE, (full: string) => toFileUrl(full) ?? full);
+      if (next !== val) updates.push({ pk: row.pk, next });
+    }
+    if (updates.length > 0) {
+      const tx = db.transaction((batch: Array<{ pk: any; next: string }>) => {
+        for (const u of batch) {
+          db.prepare(`UPDATE ${table} SET ${col} = ? WHERE ${pkCol} = ?`).run(u.next, u.pk);
+        }
+      });
+      tx(updates);
+    }
+    return updates.length;
+  };
+
+  const notesUpdated = migrateColumn('notes', 'id', 'content');
+  const notesThumbs = migrateColumn('notes', 'id', 'thumb');
+  const revisionsUpdated = migrateColumn('note_revisions', 'id', 'content');
+  const draftsUpdated = migrateColumn('note_drafts', 'note_id', 'content');
+
+  runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['base64_images_migrated', 'true']);
+  if (notesUpdated + notesThumbs + revisionsUpdated + draftsUpdated > 0) {
+    // Reclama el espacio liberado por los blobs embebidos (una sola vez).
+    db.exec('VACUUM');
   }
+  writeLog('info', `[images] base64 migration: notes=${notesUpdated} thumbs=${notesThumbs} revisions=${revisionsUpdated} drafts=${draftsUpdated}, files=${filesWritten}`);
+}
+
+async function initDatabase() {
+  // better-sqlite3 abre (o crea) el archivo directamente; el esquema y las
+  // migraciones de columnas se ejecutan igual que antes.
+  const Database = require('better-sqlite3');
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  // NORMAL en WAL: durable ante caída de la app; el único riesgo de pérdida
+  // es un corte de luz en el preciso instante de un checkpoint (aceptable,
+  // el auto-backup cubre el resto).
+  db.pragma('synchronous = NORMAL');
+  db.pragma('busy_timeout = 3000');
+  db.pragma('cache_size = -8000');
 
   // Crear tablas si no existen
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -242,8 +303,12 @@ async function initDatabase() {
     seedInitialDemoContent();
   }
 
-  // Guardar schema inicial
-  saveDbToDisk();
+  // Migración única: imágenes base64 embebidas → archivos en images/
+  try {
+    migrateBase64ImagesToFiles();
+  } catch (err) {
+    writeLog('error', `base64 image migration failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   // Carpeta de imágenes
   if (!fs.existsSync(imagesPath)) {
@@ -374,26 +439,30 @@ function backfillNoteThumbs() {
   for (const row of rows) {
     const thumb = extractThumbFromContent(row.content);
     if (!thumb) continue;
-    db.run('UPDATE notes SET thumb = ? WHERE id = ?', [thumb, row.id]);
+    db.prepare('UPDATE notes SET thumb = ? WHERE id = ?').run(thumb, row.id);
     updated++;
   }
   if (updated > 0) {
-    dbDirty = true;
     console.log(`[CyberNotes] Backfilled thumbs for ${updated} note(s)`);
   }
 }
 
 // ─── Helper: query → array de objetos ─────────────────────────────────────
+// Caché de prepared statements: better-sqlite3 reutiliza el compilado, lo que
+// abarata los handlers calientes (settings, autosave, drafts).
+const stmtCache = new Map<string, any>();
+function cachedStmt(sql: string): any {
+  let stmt = stmtCache.get(sql);
+  if (!stmt) {
+    stmt = db.prepare(sql);
+    stmtCache.set(sql, stmt);
+  }
+  return stmt;
+}
+
 function queryAll(sql: string, params: any[] = []): any[] {
   if (!db) throw new Error('Base de datos no inicializada');
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows: any[] = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
+  return cachedStmt(sql).all(...params);
 }
 
 function queryGet(sql: string, params: any[] = []): any | null {
@@ -401,29 +470,21 @@ function queryGet(sql: string, params: any[] = []): any | null {
   return rows.length > 0 ? rows[0] : null;
 }
 
-/** Ejecuta SQL y programa flush diferido (no bloquea el main en cada UPDATE). */
-function runQuery(sql: string, params: any[] = [], opts?: { flushNow?: boolean }) {
+/** Ejecuta SQL en el archivo (WAL persiste automáticamente; no hay flush manual). */
+function runQuery(sql: string, params: any[] = []) {
   if (!db) throw new Error('Base de datos no inicializada');
-  db.run(sql, params);
-  if (opts?.flushNow) {
-    dbDirty = true;
-    flushDbNow();
-  } else {
-    scheduleDbFlush();
-  }
+  cachedStmt(sql).run(...params);
 }
 
-/** Varias mutaciones sin flush intermedio; un solo schedule al final. */
-function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>, opts?: { flushNow?: boolean }) {  if (!db) throw new Error('Base de datos no inicializada');
+/** Varias mutaciones en una sola transacción atómica. */
+const runQueryBatchTx = (ops: Array<{ sql: string; params?: any[] }>) => {
   for (const op of ops) {
-    db.run(op.sql, op.params ?? []);
+    cachedStmt(op.sql).run(...(op.params ?? []));
   }
-  if (opts?.flushNow) {
-    dbDirty = true;
-    flushDbNow();
-  } else {
-    scheduleDbFlush();
-  }
+};
+function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>) {
+  if (!db) throw new Error('Base de datos no inicializada');
+  db.transaction(runQueryBatchTx)(ops);
 }
 
 function purgeOldTrash(): void {
@@ -694,15 +755,16 @@ function getAutoBackupConfig(): { enabled: boolean; hours: number; keep: number 
   };
 }
 
-function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): { ok: boolean; file?: string } {
+async function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): Promise<{ ok: boolean; file?: string }> {
   if (autoBackupRunning) return { ok: false };
+  if (!db) return { ok: false };
   autoBackupRunning = true;
   try {
-    flushDbNow();
-    if (!fs.existsSync(dbPath)) return { ok: false };
     fs.mkdirSync(backupsDir, { recursive: true });
     const file = backupFileName(new Date());
-    fs.copyFileSync(dbPath, path.join(backupsDir, file));
+    const dest = path.join(backupsDir, file);
+    // db.backup() produce un snapshot consistente aun con WAL activo.
+    await db.backup(dest);
 
     const keep = getAutoBackupConfig().keep;
     const files = fs.readdirSync(backupsDir);
@@ -1035,8 +1097,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     const [contentWidth, contentHeight] = win.getContentSize();
     runQuery(
       `UPDATE sticky_notes SET x = ?, y = ?, width = ?, height = ? WHERE note_id = ?`,
-      [position.x, position.y, contentWidth, contentHeight, noteId],
-      { flushNow: isQuitting }
+      [position.x, position.y, contentWidth, contentHeight, noteId]
     );
   };
   const saveBounds = () => {
@@ -1069,8 +1130,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     // sticky's X still dismisses it until they explicitly open it again.
     runQuery(
       'UPDATE sticky_notes SET is_open = ? WHERE note_id = ?',
-      [isQuitting ? 1 : 0, noteId],
-      { flushNow: isQuitting }
+      [isQuitting ? 1 : 0, noteId]
     );
     notifyStickyListChanged();
     updateTrayMenu();
@@ -1856,19 +1916,19 @@ function createWindow() {
       const isFull = mainWindow.isFullScreen();
 
       if (!isMin) {
-        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false'], { flushNow: immediate });
+        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false']);
       }
 
       if (!isMax && !isMin && !isFull) {
         if (bounds.width >= 320 && bounds.height >= 240) {
-          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...bounds, displayId: display.id })], { flushNow: immediate });
+          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...bounds, displayId: display.id })]);
         }
       } else {
         try {
           const nb = mainWindow.getNormalBounds();
           if (nb && nb.width >= 320 && nb.height >= 240) {
             const disp = screen.getDisplayMatching(nb);
-            runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...nb, displayId: disp.id })], { flushNow: immediate });
+            runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...nb, displayId: disp.id })]);
           }
         } catch (_) {}
       }
@@ -3028,7 +3088,7 @@ ipcMain.handle('drafts:getAll', () => {
   );
 });
 
-ipcMain.handle('drafts:save', (_e: any, draft: any, flushNow = false) => {
+ipcMain.handle('drafts:save', (_e: any, draft: any, _flushNow = false) => {
   const noteId = typeof draft?.note_id === 'string' ? draft.note_id : '';
   const title = typeof draft?.title === 'string' ? draft.title : '';
   const content = typeof draft?.content === 'string' ? draft.content : '';
@@ -3045,7 +3105,6 @@ ipcMain.handle('drafts:save', (_e: any, draft: any, flushNow = false) => {
       (note_id, title, content, base_updated_at, updated_at)
      VALUES (?, ?, ?, ?, ?)`,
     [noteId, title, content, baseUpdatedAt, updatedAt],
-    { flushNow: Boolean(flushNow) }
   );
   return true;
 });
@@ -3248,6 +3307,30 @@ ipcMain.handle('images:selectAndSave', async () => {
   return `file:///${destPath.replace(/\\/g, '/')}`;
 });
 
+/**
+ * Guarda una imagen recibida como binario (pegar / arrastrar al editor) en
+ * images/ y devuelve su URL file:. Evita que el HTML de la nota lleve la
+ * imagen embebida en base64: la nota pesa menos y la base no crece con cada
+ * copia. El tipo real se verifica por magic bytes, no se confía en el MIME.
+ */
+ipcMain.handle('images:saveBinary', (_e: any, data: unknown, _mime: string) => {
+  try {
+    if (!db) return null;
+    if (!(data instanceof ArrayBuffer) && !(ArrayBuffer.isView(data as any))) return null;
+    const buf = Buffer.from(data as ArrayBuffer | Uint8Array);
+    if (buf.length <= 0 || buf.length > CLIPBOARD_IMAGE_MAX_BYTES) return null;
+    const ext = sniffImageExt(buf);
+    if (!ext) return null;
+    fs.mkdirSync(imagesPath, { recursive: true });
+    const destPath = path.join(imagesPath, `${uuidv4()}.${ext}`);
+    fs.writeFileSync(destPath, buf);
+    return `file:///${destPath.replace(/\\/g, '/')}`;
+  } catch (err) {
+    console.error('[CyberNotes] images:saveBinary failed:', err);
+    return null;
+  }
+});
+
 // -- Note document export / print --
 ipcMain.handle('document:export-pdf', async (_e: any, payload: { title?: string; html?: string }) => {
   const title = String(payload?.title || 'cybernotes-note')
@@ -3313,7 +3396,6 @@ ipcMain.handle('data:export', async () => {
   });
   if (result.canceled || !result.filePath) return false;
 
-  flushDbNow();
   const folders = queryAll('SELECT * FROM folders');
   const notes = queryAll('SELECT * FROM notes');
   const usageDays = queryAll('SELECT day, opens FROM usage_days ORDER BY day ASC');
@@ -3338,10 +3420,9 @@ ipcMain.handle('data:import', async () => {
     if (!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)) return false;
     if (data.folders.length + data.notes.length > IMPORT_MAX_ROWS) return false;
 
-    // Backup current DB
-    flushDbNow();
+    // Backup current DB (snapshot consistente con WAL)
     const backupPath = dbPath + '.backup-' + Date.now();
-    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
+    if (db) await db.backup(backupPath);
 
     const str = (v: unknown, max: number): string =>
       typeof v === 'string' ? v.slice(0, max) : '';
@@ -3398,7 +3479,7 @@ ipcMain.handle('data:import', async () => {
         });
       }
     }
-    runQueryBatch(ops, { flushNow: true });
+    runQueryBatch(ops);
     return true;
   } catch (e) {
     console.error('Import error:', e);
@@ -3520,7 +3601,9 @@ if (!gotTheLock) {
       autoBackupTimer = null;
     }
     stopCapsLockWorker();
-    flushDbNow();
+    // WAL ya persistió todo; cerrar limpio hace checkpoint final.
+    try { db?.close(); } catch { /* no bloquear la salida */ }
+    db = null;
   });
 }
 
