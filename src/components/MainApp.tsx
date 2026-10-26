@@ -1932,9 +1932,9 @@ export default function MainApp({
   });
 
   return (
-    <div 
+    <div
       ref={rootStyleRef}
-      className={bgImage ? 'has-bg' : ''}
+      className={`${bgImage ? 'has-bg' : ''} ${glassBlur > 0 ? 'glass-blur-on' : ''}`.trim() || undefined}
       style={{ 
         display: 'flex', 
         flexDirection: 'column', 
