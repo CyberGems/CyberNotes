@@ -449,6 +449,13 @@ body:has(.sticky-note-window),
   border-color: #ef4444;
   color: #fff;
 }
+.modal-action-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 75%, transparent);
+  outline-offset: 2px;
+}
+.modal-action-btn.is-danger:focus-visible {
+  outline-color: rgba(239, 68, 68, 0.75);
+}
 /* Hint de tecla unificado estilo suite: chip kbd translúcido que hereda el
    color del botón (texto o glifo Enter). */
 .modal-key {

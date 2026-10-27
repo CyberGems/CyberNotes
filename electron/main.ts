@@ -3697,6 +3697,11 @@ ipcMain.handle('document:print', async (_e: any, payload: { title?: string; html
 });
 
 // -- Import/Export --
+// Export v2: los refs file:///.../images/<archivo> de content/preview/thumb se
+// reescriben a la forma relativa images/<archivo> y el binario viaja embebido
+// en base64 en el mapa "images". Así el JSON es portable entre equipos y
+// carpetas: el import reconstruye los archivos y las rutas locales.
+// Formatos v1 (sin mapa "images") se importan igual que siempre.
 ipcMain.handle('data:export', async () => {
   const result = await dialog.showSaveDialog(mainWindow!, {
     title: dialogTitle('Exportar datos de CyberNotes', 'Export CyberNotes data'),
@@ -3708,8 +3713,36 @@ ipcMain.handle('data:export', async () => {
   const folders = queryAll('SELECT * FROM folders');
   const notes = queryAll('SELECT * FROM notes');
   const usageDays = queryAll('SELECT day, opens FROM usage_days ORDER BY day ASC');
-  const exportData = { folders, notes, usage_days: usageDays, version: 1 };
-  
+
+  const images: Record<string, string> = {};
+  const portablizeImageRefs = (text: string): string => {
+    if (typeof text !== 'string' || !text) return text;
+    return text.replace(/file:\/\/\/[^"'\\\s()<>]+/g, (url) => {
+      let filePath = '';
+      try {
+        filePath = decodeURIComponent(url.slice('file:///'.length));
+      } catch {
+        return url;
+      }
+      const resolved = path.normalize(filePath);
+      const rel = path.relative(imagesPath, resolved);
+      if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return url;
+      try {
+        images[path.basename(resolved)] = fs.readFileSync(resolved).toString('base64');
+      } catch {
+        return url; // imagen ausente: se deja el ref tal cual
+      }
+      return `images/${path.basename(resolved)}`;
+    });
+  };
+  for (const n of notes) {
+    n.content = portablizeImageRefs(n.content);
+    n.preview = portablizeImageRefs(n.preview);
+    n.thumb = portablizeImageRefs(n.thumb);
+  }
+
+  const exportData = { folders, notes, usage_days: usageDays, images, version: 2 };
+
   fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2));
   return true;
 });
@@ -3728,6 +3761,36 @@ ipcMain.handle('data:import', async () => {
     const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
     if (!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)) return false;
     if (data.folders.length + data.notes.length > IMPORT_MAX_ROWS) return false;
+
+    // v2: reconstruir los archivos de imagen embebidos y mapear cada ref
+    // relativo images/<archivo> a la ruta local real. Sin mapa "images"
+    // (exports v1) el mapeo queda vacío y los refs pasan intactos.
+    const imageUrls = new Map<string, string>();
+    const embedded = (data as any)?.images;
+    if (embedded && typeof embedded === 'object' && !Array.isArray(embedded)) {
+      fs.mkdirSync(imagesPath, { recursive: true });
+      for (const [name, b64] of Object.entries(embedded)) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(name) || typeof b64 !== 'string') continue;
+        let buf: Buffer;
+        try {
+          buf = Buffer.from(b64, 'base64');
+        } catch {
+          continue;
+        }
+        if (buf.length === 0 || buf.length > 64 * 1024 * 1024 || !sniffImageExt(buf)) continue;
+        const dest = path.join(imagesPath, name);
+        try {
+          fs.writeFileSync(dest, buf);
+        } catch {
+          continue;
+        }
+        imageUrls.set(name, `file:///${dest.replace(/\\/g, '/')}`);
+      }
+    }
+    const localizeImageRefs = (text: string): string => {
+      if (typeof text !== 'string' || !text) return text;
+      return text.replace(/(?<![\w/-])images\/([A-Za-z0-9][A-Za-z0-9._-]*)/g, (m, name) => imageUrls.get(name) || m);
+    };
 
     // Backup current DB (snapshot consistente con WAL)
     const backupPath = dbPath + '.backup-' + Date.now();
@@ -3752,16 +3815,18 @@ ipcMain.handle('data:import', async () => {
     for (const n of data.notes) {
       const id = idStr(n?.id);
       if (!id) continue;
-      if (typeof n?.content === 'string' && n.content.length > NOTE_CONTENT_MAX_CHARS) continue;
+      const content = localizeImageRefs(typeof n?.content === 'string' ? n.content : '');
+      if (content.length > NOTE_CONTENT_MAX_CHARS) continue;
+      const thumb = localizeImageRefs(typeof n?.thumb === 'string' ? n.thumb : '');
       ops.push({
         sql: 'INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         params: [
           id,
           typeof n?.folder_id === 'string' ? n.folder_id : null,
           str(n?.title, NOTE_TITLE_MAX_CHARS),
-          str(n?.content, NOTE_CONTENT_MAX_CHARS),
-          str(n?.preview, NOTE_PREVIEW_MAX_CHARS),
-          isThumbUrl(n?.thumb) ? (n.thumb as string).slice(0, THUMB_MAX_CHARS) : '',
+          content,
+          localizeImageRefs(str(n?.preview, NOTE_PREVIEW_MAX_CHARS)),
+          isThumbUrl(thumb) ? thumb.slice(0, THUMB_MAX_CHARS) : '',
           n?.pinned ? 1 : 0,
           str(n?.created_at, 100),
           str(n?.updated_at, 100),

@@ -879,6 +879,12 @@ export default function SettingsModal({
     onEsc: () => setRestorePickerOpen(false),
     onEnter: () => void handleRestoreConfirm(),
   });
+  // El foco entra al modal al abrirse (no queda en el botón que lo abrió,
+  // así Enter no vuelve a dispararlo) y salta al botón primario al elegir.
+  const restoreConfirmRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (restorePickerOpen && restoreSelected) restoreConfirmRef.current?.focus();
+  }, [restorePickerOpen, restoreSelected]);
 
   const formatBackupDate = (iso: string | null): string => {
     if (!iso) return language === 'es' ? 'Nunca' : 'Never';
@@ -2880,8 +2886,8 @@ export default function SettingsModal({
                       </span>
                       <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
                         {language === 'es'
-                          ? 'Genera un archivo JSON descargable con todo el contenido actual.'
-                          : 'Create a downloadable JSON file with all current content.'}
+                          ? 'Genera un archivo JSON portátil con notas, carpetas e imágenes incluidas en base64.'
+                          : 'Create a portable JSON file with notes, folders, and images embedded as base64.'}
                       </span>
                     </div>
                     <button
@@ -2891,7 +2897,9 @@ export default function SettingsModal({
                         if (ok) await showDialog({
                           variant: 'success',
                           title: language === 'es' ? 'Exportación completada' : 'Export complete',
-                          message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
+                          message: language === 'es'
+                            ? 'Datos exportados exitosamente, incluyendo las imágenes.'
+                            : 'Data successfully exported, including the images.',
                         });
                       }}
                       style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
@@ -3455,12 +3463,15 @@ export default function SettingsModal({
         >
           <div
             onClick={e => e.stopPropagation()}
+            tabIndex={-1}
+            autoFocus
             style={{
               width: '100%', maxWidth: 460, borderRadius: 14, padding: 24,
               background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
               border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
               boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
               display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
+              outline: 'none',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -3542,6 +3553,7 @@ export default function SettingsModal({
                 type="button"
                 className="modal-action-btn is-save"
                 disabled={!restoreSelected || restoreBusy}
+                ref={restoreConfirmRef}
                 onClick={() => void handleRestoreConfirm()}
               >
                 {restoreBusy

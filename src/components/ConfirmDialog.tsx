@@ -118,6 +118,7 @@ export default function ConfirmDialog({
           <button
             type="button"
             className={`modal-action-btn ${confirm && variant === 'warning' ? 'is-danger' : 'is-save'}`}
+            autoFocus
             onClick={() => onResolve(true)}
           >
             {okText}
