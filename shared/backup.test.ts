@@ -54,7 +54,8 @@ describe('backupEntryName', () => {
 });
 
 describe('isBackupEntry', () => {
-  it('matches self-contained folders and legacy .db files only', () => {
+  it('matches unified .json files, self-contained folders and legacy .db files only', () => {
+    expect(isBackupEntry('cybernotes-backup-2026-10-27T15-21-26.json')).toBe(true);
     expect(isBackupEntry('cybernotes-backup-2026-10-27T15-21-26')).toBe(true);
     expect(isBackupEntry('cybernotes-backup-2026-09-18T07-30-05.db')).toBe(true);
     expect(isBackupEntry('cybernotes-export.json')).toBe(false);
@@ -64,13 +65,13 @@ describe('isBackupEntry', () => {
 });
 
 describe('selectBackupsToPrune', () => {
-  it('keeps the newest N across folders and legacy files, ignoring foreign entries', () => {
+  it('keeps the newest N across json files, folders and legacy files, ignoring foreign entries', () => {
     const entries = [
       'notes.txt',
       'cybernotes-export.json',
       'cybernotes-backup-2026-09-16T07-00-00.db',
       'cybernotes-backup-2026-10-26T09-00-00',
-      'cybernotes-backup-2026-10-27T15-27-21',
+      'cybernotes-backup-2026-10-27T15-27-21.json',
       'cybernotes-backup-2026-10-27T15-21-26',
     ];
     expect(selectBackupsToPrune(entries, 2)).toEqual([

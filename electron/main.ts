@@ -939,33 +939,26 @@ async function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): Promise
   if (autoBackupRunning) return { ok: false };
   if (!db) return { ok: false };
   autoBackupRunning = true;
-  // Carpeta autocontenida: BD + copia de images/. Un respaldo en otro disco
-  // debe bastar para restaurar todo, no solo las notas.
+  // Respaldo unificado: un archivo JSON v2 autocontenido (notas, carpetas,
+  // uso e imágenes embebidas). Mismo formato que el export manual: portable
+  // entre equipos y restaurable desde Ajustes.
   let dest: string | null = null;
   try {
     const backupsDir = getBackupsDir();
     fs.mkdirSync(backupsDir, { recursive: true });
-    const baseName = backupEntryName(new Date());
+    const baseName = `${backupEntryName(new Date())}.json`;
     // Dos respaldos en el mismo segundo: sufijo -2, -3, ... en vez de fallar.
     for (let attempt = 1; attempt < 100; attempt++) {
-      const candidate = path.join(backupsDir, attempt === 1 ? baseName : `${baseName}-${attempt}`);
+      const candidate = path.join(backupsDir, attempt === 1 ? baseName : `${backupEntryName(new Date())}-${attempt}.json`);
       if (fs.existsSync(candidate)) continue;
-      fs.mkdirSync(candidate, { recursive: true });
       dest = candidate;
       break;
     }
-    if (!dest) throw new Error('no usable backup folder name');
-    const dbFile = path.join(dest, 'cybernotes.db');
-    // db.backup() produce un snapshot consistente aun con WAL activo.
-    await db.backup(dbFile);
-
-    try {
-      if (fs.existsSync(imagesPath)) {
-        fs.cpSync(imagesPath, path.join(dest, 'images'), { recursive: true, force: true });
-      }
-    } catch (err) {
-      writeLog('warn', `Auto backup (${reason}): images copy failed, backup has database only: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    if (!dest) throw new Error('no usable backup file name');
+    // Escritura en dos pasos: nunca dejar un .json a medias tras un fallo.
+    const tmpDest = path.join(backupsDir, `.${path.basename(dest)}.part`);
+    fs.writeFileSync(tmpDest, JSON.stringify(buildExportPayload(), null, 2));
+    fs.renameSync(tmpDest, dest);
 
     const keep = getAutoBackupConfig().keep;
     const entries = fs.readdirSync(backupsDir);
@@ -991,9 +984,9 @@ async function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): Promise
     }
     return { ok: true, file: entryName };
   } catch (err) {
-    // No dejar respaldos a medio formar (BD fallida, disco lleno, etc.).
+    // No dejar respaldos a medio formar (disco lleno, carpeta perdida, etc.).
     if (dest) {
-      try { fs.rmSync(dest, { recursive: true, force: true }); } catch { /* ignore */ }
+      try { fs.rmSync(dest, { force: true }); } catch { /* ignore */ }
     }
     writeLog('error', `Auto backup (${reason}) failed: ${err instanceof Error ? err.message : String(err)}`);
     return { ok: false };
@@ -3696,20 +3689,22 @@ ipcMain.handle('document:print', async (_e: any, payload: { title?: string; html
   }
 });
 
-// -- Import/Export --
-// Export v2: los refs file:///.../images/<archivo> de content/preview/thumb se
-// reescriben a la forma relativa images/<archivo> y el binario viaja embebido
-// en base64 en el mapa "images". Así el JSON es portable entre equipos y
-// carpetas: el import reconstruye los archivos y las rutas locales.
-// Formatos v1 (sin mapa "images") se importan igual que siempre.
-ipcMain.handle('data:export', async () => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
-    title: dialogTitle('Exportar datos de CyberNotes', 'Export CyberNotes data'),
-    defaultPath: 'cybernotes-export.json',
-    filters: [{ name: 'JSON', extensions: ['json'] }]
-  });
-  if (result.canceled || !result.filePath) return false;
+// -- Import/Export / Respaldo unificado en JSON v2 --
+// Un mismo formato para todo: notas, carpetas, días de uso y las imágenes
+// embebidas en base64 en el mapa "images". Los refs file:///.../images/x se
+// reescriben a la forma relativa images/x para que el archivo sea portable
+// entre equipos y carpetas. Sirve para el export manual, los respaldos
+// automáticos y la restauración desde Ajustes.
 
+type ExportPayload = {
+  folders: any[];
+  notes: any[];
+  usage_days: any[];
+  images: Record<string, string>;
+  version: number;
+};
+
+function buildExportPayload(): ExportPayload {
   const folders = queryAll('SELECT * FROM folders');
   const notes = queryAll('SELECT * FROM notes');
   const usageDays = queryAll('SELECT day, opens FROM usage_days ORDER BY day ASC');
@@ -3741,69 +3736,68 @@ ipcMain.handle('data:export', async () => {
     n.thumb = portablizeImageRefs(n.thumb);
   }
 
-  const exportData = { folders, notes, usage_days: usageDays, images, version: 2 };
+  return { folders, notes, usage_days: usageDays, images, version: 2 };
+}
 
-  fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2));
-  return true;
-});
-
-ipcMain.handle('data:import', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
-    title: dialogTitle('Importar datos a CyberNotes', 'Import CyberNotes data'),
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-    properties: ['openFile']
-  });
-  if (result.canceled || !result.filePaths.length) return false;
-
-  try {
-    const stat = fs.statSync(result.filePaths[0]);
-    if (!stat.isFile() || stat.size > IMPORT_FILE_MAX_BYTES) return false;
-    const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
-    if (!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)) return false;
-    if (data.folders.length + data.notes.length > IMPORT_MAX_ROWS) return false;
-
-    // v2: reconstruir los archivos de imagen embebidos y mapear cada ref
-    // relativo images/<archivo> a la ruta local real. Sin mapa "images"
-    // (exports v1) el mapeo queda vacío y los refs pasan intactos.
-    const imageUrls = new Map<string, string>();
-    const embedded = (data as any)?.images;
-    if (embedded && typeof embedded === 'object' && !Array.isArray(embedded)) {
-      fs.mkdirSync(imagesPath, { recursive: true });
-      for (const [name, b64] of Object.entries(embedded)) {
-        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(name) || typeof b64 !== 'string') continue;
-        let buf: Buffer;
-        try {
-          buf = Buffer.from(b64, 'base64');
-        } catch {
-          continue;
-        }
-        if (buf.length === 0 || buf.length > 64 * 1024 * 1024 || !sniffImageExt(buf)) continue;
-        const dest = path.join(imagesPath, name);
-        try {
-          fs.writeFileSync(dest, buf);
-        } catch {
-          continue;
-        }
-        imageUrls.set(name, `file:///${dest.replace(/\\/g, '/')}`);
+/** Decodifica el mapa "images" a archivos reales en imagesPath: nombre -> file URL. */
+function materializeEmbeddedImages(data: any): Map<string, string> {
+  const imageUrls = new Map<string, string>();
+  const embedded = data?.images;
+  if (embedded && typeof embedded === 'object' && !Array.isArray(embedded)) {
+    fs.mkdirSync(imagesPath, { recursive: true });
+    for (const [name, b64] of Object.entries(embedded)) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(name) || typeof b64 !== 'string') continue;
+      let buf: Buffer;
+      try {
+        buf = Buffer.from(b64, 'base64');
+      } catch {
+        continue;
       }
+      if (buf.length === 0 || buf.length > 64 * 1024 * 1024 || !sniffImageExt(buf)) continue;
+      const dest = path.join(imagesPath, name);
+      try {
+        fs.writeFileSync(dest, buf);
+      } catch {
+        continue;
+      }
+      imageUrls.set(name, `file:///${dest.replace(/\\/g, '/')}`);
     }
-    const localizeImageRefs = (text: string): string => {
-      if (typeof text !== 'string' || !text) return text;
-      return text.replace(/(?<![\w/-])images\/([A-Za-z0-9][A-Za-z0-9._-]*)/g, (m, name) => imageUrls.get(name) || m);
-    };
+  }
+  return imageUrls;
+}
 
-    // Backup current DB (snapshot consistente con WAL)
-    const backupPath = dbPath + '.backup-' + Date.now();
-    if (db) await db.backup(backupPath);
+function localizeImageRefs(text: string, imageUrls: Map<string, string>): string {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(/(?<![\w/-])images\/([A-Za-z0-9][A-Za-z0-9._-]*)/g, (m, name) => imageUrls.get(name) || m);
+}
+
+/**
+ * Aplica un payload JSON a la base de datos.
+ * merge: inserta/actualiza sin borrar lo actual (Importar).
+ * replace: deja notas, carpetas, borradores y uso tal cual el respaldo
+ * (Restaurar); ajustes, contraseña e historial de versiones no se tocan.
+ */
+function applyImportedData(data: any, mode: 'merge' | 'replace'): { ok: boolean; error?: string } {
+  try {
+    if (!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)) return { ok: false, error: 'invalid backup file' };
+    if (data.folders.length + data.notes.length > IMPORT_MAX_ROWS) return { ok: false, error: 'backup too large' };
+    if (!db) return { ok: false, error: 'database not ready' };
+
+    const imageUrls = materializeEmbeddedImages(data);
 
     const str = (v: unknown, max: number): string =>
       typeof v === 'string' ? v.slice(0, max) : '';
     const idStr = (v: unknown): string | null =>
       typeof v === 'string' && v && v.length <= 100 ? v : null;
 
-    // Insert imported en un solo batch + un flush (evita N exports a disco).
-    // Filas invalidas se omiten en lugar de abortar todo el import.
     const ops: Array<{ sql: string; params?: any[] }> = [];
+    if (mode === 'replace') {
+      ops.push(
+        { sql: 'DELETE FROM notes' },
+        { sql: 'DELETE FROM folders' },
+        { sql: 'DELETE FROM usage_days' },
+      );
+    }
     for (const f of data.folders) {
       const id = idStr(f?.id);
       if (!id) continue;
@@ -3815,9 +3809,9 @@ ipcMain.handle('data:import', async () => {
     for (const n of data.notes) {
       const id = idStr(n?.id);
       if (!id) continue;
-      const content = localizeImageRefs(typeof n?.content === 'string' ? n.content : '');
+      const content = localizeImageRefs(typeof n?.content === 'string' ? n.content : '', imageUrls);
       if (content.length > NOTE_CONTENT_MAX_CHARS) continue;
-      const thumb = localizeImageRefs(typeof n?.thumb === 'string' ? n.thumb : '');
+      const thumb = localizeImageRefs(typeof n?.thumb === 'string' ? n.thumb : '', imageUrls);
       ops.push({
         sql: 'INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         params: [
@@ -3825,7 +3819,7 @@ ipcMain.handle('data:import', async () => {
           typeof n?.folder_id === 'string' ? n.folder_id : null,
           str(n?.title, NOTE_TITLE_MAX_CHARS),
           content,
-          localizeImageRefs(str(n?.preview, NOTE_PREVIEW_MAX_CHARS)),
+          localizeImageRefs(str(n?.preview, NOTE_PREVIEW_MAX_CHARS), imageUrls),
           isThumbUrl(thumb) ? thumb.slice(0, THUMB_MAX_CHARS) : '',
           n?.pinned ? 1 : 0,
           str(n?.created_at, 100),
@@ -3854,7 +3848,61 @@ ipcMain.handle('data:import', async () => {
       }
     }
     runQueryBatch(ops);
-    return true;
+
+    if (mode === 'replace') {
+      // La carpeta de imágenes debe quedar como en el respaldo: fuera las
+      // sobrantes que ya nada referencia (quedaron huérfanas).
+      const embedded = data?.images;
+      const keptNames = new Set(
+        embedded && typeof embedded === 'object' && !Array.isArray(embedded)
+          ? Object.keys(embedded).filter(n => /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(n))
+          : []
+      );
+      if (fs.existsSync(imagesPath)) {
+        for (const name of fs.readdirSync(imagesPath)) {
+          if (keptNames.has(name)) continue;
+          try {
+            fs.rmSync(path.join(imagesPath, name), { force: true });
+          } catch { /* conserva el archivo */ }
+        }
+      }
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+}
+
+ipcMain.handle('data:export', async () => {
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    title: dialogTitle('Exportar datos de CyberNotes', 'Export CyberNotes data'),
+    defaultPath: 'cybernotes-export.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  });
+  if (result.canceled || !result.filePath) return false;
+
+  fs.writeFileSync(result.filePath, JSON.stringify(buildExportPayload(), null, 2));
+  return true;
+});
+
+ipcMain.handle('data:import', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: dialogTitle('Importar datos a CyberNotes', 'Import CyberNotes data'),
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths.length) return false;
+
+  try {
+    const stat = fs.statSync(result.filePaths[0]);
+    if (!stat.isFile() || stat.size > IMPORT_FILE_MAX_BYTES) return false;
+    const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
+
+    // Backup current DB (snapshot consistente con WAL)
+    const backupPath = dbPath + '.backup-' + Date.now();
+    if (db) await db.backup(backupPath);
+
+    return applyImportedData(data, 'merge').ok;
   } catch (e) {
     console.error('Import error:', e);
     return false;
@@ -3949,10 +3997,31 @@ ipcMain.handle('backup:restore', async (_e: any, entryName: string) => {
     const backupsDir = getBackupsDir();
     const entryPath = path.join(backupsDir, entryName);
     if (!fs.existsSync(entryPath)) return { ok: false, error: 'backup not found' };
+    const entryStat = fs.statSync(entryPath);
+
+    // Formato unificado v2 (archivo .json): reemplazo de datos con la BD
+    // abierta. No hace falta reiniciar el proceso: el renderer recarga al
+    // recibir ok. Ajustes, contraseña e historial de versiones se conservan.
+    if (entryStat.isFile() && entryName.endsWith('.json')) {
+      if (entryStat.size > IMPORT_FILE_MAX_BYTES) return { ok: false, error: 'backup file too large' };
+      let data: any;
+      try {
+        data = JSON.parse(fs.readFileSync(entryPath, 'utf-8'));
+      } catch {
+        return { ok: false, error: 'invalid backup file' };
+      }
+      const safety = await runAutoBackup('manual');
+      if (!safety.ok) return { ok: false, error: 'safety backup failed; nothing was changed' };
+      Array.from(stickyWindows.keys()).forEach(noteId => closeStickyNote(noteId));
+      const applied = applyImportedData(data, 'replace');
+      if (!applied.ok) return applied;
+      writeLog('warn', `[backup] Restored data from ${entryName}`);
+      return { ok: true };
+    }
 
     let backupDb: string | null = null;
     let backupImages: string | null = null;
-    if (fs.statSync(entryPath).isDirectory()) {
+    if (entryStat.isDirectory()) {
       const candidate = path.join(entryPath, 'cybernotes.db');
       if (!fs.existsSync(candidate)) return { ok: false, error: 'backup folder has no database' };
       backupDb = candidate;

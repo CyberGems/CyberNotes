@@ -27,9 +27,9 @@ export function isBackupDue(lastIso: string | null | undefined, nowMs: number, h
 }
 
 /**
- * Nombre ordenable y seguro para filesystems del respaldo como carpeta:
- * cybernotes-backup-2026-09-18T07-30-00/. Dentro viven cybernotes.db y
- * una copia de images/, de modo que cada respaldo sea autocontenido.
+ * Nombre ordenable y seguro para filesystems del respaldo, sin extensión:
+ * cybernotes-backup-2026-09-18T07-30-00. El respaldo unificado agrega .json
+ * (un único archivo autocontenido); los formatos legados fueron carpeta o .db.
  */
 export function backupEntryName(at: Date): string {
   const p = (n: number): string => String(n).padStart(2, '0');

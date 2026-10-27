@@ -815,8 +815,8 @@ export default function SettingsModal({
           variant: 'success',
           title: language === 'es' ? 'Respaldo completado' : 'Backup complete',
           message: language === 'es'
-            ? `Copia guardada como ${res.file || 'respaldo'}. Incluye la base de datos y las imágenes.`
-            : `Backup saved as ${res.file || 'backup'}. It includes the database and the images.`,
+            ? `Copia guardada como ${res.file || 'respaldo'}. Incluye notas, carpetas e imágenes.`
+            : `Backup saved as ${res.file || 'backup'}. It includes notes, folders, and images.`,
         });
       } else {
         await showDialog({
@@ -860,7 +860,12 @@ export default function SettingsModal({
     setRestoreBusy(true);
     try {
       const res = await window.cyberNotesAPI.restoreBackup(restoreSelected);
-      if (res?.ok) return; // La app se reinicia sola con los datos restaurados.
+      if (res?.ok) {
+        // Respaldo .json unificado: recargar con los datos restaurados.
+        // (Los formatos legados reinician la app antes de responder.)
+        window.location.reload();
+        return;
+      }
       setRestorePickerOpen(false);
       await showDialog({
         variant: 'warning',
@@ -2970,8 +2975,8 @@ export default function SettingsModal({
                 </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
-                    ? 'Copia la base de datos y las imágenes a la carpeta de respaldos cada cierto tiempo y conserva las copias más recientes. Cada respaldo es autocontenido: sirve para restaurar todo, incluso en otro disco.'
-                    : 'Copies the database and images to the backups folder on a schedule and keeps the most recent copies. Each backup is self-contained: it can restore everything, even on another disk.'}
+                    ? 'Crea copias automáticas en la carpeta de respaldos y conserva las más recientes. Cada respaldo es un archivo JSON único con notas, carpetas, uso e imágenes dentro: portable y restaurable desde aquí, incluso en otro equipo.'
+                    : 'Creates backups in the backups folder on a schedule and keeps the most recent ones. Each backup is a single JSON file with notes, folders, usage, and images inside: portable and restorable from here, even on another computer.'}
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -3489,8 +3494,8 @@ export default function SettingsModal({
             </div>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
               {language === 'es'
-                ? 'Tus datos actuales se reemplazarán por los del respaldo elegido. Antes se guardará un respaldo de seguridad con el estado actual y la aplicación se reiniciará.'
-                : 'Your current data will be replaced with the selected backup. A safety backup of the current state is saved first and the application will restart.'}
+                ? 'Tus datos actuales se reemplazarán por los del respaldo elegido. Antes se guardará un respaldo de seguridad con el estado actual y, al terminar, la aplicación se recargará con los datos restaurados.'
+                : 'Your current data will be replaced with the selected backup. A safety backup of the current state is saved first and, when done, the application reloads with the restored data.'}
             </p>
             <div style={{
               display: 'flex', flexDirection: 'column', gap: 8,
