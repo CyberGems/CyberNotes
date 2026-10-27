@@ -338,6 +338,11 @@ export default function StickyNoteApp({ noteId }: Props) {
   const editorContentRef = useRef<string>('');
   const noteRef = useRef<Note | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  // Spellcheck progresivo: idéntico al editor principal. Con spellcheck="true"
+  // desde la creación, el caret tarda en aparecer mientras Chromium inicializa
+  // el corrector y escanea el documento.
+  const spellcheckOnRef = useRef(false);
+  const spellcheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   noteRef.current = note;
 
   const t = TRANSLATIONS[language];
@@ -399,6 +404,22 @@ export default function StickyNoteApp({ noteId }: Props) {
     return () => el.removeEventListener('wheel', onWheel);
   }, [applyZoom, loading]);
 
+  /**
+   * Activa spellcheck tras el primer pintado del contenido cargado. Se llama
+   * después de cada carga de contenido (loadData y note:updated).
+   */
+  const deferSpellcheck = useCallback((delayMs = 400) => {
+    if (spellcheckTimerRef.current) clearTimeout(spellcheckTimerRef.current);
+    spellcheckTimerRef.current = setTimeout(() => {
+      spellcheckTimerRef.current = null;
+      const ed = stickyEditorRef.current;
+      if (!ed || ed.isDestroyed || spellcheckOnRef.current) return;
+      spellcheckOnRef.current = true;
+      // Reaplica editorProps para que PM recalcule el atributo ya.
+      try { ed.view.setProps(ed.options.editorProps); } catch { /* vista no lista */ }
+    }, delayMs);
+  }, []);
+
   const showPasteNotice = useCallback((notice: 'too-large' | 'failed') => {
     setPasteNotice(notice);
     if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
@@ -438,9 +459,11 @@ export default function StickyNoteApp({ noteId }: Props) {
       }),
     ],
     editorProps: {
-      attributes: {
-        spellcheck: 'true',
-      },
+      // Función de estado: PM la reevalúa en cada update/setProps, así el
+      // flag del ref se refleja sin recrear el editor.
+      attributes: () => ({
+        spellcheck: spellcheckOnRef.current ? 'true' : 'false',
+      }),
       // Mismo set simple que el editor principal (h1/h2/cita/código quedan en
       // sus atajos dobles por defecto). Alt+F/T enfoca los combos del footer.
       handleKeyDown: (_view, event) => {
@@ -573,7 +596,9 @@ export default function StickyNoteApp({ noteId }: Props) {
             setSaveStatus('saved');
             editorContentRef.current = fetched.content;
             if (editor) {
+              spellcheckOnRef.current = false;
               loadStickyEditorContent(editor, fetched.content || '');
+              deferSpellcheck();
             }
           }
           setLoading(false);
@@ -604,6 +629,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
       if (attentionTimerRef.current) clearTimeout(attentionTimerRef.current);
       if (zoomPersistTimerRef.current) clearTimeout(zoomPersistTimerRef.current);
+      if (spellcheckTimerRef.current) clearTimeout(spellcheckTimerRef.current);
     };
   }, []);
 
@@ -613,8 +639,10 @@ export default function StickyNoteApp({ noteId }: Props) {
       if (updated.id === noteId) {
         setTitle((prev) => (prev !== updated.title ? updated.title : prev));
         if (editor && editor.getHTML() !== updated.content) {
+          spellcheckOnRef.current = false;
           loadStickyEditorContent(editor, updated.content || '');
           editorContentRef.current = updated.content;
+          deferSpellcheck();
         }
         setLastSavedAt(updated.updated_at || null);
         setNote(updated);

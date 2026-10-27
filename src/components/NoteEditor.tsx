@@ -2059,6 +2059,26 @@ export default function NoteEditor({
   const readOnlyRef = useRef(readOnly);
   readOnlyRef.current = readOnly;
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
+  // Spellcheck progresivo: el editor nace con spellcheck="false" y se activa
+  // un instante después de hidratar cada nota. Con "true" desde la creación,
+  // Chromium inicializa el corrector y escanea el documento justo al entrar,
+  // y el caret no aparece hasta que el escaneo termina.
+  const spellcheckOnRef = useRef(false);
+  const spellcheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Activa spellcheck tras el primer pintado del contenido hidratado. */
+  const enableSpellcheckSoon = useCallback((delayMs = 400) => {
+    if (spellcheckTimer.current) clearTimeout(spellcheckTimer.current);
+    spellcheckTimer.current = setTimeout(() => {
+      spellcheckTimer.current = null;
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed || spellcheckOnRef.current) return;
+      spellcheckOnRef.current = true;
+      // Reaplica editorProps para que PM recalcule el atributo ya (si no,
+      // esperaría a la próxima transacción).
+      try { ed.view.setProps(ed.options.editorProps); } catch { /* vista no lista */ }
+    }, delayMs);
+  }, []);
   const [minimapScale, setMinimapScale] = useState(0.075);
   const minimapScaleRef = useRef(0.075);
   const [minimapMenu, setMinimapMenu] = useState<{ x: number; y: number } | null>(null);
@@ -2987,9 +3007,12 @@ export default function NoteEditor({
       VideoEmbed,
     ],
     editorProps: {
-      attributes: {
-        spellcheck: 'true',
-      },
+      // Función de estado: PM la reevalúa en cada update/setProps, así el
+      // flag del ref se refleja sin recrear el editor (los atributos como
+      // objeto fijo reaplicarían el valor viejo en cada render de TipTap).
+      attributes: () => ({
+        spellcheck: spellcheckOnRef.current ? 'true' : 'false',
+      }),
       // Resaltado del buscador en nota (no toca el documento).
       decorations: (state) => buildFindDecos(state.doc, findDecorRef.current.query, findDecorRef.current.current),
       handleDOMEvents: {
@@ -3945,6 +3968,12 @@ export default function NoteEditor({
     loadEditorContent(editor, content);
     hydratedNoteIdRef.current = note.id;
 
+    // Spellcheck diferido: nota nueva = documento nuevo que escanear. El
+    // atributo se apaga (loadEditorContent dispara una transacción y PM
+    // reaplica los atributos) y se enciende tras el primer pintado.
+    spellcheckOnRef.current = false;
+    enableSpellcheckSoon();
+
     // Métricas aquí mismo: la sonda mostró hidratación de ~2ms, así que no
     // tiene sentido pagar un render pasivo extra por estos números.
     updateTextMetrics(editor);
@@ -3984,6 +4013,10 @@ export default function NoteEditor({
 
     return () => {
       clearTimeout(timeoutId);
+      if (spellcheckTimer.current) {
+        clearTimeout(spellcheckTimer.current);
+        spellcheckTimer.current = null;
+      }
       if (draftSyncTimer.current) {
         clearTimeout(draftSyncTimer.current);
         draftSyncTimer.current = null;
