@@ -11,7 +11,7 @@ import { initLogger, writeLog, logRendererError } from './logger';
 import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
-import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
+import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, selectBackupsToPrune } from '../shared/backup';
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
@@ -939,19 +939,44 @@ async function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): Promise
   if (autoBackupRunning) return { ok: false };
   if (!db) return { ok: false };
   autoBackupRunning = true;
+  // Carpeta autocontenida: BD + copia de images/. Un respaldo en otro disco
+  // debe bastar para restaurar todo, no solo las notas.
+  let dest: string | null = null;
   try {
     const backupsDir = getBackupsDir();
     fs.mkdirSync(backupsDir, { recursive: true });
-    const file = backupFileName(new Date());
-    const dest = path.join(backupsDir, file);
+    const baseName = backupEntryName(new Date());
+    // Dos respaldos en el mismo segundo: sufijo -2, -3, ... en vez de fallar.
+    for (let attempt = 1; attempt < 100; attempt++) {
+      const candidate = path.join(backupsDir, attempt === 1 ? baseName : `${baseName}-${attempt}`);
+      if (fs.existsSync(candidate)) continue;
+      fs.mkdirSync(candidate, { recursive: true });
+      dest = candidate;
+      break;
+    }
+    if (!dest) throw new Error('no usable backup folder name');
+    const dbFile = path.join(dest, 'cybernotes.db');
     // db.backup() produce un snapshot consistente aun con WAL activo.
-    await db.backup(dest);
+    await db.backup(dbFile);
+
+    try {
+      if (fs.existsSync(imagesPath)) {
+        fs.cpSync(imagesPath, path.join(dest, 'images'), { recursive: true, force: true });
+      }
+    } catch (err) {
+      writeLog('warn', `Auto backup (${reason}): images copy failed, backup has database only: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     const keep = getAutoBackupConfig().keep;
-    const files = fs.readdirSync(backupsDir);
-    for (const old of selectBackupsToPrune(files, keep)) {
+    const entries = fs.readdirSync(backupsDir);
+    for (const old of selectBackupsToPrune(entries, keep)) {
       try {
-        fs.unlinkSync(path.join(backupsDir, old));
+        const oldPath = path.join(backupsDir, old);
+        if (fs.statSync(oldPath).isDirectory()) {
+          fs.rmSync(oldPath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(oldPath);
+        }
       } catch {
         /* conserva las demas */
       }
@@ -959,12 +984,17 @@ async function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): Promise
 
     const now = new Date().toISOString();
     runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auto_backup_last', now]);
-    writeLog('info', `Auto backup (${reason}) saved as ${file}`);
+    const entryName = path.basename(dest);
+    writeLog('info', `Auto backup (${reason}) saved as ${entryName}`);
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('backup:completed', { at: now, file });
+      mainWindow.webContents.send('backup:completed', { at: now, file: entryName });
     }
-    return { ok: true, file };
+    return { ok: true, file: entryName };
   } catch (err) {
+    // No dejar respaldos a medio formar (BD fallida, disco lleno, etc.).
+    if (dest) {
+      try { fs.rmSync(dest, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
     writeLog('error', `Auto backup (${reason}) failed: ${err instanceof Error ? err.message : String(err)}`);
     return { ok: false };
   } finally {
@@ -3773,15 +3803,36 @@ ipcMain.handle('backup:list', () => {
   try {
     const backupsDir = getBackupsDir();
     if (!fs.existsSync(backupsDir)) return [];
+    // Tamano real: en carpetas autocontenidas incluye la copia de images/.
+    const entrySize = (p: string, isDir: boolean): number => {
+      try {
+        if (!isDir) return fs.statSync(p).size;
+        let total = 0;
+        const stack = [p];
+        while (stack.length) {
+          const dir = stack.pop()!;
+          for (const name of fs.readdirSync(dir)) {
+            const child = path.join(dir, name);
+            const st = fs.statSync(child);
+            if (st.isDirectory()) stack.push(child);
+            else total += st.size;
+          }
+        }
+        return total;
+      } catch {
+        return 0;
+      }
+    };
     return fs
       .readdirSync(backupsDir)
-      .filter(isBackupFile)
+      .filter(isBackupEntry)
       .sort()
       .reverse()
       .map((file) => {
         try {
-          const stat = fs.statSync(path.join(backupsDir, file));
-          return { file, size: stat.size, mtime: stat.mtime.toISOString() };
+          const full = path.join(backupsDir, file);
+          const stat = fs.statSync(full);
+          return { file, size: entrySize(full, stat.isDirectory()), mtime: stat.mtime.toISOString() };
         } catch {
           return null;
         }

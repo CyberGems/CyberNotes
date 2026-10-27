@@ -807,8 +807,8 @@ export default function SettingsModal({
           variant: 'success',
           title: language === 'es' ? 'Respaldo completado' : 'Backup complete',
           message: language === 'es'
-            ? `Copia guardada como ${res.file || 'respaldo.db'}.`
-            : `Backup saved as ${res.file || 'backup.db'}.`,
+            ? `Copia guardada como ${res.file || 'respaldo'}. Incluye la base de datos y las imágenes.`
+            : `Backup saved as ${res.file || 'backup'}. It includes the database and the images.`,
         });
       } else {
         await showDialog({
@@ -2906,8 +2906,8 @@ export default function SettingsModal({
                 </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
-                    ? 'Copia la base de datos a una carpeta local cada cierto tiempo y conserva las copias más recientes.'
-                    : 'Copies the database to a local folder on a schedule and keeps the most recent copies.'}
+                    ? 'Copia la base de datos y las imágenes a la carpeta de respaldos cada cierto tiempo y conserva las copias más recientes. Cada respaldo es autocontenido: sirve para restaurar todo, incluso en otro disco.'
+                    : 'Copies the database and images to the backups folder on a schedule and keeps the most recent copies. Each backup is self-contained: it can restore everything, even on another disk.'}
                 </p>
 
                 <button

@@ -26,18 +26,28 @@ export function isBackupDue(lastIso: string | null | undefined, nowMs: number, h
   return nowMs - last >= hours * 3_600_000;
 }
 
-/** Nombre ordenable y seguro para filesystems: cybernotes-backup-2026-09-18T07-30-00.db */
-export function backupFileName(at: Date): string {
+/**
+ * Nombre ordenable y seguro para filesystems del respaldo como carpeta:
+ * cybernotes-backup-2026-09-18T07-30-00/. Dentro viven cybernotes.db y
+ * una copia de images/, de modo que cada respaldo sea autocontenido.
+ */
+export function backupEntryName(at: Date): string {
   const p = (n: number): string => String(n).padStart(2, '0');
-  return `${BACKUP_FILE_PREFIX}${at.getFullYear()}-${p(at.getMonth() + 1)}-${p(at.getDate())}T${p(at.getHours())}-${p(at.getMinutes())}-${p(at.getSeconds())}.db`;
+  return `${BACKUP_FILE_PREFIX}${at.getFullYear()}-${p(at.getMonth() + 1)}-${p(at.getDate())}T${p(at.getHours())}-${p(at.getMinutes())}-${p(at.getSeconds())}`;
 }
 
+/** Legado: respaldos antiguos que solo contenian la BD como archivo .db. */
 export function isBackupFile(name: unknown): boolean {
   return typeof name === 'string' && name.startsWith(BACKUP_FILE_PREFIX) && name.endsWith('.db');
 }
 
-/** Las mas antiguas que sobran (orden alfabetico = orden cronologico). */
-export function selectBackupsToPrune(files: string[], keep: number): string[] {
-  const sorted = [...files].filter(isBackupFile).sort();
+/** Cualquier respaldo en la carpeta: carpeta autocontenida o .db legado. */
+export function isBackupEntry(name: unknown): boolean {
+  return typeof name === 'string' && name.startsWith(BACKUP_FILE_PREFIX);
+}
+
+/** Los mas antiguos que sobran (orden alfabetico = orden cronologico). */
+export function selectBackupsToPrune(entries: string[], keep: number): string[] {
+  const sorted = [...entries].filter(isBackupEntry).sort();
   return sorted.slice(0, Math.max(0, sorted.length - Math.max(0, keep)));
 }
