@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEditor, useEditorState, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
-import { EditorState, NodeSelection } from '@tiptap/pm/state';
+import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { Node as TiptapNode } from '@tiptap/core';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
@@ -2065,6 +2065,9 @@ export default function NoteEditor({
   // y el caret no aparece hasta que el escaneo termina.
   const spellcheckOnRef = useRef(false);
   const spellcheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Click izquierdo presionado dentro del editor: arrastre de selección en
+  // curso. Mientras dure, shouldShow de la barra flotante devuelve false.
+  const isDragSelectingRef = useRef(false);
 
   /** Activa spellcheck tras el primer pintado del contenido hidratado. */
   const enableSpellcheckSoon = useCallback((delayMs = 400) => {
@@ -2078,6 +2081,29 @@ export default function NoteEditor({
       // esperaría a la próxima transacción).
       try { ed.view.setProps(ed.options.editorProps); } catch { /* vista no lista */ }
     }, delayMs);
+  }, []);
+
+  // Al soltar el click tras un arrastre de selección, mostrar la barra
+  // flotante. BubbleMenuPlugin reevalúa shouldShow solo en transacciones que
+  // cambian selección o documento (handleDebouncedUpdate sale temprano si
+  // nada cambió), y el mouseup no dispara ninguna: colapsar y restaurar la
+  // selección en dos transacciones consecutivas lo obliga a reevaluar ya con
+  // el arrastre terminado. Solo pasos de selección: no entra en el undo.
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (!isDragSelectingRef.current) return;
+      isDragSelectingRef.current = false;
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed || ed.state.selection.empty) return;
+      const sel = ed.state.selection;
+      if (!(sel instanceof TextSelection)) return;
+      try {
+        ed.view.dispatch(ed.state.tr.setSelection(TextSelection.create(ed.state.doc, sel.anchor, sel.anchor)));
+        ed.view.dispatch(ed.state.tr.setSelection(TextSelection.create(ed.state.doc, sel.anchor, sel.head)));
+      } catch { /* vista no lista */ }
+    };
+    window.addEventListener('mouseup', onMouseUp);
+    return () => window.removeEventListener('mouseup', onMouseUp);
   }, []);
   const [minimapScale, setMinimapScale] = useState(0.075);
   const minimapScaleRef = useRef(0.075);
@@ -3026,6 +3052,11 @@ export default function NoteEditor({
               event.preventDefault();
               return true;
             }
+          }
+          // Botón izquierdo: arrastre de selección en curso. La barra flotante
+          // no debe asomarse hasta soltar (el mouseup global la reevalúa).
+          if (event.button === 0) {
+            isDragSelectingRef.current = true;
           }
           return false;
         },
@@ -5694,6 +5725,9 @@ export default function NoteEditor({
               if (readOnlyRef.current) return false;
               if (!showFloatingToolbarRef.current) return false;
               if (!e.isEditable) return false;
+              // Durante un arrastre de selección (click sostenido) la barra
+              // estorba: solo se muestra al soltar el botón.
+              if (isDragSelectingRef.current) return false;
               const { selection } = state;
               if (selection.empty) return false;
               if ('node' in selection && selection.node) return false;
