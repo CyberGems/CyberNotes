@@ -130,6 +130,7 @@ declare global {
       getSettings: (keys: string[]) => Promise<Record<string, string | null>>;
       setSetting: (key: string, value: string) => Promise<boolean>;
       resetSettings: () => Promise<boolean>;
+      wipeAllData: () => Promise<{ ok: boolean; error?: string }>;
       setAutoStart: (enable: boolean) => Promise<boolean>;
       getAutoStart: () => Promise<boolean>;
       // Folders

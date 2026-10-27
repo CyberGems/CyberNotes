@@ -3135,17 +3135,22 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              {/* Card 4: Restablecer Ajustes de Fábrica */}
+              {/* Card 4: Danger Zone */}
               <div className="settings-card">
                 <SettingsHeading icon={<RotateCcw />} tone="danger">
-                  {language === 'es' ? 'Restablecer Ajustes' : 'Reset Settings'}
+                  {language === 'es' ? 'Zona de peligro' : 'Danger Zone'}
                 </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
-                    ? 'Restaura todos los ajustes de configuración de la app a sus valores originales de fábrica sin borrar tus notas ni carpetas.'
-                    : 'Restores all application settings to their original factory values without deleting your notes or folders.'}
+                    ? 'Acciones irreversibles: restablecer las preferencias de la app o borrar permanentemente todos tus datos.'
+                    : 'Irreversible actions: reset app preferences or permanently delete all your data.'}
                 </p>
 
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -3162,8 +3167,8 @@ export default function SettingsModal({
                     </span>
                     <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
                       {language === 'es'
-                        ? 'Tema, interfaz, atajos y preferencias volverán a su estado inicial.'
-                        : 'Theme, interface, shortcuts, and preferences will return to initial state.'}
+                        ? 'Tema, interfaz, atajos y preferencias volverán a su estado inicial. Tus notas se conservan.'
+                        : 'Theme, interface, shortcuts, and preferences will return to initial state. Your notes are kept.'}
                     </span>
                   </div>
                   <button
@@ -3186,6 +3191,60 @@ export default function SettingsModal({
                     <RotateCcw size={15} />
                     {language === 'es' ? 'Restablecer' : 'Reset'}
                   </button>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid color-mix(in srgb, #ef4444 35%, var(--border))',
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                    <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {language === 'es' ? 'Borrar todos los datos' : 'Delete all data'}
+                    </span>
+                    <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
+                      {language === 'es'
+                        ? 'Elimina notas, carpetas, notas adhesivas, imágenes, estadísticas y ajustes, incluida la contraseña de acceso. Los respaldos automáticos se conservan. No se puede deshacer.'
+                        : 'Deletes notes, folders, sticky notes, images, statistics, and settings, including the access password. Automatic backups are kept. This cannot be undone.'}
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-danger"
+                    onClick={async () => {
+                      const proceed = await showDialog({
+                        variant: 'warning',
+                        confirm: true,
+                        confirmLabel: language === 'es' ? 'Sí, borrar todo' : 'Yes, delete everything',
+                        title: language === 'es' ? 'Borrar todos los datos' : 'Delete all data',
+                        message: language === 'es'
+                          ? '¿Seguro que quieres borrar PERMANENTEMENTE todas tus notas, carpetas y datos? Se eliminará también la contraseña de acceso. Esta acción no se puede deshacer.'
+                          : 'Are you sure you want to PERMANENTLY delete all your notes, folders, and data? The access password will also be removed. This action cannot be undone.',
+                      });
+                      if (!proceed) return;
+                      const result = await window.cyberNotesAPI.wipeAllData?.();
+                      if (!result?.ok) {
+                        await showDialog({
+                          variant: 'warning',
+                          title: language === 'es' ? 'Borrar todos los datos' : 'Delete all data',
+                          message: language === 'es'
+                            ? `No se pudieron borrar los datos.${result?.error ? ` (${result.error})` : ''}`
+                            : `The data could not be deleted.${result?.error ? ` (${result.error})` : ''}`,
+                        });
+                        return;
+                      }
+                      window.location.reload();
+                    }}
+                    style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px' }}
+                  >
+                    <Trash2 size={15} />
+                    {language === 'es' ? 'Borrar todo' : 'Delete all'}
+                  </button>
+                </div>
                 </div>
               </div>
             </div>

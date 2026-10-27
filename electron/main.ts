@@ -2986,6 +2986,46 @@ ipcMain.handle('settings:reset', () => {
   return true;
 });
 
+// -- Borrado total de datos (Danger Zone) --
+// A diferencia de settings:reset, aquí nada sobrevive: notas, carpetas,
+// borradores, stickies, revisiones, estadísticas, registro de acceso,
+// ajustes (incluidas contraseña y código de recuperación) e imágenes.
+// Los archivos de respaldo automático se conservan: son la única vía
+// de recuperación si el usuario se arrepiente.
+const WIPE_TABLES = [
+  'notes', 'folders', 'note_drafts', 'sticky_notes',
+  'note_revisions', 'usage_days', 'access_log', 'settings',
+] as const;
+
+function wipeDataTables(): void {
+  for (const table of WIPE_TABLES) runQuery(`DELETE FROM ${table}`);
+  try {
+    fs.rmSync(imagesPath, { recursive: true, force: true });
+  } catch { /* se recrea bajo demanda */ }
+  fs.mkdirSync(imagesPath, { recursive: true });
+}
+
+ipcMain.handle('data:wipe-all', async () => {
+  try {
+    // Cerrar todas las stickies primero: referencian notas que van a
+    // desaparecer y su autoguardado podría reinsertarlas tras el borrado.
+    Array.from(stickyWindows.keys()).forEach(noteId => closeStickyNote(noteId));
+    // Segunda pasada tras un margen: cualquier save en vuelo de un renderer
+    // de sticky recién destruido caería después del primer DELETE.
+    wipeDataTables();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    wipeDataTables();
+
+    registerToggleHotkey();
+    startAutoBackupWatcher();
+    updateTrayMenu();
+    writeLog('warn', '[data] Borrado total de fábrica: notas, carpetas, imágenes y ajustes eliminados');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
 ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   if (typeof key !== 'string' || typeof value !== 'string') return false;
   if (SETTINGS_RESERVED_KEYS.has(key) || !RENDERER_WRITABLE_SETTINGS.has(key)) {

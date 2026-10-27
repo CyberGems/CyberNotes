@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   getSettings: (keys: string[]) => ipcRenderer.invoke('settings:getMany', keys),
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
   resetSettings: () => ipcRenderer.invoke('settings:reset'),
+  wipeAllData: () => ipcRenderer.invoke('data:wipe-all'),
   setAutoStart: (enable: boolean) => ipcRenderer.invoke('settings:setAutoStart', enable),
   getAutoStart: () => ipcRenderer.invoke('settings:getAutoStart'),
 
