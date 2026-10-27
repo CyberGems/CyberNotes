@@ -239,7 +239,7 @@ export default function MainApp({
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
   const [showLineCounter, setShowLineCounter] = useState(false);
-  const [showLineGutter, setShowLineGutter] = useState(true);
+  const [showLineGutter, setShowLineGutter] = useState(false);
   const [showWrapGuides, setShowWrapGuides] = useState(true);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [autoUnlockCapsLock, setAutoUnlockCapsLock] = useState(true);
@@ -588,8 +588,7 @@ export default function MainApp({
     setMinimizeToTray(s.minimize_to_tray === 'true');
     setCloseToTray(s.close_to_tray === 'true');
 
-    if (s.show_line_gutter === null) setShowLineGutter(true);
-    else setShowLineGutter(s.show_line_gutter === 'true');
+    setShowLineGutter(s.show_line_gutter === 'true');
     if (s.show_wrap_guides === null) setShowWrapGuides(true);
     else setShowWrapGuides(s.show_wrap_guides === 'true');
     setShowLineCounter(s.show_line_counter === 'true');

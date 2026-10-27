@@ -2037,7 +2037,7 @@ export default function NoteEditor({
   onToggleLayout, 
   showLineCounter, 
   showKeyboardIndicators = false,
-  showLineGutter = true,
+  showLineGutter = false,
   onShowLineGutterChange,
   showWrapGuides = true,
   onShowWrapGuidesChange,
