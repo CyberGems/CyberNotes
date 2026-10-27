@@ -1895,6 +1895,54 @@ export function applyChangeCase(editor: Editor, kind: ChangeCaseKind): boolean {
 }
 
 /**
+ * Reevalúa la barra flotante tras un arrastre de selección.
+ *
+ * BubbleMenuPlugin solo repinta cuando cambia la selección o el documento,
+ * y el mouseup no dispara ninguno de los dos. Colapsar y restaurar la
+ * selección en dos transacciones consecutivas lo obliga a reevaluar ya con el
+ * arrastre terminado. Solo pasos de selección: nada entra en el undo.
+ *
+ * Tras un clic simple esto no debe hacerse: ProseMirror ya colapsa la
+ * selección de forma nativa y dejar el caret en el punto pulsado. Por eso
+ * solo se aplica si el gesto fue un arrastre real.
+ */
+export function refreshBubbleMenuAfterDrag(
+  editor: Editor,
+  start: { x: number; y: number } | null,
+  end: { clientX: number; clientY: number },
+): boolean {
+  if (!wasDragSelection(start, end)) return false;
+  if (editor.isDestroyed || editor.state.selection.empty) return false;
+  const sel = editor.state.selection;
+  if (!(sel instanceof TextSelection)) return false;
+  try {
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, sel.anchor, sel.anchor)));
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, sel.anchor, sel.head)));
+  } catch {
+    /* vista no lista */
+  }
+  return true;
+}
+
+/**
+ * ¿El gesto fue un arrastre de selección o un clic simple?
+ *
+ * ProseMirror usa el mismo umbral de 4px para distinguir ambos. Un mouseup
+ * fuera de la ventana no trae coordenadas fiables, así que se cuenta como
+ * arrastre. La diferencia importa porque solo tras un arrastre hay que forzar
+ * la reevaluación de la barra flotante: en un clic simple, ProseMirror ya
+ * colapsa la selección de forma nativa y dejar el caret en el punto pulsado.
+ */
+export function wasDragSelection(
+  start: { x: number; y: number } | null,
+  end: { clientX: number; clientY: number },
+): boolean {
+  if (!start) return true;
+  if (end.clientX === 0 && end.clientY === 0) return true;
+  return Math.abs(start.x - end.clientX) > 4 || Math.abs(start.y - end.clientY) > 4;
+}
+
+/**
  * Multiplicadores de tamaño que el CSS aplica a cada nivel de encabezado.
  * El texto sin marca explícita hereda el tamaño del bloque.
  */
@@ -2134,6 +2182,9 @@ export default function NoteEditor({
   // Click izquierdo presionado dentro del editor: arrastre de selección en
   // curso. Mientras dure, shouldShow de la barra flotante devuelve false.
   const isDragSelectingRef = useRef(false);
+  // Posición del mouse al iniciar el arrastre, para distinguir un clic
+  // simple (colapsar la selección en el punto del clic) de un arrastre real.
+  const dragStartPointRef = useRef<{ x: number; y: number } | null>(null);
 
   /** Activa spellcheck tras el primer pintado del contenido hidratado. */
   const enableSpellcheckSoon = useCallback((delayMs = 400) => {
@@ -2154,19 +2205,25 @@ export default function NoteEditor({
   // cambian selección o documento (handleDebouncedUpdate sale temprano si
   // nada cambió), y el mouseup no dispara ninguna: colapsar y restaurar la
   // selección en dos transacciones consecutivas lo obliga a reevaluar ya con
-  // el arrastre terminado. Solo pasos de selección: no entra en el undo.
+  // el arrastre terminado.
+  //
+  // Ese truco solo es válido tras un arrastre real. Aplicado también al clic
+  // simple devolvía la selección intacta, así que pulsar sobre un texto ya
+  // seleccionado no dejaba el caret donde se hizo clic. Por eso aquí solo se
+  // fuerza la reevaluación cuando el puntero se movió: en un clic simple
+  // ProseMirror ya colapsa la selección de forma nativa, con el caret en el
+  // punto pulsado.
   useEffect(() => {
-    const onMouseUp = () => {
+    const onMouseUp = (event: MouseEvent) => {
       if (!isDragSelectingRef.current) return;
       isDragSelectingRef.current = false;
+      const start = dragStartPointRef.current;
+      dragStartPointRef.current = null;
       const ed = editorRef.current;
-      if (!ed || ed.isDestroyed || ed.state.selection.empty) return;
-      const sel = ed.state.selection;
-      if (!(sel instanceof TextSelection)) return;
-      try {
-        ed.view.dispatch(ed.state.tr.setSelection(TextSelection.create(ed.state.doc, sel.anchor, sel.anchor)));
-        ed.view.dispatch(ed.state.tr.setSelection(TextSelection.create(ed.state.doc, sel.anchor, sel.head)));
-      } catch { /* vista no lista */ }
+      if (!ed || ed.isDestroyed) return;
+      // Clic simple: ProseMirror ya colapsó la selección con el caret en el
+      // punto pulsado. No hay que tocar nada.
+      refreshBubbleMenuAfterDrag(ed, start, event);
     };
     window.addEventListener('mouseup', onMouseUp);
     return () => window.removeEventListener('mouseup', onMouseUp);
@@ -3123,6 +3180,7 @@ export default function NoteEditor({
           // no debe asomarse hasta soltar (el mouseup global la reevalúa).
           if (event.button === 0) {
             isDragSelectingRef.current = true;
+            dragStartPointRef.current = { x: event.clientX, y: event.clientY };
           }
           return false;
         },
