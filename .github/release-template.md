@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="https://raw.githubusercontent.com/CyberGems/CyberNotes/main/public/icon.png" width="120" alt="CyberNotes">
 </p>
 
@@ -6,7 +6,7 @@
 
 ### 🚀 What's new in this release
 
-<!-- Maintainer: Rewrite the marked paragraph for every release. Use 25-45 words, lead with user-facing changes, and do not repeat the app name or version. -->
+<!-- IMPORTANT FOR AGENTS & MAINTAINERS: Always rewrite this entire section and highlights with the ACTUAL release notes for this specific new version before tagging. NEVER leave or copy previous version notes! Use 25-45 words for the summary, lead with user-facing changes, and do not repeat the app name or version. -->
 <!-- changelog-summary:start -->
 Searchable symbol and emoji pickers bring thousands of Unicode characters into the editor, with multi-insert support. Line numbers and wrap markers now track long notes reliably; collapsible workspace panels, screen-aware menus, clearer controls, and improved update notices make daily editing smoother.
 <!-- changelog-summary:end -->
