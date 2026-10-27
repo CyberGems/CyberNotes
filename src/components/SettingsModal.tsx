@@ -7,6 +7,7 @@ import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
 import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
+import { DEFAULT_AUTO_BACKUP_KEEP } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import Tooltip from './Tooltip';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -656,7 +657,7 @@ export default function SettingsModal({
   }, []);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
   const [autoBackupHours, setAutoBackupHours] = useState('24');
-  const [autoBackupKeep, setAutoBackupKeep] = useState('7');
+  const [autoBackupKeep, setAutoBackupKeep] = useState(String(DEFAULT_AUTO_BACKUP_KEEP));
   const [autoBackupLast, setAutoBackupLast] = useState<string | null>(null);
   const [backupFolder, setBackupFolder] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
@@ -3050,11 +3051,10 @@ export default function SettingsModal({
                       disabled={!autoBackupEnabled}
                       style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
                     >
+                      <option value="1">1</option>
                       <option value="3">3</option>
                       <option value="5">5</option>
                       <option value="7">7</option>
-                      <option value="14">14</option>
-                      <option value="30">30</option>
                     </select>
                   </div>
 

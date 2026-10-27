@@ -22,8 +22,11 @@ describe('parseBackupHours', () => {
 
 describe('parseBackupKeep', () => {
   it('accepts known retention counts only', () => {
-    expect(parseBackupKeep('30')).toBe(30);
+    expect(parseBackupKeep('7')).toBe(7);
+    expect(parseBackupKeep('1')).toBe(1);
     expect(parseBackupKeep('0')).toBe(DEFAULT_AUTO_BACKUP_KEEP);
+    expect(parseBackupKeep('14')).toBe(DEFAULT_AUTO_BACKUP_KEEP);
+    expect(parseBackupKeep('30')).toBe(DEFAULT_AUTO_BACKUP_KEEP);
     expect(parseBackupKeep(undefined)).toBe(DEFAULT_AUTO_BACKUP_KEEP);
   });
 });

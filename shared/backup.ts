@@ -1,9 +1,9 @@
 // Logica pura del respaldo automatico (sin fs ni Electron): testeable en Vitest.
 
 export const AUTO_BACKUP_INTERVALS_HOURS: readonly number[] = [6, 12, 24, 168];
-export const AUTO_BACKUP_KEEP_OPTIONS: readonly number[] = [3, 5, 7, 14, 30];
+export const AUTO_BACKUP_KEEP_OPTIONS: readonly number[] = [1, 3, 5, 7];
 export const DEFAULT_AUTO_BACKUP_HOURS = 24;
-export const DEFAULT_AUTO_BACKUP_KEEP = 7;
+export const DEFAULT_AUTO_BACKUP_KEEP = 3;
 export const BACKUP_FILE_PREFIX = 'cybernotes-backup-';
 
 /** Normaliza el intervalo guardado; cualquier valor raro vuelve al diario. */
@@ -12,7 +12,7 @@ export function parseBackupHours(value: unknown): number {
   return AUTO_BACKUP_INTERVALS_HOURS.includes(n) ? n : DEFAULT_AUTO_BACKUP_HOURS;
 }
 
-/** Normaliza la retencion guardada; cualquier valor raro vuelve a 7 copias. */
+/** Normaliza la retencion guardada; cualquier valor raro vuelve a 3 copias. */
 export function parseBackupKeep(value: unknown): number {
   const n = typeof value === 'string' ? parseInt(value, 10) : typeof value === 'number' ? value : NaN;
   return AUTO_BACKUP_KEEP_OPTIONS.includes(n) ? n : DEFAULT_AUTO_BACKUP_KEEP;
