@@ -8,7 +8,7 @@
 
 <!-- IMPORTANT FOR AGENTS & MAINTAINERS: Always rewrite this entire section and highlights with the ACTUAL release notes for this specific new version before tagging. NEVER leave or copy previous version notes! Use 25-45 words for the summary, lead with user-facing changes, and do not repeat the app name or version. -->
 <!-- changelog-summary:start -->
-Searchable symbol and emoji pickers bring thousands of Unicode characters into the editor, with multi-insert support. Line numbers and wrap markers now track long notes reliably; collapsible workspace panels, screen-aware menus, clearer controls, and improved update notices make daily editing smoother.
+Automatic backups now bundle the database and images into one portable JSON file, restorable in-app, with custom folders and retention options. A faster SQLite engine stores notes, and a Danger Zone wipes all data on demand. Selection, toolbars, and editor performance get polish.
 <!-- changelog-summary:end -->
 
 > **New to CyberNotes?** A privacy-focused Windows notes app with rich text, folders, tabs, floating notes, and fully local data.
@@ -17,10 +17,10 @@ Searchable symbol and emoji pickers bring thousands of Unicode characters into t
 
 ### ✨ Key Features & Highlights
 
-- 🧩 **Character and emoji pickers**: search categorized Unicode symbols and Emoji 18.0, then insert one character or collect several together.
-- 📏 **Reliable long-note navigation**: line numbers and continuation markers stay aligned across wrapped text and hard line breaks.
-- 🧭 **A workspace that adapts**: collapse the sidebar or line-number gutter, and use screen-aware menus that keep recent notes and actions in reach.
-- 🔔 **Clearer everyday controls**: retain startup update notices, refine quick settings and toolbar states, and improve shortcut hints and installer artwork.
+- 💾 **Self-contained backups**: automatic backups and JSON exports carry the database and images together in one portable file, with a configurable folder, retention options, and in-app restore.
+- 🗑️ **Danger Zone**: wipe all notes and data from Settings in one deliberate, guarded action.
+- ⚡ **Faster storage engine**: notes now persist through better-sqlite3 with WAL, with lighter per-keystroke editing and pasted images saved as files.
+- 🖊️ **Editor refinements**: cleaner click-and-drag selection, a floating toolbar that appears after the drag ends, opaque dropdown menus, and the line-number gutter hidden by default.
 
 <details>
 <summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
@@ -28,7 +28,7 @@ Searchable symbol and emoji pickers bring thousands of Unicode characters into t
 ### 🚀 Novedades de esta versión
 
 <!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
-Selectores de símbolos y emojis facilitan buscar e insertar miles de caracteres Unicode, incluso en grupo. Los números de línea y sus indicadores siguen notas extensas; paneles plegables, menús adaptados, controles claros y avisos de actualización más fiables agilizan la edición diaria.
+Las copias automáticas agrupan base de datos e imágenes en un JSON portátil restaurable desde la app, con carpeta y retención configurables. Un motor SQLite más rápido guarda las notas y la Zona de peligro borra todos los datos. Además, pulido en selección y rendimiento.
 
 ---
 
@@ -36,10 +36,10 @@ Selectores de símbolos y emojis facilitan buscar e insertar miles de caracteres
 
 <!-- Maintainer: Espejo en español de los puntos de arriba. -->
 
-- 🧩 **Selectores de caracteres y emojis**: busca símbolos Unicode y emojis 18.0 por categoría; inserta uno o reúne varios a la vez.
-- 📏 **Navegación fiable en notas largas**: los números de línea y los indicadores de continuación siguen el texto ajustado y los saltos manuales.
-- 🧭 **Un espacio de trabajo adaptable**: contrae la barra lateral o la columna de números y usa menús que mantienen a mano las notas recientes y acciones.
-- 🔔 **Controles cotidianos más claros**: conserva los avisos de actualización al iniciar y mejora los ajustes rápidos, los estados de botones, los atajos y el arte del instalador.
+- 💾 **Copias autocontenidas**: los respaldos automáticos y la exportación JSON llevan base de datos e imágenes juntas en un único archivo portátil, con carpeta configurable, opciones de retención y restauración desde la app.
+- 🗑️ **Zona de peligro**: borra todas las notas y datos desde Ajustes con una acción deliberada y confirmada.
+- ⚡ **Motor de almacenamiento más rápido**: las notas se guardan ahora con better-sqlite3 y WAL, con una edición más ligera por pulsación e imágenes pegadas guardadas como archivos.
+- 🖊️ **Refinamientos del editor**: selección más limpia, barra flotante que aparece al soltar el arrastre, menús desplegables opacos y columna de números oculta por defecto.
 
 </details>
 

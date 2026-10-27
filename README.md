@@ -241,8 +241,8 @@ Artifacts land in `release/`:
 
 | Artifact | Description |
 |---|---|
-| `CyberNotes_Setup_1.16.0.exe` | NSIS installer (interactive wizard, custom install dir) |
-| `CyberNotes_Portable_1.16.0.exe` | Portable build (zero-install) |
+| `CyberNotes_Setup_1.17.0.exe` | NSIS installer (interactive wizard, custom install dir) |
+| `CyberNotes_Portable_1.17.0.exe` | Portable build (zero-install) |
 
 ---
 

@@ -239,8 +239,8 @@ Los artefactos quedan en `release/`:
 
 | Artefacto | Descripción |
 |---|---|
-| `CyberNotes_Setup_1.16.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
-| `CyberNotes_Portable_1.16.0.exe` | Build portable (sin instalación) |
+| `CyberNotes_Setup_1.17.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
+| `CyberNotes_Portable_1.17.0.exe` | Build portable (sin instalación) |
 ---
 
 ## ⌨️ Atajos de teclado
