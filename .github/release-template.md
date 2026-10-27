@@ -60,10 +60,14 @@ Selectores de símbolos y emojis facilitan buscar e insertar miles de caracteres
 
 > ℹ️ These links open the security report on VirusTotal in a new tab, they do not download the app.
 
-- 🛡️ **Setup Installer**: [View security report on VirusTotal](https://www.virustotal.com/gui/file/{{INSTALLER_HASH}})
-  *(SHA256: `{{INSTALLER_HASH}}`)*
-- 🛡️ **Portable**: [View security report on VirusTotal](https://www.virustotal.com/gui/file/{{PORTABLE_HASH}})
-  *(SHA256: `{{PORTABLE_HASH}}`)*
+- 🛡️ **Setup Installer**: [View security report on VirusTotal](https://www.virustotal.com/gui/file/{{INSTALLER_HASH}}). SHA256:
+  ```
+  {{INSTALLER_HASH}}
+  ```
+- 🛡️ **Portable**: [View security report on VirusTotal](https://www.virustotal.com/gui/file/{{PORTABLE_HASH}}). SHA256:
+  ```
+  {{PORTABLE_HASH}}
+  ```
 
 ---
 
