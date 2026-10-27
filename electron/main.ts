@@ -11,7 +11,7 @@ import { initLogger, writeLog, logRendererError } from './logger';
 import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
-import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, selectBackupsToPrune } from '../shared/backup';
+import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, isBackupFile, selectBackupsToPrune } from '../shared/backup';
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
@@ -3862,6 +3862,99 @@ ipcMain.handle('backup:pickFolder', async () => {
   });
   if (result.canceled || !result.filePaths.length) return null;
   return result.filePaths[0];
+});
+
+// -- Restaurar desde respaldo --
+// Reemplaza BD (y fotos cuando el respaldo las trae) por el contenido de una
+// entrada de la carpeta de respaldos y reinicia la app. La entrada se copia
+// antes a una carpeta temporal: el respaldo de seguridad que se crea a
+// continuación podaría la fuente si retención = 1.
+const RESTORE_ENTRY_MAX_LENGTH = 120;
+
+ipcMain.handle('backup:restore', async (_e: any, entryName: string) => {
+  let stagingDir: string | null = null;
+  try {
+    if (
+      typeof entryName !== 'string' || !isBackupEntry(entryName)
+      || entryName.includes('/') || entryName.includes('\\') || entryName.includes('..')
+      || entryName.length > RESTORE_ENTRY_MAX_LENGTH
+    ) {
+      return { ok: false, error: 'invalid backup name' };
+    }
+    const backupsDir = getBackupsDir();
+    const entryPath = path.join(backupsDir, entryName);
+    if (!fs.existsSync(entryPath)) return { ok: false, error: 'backup not found' };
+
+    let backupDb: string | null = null;
+    let backupImages: string | null = null;
+    if (fs.statSync(entryPath).isDirectory()) {
+      const candidate = path.join(entryPath, 'cybernotes.db');
+      if (!fs.existsSync(candidate)) return { ok: false, error: 'backup folder has no database' };
+      backupDb = candidate;
+      const images = path.join(entryPath, 'images');
+      if (fs.existsSync(images)) backupImages = images;
+    } else if (isBackupFile(entryName)) {
+      // Legado: solo contiene la BD, sin imágenes.
+      backupDb = entryPath;
+    } else {
+      return { ok: false, error: 'unsupported backup entry' };
+    }
+
+    // 1) Llevar la entrada a staging: inmutable frente a la poda posterior.
+    stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybernotes-restore-'));
+    fs.copyFileSync(backupDb, path.join(stagingDir, 'cybernotes.db'));
+    if (backupImages) {
+      fs.cpSync(backupImages, path.join(stagingDir, 'images'), { recursive: true, force: true });
+    }
+
+    // 2) Respaldo de seguridad del estado actual antes de pisar nada.
+    const safety = await runAutoBackup('manual');
+    if (!safety.ok) {
+      return { ok: false, error: 'safety backup failed; nothing was changed' };
+    }
+
+    // 3) Cerrar stickies y la base de datos: los archivos quedan libres.
+    Array.from(stickyWindows.keys()).forEach(noteId => closeStickyNote(noteId));
+    if (autoBackupTimer) {
+      clearInterval(autoBackupTimer);
+      autoBackupTimer = null;
+    }
+    try {
+      db?.close();
+    } catch (err) {
+      writeLog('warn', `[backup] close before restore: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    db = null;
+
+    // 4) Reemplazar la BD (WAL/SHM fuera primero) y las imágenes.
+    for (const suffix of ['-wal', '-shm']) {
+      try { fs.rmSync(dbPath + suffix, { force: true }); } catch { /* ignore */ }
+    }
+    fs.copyFileSync(path.join(stagingDir, 'cybernotes.db'), dbPath);
+    if (fs.existsSync(path.join(stagingDir, 'images'))) {
+      try {
+        fs.rmSync(imagesPath, { recursive: true, force: true });
+      } catch (err) {
+        writeLog('warn', `[backup] old images removal during restore: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      fs.cpSync(path.join(stagingDir, 'images'), imagesPath, { recursive: true, force: true });
+    }
+
+    try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    stagingDir = null;
+    writeLog('warn', `[backup] Restored from ${entryName}; restarting app`);
+
+    // 5) Reinicio limpio: el nuevo proceso abre la BD ya restaurada.
+    app.relaunch();
+    app.exit(0);
+    return { ok: true, restarting: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  } finally {
+    if (stagingDir) {
+      try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  }
 });
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────

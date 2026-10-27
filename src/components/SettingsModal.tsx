@@ -7,8 +7,9 @@ import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
 import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
-import { DEFAULT_AUTO_BACKUP_KEEP } from '../../shared/backup';
+import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
+import { EnterGlyph, KeyHint, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
@@ -98,6 +99,13 @@ function SettingsIcon({
       {icon}
     </span>
   );
+}
+
+/** 8912896 -> "8.5 MB" (los respaldos incluyen la copia de imágenes). */
+function formatBackupSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
 }
 
 function SettingsHeading({
@@ -823,6 +831,54 @@ export default function SettingsModal({
       setBackupBusy(false);
     }
   };
+
+  // -- Restaurar desde respaldo --
+  const [restorePickerOpen, setRestorePickerOpen] = useState(false);
+  const [restoreList, setRestoreList] = useState<Array<{ file: string; size: number; mtime: string }>>([]);
+  const [restoreSelected, setRestoreSelected] = useState<string | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+
+  const handleOpenRestorePicker = async () => {
+    const list = (await window.cyberNotesAPI.listBackups?.()) ?? [];
+    if (!list.length) {
+      await showDialog({
+        variant: 'info',
+        title: language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup',
+        message: language === 'es'
+          ? 'Todavía no hay respaldos en la carpeta de respaldos. Crea uno con "Respaldar ahora".'
+          : 'There are no backups in the backups folder yet. Create one with "Back up now".',
+      });
+      return;
+    }
+    setRestoreList(list);
+    setRestoreSelected(null);
+    setRestorePickerOpen(true);
+  };
+
+  const handleRestoreConfirm = async () => {
+    if (!restoreSelected || restoreBusy) return;
+    setRestoreBusy(true);
+    try {
+      const res = await window.cyberNotesAPI.restoreBackup(restoreSelected);
+      if (res?.ok) return; // La app se reinicia sola con los datos restaurados.
+      setRestorePickerOpen(false);
+      await showDialog({
+        variant: 'warning',
+        title: language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup',
+        message: language === 'es'
+          ? `No se pudo restaurar el respaldo. Tus datos actuales no fueron modificados.${res?.error ? ` (${res.error})` : ''}`
+          : `The backup could not be restored. Your current data was not modified.${res?.error ? ` (${res.error})` : ''}`,
+      });
+    } finally {
+      setRestoreBusy(false);
+    }
+  };
+
+  useModalKeys({
+    enabled: restorePickerOpen && !restoreBusy,
+    onEsc: () => setRestorePickerOpen(false),
+    onEnter: () => void handleRestoreConfirm(),
+  });
 
   const formatBackupDate = (iso: string | null): string => {
     if (!iso) return language === 'es' ? 'Nunca' : 'Never';
@@ -2910,68 +2966,6 @@ export default function SettingsModal({
                     : 'Copies the database and images to the backups folder on a schedule and keeps the most recent copies. Each backup is self-contained: it can restore everything, even on another disk.'}
                 </p>
 
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => window.cyberNotesAPI.openBackupsFolder()}
-                  style={{
-                    gap: 8, justifyContent: 'flex-start',
-                    padding: '9px 14px', fontSize: 'calc(12.5px * var(--ui-scale))',
-                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-surface)', marginBottom: 12,
-                  }}
-                >
-                  <FolderOpen size={15} style={{ color: 'var(--accent)' }} />
-                  <span>{language === 'es' ? 'Abrir carpeta de respaldos' : 'Open backups folder'}</span>
-                </button>
-
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '12px 16px',
-                  background: 'var(--bg-surface)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border)',
-                  marginBottom: 12,
-                }}>
-                  <div style={{ color: 'var(--accent)', opacity: 0.8 }}><FolderOpen size={18} /></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                      {language === 'es' ? 'Carpeta de respaldos' : 'Backups folder'}
-                    </span>
-                    <span
-                      style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                      title={backupFolder || (language === 'es' ? 'Predeterminada: dentro de los datos de CyberNotes' : 'Default: inside the CyberNotes data folder')}
-                    >
-                      {backupFolder
-                        ? backupFolder
-                        : (language === 'es' ? 'Predeterminada (datos de CyberNotes)' : 'Default (CyberNotes data folder)')}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={handlePickBackupFolder}
-                      style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
-                    >
-                      <FolderOpen size={13} />
-                      {language === 'es' ? 'Cambiar…' : 'Change…'}
-                    </button>
-                    {backupFolder && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={handleResetBackupFolder}
-                        style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-muted)' }}
-                      >
-                        {language === 'es' ? 'Predeterminada' : 'Use default'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <label style={{
                     display: 'flex',
@@ -3088,6 +3082,74 @@ export default function SettingsModal({
                           ? (language === 'es' ? 'Respaldando...' : 'Backing up...')
                           : (language === 'es' ? 'Respaldar ahora' : 'Back up now')}
                       </button>
+                      <button
+                      className="btn btn-ghost"
+                      onClick={handleOpenRestorePicker}
+                      disabled={restoreBusy || backupBusy}
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', padding: '8px 14px', color: 'var(--warning)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
+                      >
+                        <History size={15} />
+                        {restoreBusy
+                          ? (language === 'es' ? 'Restaurando...' : 'Restoring...')
+                          : (language === 'es' ? 'Restaurar…' : 'Restore…')}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ color: 'var(--accent)', opacity: 0.8 }}><FolderOpen size={18} /></div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Carpeta de respaldos' : 'Backups folder'}
+                        </span>
+                        <span
+                          style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={backupFolder || (language === 'es' ? 'Predeterminada: dentro de los datos de CyberNotes' : 'Default: inside the CyberNotes data folder')}
+                        >
+                          {backupFolder
+                            ? backupFolder
+                            : (language === 'es' ? 'Predeterminada (datos de CyberNotes)' : 'Default (CyberNotes data folder)')}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => window.cyberNotesAPI.openBackupsFolder()}
+                        style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                      >
+                        <FolderOpen size={13} style={{ color: 'var(--accent)' }} />
+                        {language === 'es' ? 'Abrir carpeta' : 'Open folder'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handlePickBackupFolder}
+                        style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                      >
+                        <FolderOpen size={13} />
+                        {language === 'es' ? 'Cambiar…' : 'Change…'}
+                      </button>
+                      {backupFolder && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={handleResetBackupFolder}
+                          style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-muted)' }}
+                        >
+                          {language === 'es' ? 'Predeterminada' : 'Use default'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3372,6 +3434,122 @@ export default function SettingsModal({
               <Check size={14} />
               {language === 'es' ? 'Continuar' : 'Continue'}
             </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+      {restorePickerOpen && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup'}
+          onClick={e => {
+            e.stopPropagation();
+            if (!restoreBusy) setRestorePickerOpen(false);
+          }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(4, 4, 10, 0.72)', padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 460, borderRadius: 14, padding: 24,
+              background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
+              border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
+              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
+              display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                color: 'var(--accent-light)', flexShrink: 0,
+              }}>
+                <History size={17} />
+              </span>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup'}
+              </h3>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {language === 'es'
+                ? 'Tus datos actuales se reemplazarán por los del respaldo elegido. Antes se guardará un respaldo de seguridad con el estado actual y la aplicación se reiniciará.'
+                : 'Your current data will be replaced with the selected backup. A safety backup of the current state is saved first and the application will restart.'}
+            </p>
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 8,
+              maxHeight: 260, overflowY: 'auto', padding: 2,
+            }}>
+              {restoreList.map(entry => {
+                const selected = restoreSelected === entry.file;
+                const legacy = isBackupFile(entry.file);
+                return (
+                  <button
+                    key={entry.file}
+                    type="button"
+                    onClick={() => setRestoreSelected(entry.file)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      textAlign: 'left', padding: '9px 12px', cursor: 'pointer',
+                      borderRadius: 'var(--radius-md)',
+                      background: selected
+                        ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-surface))'
+                        : 'var(--bg-surface)',
+                      border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                  >
+                    <span style={{
+                      width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                      border: '2px solid var(--accent)',
+                      background: selected ? 'var(--accent)' : 'transparent',
+                    }} />
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {formatBackupDate(entry.mtime)}
+                        {legacy && (
+                          <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                            {' · '}{language === 'es' ? 'solo base de datos' : 'database only'}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{
+                        fontSize: 11, color: 'var(--text-muted)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {entry.file} · {formatBackupSize(entry.size)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-action-btn is-cancel"
+                disabled={restoreBusy}
+                onClick={() => setRestorePickerOpen(false)}
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+                <KeyHint>Esc</KeyHint>
+              </button>
+              <button
+                type="button"
+                className="modal-action-btn is-save"
+                disabled={!restoreSelected || restoreBusy}
+                onClick={() => void handleRestoreConfirm()}
+              >
+                {restoreBusy
+                  ? (language === 'es' ? 'Restaurando...' : 'Restoring...')
+                  : (language === 'es' ? 'Restaurar' : 'Restore')}
+                <EnterGlyph />
+              </button>
+            </div>
           </div>
         </div>,
         document.body,

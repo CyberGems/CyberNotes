@@ -161,6 +161,7 @@ declare global {
       // Automatic backups
       backupNow: () => Promise<{ ok: boolean; file?: string }>;
       listBackups: () => Promise<Array<{ file: string; size: number; mtime: string }>>;
+      restoreBackup: (entryName: string) => Promise<{ ok: boolean; restarting?: boolean; error?: string }>;
       openBackupsFolder: () => Promise<void>;
       pickBackupFolder: () => Promise<string | null>;
       onBackupCompleted: (callback: (info: { at: string; file: string }) => void) => () => void;

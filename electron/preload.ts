@@ -168,6 +168,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Automatic backups --
   backupNow: () => ipcRenderer.invoke('backup:now'),
   listBackups: () => ipcRenderer.invoke('backup:list'),
+  restoreBackup: (entryName: string) => ipcRenderer.invoke('backup:restore', entryName),
   openBackupsFolder: () => ipcRenderer.invoke('backup:openFolder'),
   pickBackupFolder: () => ipcRenderer.invoke('backup:pickFolder'),
   onBackupCompleted: (callback: (info: { at: string; file: string }) => void) => {
