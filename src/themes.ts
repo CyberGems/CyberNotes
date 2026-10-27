@@ -5,6 +5,8 @@ export interface ThemeColors {
   nameEn?: string;
   emoji: string;
   preview: string;
+  /** Esquema nativo de controles (popups de select, checkboxes). */
+  colorScheme: 'dark' | 'light';
   vars: Record<string, string>;
 }
 
@@ -16,6 +18,7 @@ export const THEMES: ThemeColors[] = [
     nameEn: 'CyberNotes',
     emoji: '🌌',
     preview: '#6c63e6',
+    colorScheme: 'dark',
     vars: {
       '--bg-app': '#0c0c12',
       '--bg-sidebar': '#0e0e18',
@@ -54,6 +57,7 @@ export const THEMES: ThemeColors[] = [
     nameEn: 'Midnight Cyan',
     emoji: '🌃',
     preview: '#5a8a98',
+    colorScheme: 'dark',
     vars: {
       '--bg-app': '#0a0f18',
       '--bg-sidebar': '#0c111e',
@@ -92,6 +96,7 @@ export const THEMES: ThemeColors[] = [
     nameEn: 'Forest Green',
     emoji: '🌿',
     preview: '#5a6d5a',
+    colorScheme: 'dark',
     vars: {
       '--bg-app': '#0c0c0c',
       '--bg-sidebar': '#0e0e0e',
@@ -130,6 +135,7 @@ export const THEMES: ThemeColors[] = [
     nameEn: 'Neon Magenta',
     emoji: '🎆',
     preview: '#8a7a8a',
+    colorScheme: 'dark',
     vars: {
       '--bg-app': '#0c0a0c',
       '--bg-sidebar': '#0e0c0e',
@@ -168,6 +174,7 @@ export const THEMES: ThemeColors[] = [
     nameEn: 'Pure Light',
     emoji: '☀️',
     preview: '#6a60a0',
+    colorScheme: 'light',
     vars: {
       '--bg-app': '#f4f5f9',
       '--bg-sidebar': '#e8eaf2',
@@ -206,6 +213,7 @@ export const THEMES: ThemeColors[] = [
     nameEn: 'Graphite Gray',
     emoji: '📽️',
     preview: '#9ca3af',
+    colorScheme: 'dark',
     vars: {
       '--bg-app': '#1a1a1a',
       '--bg-sidebar': '#121212',
@@ -319,4 +327,7 @@ export function applyThemeVars(themeId: string, intensity: number = 50) {
   for (let [key, value] of Object.entries(theme.vars)) {
     root.style.setProperty(key, scaleColor(value, mult));
   }
+  // Esquema nativo de controles: sin esto, los popups de <select> se pintan
+  // sin fondo en ventanas transparentes y se ve la página a traves del menu.
+  root.style.colorScheme = theme.colorScheme;
 }

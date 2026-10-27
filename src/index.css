@@ -15,6 +15,11 @@
 /* ─── CSS Variables (defaults, overridden by JS theme engine) ── */
 
 :root {
+  /* Esquema nativo de controles: la ventana principal es transparente y, sin
+     esto, los popups de <select> se pintan sin fondo y se ve la página a
+     través del menú. applyThemeVars lo ajusta según el tema activo. */
+  color-scheme: dark;
+
   /* Font */
   --font-ui: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -522,6 +527,20 @@ body:has(.sticky-note-window),
 }
 .input::placeholder {
   color: var(--text-muted);
+}
+
+/* ─── Select dropdowns ────────────────────────────────────── */
+/* El popup nativo hereda el esquema del select y sus opciones se pintan
+   opacas: en ventanas transparentes quedan "huecas" y se ve la página
+   detrás (artefacto del delineado en los desplegables de Ajustes). */
+
+select {
+  color-scheme: inherit;
+}
+
+select option {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
 }
 
 /* ─── Divider ─────────────────────────────────────────────── */
