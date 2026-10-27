@@ -2886,8 +2886,8 @@ export default function SettingsModal({
                       </span>
                       <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
                         {language === 'es'
-                          ? 'Genera un archivo JSON portátil con notas, carpetas e imágenes incluidas en base64.'
-                          : 'Create a portable JSON file with notes, folders, and images embedded as base64.'}
+                          ? 'Genera un archivo JSON portátil con notas, carpetas e imágenes incluidas.'
+                          : 'Create a portable JSON file with notes, folders, and images included.'}
                       </span>
                     </div>
                     <button
