@@ -84,7 +84,23 @@ if (process.env.CYBERNOTES_USER_DATA_DIR) {
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
 const imagesPath = path.join(userDataPath, 'images');
-const backupsDir = path.join(userDataPath, 'backups');
+const DEFAULT_BACKUPS_DIR = path.join(userDataPath, 'backups');
+
+/**
+ * Carpeta destino de los respaldos automáticos. Por defecto userData/backups,
+ * personalizable con el ajuste backup_folder (ruta absoluta). Se lee en cada
+ * uso: cambiar el ajuste en Ajustes aplica al siguiente respaldo sin reinicio.
+ */
+function getBackupsDir(): string {
+  try {
+    const row = queryGet("SELECT value FROM settings WHERE key = 'backup_folder'");
+    const custom = typeof row?.value === 'string' ? row.value.trim() : '';
+    if (custom && path.isAbsolute(custom)) return custom;
+  } catch {
+    /* BD no lista (arranque temprano): usar el default */
+  }
+  return DEFAULT_BACKUPS_DIR;
+}
 initLogger(userDataPath);
 
 // ─── uuid ─────────────────────────────────────────────────────────────────
@@ -760,6 +776,7 @@ async function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): Promise
   if (!db) return { ok: false };
   autoBackupRunning = true;
   try {
+    const backupsDir = getBackupsDir();
     fs.mkdirSync(backupsDir, { recursive: true });
     const file = backupFileName(new Date());
     const dest = path.join(backupsDir, file);
@@ -1363,6 +1380,9 @@ const TRAY_MENU_EST_HEIGHT = 220;
 let trayMenuWin: BrowserWindow | null = null;
 let trayMenuAnchor: any = null;
 let trayMenuHideTimer: NodeJS.Timeout | null = null;
+let trayMenuShowPending = false;
+let trayMenuShowFallback: NodeJS.Timeout | null = null;
+let trayMenuRevealTimer: NodeJS.Timeout | null = null;
 let trayMenuLastShown = 0;
 
 function isWindowShown(): boolean {
@@ -1619,6 +1639,7 @@ function ensureTrayMenuWin() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     }
   });
   trayMenuWin.setAlwaysOnTop(true, 'pop-up-menu');
@@ -1635,9 +1656,29 @@ function ensureTrayMenuWin() {
   trayMenuWin.webContents.once('did-finish-load', () => {
     if (!trayMenuWin || trayMenuWin.isDestroyed()) return;
     trayMenuWin.webContents.send('tray-menu-state', { ...buildTrayMenuState(), resetView: true });
-    trayMenuWin.webContents.send('tray-menu-show');
   });
   return trayMenuWin;
+}
+
+function revealTrayMenuWin() {
+  if (!trayMenuWin || trayMenuWin.isDestroyed()) return;
+  if (trayMenuShowFallback) { clearTimeout(trayMenuShowFallback); trayMenuShowFallback = null; }
+  trayMenuShowPending = false;
+  if (!trayMenuWin.isVisible()) {
+    try { trayMenuWin.setOpacity(0); } catch { /* ignore */ }
+    trayMenuWin.show();
+    if (trayMenuRevealTimer) clearTimeout(trayMenuRevealTimer);
+    trayMenuRevealTimer = setTimeout(() => {
+      trayMenuRevealTimer = null;
+      if (trayMenuWin && !trayMenuWin.isDestroyed()) {
+        try { trayMenuWin.setOpacity(1); } catch { /* ignore */ }
+      }
+    }, 40);
+  } else {
+    try { trayMenuWin.setOpacity(1); } catch { /* ignore */ }
+  }
+  trayMenuWin.focus();
+  trayMenuLastShown = Date.now();
 }
 
 function showTrayMenu(eventBounds?: any) {
@@ -1654,20 +1695,33 @@ function showTrayMenu(eventBounds?: any) {
   const w = ensureTrayMenuWin();
   if (!w || w.isDestroyed()) return;
   const geo = trayMenuGeometry(trayMenuAnchor, TRAY_MENU_WIDTH + 2 * TRAY_MENU_SHADOW_PAD, TRAY_MENU_EST_HEIGHT);
-  w.setBounds(geo);
-  if (!w.isVisible()) w.show();
-  w.focus();
-  trayMenuLastShown = Date.now();
+  const current = w.getBounds();
+  if (current.x !== geo.x || current.y !== geo.y || current.width !== geo.width || current.height !== geo.height) {
+    w.setBounds(geo);
+  }
+
+  trayMenuShowPending = true;
+  if (trayMenuShowFallback) { clearTimeout(trayMenuShowFallback); trayMenuShowFallback = null; }
+  trayMenuShowFallback = setTimeout(() => {
+    trayMenuShowFallback = null;
+    if (trayMenuShowPending) revealTrayMenuWin();
+  }, 500);
+
   if (!w.webContents.isLoading()) {
     w.webContents.send('tray-menu-state', { ...buildTrayMenuState(), resetView: true });
-    w.webContents.send('tray-menu-show');
   }
 }
 
 function hideTrayMenu() {
   if (trayMenuHideTimer) { clearTimeout(trayMenuHideTimer); trayMenuHideTimer = null; }
-  if (trayMenuWin && !trayMenuWin.isDestroyed() && trayMenuWin.isVisible()) {
-    trayMenuWin.hide();
+  if (trayMenuShowFallback) { clearTimeout(trayMenuShowFallback); trayMenuShowFallback = null; }
+  if (trayMenuRevealTimer) { clearTimeout(trayMenuRevealTimer); trayMenuRevealTimer = null; }
+  trayMenuShowPending = false;
+  if (trayMenuWin && !trayMenuWin.isDestroyed()) {
+    try { trayMenuWin.setOpacity(1); } catch { /* ignore */ }
+    if (trayMenuWin.isVisible()) {
+      trayMenuWin.hide();
+    }
   }
 }
 
@@ -1794,7 +1848,11 @@ ipcMain.on('tray-menu-ready', (_event, rect) => {
   const targetW = Math.round((rect.width || TRAY_MENU_WIDTH) + 2 * pad);
   const targetH = Math.round((rect.height || (TRAY_MENU_EST_HEIGHT - 2 * pad)) + 2 * pad);
   const geo = trayMenuGeometry(trayMenuAnchor, targetW, targetH);
-  trayMenuWin.setBounds(geo);
+  const current = trayMenuWin.getBounds();
+  if (current.x !== geo.x || current.y !== geo.y || current.width !== geo.width || current.height !== geo.height) {
+    trayMenuWin.setBounds(geo);
+  }
+  if (trayMenuShowPending) revealTrayMenuWin();
 });
 
 const MAIN_WINDOW_MIN_WIDTH = 840;
@@ -2709,7 +2767,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
   'auth_method', 'show_suite_promo', 'usage_stats_enabled', 'usage_stats_expanded',
-  'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
+  'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'backup_folder',
   'notes_created_total', 'stickies_created_total',
 ]);
 
@@ -2774,11 +2832,28 @@ ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
     console.warn(`[settings] rejected oversized value for key "${key}" (${value.length} chars)`);
     return false;
   }
-  runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
+  // backup_folder: solo rutas absolutas saneadas; cadena vacía = volver al
+  // default. Debe poder crearse la carpeta antes de aceptarla.
+  let normalizedValue = value;
+  if (key === 'backup_folder' && value !== '') {
+    const trimmed = value.trim();
+    if (!path.isAbsolute(trimmed) || trimmed.length > 500 || /[\u0000-\u001f]/.test(trimmed)) {
+      console.warn('[settings] rejected invalid backup_folder path');
+      return false;
+    }
+    try {
+      fs.mkdirSync(trimmed, { recursive: true });
+    } catch {
+      console.warn('[settings] rejected backup_folder (not creatable):', trimmed);
+      return false;
+    }
+    normalizedValue = trimmed;
+  }
+  runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, normalizedValue]);
   const openWindows = [mainWindow, ...stickyWindows.values()];
   openWindows.forEach((win) => {
     if (win && !win.isDestroyed()) {
-      win.webContents.send('setting-changed', { key, value });
+      win.webContents.send('setting-changed', { key, value: normalizedValue });
     }
   });
   if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled') {
@@ -3492,6 +3567,7 @@ ipcMain.handle('backup:now', () => runAutoBackup('manual'));
 
 ipcMain.handle('backup:list', () => {
   try {
+    const backupsDir = getBackupsDir();
     if (!fs.existsSync(backupsDir)) return [];
     return fs
       .readdirSync(backupsDir)
@@ -3513,12 +3589,24 @@ ipcMain.handle('backup:list', () => {
 });
 
 ipcMain.handle('backup:openFolder', () => {
+  const backupsDir = getBackupsDir();
   try {
     fs.mkdirSync(backupsDir, { recursive: true });
   } catch {
     /* openPath informa el error */
   }
   return shell.openPath(backupsDir);
+});
+
+/** Selector nativo de carpeta para personalizar el destino de los respaldos. */
+ipcMain.handle('backup:pickFolder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: dialogTitle('Elegir carpeta de respaldos', 'Choose backups folder'),
+    defaultPath: getBackupsDir(),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return result.filePaths[0];
 });
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────

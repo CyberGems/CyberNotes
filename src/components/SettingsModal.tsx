@@ -658,6 +658,7 @@ export default function SettingsModal({
   const [autoBackupHours, setAutoBackupHours] = useState('24');
   const [autoBackupKeep, setAutoBackupKeep] = useState('7');
   const [autoBackupLast, setAutoBackupLast] = useState<string | null>(null);
+  const [backupFolder, setBackupFolder] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
   const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
   const [hotkeyError, setHotkeyError] = useState<string | null>(null);
@@ -781,6 +782,20 @@ export default function SettingsModal({
     await window.cyberNotesAPI.setSetting('auto_backup_keep', val);
   };
 
+  const handlePickBackupFolder = async () => {
+    const picked = await window.cyberNotesAPI.pickBackupFolder();
+    if (!picked) return;
+    // El proceso principal valida la ruta (absoluta y creable); si la
+    // rechaza, el ajuste queda como estaba.
+    const ok = await window.cyberNotesAPI.setSetting('backup_folder', picked);
+    if (ok) setBackupFolder(picked);
+  };
+
+  const handleResetBackupFolder = async () => {
+    const ok = await window.cyberNotesAPI.setSetting('backup_folder', '');
+    if (ok) setBackupFolder('');
+  };
+
   const handleBackupNow = async () => {
     if (backupBusy) return;
     setBackupBusy(true);
@@ -894,12 +909,13 @@ export default function SettingsModal({
       );
 
       const backupSettings = await window.cyberNotesAPI.getSettings([
-        'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'auto_backup_last',
+        'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'auto_backup_last', 'backup_folder',
       ]);
       setAutoBackupEnabled(backupSettings.auto_backup_enabled !== 'false');
       if (backupSettings.auto_backup_hours) setAutoBackupHours(backupSettings.auto_backup_hours);
       if (backupSettings.auto_backup_keep) setAutoBackupKeep(backupSettings.auto_backup_keep);
       setAutoBackupLast(backupSettings.auto_backup_last);
+      setBackupFolder(backupSettings.backup_folder || '');
 
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
@@ -2907,6 +2923,53 @@ export default function SettingsModal({
                   <FolderOpen size={15} style={{ color: 'var(--accent)' }} />
                   <span>{language === 'es' ? 'Abrir carpeta de respaldos' : 'Open backups folder'}</span>
                 </button>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 16px',
+                  background: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border)',
+                  marginBottom: 12,
+                }}>
+                  <div style={{ color: 'var(--accent)', opacity: 0.8 }}><FolderOpen size={18} /></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Carpeta de respaldos' : 'Backups folder'}
+                    </span>
+                    <span
+                      style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      title={backupFolder || (language === 'es' ? 'Predeterminada: dentro de los datos de CyberNotes' : 'Default: inside the CyberNotes data folder')}
+                    >
+                      {backupFolder
+                        ? backupFolder
+                        : (language === 'es' ? 'Predeterminada (datos de CyberNotes)' : 'Default (CyberNotes data folder)')}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={handlePickBackupFolder}
+                      style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                    >
+                      <FolderOpen size={13} />
+                      {language === 'es' ? 'Cambiar…' : 'Change…'}
+                    </button>
+                    {backupFolder && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handleResetBackupFolder}
+                        style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-muted)' }}
+                      >
+                        {language === 'es' ? 'Predeterminada' : 'Use default'}
+                      </button>
+                    )}
+                  </div>
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <label style={{

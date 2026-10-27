@@ -161,6 +161,7 @@ declare global {
       backupNow: () => Promise<{ ok: boolean; file?: string }>;
       listBackups: () => Promise<Array<{ file: string; size: number; mtime: string }>>;
       openBackupsFolder: () => Promise<void>;
+      pickBackupFolder: () => Promise<string | null>;
       onBackupCompleted: (callback: (info: { at: string; file: string }) => void) => () => void;
       exportNotePdf: (title: string, html: string) => Promise<boolean>;
       printDocument: (title: string, html: string) => Promise<boolean>;
