@@ -1145,29 +1145,38 @@ export function WordFontSizeSelect({
   // Suscripción fina: sin re-render por transacción del shell, este combo
   // necesita actualizarse por sí solo cuando cambian el tamaño directo de la
   // selección o el del texto vecino al cursor.
-  const { direct: directFontSize, neighbor: neighborFontSize } = useEditorState({
+  const { direct: directFontSize, neighbor: neighborFontSize, mixed, inherited } = useEditorState({
     editor,
     selector: ({ editor: e }) => {
-      if (!e) return { direct: null as string | null, neighbor: null as number | null };
+      if (!e) return { direct: null as string | null, neighbor: null as number | null, mixed: false, inherited: null as number | null };
       const direct = (e.getAttributes('textStyle')?.fontSize as string | undefined) ?? null;
       const neighbor = direct ? null : getCaretNeighborFontSize(e);
-      return { direct, neighbor };
+      // La marca directa solo devuelve el primer mark del rango: si el texto
+      // mezcla tamaños, se detectan aparte para no mostrar un valor engañoso.
+      const sizes = getSelectionFontSizes(e, defaultSize);
+      const mixed = sizes.length > 1;
+      // Tamaño efectivo heredado del bloque cuando el rango no lleva marca
+      // propia (p. ej. un encabezado, que multiplica la base).
+      const inherited = !direct && sizes.length === 1 ? sizes[0] : null;
+      return { direct, neighbor, mixed, inherited };
     },
-  }) ?? { direct: null as string | null, neighbor: null as number | null };
+  }) ?? { direct: null as string | null, neighbor: null as number | null, mixed: false, inherited: null as number | null };
   const directNum = parseFontSizeNumber(directFontSize);
-  // Tamaño "actual": marca directa, vecino del caret o base. Siempre hay
-  // un número visible aunque no haya texto seleccionado.
+  // Tamaño "actual": marca directa, tamaño heredado del bloque, vecino del
+  // caret o base. Siempre hay un número visible si no hay formatos mixtos.
   const neighborNum = neighborFontSize;
-  const docNum = directNum ?? neighborNum;
+  const docNum = mixed ? null : (directNum ?? inherited ?? neighborNum);
   const displayNum = docNum ?? defaultSize;
+  // Con varios tamaños en la selección no hay un valor único que resaltar.
+  const isNormalActive = !docNum && !mixed;
   const t = TRANSLATIONS[language];
 
   useEffect(() => {
     if (!focused) setDraft(null);
-  }, [directFontSize, focused]);
+  }, [directFontSize, mixed, focused]);
 
   if (!editor) return null;
-  const shown = draft ?? String(displayNum);
+  const shown = draft ?? (mixed ? '-' : String(displayNum));
 
   const sizeBox = (
     <div
@@ -1263,7 +1272,7 @@ export function WordFontSizeSelect({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => { editor.chain().focus().unsetFontSize().run(); setOpen(false); setDraft(null); }}
-              className={`word-menu-item${!docNum ? ' is-active' : ' is-muted'}`}
+              className={`word-menu-item${isNormalActive ? ' is-active' : ' is-muted'}`}
               style={{
                 padding: '6px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', textAlign: 'center',
                 border: 'none',
@@ -1704,10 +1713,10 @@ const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProp
 const TAB_DRAG_MIME = 'application/x-cybernotes-tab';
 
 /** Tamaños del desplegable de letra (px), estilo Word. Compartido con stickies. */
-export const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32'];
+export const FONT_SIZE_OPTIONS = ['12', '14', '15', '16', '18', '20', '24', '28', '32'];
 
 /** Lista Word para el combo editable (incluye 8-11 como en la captura). */
-export const WORD_FONT_SIZE_OPTIONS = ['8', '9', '10', '11', '12', '14', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
+export const WORD_FONT_SIZE_OPTIONS = ['8', '9', '10', '11', '12', '14', '15', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
 
 export interface FontFamilyOption {
   label: string;
@@ -1883,6 +1892,63 @@ export function applyChangeCase(editor: Editor, kind: ChangeCaseKind): boolean {
   if (replaced === slice) return true;
   editor.chain().focus().setTextSelection({ from, to }).deleteSelection().insertContent(replaced).run();
   return true;
+}
+
+/**
+ * Multiplicadores de tamaño que el CSS aplica a cada nivel de encabezado.
+ * El texto sin marca explícita hereda el tamaño del bloque.
+ */
+const HEADING_FONT_SIZE_FACTORS: Record<number, number> = { 1: 2, 2: 1.4, 3: 1.15 };
+/**
+ * Factor relativo (em) del bloque de código: el <pre> usa 0.9em y el <code>
+ * que lleva dentro vuelve a aplicar 0.9em sobre ese tamaño.
+ */
+const CODE_BLOCK_FONT_SIZE_FACTOR = 0.9 * 0.9;
+/** Factor relativo (em) que el CSS aplica al código en línea. */
+const CODE_MARK_FONT_SIZE_FACTOR = 0.9;
+
+/**
+ * Tamaños de fuente efectivos dentro de la selección, para detectar texto
+ * con formatos mixtos. Sin marca explícita manda el tamaño heredado del
+ * bloque (encabezado, bloque de código) y de las marcas en línea (código).
+ */
+export function getSelectionFontSizes(editor: Editor, baseSize: number): number[] {
+  const { selection } = editor.state;
+  if (selection.empty) return [];
+  const sizes = new Set<number>();
+  try {
+    editor.state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+      // Con dos tamaños distintos ya sabemos que la selección es mixta:
+      // no hace falta seguir recorriendo el rango.
+      if (sizes.size > 1) return false;
+      if (!node.isText) return;
+      const mark = node.marks.find((m) => m.type.name === 'textStyle');
+      const explicit = parseFontSizeNumber(mark?.attrs.fontSize as string | undefined);
+      if (explicit) {
+        sizes.add(explicit);
+        return;
+      }
+      // Tamaño heredado: los factores de bloque y de marca se multiplican
+      // entre sí, igual que los valores em anidados en CSS.
+      let factor = 1;
+      const $pos = editor.state.doc.resolve(pos);
+      for (let depth = $pos.depth; depth >= 0; depth--) {
+        const ancestor = $pos.node(depth);
+        if (ancestor.type.name === 'heading') {
+          factor *= HEADING_FONT_SIZE_FACTORS[Number(ancestor.attrs.level)] ?? 1;
+        } else if (ancestor.type.name === 'codeBlock') {
+          factor *= CODE_BLOCK_FONT_SIZE_FACTOR;
+        }
+      }
+      for (const m of node.marks) {
+        if (m.type.name === 'code') factor *= CODE_MARK_FONT_SIZE_FACTOR;
+      }
+      sizes.add(Math.round(baseSize * factor));
+    });
+  } catch {
+    /* rango no válido: sin tamaños que comparar */
+  }
+  return [...sizes];
 }
 
 /**
@@ -3456,6 +3522,8 @@ export default function NoteEditor({
         imageAlign: (imageAttrs?.align as string | undefined) ?? 'center',
         imageWidth: (imageAttrs?.width as string | undefined) ?? null,
         fontSize: (e.getAttributes('textStyle')?.fontSize as string | undefined) ?? null,
+        // Con formatos mixtos no hay un tamaño único que mostrar.
+        fontSizeMixed: getSelectionFontSizes(e, Math.round(15 * uiScale)).length > 1,
       };
     },
   });
@@ -3465,7 +3533,7 @@ export default function NoteEditor({
     bulletList: false, orderedList: false, alignLeft: false, alignCenter: false,
     alignRight: false, alignJustify: false, blockquote: false, codeBlock: false,
     link: false, image: false, table: false, imageAlign: 'center', imageWidth: null,
-    fontSize: null,
+    fontSize: null, fontSizeMixed: false,
   };
 
   useEffect(() => {
@@ -5750,18 +5818,26 @@ export default function NoteEditor({
               <ToolbarBtn
                 onClick={() => {
                   const values: (string | null)[] = [null, ...FONT_SIZE_OPTIONS.map((s) => `${s}px`)];
+                  // Con formatos mixtos no hay un tamaño actual fiable: la
+                  // marca que reporta Tiptap es solo la primera del rango y
+                  // el ciclo arrancaría desde ella, encogiendo texto grande.
+                  // Se normaliza al tamaño base en su lugar.
+                  if (ui.fontSizeMixed) {
+                    editor.chain().focus().setFontSize('15px').run();
+                    return;
+                  }
                   const next = values[(values.indexOf(activeFontSize) + 1) % values.length];
                   if (next) editor.chain().focus().setFontSize(next).run();
                   else editor.chain().focus().unsetFontSize().run();
                 }}
-                active={!!activeFontSize}
+                active={!!activeFontSize || ui.fontSizeMixed}
                 title={t.editor.fontSize}
               >
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                   <ALargeSmall size={16} />
-                  {activeFontSize && (
+                  {(activeFontSize || ui.fontSizeMixed) && (
                     <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-light)', minWidth: 14, textAlign: 'left' }}>
-                      {parseInt(activeFontSize, 10)}
+                      {ui.fontSizeMixed ? '-' : parseInt(activeFontSize!, 10)}
                     </span>
                   )}
                 </span>
