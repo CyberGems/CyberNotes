@@ -12,10 +12,18 @@ import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyO
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
+import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
+
+// ─── Nombre de la aplicación (carpeta de datos en AppData) ────────────────
+// El directorio userData se deriva del nombre de la app. package.json ya
+// declara name/productName = "CyberNotes", pero lo fijamos aquí de forma
+// explícita para que la carpeta de datos no dependa de cómo empaquete el
+// builder ni de qué campo lea cada versión de Electron.
+app.setName('CyberNotes');
 
 // ─── Detectar si estamos en dev o producción ───────────────────────────────
 const isDev = !app.isPackaged;
@@ -85,6 +93,162 @@ const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
 const imagesPath = path.join(userDataPath, 'images');
 const DEFAULT_BACKUPS_DIR = path.join(userDataPath, 'backups');
+
+// ─── Migración de la carpeta de datos (cyber-notes → CyberNotes) ──────────
+// El directorio userData venía del package.json#name = "cyber-notes". Al
+// cambiarlo a "CyberNotes" la carpeta antigua queda huérfana; su contenido se
+// traslada a la nueva para que los usuarios conserven notas, imágenes y
+// respaldos. Se ejecuta una vez por perfil: si el destino ya tiene datos de
+// usuario no se toca nada, y si solo tiene contenido demo recién sembrado
+// (arranque previo con la migración fallida) es descartado y reemplazado.
+// La carpeta antigua nunca se borra: queda como respaldo si algo falla.
+
+/** Mueve una carpeta; si está en uso (app vieja abierta), la copia. */
+function moveOrCopyDir(src: string, dest: string): void {
+  if (!fs.existsSync(src)) return;
+  try {
+    if (!fs.existsSync(dest)) {
+      fs.renameSync(src, dest);
+      return;
+    }
+    // Destino existente y vacío: renombrar encima es seguro e instantáneo.
+    if (fs.readdirSync(dest).length === 0) {
+      fs.rmdirSync(dest);
+      fs.renameSync(src, dest);
+      return;
+    }
+  } catch { /* en uso o multi-volumen: copiar */ }
+  fs.cpSync(src, dest, { recursive: true, force: true });
+}
+
+function copyDirMerge(src: string, dest: string): void {
+  if (!fs.existsSync(src)) return;
+  try {
+    fs.cpSync(src, dest, { recursive: true, force: true });
+  } catch { /* la continuidad de estos archivos no es crítica */ }
+}
+
+/** Snapshot consistente de la BD legacy (tolera la app antigua abierta en WAL). */
+async function backupLegacyDatabase(legacyDb: string, targetDb: string): Promise<void> {
+  const Database = require('better-sqlite3');
+  let src: any = null;
+  try {
+    src = new Database(legacyDb);
+    src.pragma('busy_timeout = 5000');
+    await src.backup(targetDb);
+    return;
+  } catch (err) {
+    writeLog('warn', `[migration] db.backup() falló, se copia el archivo directamente: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    try { src?.close(); } catch { /* ignore */ }
+  }
+  // Último recurso: copia directa de db+wal+shm (unidad de un solo bloque).
+  for (const suffix of ['', '-wal', '-shm']) {
+    const from = legacyDb + suffix;
+    if (fs.existsSync(from)) fs.copyFileSync(from, targetDb + suffix);
+  }
+}
+
+/** Reescribe las URLs file:/// que apuntaban a la carpeta antigua. */
+function rewriteLegacyFileUrls(legacyDir: string): void {
+  const { from, to } = buildFileUrlRewrite(legacyDir, userDataPath);
+  const targets: Array<[string, string]> = [
+    ['notes', 'content'],
+    ['notes', 'thumb'],
+    ['note_revisions', 'content'],
+    ['note_drafts', 'content'],
+  ];
+  const Database = require('better-sqlite3');
+  const migratedDb = new Database(dbPath);
+  try {
+    migratedDb.pragma('busy_timeout = 5000');
+    let rows = 0;
+    for (const [table, col] of targets) {
+      const row = migratedDb.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE ${col} LIKE ?`).get(`%${from}%`);
+      if (!row?.c) continue;
+      migratedDb.prepare(`UPDATE ${table} SET ${col} = REPLACE(${col}, ?, ?) WHERE ${col} LIKE ?`).run(from, to, `%${from}%`);
+      rows += row.c;
+    }
+    // Respaldo personalizado apuntando a la carpeta vieja: vuelve al default.
+    const legacyBackupsPosix = path.join(legacyDir, 'backups').replace(/\\/g, '/').toLowerCase();
+    migratedDb.prepare("DELETE FROM settings WHERE key = 'backup_folder' AND LOWER(REPLACE(value, '\\', '/')) = ?").run(legacyBackupsPosix);
+    if (rows > 0) {
+      writeLog('info', `[migration] Reescritas ${rows} fila(s) con URLs de la carpeta antigua`);
+    }
+  } finally {
+    migratedDb.close();
+  }
+}
+
+async function migrateLegacyDataFolder(): Promise<void> {
+  // Solo aplica con el perfil predeterminado: con CYBERNOTES_USER_DATA_DIR
+  // (pruebas/CI) la ruta vieja sería la del usuario real y no se toca.
+  if (process.env.CYBERNOTES_USER_DATA_DIR) return;
+  if (userDataPath !== path.join(app.getPath('appData'), DATA_FOLDER_NAME)) return;
+  const legacyDir = path.join(app.getPath('appData'), LEGACY_DATA_FOLDER_NAME);
+  if (!fs.existsSync(legacyDir) || fs.existsSync(path.join(userDataPath, DATA_MIGRATION_MARKER))) return;
+  const legacyDb = path.join(legacyDir, 'cybernotes.db');
+  if (!fs.existsSync(legacyDb)) return;
+
+  try {
+    // El destino puede existir vacío (renombre fallido en un arranque previo)
+    // o con contenido demo recién sembrado. En ambos casos los datos reales
+    // están en la carpeta legacy y deben ganar; si el destino ya guarda notas
+    // de usuario, no se toca nada y se avisa dónde quedó la carpeta antigua.
+    let replaceTarget = false;
+    if (fs.existsSync(dbPath)) {
+      const Database = require('better-sqlite3');
+      let probe: any = null;
+      try {
+        probe = new Database(dbPath);
+        const ids: string[] = probe.prepare('SELECT id FROM notes').all().map((r: any) => r.id);
+        replaceTarget = isPristineSeedProfile(ids);
+      } catch (probeErr) {
+        // BD ilegible en destino: no se arriesga nada; el aviso queda en el log.
+        writeLog('warn', `[migration] No se pudo leer el perfil destino para decidir la migración: ${probeErr instanceof Error ? probeErr.message : String(probeErr)}`);
+      } finally {
+        try { probe?.close(); } catch { /* ignore */ }
+      }
+      if (!replaceTarget) {
+        writeLog('warn', `[migration] ${LEGACY_DATA_FOLDER_NAME} tiene datos pero ${DATA_FOLDER_NAME} ya guarda un perfil con notas; nada se movió. Carpeta antigua conservada en: ${legacyDir}`);
+        return;
+      }
+    }
+
+    if (replaceTarget) {
+      // Perfil demo: descartar su BD y sus imágenes/respaldos vacíos para
+      // que la migración entre en una carpeta limpia.
+      for (const suffix of ['', '-wal', '-shm']) {
+        try { fs.rmSync(dbPath + suffix, { force: true }); } catch { /* ignore */ }
+      }
+      try { fs.rmSync(imagesPath, { recursive: true, force: true }); } catch { /* ignore */ }
+      try { fs.rmSync(DEFAULT_BACKUPS_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+
+    // Imágenes y respaldos: renombrar (instantáneo, mismo volumen) y, si la
+    // carpeta está en uso, copiar. Logs y diccionarios: solo continuidad.
+    moveOrCopyDir(path.join(legacyDir, 'images'), imagesPath);
+    moveOrCopyDir(path.join(legacyDir, 'backups'), DEFAULT_BACKUPS_DIR);
+    copyDirMerge(path.join(legacyDir, 'logs'), path.join(userDataPath, 'logs'));
+    copyDirMerge(path.join(legacyDir, 'Dictionaries'), path.join(userDataPath, 'Dictionaries'));
+    for (const name of ['.updaterId', 'Custom Dictionary.txt', 'Custom Dictionary.txt.backup']) {
+      const src = path.join(legacyDir, name);
+      const dest = path.join(userDataPath, name);
+      if (fs.existsSync(src) && !fs.existsSync(dest)) {
+        try { fs.copyFileSync(src, dest); } catch { /* ignore */ }
+      }
+    }
+
+    await backupLegacyDatabase(legacyDb, dbPath);
+    rewriteLegacyFileUrls(legacyDir);
+    fs.writeFileSync(path.join(userDataPath, DATA_MIGRATION_MARKER), new Date().toISOString());
+    writeLog('info', `[migration] Datos migrados de ${legacyDir} a ${userDataPath}`);
+  } catch (err) {
+    // La migración jamás impide el arranque: si falla, el perfil nuevo queda
+    // como esté y los datos siguen intactos en la carpeta antigua.
+    writeLog('error', `[migration] Falló la migración de datos: ${err instanceof Error ? err.stack || err.message : String(err)}`);
+  }
+}
 
 /**
  * Carpeta destino de los respaldos automáticos. Por defecto userData/backups,
@@ -3621,6 +3785,7 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     writeLog('info', `CyberNotes ${app.getVersion()} started (packaged: ${app.isPackaged})`);
+    await migrateLegacyDataFolder();
     await initDatabase();
     recordAppOpen();
     // Diccionarios del corrector según preferencia guardada (bilingüe por

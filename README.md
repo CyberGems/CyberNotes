@@ -151,7 +151,7 @@ You can verify the file independently: compare the SHA with the GitHub release, 
 - **Testing:** Vitest unit tests (`npm test`)
 
 ```
-cyber-notes/
+CyberNotes/
 ├── electron/
 │   ├── main.ts           Electron main process (window, tray, stickies, IPC handlers)
 │   ├── preload.ts        Context bridge (secure API exposure)

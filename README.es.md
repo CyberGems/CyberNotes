@@ -149,7 +149,7 @@ Puedes verificar el archivo de forma independiente: compara el SHA con el releas
 - **Pruebas:** tests unitarios con Vitest (`npm test`)
 
 ```
-cyber-notes/
+CyberNotes/
 ├── electron/
 │   ├── main.ts           Proceso principal de Electron (ventana, bandeja, adhesivos, manejadores IPC)
 │   ├── preload.ts        Puente de contexto (exposición segura de la API)
