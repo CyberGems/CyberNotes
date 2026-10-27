@@ -24,7 +24,7 @@
 
 ## ¿Qué es CyberNotes?
 
-CyberNotes es una aplicación de toma de notas elegante y centrada en la privacidad para Windows que mantiene la escritura y la organización completamente en tu equipo. Crea notas enriquecidas con formato, imágenes, bloques de código y atajos de markdown; organízalas en carpetas de colores; trabaja con varias pestañas; y separa notas importantes en ventanas flotantes. La búsqueda instantánea, el guardado automático, la restauración de sesión, temas personalizables y un bloqueo de acceso opcional con contraseña maestra sostienen tanto las ideas rápidas como los proyectos largos. Los datos se guardan localmente con **SQL.js (SQLite WASM)**. Construido con **Electron + React + TypeScript**.
+CyberNotes es una aplicación de toma de notas elegante y centrada en la privacidad para Windows que mantiene la escritura y la organización completamente en tu equipo. Crea notas enriquecidas con formato, imágenes, bloques de código y atajos de markdown; organízalas en carpetas de colores; trabaja con varias pestañas; y separa notas importantes en ventanas flotantes. La búsqueda instantánea, el guardado automático, la restauración de sesión, temas personalizables y un bloqueo de acceso opcional con contraseña maestra sostienen tanto las ideas rápidas como los proyectos largos. Los datos se guardan localmente en una **base de datos SQLite (better-sqlite3 con WAL)**. Construido con **Electron + React + TypeScript**.
 
 *Gratuito y de código abierto (GPLv3): sin anuncios, sin rastreo y sin recogida de datos. Solo disfrútalo.*
 
@@ -36,7 +36,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 
 | Necesidad | Solución |
 |---|---|
-| Mantener las notas privadas | SQL.js solo local: sin nube, sin cuentas, sin rastreo |
+| Mantener las notas privadas | SQLite solo local: sin nube, sin cuentas, sin rastreo |
 | Edición enriquecida sin bloat | Editor TipTap con atajos de markdown, imágenes y bloques de código |
 | Mantente organizado | Carpetas con iconos y colores, varias pestañas, notas flotantes, arrastrar y soltar |
 | Proteger notas sensibles | Contraseña maestra (bloqueo de acceso con hash bcrypt, notas almacenadas sin cifrar) con bloqueo automático y escudo de privacidad |
@@ -143,7 +143,7 @@ Puedes verificar el archivo de forma independiente: compara el SHA con el releas
 - **Plataforma:** Windows 10 / 11
 - **Framework:** Electron 35 + React 19 + TypeScript
 - **Editor:** TipTap (ProseMirror)
-- **Almacenamiento:** SQL.js (SQLite compilado a WebAssembly)
+- **Almacenamiento:** better-sqlite3 (SQLite con WAL)
 - **Seguridad:** hash de contraseña con bcryptjs
 - **Animaciones:** Motion (Framer Motion)
 - **Pruebas:** tests unitarios con Vitest (`npm test`)

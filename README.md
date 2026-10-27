@@ -24,7 +24,7 @@
 
 ## What is CyberNotes?
 
-CyberNotes is a sleek, privacy-focused note-taking application for Windows that keeps writing and organization entirely on your device. Create rich notes with formatting, images, code blocks, and markdown shortcuts; arrange them in colorful folders; work across multiple tabs; and detach important notes into floating windows. Instant search, autosave, session restore, customizable themes, and an optional master-password access lock support both quick ideas and longer projects. Data is stored locally with **SQL.js (SQLite WASM)**. Built with **Electron + React + TypeScript**.
+CyberNotes is a sleek, privacy-focused note-taking application for Windows that keeps writing and organization entirely on your device. Create rich notes with formatting, images, code blocks, and markdown shortcuts; arrange them in colorful folders; work across multiple tabs; and detach important notes into floating windows. Instant search, autosave, session restore, customizable themes, and an optional master-password access lock support both quick ideas and longer projects. Data is stored locally in a **SQLite database (better-sqlite3 with WAL)**. Built with **Electron + React + TypeScript**.
 
 *Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
 
@@ -36,7 +36,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 
 | Need | Solution |
 |---|---|
-| Keep notes private | Local-only SQL.js: no cloud, no accounts, no tracking |
+| Keep notes private | Local-only SQLite: no cloud, no accounts, no tracking |
 | Rich editing without bloat | TipTap editor with markdown shortcuts, images, code blocks |
 | Stay organized | Folders with icons & colors, multi-tabs, floating notes, drag & drop |
 | Protect sensitive notes | Master password (bcrypt-hashed access lock, notes stored unencrypted) with auto-lock and privacy shield |
@@ -145,7 +145,7 @@ You can verify the file independently: compare the SHA with the GitHub release, 
 - **Platform:** Windows 10 / 11
 - **Framework:** Electron 35 + React 19 + TypeScript
 - **Editor:** TipTap (ProseMirror)
-- **Storage:** SQL.js (SQLite compiled to WebAssembly)
+- **Storage:** better-sqlite3 (SQLite with WAL)
 - **Security:** bcryptjs password hashing
 - **Animations:** Motion (Framer Motion)
 - **Testing:** Vitest unit tests (`npm test`)
