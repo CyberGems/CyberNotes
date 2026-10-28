@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEditor, useEditorState, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
-import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { Node as TiptapNode } from '@tiptap/core';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
@@ -25,6 +25,7 @@ import { EDITOR_FONTS, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
+import { loadEditorContent } from '../utils/editorContent';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
 import VersionHistoryModal from './VersionHistoryModal';
@@ -889,29 +890,6 @@ export function SpellCheckSelect({ language }: { language: Language }) {
       )}
     </div>
   );
-}
-
-/**
- * Carga contenido en TipTap sin contaminar el historial de Undo/Redo.
- * Sin esto, Ctrl+Z / Deshacer puede restaurar el contenido de otra nota.
- */
-function loadEditorContent(editor: Editor, raw: string) {  let content: string | object = raw || '';
-  if (typeof content === 'string' && content.trim().startsWith('{')) {
-    try {
-      content = JSON.parse(content);
-    } catch {
-      /* HTML / texto plano */
-    }
-  }
-
-  editor.chain().setMeta('addToHistory', false).setContent(content, false).run();
-
-  // Reinicia el estado de plugins (incluye history vacío) conservando el doc actual
-  const fresh = EditorState.create({
-    doc: editor.state.doc,
-    plugins: editor.state.plugins,
-  });
-  editor.view.updateState(fresh);
 }
 
 const ToolbarBtn = ({
@@ -4120,15 +4098,17 @@ export default function NoteEditor({
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
+    // Apagar el corrector ANTES de insertar el nuevo documento. Hacerlo
+    // después dejaba spellcheck=true durante la carga de la siguiente pestaña.
+    spellcheckOnRef.current = false;
+    editor.view.dom.setAttribute('spellcheck', 'false');
+
     // Carga limpia: sin meter el cambio de nota en el historial de Undo
     const content = draft ? draft.content : (note.content || '');
     loadEditorContent(editor, content);
     hydratedNoteIdRef.current = note.id;
 
-    // Spellcheck diferido: nota nueva = documento nuevo que escanear. El
-    // atributo se apaga (loadEditorContent dispara una transacción y PM
-    // reaplica los atributos) y se enciende tras el primer pintado.
-    spellcheckOnRef.current = false;
+    // Reactivar el corrector después de dar tiempo a pintar la nueva nota.
     enableSpellcheckSoon();
 
     // Métricas aquí mismo: la sonda mostró hidratación de ~2ms, así que no
