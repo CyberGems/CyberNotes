@@ -6130,26 +6130,26 @@ export default function NoteEditor({
             position: 'relative',
           }}
         >
-        {/* Tooltip en barra vertical de números de línea */}
+        {/* Overlay invisible del gutter: solo captura el clic derecho para
+            abrir su menú. Sin tooltip a propósito: se cruza a cada rato al
+            trabajar y el nombre de la barra ya es visible por sí mismo. */}
         {showLineGutter && (
-          <Tooltip placement="right" label={language === 'es' ? 'Barra de número de línea' : 'Line numbers gutter'}>
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 50,
-                zIndex: 2,
-                cursor: 'default',
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openGutterMenu(e.clientX, e.clientY);
-              }}
-            />
-          </Tooltip>
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 50,
+              zIndex: 2,
+              cursor: 'default',
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openGutterMenu(e.clientX, e.clientY);
+            }}
+          />
         )}
 
         {/* Capa de guías de continuación (↳) del gutter: la pinta
