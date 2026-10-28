@@ -1,6 +1,6 @@
-import type { Editor } from '@tiptap/core';
+import { createDocument, type Editor } from '@tiptap/core';
 import type { Node } from '@tiptap/pm/model';
-import { EditorState } from '@tiptap/pm/state';
+import { EditorState, Selection } from '@tiptap/pm/state';
 
 // Keep recently visited documents parsed, without retaining an unbounded copy
 // of every note or large embedded images. Each editor has its own schema/cache.
@@ -30,9 +30,32 @@ export function loadEditorContent(editor: Editor, raw: string): void {
     }
   }
 
-  // Use the normal TipTap transaction path so plugins and subscribers still run.
-  // ProseMirror nodes are immutable: a cached node can be reused after editing.
-  editor.chain().setMeta('addToHistory', false).setContent(content, false).run();
+  // Apply the same replacement and plugin transforms as setContent, then reset
+  // history BEFORE updating the view. Rendering the intermediate state forced
+  // two DOM/selection/layout passes and notified toolbars with the old history.
+  const previous = editor.state;
+  const doc = cached ?? createDocument(content, editor.schema, {}, {
+    errorOnInvalidContent: editor.options.enableContentCheck,
+  });
+  const transaction = previous.tr
+    .replaceWith(0, previous.doc.content.size, doc)
+    .setMeta('addToHistory', false)
+    .setMeta('preventUpdate', true);
+  transaction.setSelection(Selection.atStart(transaction.doc));
+  const appliedDoc = previous.apply(transaction).doc;
+  const next = EditorState.create({
+    // Retain the immutable root too, so document-keyed line/format caches can
+    // survive a return to this tab. Keep plugin repairs when they changed it.
+    doc: appliedDoc.eq(doc) ? doc : appliedDoc,
+    plugins: previous.plugins,
+  });
+
+  editor.emit('beforeTransaction', { editor, transaction, nextState: next });
+  editor.view.updateState(next);
+  editor.emit('transaction', { editor, transaction });
+  if (!previous.selection.eq(next.selection)) {
+    editor.emit('selectionUpdate', { editor, transaction });
+  }
 
   if (source.length <= MAX_SOURCE_LENGTH) {
     if (cached) {
@@ -47,10 +70,4 @@ export function loadEditorContent(editor: Editor, raw: string): void {
       cache.sourceLength -= oldest.length;
     }
   }
-
-  // A tab switch starts with a fresh history, never Undo into another note.
-  editor.view.updateState(EditorState.create({
-    doc: editor.state.doc,
-    plugins: editor.state.plugins,
-  }));
 }

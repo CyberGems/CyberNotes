@@ -2289,35 +2289,46 @@ export default function NoteEditor({
 
   // Sincronizar HTML del minimap desde el DOM renderizado del editor (más fiel que getHTML())
   const minimapSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const minimapSyncFrame = useRef(0);
+  useEffect(() => () => {
+    if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
+    if (minimapSyncFrame.current) cancelAnimationFrame(minimapSyncFrame.current);
+  }, []);
   const syncMinimapHtml = useCallback((immediate = false) => {
     if (!showMinimapRef.current) return;
     const run = () => {
-      requestAnimationFrame(() => {
-        const target = minimapContentRef.current;
-        const ed = editorRef.current;
-        if (!target || !ed?.view?.dom) return;
+      if (minimapSyncFrame.current) cancelAnimationFrame(minimapSyncFrame.current);
+      // Dar un frame al editor antes de copiar todo su DOM al minimapa.
+      // Coalescer las solicitudes de hidratación, montaje y cambios rápidos.
+      minimapSyncFrame.current = requestAnimationFrame(() => {
+        minimapSyncFrame.current = requestAnimationFrame(() => {
+          minimapSyncFrame.current = 0;
+          const target = minimapContentRef.current;
+          const ed = editorRef.current;
+          if (!showMinimapRef.current || !target || !ed?.view?.dom) return;
 
-        // Clonar el DOM pintado: mismos nodos, estilos inline de imágenes, etc.
-        target.innerHTML = ed.view.dom.innerHTML;
+          // Clonar el DOM pintado: mismos nodos, estilos inline de imágenes, etc.
+          target.innerHTML = ed.view.dom.innerHTML;
 
-        // Los iframes (videos en reproducción) no van al minimapa: marcador.
-        target.querySelectorAll('iframe').forEach((frame) => {
-          const ph = document.createElement('div');
-          ph.className = 'minimap-media-ph';
-          ph.textContent = '▶';
-          frame.replaceWith(ph);
+          // Los iframes (videos en reproducción) no van al minimapa: marcador.
+          target.querySelectorAll('iframe').forEach((frame) => {
+            const ph = document.createElement('div');
+            ph.className = 'minimap-media-ph';
+            ph.textContent = '▶';
+            frame.replaceWith(ph);
+          });
+
+          // Quitar ruido visual de edición (placeholder, selección)
+          target.querySelectorAll('.ProseMirror-selectednode').forEach((n) => {
+            n.classList.remove('ProseMirror-selectednode');
+          });
+          target.querySelectorAll('[data-placeholder]').forEach((n) => {
+            n.removeAttribute('data-placeholder');
+            n.classList.remove('is-editor-empty', 'is-empty');
+          });
+
+          updateMinimapIndicator();
         });
-
-        // Quitar ruido visual de edición (placeholder, selección)
-        target.querySelectorAll('.ProseMirror-selectednode').forEach((n) => {
-          n.classList.remove('ProseMirror-selectednode');
-        });
-        target.querySelectorAll('[data-placeholder]').forEach((n) => {
-          n.removeAttribute('data-placeholder');
-          n.classList.remove('is-editor-empty', 'is-empty');
-        });
-
-        updateMinimapIndicator();
       });
     };
     if (immediate) {
@@ -5071,8 +5082,7 @@ export default function NoteEditor({
                   onDragEnd={clearTabDrag}
                 >
                   {isActive && (
-                    <motion.div
-                      layoutId="activeTabBackground"
+                    <div
                       className="active-tab-glow"
                       style={{
                         position: 'absolute',

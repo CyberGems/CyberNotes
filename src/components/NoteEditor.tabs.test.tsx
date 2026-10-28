@@ -2,7 +2,7 @@
 import { act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import NoteEditor from './NoteEditor';
 import type { Note } from '../types';
 
@@ -19,6 +19,23 @@ describe('NoteEditor tab hydration', () => {
   const scrollToDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTo');
   let root: ReturnType<typeof createRoot> | undefined;
   let container: HTMLDivElement | undefined;
+  const note: Note = {
+    id: 'first', title: 'First note', content: '<p>First body</p>', preview: '',
+    folder_id: null, pinned: 0, created_at: '2026-01-01', updated_at: '2026-01-01',
+  };
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    Object.defineProperty(Element.prototype, 'scrollTo', { configurable: true, value: vi.fn() });
+    vi.stubGlobal('cyberNotesAPI', { setUnsavedChanges: vi.fn() });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
   afterEach(() => {
     if (root) act(() => root!.unmount());
     root = undefined;
@@ -31,28 +48,13 @@ describe('NoteEditor tab hydration', () => {
   });
 
   it('disables spellcheck before replacing a tab and enables it after the delay', async () => {
-    vi.useFakeTimers();
-    vi.stubGlobal('ResizeObserver', class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    });
-    Object.defineProperty(Element.prototype, 'scrollTo', { configurable: true, value: vi.fn() });
-    vi.stubGlobal('cyberNotesAPI', { setUnsavedChanges: vi.fn() });
-    const note: Note = {
-      id: 'first', title: 'First note', content: '<p>First body</p>', preview: '',
-      folder_id: null, pinned: 0, created_at: '2026-01-01', updated_at: '2026-01-01',
-    };
     const props: ComponentProps<typeof NoteEditor> = {
       language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),
       layoutMode: 1, onToggleLayout: vi.fn(), showLineCounter: false,
       showFloatingToolbar: false,
     };
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
     await act(async () => root!.render(<NoteEditor {...props} />));
-    const dom = container.querySelector<HTMLElement>('.tiptap')!;
+    const dom = container!.querySelector<HTMLElement>('.tiptap')!;
     const editor = (dom as HTMLElement & { editor: Editor }).editor;
     await act(async () => { vi.advanceTimersByTime(450); });
     expect(dom.getAttribute('spellcheck')).toBe('true');
@@ -69,5 +71,45 @@ describe('NoteEditor tab hydration', () => {
     await act(async () => { vi.advanceTimersByTime(450); });
     expect(dom.getAttribute('spellcheck')).toBe('true');
     expect(props.onSave).not.toHaveBeenCalled();
+  });
+
+  it('lets the editor paint first and coalesces minimap refreshes to the latest tab', async () => {
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),
+      layoutMode: 1, onToggleLayout: vi.fn(), showLineCounter: false,
+      showFloatingToolbar: false, showMinimap: true,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const minimap = container!.querySelector<HTMLElement>('.minimap-prose')!;
+    const editor = container!.querySelector<HTMLElement>('.tiptap')!;
+    const html = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')!;
+    const snapshots: string[] = [];
+    Object.defineProperty(minimap, 'innerHTML', {
+      configurable: true,
+      get: () => html.get!.call(minimap),
+      set: (value: string) => { snapshots.push(value); html.set!.call(minimap, value); },
+    });
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(editor.textContent).toBe('First body');
+    expect(snapshots).toEqual([]);
+
+    const second = { ...note, id: 'second', content: '<p>Second body</p>' };
+    await act(async () => root!.render(<NoteEditor {...props} note={second} />));
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    const latest = { ...note, id: 'latest', content: '<p>Latest body</p>' };
+    await act(async () => root!.render(<NoteEditor {...props} note={latest} />));
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(editor.textContent).toBe('Latest body');
+    expect(snapshots).toEqual([]);
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(snapshots).toHaveLength(1);
+    expect(minimap.textContent).toBe('Latest body');
+    expect(props.onSave).not.toHaveBeenCalled();
+
+    await act(async () => root!.render(<NoteEditor {...props} note={note} />));
+    await act(async () => root!.unmount());
+    root = undefined;
+    await act(async () => { vi.advanceTimersByTime(500); });
+    expect(snapshots).toHaveLength(1);
   });
 });
