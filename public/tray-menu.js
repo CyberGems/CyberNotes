@@ -110,11 +110,16 @@ function renderHead() {
       headEl.appendChild(brand);
       return;
     }
+    // Encabezado estilo familia (igual que CyberLauncher y la vista suite):
+    // atrás con texto a la izquierda + título del submenú a la derecha.
     const back = document.createElement('button');
     back.type = 'button';
-    back.className = 'head-back';
-    back.setAttribute('aria-label', (currentState.help && currentState.help.backLabel) || t('back'));
-    back.innerHTML = ICONS.back;
+    back.className = 'head-suite-back';
+    back.innerHTML = ICONS.chevronLeft;
+    const backText = document.createElement('span');
+    backText.textContent = (currentState.help && currentState.help.backLabel) || t('back');
+    back.appendChild(backText);
+    back.setAttribute('aria-label', backText.textContent);
     back.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -123,9 +128,8 @@ function renderHead() {
     });
     headEl.appendChild(back);
     const title = document.createElement('span');
-    title.textContent = currentView === 'suite'
-      ? ((currentState.suite && currentState.suite.label) || t('suite'))
-      : ((currentState.help && currentState.help.label) || t('help'));
+    title.className = 'head-title';
+    title.textContent = (currentState.help && currentState.help.label) || t('help');
     headEl.appendChild(title);
     return;
   }

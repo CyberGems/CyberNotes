@@ -295,14 +295,17 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 </button>
               )}
 
-              <label
+              <button
+                type="button"
                 className="about-auto-update"
-                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                role="switch"
+                aria-checked={autoUpdate}
+                aria-label={t.autoUpdates}
                 onClick={() => handleToggleAutoUpdate(!autoUpdate)}
               >
-                <div className={`custom-switch ${autoUpdate ? 'active' : ''}`} />
+                <span aria-hidden="true" className={`custom-switch ${autoUpdate ? 'active' : ''}`} />
                 <span>{t.autoUpdates}</span>
-              </label>
+              </button>
               {(t as any).autoUpdatesHint && (
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, marginTop: 2, padding: '0 4px' }}>
                   {(t as any).autoUpdatesHint}
@@ -327,7 +330,7 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 <Tooltip key={app.slug} label={app.pitch} placement="top">
                   <button
                     type="button"
-                    className="btn-icon"
+                    className="btn-icon suite-app-btn"
                     style={{ width: 40, height: 40, borderRadius: 10 }}
                     onClick={() => window.cyberNotesAPI.openExternal(`${SITE_URL}/apps/${app.slug}/`)}
                     aria-label={app.pitch}

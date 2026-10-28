@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
 import { EditorView } from '@tiptap/pm/view';
@@ -15,12 +15,13 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Note, ThemeId } from '../types';
 import type { StickyColorId } from '../../shared/sticky';
-import { STICKY_BACKGROUNDS } from '../../shared/sticky';
+import { DEFAULT_STICKY_OPACITY, STICKY_BACKGROUNDS, STICKY_OPACITY_OPTIONS, normalizeStickyOpacity } from '../../shared/sticky';
 import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
-import { extractPreview, extractThumb } from '../utils/notes';
-import { FontSize, FontFamily, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
+import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
+import { CustomTextStyle, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
+import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 import Tooltip from './Tooltip';
 import GlobalErrorToast from './GlobalErrorToast';
 import {
@@ -45,6 +46,7 @@ import {
   Clipboard,
   CheckSquare,
   Trash2,
+  BookPlus,
   Blend,
   Lock,
   GripVertical,
@@ -150,16 +152,6 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     border: 'rgba(163, 230, 53, 0.35)',
     headerBg: '#1c2a0c',
   },
-};
-
-const DEFAULT_STICKY_OPACITY = 0.9;
-const OPACITY_OPTIONS = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
-
-const normalizeStickyOpacity = (value: number) => {
-  const bounded = Math.min(1, Math.max(0.1, value));
-  return OPACITY_OPTIONS.reduce((closest, option) => (
-    Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
-  ), DEFAULT_STICKY_OPACITY);
 };
 
 const MAX_STICKY_IMAGE_DIMENSION = 1400;
@@ -311,28 +303,74 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [showOpacityPicker, setShowOpacityPicker] = useState(false);
   const [hoveredColor, setHoveredColor] = useState<StickyColorId | null>(null);
   const [hoveredOpacity, setHoveredOpacity] = useState<number | null>(null);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'pending' | 'saving' | 'error'>('saved');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  // Menú contextual del título: mismo que el de las notas (sugerencias de
+  // ortografía + edición). El main reenvía `context-menu-data` también a las
+  // flotantes; aquí solo se atiende si el clic nació en el input.
+  const [titleMenu, setTitleMenu] = useState<{
+    x: number; y: number;
+    suggestions: string[];
+    misspelledWord?: string;
+    hasSelection: boolean;
+    hasContent: boolean;
+    canPaste: boolean;
+  } | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const titleMenuRequestRef = useRef<{ x: number; y: number; at: number } | null>(null);
+  const titleMenuRef = useRef<HTMLDivElement | null>(null);
   const [pasteNotice, setPasteNotice] = useState<'too-large' | 'failed' | null>(null);
   const [isAttention, setIsAttention] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRequestRef = useRef(0);
+  const saveRevisionRef = useRef(0);
   const attentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pasteNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const zoomPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickyToolbarScrollRef = useRef<HTMLDivElement | null>(null);
   const stickyEditorRef = useRef<Editor | null>(null);
   const zoomRef = useRef(1);
   const editorContentRef = useRef<string>('');
   const noteRef = useRef<Note | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  // Spellcheck progresivo: idéntico al editor principal. Con spellcheck="true"
+  // desde la creación, el caret tarda en aparecer mientras Chromium inicializa
+  // el corrector y escanea el documento.
+  const spellcheckOnRef = useRef(false);
+  const spellcheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   noteRef.current = note;
 
   const t = TRANSLATIONS[language];
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
   const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
-  const previewOpacity = hoveredOpacity ?? opacity;
+  const saveStatusLabel = saveStatus === 'error'
+    ? t.editor.saveError
+    : saveStatus === 'saving'
+      ? t.editor.saving
+      : saveStatus === 'pending'
+        ? t.editor.pendingSave
+        : t.editor.saved;
+  const saveDate = lastSavedAt ? new Date(lastSavedAt) : null;
+  const hasValidSaveDate = !!saveDate && Number.isFinite(saveDate.getTime());
+  const saveTime = hasValidSaveDate
+    ? saveDate!.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : '';
+  const fullSaveTimestamp = hasValidSaveDate
+    ? saveDate!.toLocaleString(language === 'es' ? 'es-CR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    : '';
+  const saveStatusTooltip = hasValidSaveDate
+    ? `${saveStatusLabel} · ${t.editor.lastSavedAt}: ${fullSaveTimestamp}`
+    : `${saveStatusLabel} · ${t.editor.notSavedYet}`;
+  // Electron applies opacity to the entire window, including context menus.
+  // Temporarily show the window at full opacity while either menu is open.
+  const previewOpacity = contextMenu || titleMenu ? 1 : hoveredOpacity ?? opacity;
 
   /** Mismo rango que la escala del editor principal (0.8–1.5). */
   const clampZoom = (value: number): number => {
@@ -366,6 +404,22 @@ export default function StickyNoteApp({ noteId }: Props) {
     return () => el.removeEventListener('wheel', onWheel);
   }, [applyZoom, loading]);
 
+  /**
+   * Activa spellcheck tras el primer pintado del contenido cargado. Se llama
+   * después de cada carga de contenido (loadData y note:updated).
+   */
+  const deferSpellcheck = useCallback((delayMs = 400) => {
+    if (spellcheckTimerRef.current) clearTimeout(spellcheckTimerRef.current);
+    spellcheckTimerRef.current = setTimeout(() => {
+      spellcheckTimerRef.current = null;
+      const ed = stickyEditorRef.current;
+      if (!ed || ed.isDestroyed || spellcheckOnRef.current) return;
+      spellcheckOnRef.current = true;
+      // Reaplica editorProps para que PM recalcule el atributo ya.
+      try { ed.view.setProps(ed.options.editorProps); } catch { /* vista no lista */ }
+    }, delayMs);
+  }, []);
+
   const showPasteNotice = useCallback((notice: 'too-large' | 'failed') => {
     setPasteNotice(notice);
     if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
@@ -380,7 +434,11 @@ export default function StickyNoteApp({ noteId }: Props) {
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        codeBlock: false,
+        blockquote: false,
       }),
+      CopyableCodeBlock,
+      CopyableBlockquote,
       TiptapImage.configure({ allowBase64: true, inline: false }),
       Underline,
       Highlight.configure({ multicolor: false }),
@@ -392,8 +450,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       TableCell,
       // Necesario para leer y escribir tamaños y fuentes por selección (misma
       // marca que el editor principal; sin esto, el sticky los borraría al guardar).
-      FontSize,
-      FontFamily,
+      CustomTextStyle,
       // Videos: solo lectura/escritura segura (el mini no inserta).
       VideoEmbed,
       Link.configure({ openOnClick: false }),
@@ -402,9 +459,11 @@ export default function StickyNoteApp({ noteId }: Props) {
       }),
     ],
     editorProps: {
-      attributes: {
-        spellcheck: 'true',
-      },
+      // Función de estado: PM la reevalúa en cada update/setProps, así el
+      // flag del ref se refleja sin recrear el editor.
+      attributes: () => ({
+        spellcheck: spellcheckOnRef.current ? 'true' : 'false',
+      }),
       // Mismo set simple que el editor principal (h1/h2/cita/código quedan en
       // sus atajos dobles por defecto). Alt+F/T enfoca los combos del footer.
       handleKeyDown: (_view, event) => {
@@ -463,6 +522,23 @@ export default function StickyNoteApp({ noteId }: Props) {
     },
   });
 
+  // La rueda desplaza horizontalmente la barra cuando los botones no caben.
+  useEffect(() => {
+    if (loading || !editor) return;
+    const toolbar = stickyToolbarScrollRef.current;
+    if (!toolbar) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      const delta = event.deltaX || event.deltaY;
+      if (!delta || toolbar.scrollWidth <= toolbar.clientWidth) return;
+      const previousScrollLeft = toolbar.scrollLeft;
+      toolbar.scrollLeft += delta;
+      if (toolbar.scrollLeft !== previousScrollLeft) event.preventDefault();
+    };
+    toolbar.addEventListener('wheel', onWheel, { passive: false });
+    return () => toolbar.removeEventListener('wheel', onWheel);
+  }, [editor, loading]);
+
   // Ref sincronizado para los atajos de teclado (el handler se define antes).
   stickyEditorRef.current = editor;
 
@@ -516,9 +592,13 @@ export default function StickyNoteApp({ noteId }: Props) {
           if (fetched) {
             setNote(fetched);
             setTitle(fetched.title);
+            setLastSavedAt(fetched.updated_at || null);
+            setSaveStatus('saved');
             editorContentRef.current = fetched.content;
             if (editor) {
+              spellcheckOnRef.current = false;
               loadStickyEditorContent(editor, fetched.content || '');
+              deferSpellcheck();
             }
           }
           setLoading(false);
@@ -549,6 +629,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       if (pasteNoticeTimerRef.current) clearTimeout(pasteNoticeTimerRef.current);
       if (attentionTimerRef.current) clearTimeout(attentionTimerRef.current);
       if (zoomPersistTimerRef.current) clearTimeout(zoomPersistTimerRef.current);
+      if (spellcheckTimerRef.current) clearTimeout(spellcheckTimerRef.current);
     };
   }, []);
 
@@ -558,9 +639,12 @@ export default function StickyNoteApp({ noteId }: Props) {
       if (updated.id === noteId) {
         setTitle((prev) => (prev !== updated.title ? updated.title : prev));
         if (editor && editor.getHTML() !== updated.content) {
+          spellcheckOnRef.current = false;
           loadStickyEditorContent(editor, updated.content || '');
           editorContentRef.current = updated.content;
+          deferSpellcheck();
         }
+        setLastSavedAt(updated.updated_at || null);
         setNote(updated);
       }
     });
@@ -617,28 +701,38 @@ export default function StickyNoteApp({ noteId }: Props) {
         updated_at: now,
       };
 
+      const requestId = ++saveRequestRef.current;
+      const revision = saveRevisionRef.current;
       setSaveStatus('saving');
       try {
         await window.cyberNotesAPI.saveNote(updatedNote);
-        setNote(updatedNote);
-        setSaveStatus('saved');
+        if (requestId === saveRequestRef.current) {
+          setNote(updatedNote);
+          setLastSavedAt(updatedNote.updated_at);
+          setSaveStatus(revision === saveRevisionRef.current ? 'saved' : 'pending');
+        }
       } catch (err) {
         console.error('Failed to save sticky note:', err);
-        setSaveStatus('error');
+        if (requestId === saveRequestRef.current) {
+          setSaveStatus(revision === saveRevisionRef.current ? 'error' : 'pending');
+        }
       }
     },
     [title, t.noteList.unnamedNote]
   );
 
   const scheduleSave = useCallback(() => {
-    setSaveStatus('saving');
+    saveRevisionRef.current += 1;
+    setSaveStatus('pending');
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
       saveNoteImmediately();
     }, 500);
   }, [saveNoteImmediately]);
 
   const handleTitleChange = (val: string) => {
+    val = clampNoteTitle(val);
     setTitle(val);
     scheduleSave();
   };
@@ -894,6 +988,8 @@ export default function StickyNoteApp({ noteId }: Props) {
     if (!editor) return;
     e.preventDefault();
     e.stopPropagation();
+    titleMenuRequestRef.current = null;
+    setTitleMenu(null);
 
     const margin = 8;
     const menuWidth = 184;
@@ -902,6 +998,27 @@ export default function StickyNoteApp({ noteId }: Props) {
       x: Math.min(e.clientX, Math.max(margin, window.innerWidth - menuWidth - margin)),
       y: Math.min(e.clientY, Math.max(margin, window.innerHeight - menuHeight - margin)),
     });
+  };
+
+  const handleTitleContextMenu = (e: React.MouseEvent<HTMLInputElement>) => {
+    // Electron cancela el menú nativo y envía las sugerencias. El menú de la
+    // app se abre aquí mismo, sin depender de que llegue ese mensaje.
+    e.stopPropagation();
+    const input = e.currentTarget;
+    titleMenuRequestRef.current = { x: e.clientX, y: e.clientY, at: Date.now() };
+    setContextMenu(null);
+    setTitleMenu({
+      x: e.clientX,
+      y: e.clientY,
+      suggestions: [],
+      misspelledWord: '',
+      hasSelection: input.selectionStart !== input.selectionEnd,
+      hasContent: input.value.length > 0,
+      canPaste: false,
+    });
+    navigator.clipboard?.readText?.()
+      .then(text => setTitleMenu(menu => (menu ? { ...menu, canPaste: text.length > 0 } : menu)))
+      .catch(() => setTitleMenu(menu => (menu ? { ...menu, canPaste: true } : menu)));
   };
 
   const handleEditorMouseDownCapture = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -916,14 +1033,20 @@ export default function StickyNoteApp({ noteId }: Props) {
   // Close menus on outside click
   useEffect(() => {
     const handleClick = () => {
+      titleMenuRequestRef.current = null;
       setShowColorPicker(false);
       setShowOpacityPicker(false);
       setHoveredColor(null);
       setHoveredOpacity(null);
       setContextMenu(null);
+      setTitleMenu(null);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setContextMenu(null);
+      if (event.key === 'Escape') {
+        titleMenuRequestRef.current = null;
+        setContextMenu(null);
+        setTitleMenu(null);
+      }
     };
     window.addEventListener('click', handleClick);
     window.addEventListener('keydown', handleKeyDown);
@@ -932,6 +1055,40 @@ export default function StickyNoteApp({ noteId }: Props) {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  // Completar el menú abierto por el input con sugerencias de Electron.
+  useEffect(() => {
+    return window.cyberNotesAPI.onContextMenuData((data: any) => {
+      const request = titleMenuRequestRef.current;
+      if (!request || Date.now() - request.at > 1000) return;
+      if (Math.abs(data.x - request.x) > 4 || Math.abs(data.y - request.y) > 4) return;
+      setTitleMenu(menu => menu ? {
+        ...menu,
+        suggestions: data.suggestions || [],
+        misspelledWord: data.misspelledWord || '',
+      } : menu);
+    });
+  }, []);
+
+  // Reposiciona el menú del título tras medirlo (las sugerencias varían el alto).
+  useLayoutEffect(() => {
+    if (!titleMenu) return;
+    const el = titleMenuRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    let nextX = titleMenu.x;
+    let nextY = titleMenu.y;
+    if (nextX + rect.width + margin > window.innerWidth) {
+      nextX = Math.max(margin, window.innerWidth - rect.width - margin);
+    }
+    if (nextY + rect.height + margin > window.innerHeight) {
+      nextY = Math.max(margin, window.innerHeight - rect.height - margin);
+    }
+    if (nextX !== titleMenu.x || nextY !== titleMenu.y) {
+      setTitleMenu(m => (m ? { ...m, x: nextX, y: nextY } : m));
+    }
+  }, [titleMenu]);
 
   const hasEditorSelection = editor ? !editor.state.selection.empty : false;
   const hasEditorContent = editor ? editor.state.doc.content.size > 0 : false;
@@ -1022,9 +1179,12 @@ export default function StickyNoteApp({ noteId }: Props) {
           </span>
           <input
             type="text"
+            ref={titleInputRef}
             value={title}
+            maxLength={NOTE_TITLE_MAX_LENGTH}
             onChange={(e) => handleTitleChange(e.target.value)}
             onPointerDown={handleTitlePointerDown}
+            onContextMenu={handleTitleContextMenu}
             placeholder={t.editor.placeholderTitle}
             style={{
               background: 'transparent',
@@ -1233,7 +1393,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                 }}
                 onMouseLeave={() => setHoveredOpacity(null)}
               >
-                {OPACITY_OPTIONS.map((op) => (
+                {STICKY_OPACITY_OPTIONS.map((op) => (
                   <button
                     className="sticky-note-button"
                     key={op}
@@ -1406,6 +1566,173 @@ export default function StickyNoteApp({ noteId }: Props) {
         </div>
       )}
 
+      {titleMenu && (
+        <div
+          ref={titleMenuRef}
+          className="sticky-context-menu"
+          role="menu"
+          style={{ left: titleMenu.x, top: titleMenu.y, minWidth: 200 }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {titleMenu.suggestions.length > 0 && (
+            <>
+              {titleMenu.suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  role="menuitem"
+                  onMouseDown={() => {
+                    (window.cyberNotesAPI as any)?.replaceMisspelling?.(suggestion);
+                    setTitleMenu(null);
+                  }}
+                >
+                  <span style={{ flex: 1, fontWeight: 600 }}>{suggestion}</span>
+                </button>
+              ))}
+              <div className="sticky-context-separator" />
+            </>
+          )}
+          {titleMenu.misspelledWord && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onMouseDown={() => {
+                  (window.cyberNotesAPI as any)?.addToDictionary?.(titleMenu.misspelledWord!);
+                  setTitleMenu(null);
+                }}
+                style={{ color: '#4ade80' }}
+              >
+                <BookPlus size={13} />
+                <span>{language === 'es' ? `Agregar "${titleMenu.misspelledWord}" al diccionario` : `Add "${titleMenu.misspelledWord}" to dictionary`}</span>
+              </button>
+              <div className="sticky-context-separator" />
+            </>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            disabled
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('undo');
+              setTitleMenu(null);
+            }}
+          >
+            <Undo2 size={13} />
+            <span>{language === 'es' ? 'Deshacer' : 'Undo'}</span>
+            <kbd>Ctrl+Z</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('redo');
+              setTitleMenu(null);
+            }}
+          >
+            <Redo2 size={13} />
+            <span>{language === 'es' ? 'Rehacer' : 'Redo'}</span>
+            <kbd>Ctrl+Y</kbd>
+          </button>
+          <div className="sticky-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasSelection}
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('cut');
+              setTitleMenu(null);
+            }}
+          >
+            <Scissors size={13} />
+            <span>{language === 'es' ? 'Cortar' : 'Cut'}</span>
+            <kbd>Ctrl+X</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasSelection}
+            onMouseDown={() => {
+              titleInputRef.current?.focus();
+              document.execCommand('copy');
+              setTitleMenu(null);
+            }}
+          >
+            <Copy size={13} />
+            <span>{language === 'es' ? 'Copiar' : 'Copy'}</span>
+            <kbd>Ctrl+C</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.canPaste}
+            onMouseDown={() => {
+              const input = titleInputRef.current;
+              setTitleMenu(null);
+              if (!input) return;
+              navigator.clipboard.readText().then(text => {
+                const start = input.selectionStart || 0;
+                const end = input.selectionEnd || 0;
+                const val = input.value;
+                handleTitleChange(val.slice(0, start) + text + val.slice(end));
+                setTimeout(() => {
+                  titleInputRef.current?.setSelectionRange(start + text.length, start + text.length);
+                }, 0);
+              }).catch(() => {
+                input.focus();
+                document.execCommand('paste');
+              });
+            }}
+          >
+            <Clipboard size={13} />
+            <span>{language === 'es' ? 'Pegar' : 'Paste'}</span>
+            <kbd>Ctrl+V</kbd>
+          </button>
+          <div className="sticky-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasContent}
+            onMouseDown={() => {
+              titleInputRef.current?.select();
+              setTitleMenu(null);
+            }}
+          >
+            <CheckSquare size={13} />
+            <span>{language === 'es' ? 'Seleccionar todo' : 'Select all'}</span>
+            <kbd>Ctrl+A</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!titleMenu.hasSelection}
+            onMouseDown={() => {
+              const input = titleInputRef.current;
+              if (input) {
+                const start = input.selectionStart || 0;
+                const end = input.selectionEnd || 0;
+                handleTitleChange(input.value.slice(0, start) + input.value.slice(end));
+                setTimeout(() => {
+                  titleInputRef.current?.setSelectionRange(start, start);
+                }, 0);
+              }
+              setTitleMenu(null);
+            }}
+          >
+            <Trash2 size={13} style={{ color: '#f87171' }} />
+            <span>{t.general.delete}</span>
+          </button>
+        </div>
+      )}
+
       {pasteNotice && (
         <div
           role="status"
@@ -1446,7 +1773,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             gap: 4,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <div ref={stickyToolbarScrollRef} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <StickyFooterBtn
               label={t.editor.stickyUndo}
               onClick={() => editor.chain().focus().undo().run()}
@@ -1581,26 +1908,39 @@ export default function StickyNoteApp({ noteId }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 1, height: 14, background: 'rgba(255, 255, 255, 0.1)', margin: '0 2px' }} />
             <Tooltip
-              label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
+              label={saveStatusTooltip}
               placement="top"
               delay={STICKY_FOOTER_TIP_DELAY}
+              maxWidth="calc(100vw - 16px)"
+              wrap
             >
               <span
-                className={`sticky-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
-                aria-label={saveStatus === 'saving' ? t.editor.saving : saveStatus === 'error' ? t.editor.saveError : t.editor.saved}
-                style={{
-                  background: saveStatus === 'error'
-                    ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
-                    : saveStatus === 'saving'
-                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
-                      : `radial-gradient(circle at 35% 35%, #ffffff 0%, ${colorMeta.accent} 46%, rgba(0, 0, 0, 0.55) 100%)`,
-                  boxShadow: saveStatus === 'error'
-                    ? '0 0 8px rgba(239, 68, 68, 0.7)'
-                    : saveStatus === 'saving'
-                      ? '0 0 8px rgba(245, 158, 11, 0.7)'
-                      : `0 0 8px ${colorMeta.accentGlow}`,
-                }}
-              />
+                role="status"
+                aria-live="polite"
+                aria-label={saveStatusTooltip}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'default' }}
+              >
+                <span
+                  className={`sticky-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
+                  style={{
+                    background: saveStatus === 'error'
+                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
+                      : saveStatus === 'saving' || saveStatus === 'pending'
+                        ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
+                        : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
+                    boxShadow: saveStatus === 'error'
+                      ? '0 0 7px rgba(239, 68, 68, 0.65)'
+                      : saveStatus === 'saving' || saveStatus === 'pending'
+                        ? '0 0 7px rgba(245, 158, 11, 0.55)'
+                        : '0 0 7px rgba(52, 211, 153, 0.45)',
+                  }}
+                />
+                {saveTime && (
+                  <span style={{ fontSize: 9, fontVariantNumeric: 'tabular-nums', color: 'rgba(255, 255, 255, 0.58)', whiteSpace: 'nowrap' }}>
+                    {saveTime}
+                  </span>
+                )}
+              </span>
             </Tooltip>
             <StickyFooterBtn
               label={t.noteList.moveToTrash}

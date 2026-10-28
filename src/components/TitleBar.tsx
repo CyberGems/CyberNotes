@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, Upload, FileDown, Printer, Copy, Star, AppWindow, Sparkles } from 'lucide-react';
-import { Note } from '../types';
-import Tooltip from './Tooltip';
+import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History, Keyboard, ChevronDown } from 'lucide-react';
+import Tooltip, { TooltipShortcut } from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
 
 interface Props {
   language?: 'es' | 'en';
+  uiScale?: number;
   displayName?: string | null;
   onLock?: () => void;
   onOpenSettings?: () => void;
@@ -17,9 +17,6 @@ interface Props {
   onExportPdf?: () => void;
   onExportText?: () => void;
   onPrint?: () => void;
-  onSelectNote?: (id: string) => void;
-  onClearRecent?: () => void;
-  recentNotes?: Note[];
   autosaveEnabled?: boolean;
   onAutosaveChange?: (v: boolean) => void;
   autoUnlockCapsLock?: boolean;
@@ -27,6 +24,8 @@ interface Props {
   autoUnlockCapsLockTimeout?: number;
   showMinimap?: boolean;
   onShowMinimapChange?: (v: boolean) => void;
+  showKeyboardIndicators?: boolean;
+  onShowKeyboardIndicatorsChange?: (v: boolean) => void;
   showLineCounter?: boolean;
   onShowLineCounterChange?: (v: boolean) => void;
   showLineGutter?: boolean;
@@ -43,6 +42,11 @@ interface Props {
   onDuplicateNote?: (id: string) => void;
   onToggleNoteFavorite?: (id: string) => void;
   onToggleNoteSticky?: (id: string) => void;
+  onSaveNote?: () => void;
+  onDeleteNote?: () => void;
+  onToggleRaw?: () => void;
+  onCycleLayout?: () => void;
+  onShowHistory?: () => void;
   minimizeToTray?: boolean;
   closeToTray?: boolean;
   /** Caps Lock físico activo + countdown (desde NoteEditor) */
@@ -63,6 +67,7 @@ function formatCapsTime(sec: number): string {
 
 export default function TitleBar({
   language = 'es',
+  uiScale = 1,
   displayName,
   onLock,
   onOpenSettings,
@@ -73,9 +78,6 @@ export default function TitleBar({
   onExportPdf,
   onExportText,
   onPrint,
-  onSelectNote,
-  onClearRecent,
-  recentNotes = [],
   autosaveEnabled = true,
   onAutosaveChange,
   autoUnlockCapsLock = false,
@@ -83,6 +85,8 @@ export default function TitleBar({
   autoUnlockCapsLockTimeout = 10,
   showMinimap = false,
   onShowMinimapChange,
+  showKeyboardIndicators = false,
+  onShowKeyboardIndicatorsChange,
   showLineCounter = true,
   onShowLineCounterChange,
   showLineGutter = true,
@@ -99,6 +103,11 @@ export default function TitleBar({
   onDuplicateNote,
   onToggleNoteFavorite,
   onToggleNoteSticky,
+  onSaveNote,
+  onDeleteNote,
+  onToggleRaw,
+  onCycleLayout,
+  onShowHistory,
   minimizeToTray = false,
   closeToTray = false,
   capsStatus,
@@ -108,11 +117,8 @@ export default function TitleBar({
   const menuRef = useRef<HTMLDivElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
-  const [recentSubOpen, setRecentSubOpen] = useState(false);
-  const [noteSubOpen, setNoteSubOpen] = useState(false);
-  const [exportSubOpen, setExportSubOpen] = useState(false);
-  const [helpSubOpen, setHelpSubOpen] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
+  const [openMoreSection, setOpenMoreSection] = useState<'note' | 'export' | 'options' | 'help' | 'app' | null>('note');
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -124,10 +130,6 @@ export default function TitleBar({
     if (menuOpen) {
       document.addEventListener('mousedown', close);
     } else {
-      setRecentSubOpen(false);
-      setNoteSubOpen(false);
-      setExportSubOpen(false);
-      setHelpSubOpen(false);
       setExitConfirm(false);
     }
     return () => document.removeEventListener('mousedown', close);
@@ -181,6 +183,10 @@ export default function TitleBar({
   }, [menuOpen]);
 
   useEffect(() => {
+    if (menuRef.current) menuRef.current.scrollTop = 0;
+  }, [openMoreSection]);
+
+  useEffect(() => {
     const handleMenuShortcut = (event: KeyboardEvent) => {
       if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key.toLowerCase() !== 'm') return;
@@ -227,6 +233,7 @@ export default function TitleBar({
   }, []);
 
   const t = (es: string, en: string) => language === 'es' ? es : en;
+  const capsOn = !!capsStatus?.active;
   const activateMenuItem = (event: React.KeyboardEvent, action: () => void) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -237,12 +244,43 @@ export default function TitleBar({
   const menuSwitch = (active: boolean) => (
     <span aria-hidden="true" className={`custom-switch is-compact ${active ? 'active' : ''}`} />
   );
+  const menuScale = Math.max(0.8, Math.min(1.5, uiScale));
+  const menuScaleVars = {
+    '--more-menu-item-font-size': `${12 * menuScale}px`,
+    '--more-menu-item-padding-y': `${8 * menuScale}px`,
+    '--more-menu-item-padding-x': `${14 * menuScale}px`,
+    '--more-menu-item-gap': `${10 * menuScale}px`,
+    '--more-menu-shortcut-font-size': `${9 * menuScale}px`,
+    '--more-menu-section-font-size': `${10 * menuScale}px`,
+    '--more-menu-section-padding-y': `${7 * menuScale}px`,
+    '--more-menu-section-padding-x': `${14 * menuScale}px`,
+    '--more-menu-icon-size': `${14 * menuScale}px`,
+    '--more-menu-switch-width': `${32 * menuScale}px`,
+    '--more-menu-switch-height': `${18 * menuScale}px`,
+    '--more-menu-switch-radius': `${9 * menuScale}px`,
+    '--more-menu-switch-inset': `${2 * menuScale}px`,
+    '--more-menu-switch-thumb': `${14 * menuScale}px`,
+    '--more-menu-switch-active-left': `${16 * menuScale}px`,
+    '--more-menu-switch-check-size': `${10 * menuScale}px`,
+  } as CSSProperties;
+  const moreSectionHeader = (section: 'note' | 'export' | 'options' | 'help' | 'app', label: string) => (
+    <button
+      type="button"
+      role="menuitem"
+      className={`more-menu-section-toggle${openMoreSection === section ? ' is-open' : ''}`}
+      aria-expanded={openMoreSection === section}
+      onClick={() => setOpenMoreSection(current => current === section ? null : section)}
+    >
+      <span>{label}</span>
+      <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.65, transform: openMoreSection === section ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s ease' }} />
+    </button>
+  );
   return (
     <div
       className="glass-effect titlebar-glass"
       onDoubleClick={(e) => {
         const target = e.target as HTMLElement;
-        if (target.closest('button, input, textarea, select, [data-no-drag], .btn-icon, .menu-item')) {
+        if (target.closest('button, input, textarea, select, [data-no-drag], .btn-icon, .menu-item, .more-menu-section-toggle')) {
           return;
         }
         window.cyberNotesAPI.windowMaximizeToggle();
@@ -326,19 +364,20 @@ export default function TitleBar({
           WebkitAppRegion: 'drag',
         } as any}
       >
-        <WelcomeGreeting
-          language={language}
-          name={displayName}
-          style={{
-            fontSize: 'calc(11px * var(--ui-scale))',
-            fontWeight: 500,
-            maxWidth: 'min(460px, 46vw)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        />
+        {!capsOn && (
+          <WelcomeGreeting
+            language={language}
+            name={displayName}
+            style={{
+              fontSize: 'calc(11px * var(--ui-scale))',
+              fontWeight: 500,
+              maxWidth: 'min(460px, 46vw)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          />
+        )}
         {(() => {
-          const capsOn = !!capsStatus?.active;
           const autoOn = !!autoUnlockCapsLock;
           const timeLeft = capsStatus?.timeLeft ?? 0;
           // ON = azul accent; OFF = muted (estilo neutro actual)
@@ -427,7 +466,7 @@ export default function TitleBar({
                         display: 'block',
                         height: '100%',
                         width: `${Math.max(4, Math.min(100, (timeLeft / autoUnlockCapsLockTimeout) * 100))}%`,
-                        background: '#ef4444',
+                        background: 'var(--accent)',
                         borderRadius: 2,
                         transition: 'width 1s linear',
                       }}
@@ -446,7 +485,7 @@ export default function TitleBar({
         style={{ display: 'flex', alignItems: 'center', gap: 2, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
         {/* Settings Button */}
-        <Tooltip placement="bottom" label={t('Configuración (Ctrl+,)', 'Settings (Ctrl+,)')}>
+        <Tooltip placement="bottom" label={t('Configuración general (Ctrl+,)', 'General settings (Ctrl+,)')}>
           <button
             className="btn-icon titlebar-btn"
             onClick={onOpenSettings}
@@ -461,7 +500,9 @@ export default function TitleBar({
           <Tooltip placement="bottom" label={t('Más opciones (Alt+M)', 'More options (Alt+M)')}>
           <button
             ref={burgerRef}
-            className="btn-icon titlebar-btn"
+            className={`btn-icon titlebar-btn${menuOpen ? ' is-open' : ''}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
             onClick={() => {
               if (!menuOpen && burgerRef.current) {
                 const r = burgerRef.current.getBoundingClientRect();
@@ -476,203 +517,192 @@ export default function TitleBar({
           </Tooltip>
 
           {menuOpen && createPortal(
-            <div ref={menuRef} role="menu" aria-label={t('Más opciones', 'More options')} style={{
+            <div ref={menuRef} role="menu" aria-label={t('Más opciones', 'More options')} className="glass-effect more-menu" style={{
               position: 'fixed',
               top: menuPos.top,
               right: menuPos.right,
-              width: 240,
+              width: `${240 * menuScale}px`,
+              maxWidth: 'calc(100vw - 16px)',
               background: 'var(--bg-modal)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
               zIndex: 99999,
-              padding: '6px 0',
+              padding: `${6 * menuScale}px 0`,
               display: 'flex',
               flexDirection: 'column',
+              maxHeight: `calc(100vh - ${menuPos.top + 8}px)`,
+              boxSizing: 'border-box',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              ...menuScaleVars,
             }}>
-              {/* Recent Notes Submenu */}
-              {recentNotes.length > 0 && (
-                <>
-                  <button
-                    className="menu-item"
-                    onClick={() => setRecentSubOpen(!recentSubOpen)}
-                  >
-                    <FileText size={14} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Notas recientes', 'Recent notes')}</span>
-                    <span style={{
-                      fontSize: 10,
-                      color: 'var(--text-muted)',
-                      transform: recentSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.15s',
-                    }}>▶</span>
-                  </button>
-                  {recentSubOpen && (
-                    <div style={{
-                      borderLeft: '2px solid var(--border)',
-                      marginLeft: 19,
-                      paddingLeft: 0,
-                    }}>
-                      {recentNotes.slice(0, 10).map(note => (
-                        <button
-                          key={note.id}
-                          className="menu-item"
-                          onClick={() => { setMenuOpen(false); onSelectNote?.(note.id); }}
-                          style={{ padding: '4px 10px', fontSize: 11 }}
-                        >
-                          <span style={{
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {note.title || (language === 'es' ? 'Sin título' : 'Untitled')}
-                          </span>
-                        </button>
-                      ))}
-                      <div style={{ height: 1, background: 'var(--border)', margin: '2px 8px' }} />
-                      <button
-                        className="menu-item"
-                        onClick={() => { onClearRecent?.(); setRecentSubOpen(false); }}
-                        style={{ padding: '4px 10px', fontSize: 10, color: 'var(--text-muted)' }}
-                      >
-                        {t('Limpiar recientes', 'Clear recently opened')}
-                      </button>
-                    </div>
-                  )}
-                  <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-                </>
-              )}
-
-              {/* Submenú Nota actual (atajos de teclado para la nota abierta) */}
+              {/* Donar primero (convención de la suite) + separador */}
               <button
                 className="menu-item"
-                onClick={() => setNoteSubOpen(!noteSubOpen)}
+                onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate'); }}
+                style={{ padding: '4px 10px', fontSize: 11 }}
               >
-                <FileText size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Nota actual', 'Current note')}</span>
-                <span style={{
-                  fontSize: 10,
-                  color: 'var(--text-muted)',
-                  transform: noteSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                }}>▶</span>
+                <Heart size={13} style={{ color: '#F43F5E', opacity: 1 }} fill="#F43F5E" stroke="none" />
+                <span>{t('Donar', 'Donate')}</span>
               </button>
-              {noteSubOpen && (
-                <div style={{
-                  borderLeft: '2px solid var(--border)',
-                  marginLeft: 19,
-                  paddingLeft: 0,
-                }}>
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+              {moreSectionHeader('note', t('Nota actual', 'Current note'))}
+              {openMoreSection === 'note' && (
+                <div role="group" aria-label={t('Nota actual', 'Current note')}>
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onDuplicateNote?.(currentNoteId); } }}
+                    onClick={() => { setMenuOpen(false); onSaveNote?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Control+S"
+                  >
+                    <Save size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Guardar nota', 'Save note')}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+S</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onDuplicateNote?.(currentNoteId); } }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Control+D"
                   >
                     <Copy size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Duplicar nota', 'Duplicate note')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+D</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+D</span>
                   </button>
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteFavorite?.(currentNoteId); } }}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onToggleNoteFavorite?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+S"
                   >
                     <Star size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{currentNotePinned ? t('Quitar de favoritos', 'Remove from favorites') : t('Marcar favorita', 'Add to favorites')}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+S</span>
                   </button>
                   <button
                     className="menu-item"
                     disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); setNoteSubOpen(false); onToggleNoteSticky?.(currentNoteId); } }}
+                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onToggleNoteSticky?.(currentNoteId); } }}
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+A"
                   >
                     <AppWindow size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{isCurrentNoteSticky ? t('Mostrar flotante', 'Show floating note') : t('Abrir flotante', 'Open floating note')}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+A</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); onToggleRaw?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+H"
+                  >
+                    <Braces size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Vista HTML', 'HTML view')}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+H</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); onCycleLayout?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+L"
+                  >
+                    <PanelLeft size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Cambiar vista', 'Switch view')}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+L</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); onShowHistory?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+R"
+                  >
+                    <History size={13} style={{ opacity: 0.7 }} />
+                    <span style={{ flex: 1 }}>{t('Historial de versiones', 'Version history')}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+R</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!currentNoteId}
+                    onClick={() => { setMenuOpen(false); onDeleteNote?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    aria-keyshortcuts="Alt+Delete"
+                  >
+                    <Trash2 size={13} style={{ color: '#f87171', opacity: 0.9 }} />
+                    <span style={{ flex: 1 }}>{t('Eliminar nota', 'Delete note')}</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
                   </button>
                 </div>
               )}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              {/* Export Submenu */}
-              <button
-                className="menu-item"
-                onClick={() => setExportSubOpen(!exportSubOpen)}
-                aria-haspopup="true"
-                aria-expanded={exportSubOpen}
-              >
-                <Upload size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Exportar', 'Export')}</span>
-                <span style={{
-                  fontSize: 10,
-                  color: 'var(--text-muted)',
-                  transform: exportSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                }}>▶</span>
-              </button>
-              {exportSubOpen && (
-                <div style={{
-                  borderLeft: '2px solid var(--border)',
-                  marginLeft: 19,
-                  paddingLeft: 0,
-                }}>
+              {moreSectionHeader('export', t('Exportar', 'Export'))}
+              {openMoreSection === 'export' && (
+                <div role="group" aria-label={t('Exportar', 'Export')}>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportPdf?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportPdf?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+P"
                   >
                     <FileDown size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Exportar PDF', 'Export PDF')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+P</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+P</span>
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportMarkdown?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportMarkdown?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+M"
                   >
                     <FileText size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Markdown (.md)', 'Markdown (.md)')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+M</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+M</span>
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportText?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportText?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+T"
                   >
                     <FileText size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Texto plano (.txt)', 'Plain text (.txt)')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+T</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+T</span>
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onExportHtml?.(); }}
+                    onClick={() => { setMenuOpen(false); onExportHtml?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+Alt+H"
                   >
                     <Globe size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('HTML (.html)', 'HTML (.html)')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+H</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+H</span>
                   </button>
                   <button
                     className="menu-item"
-                    onClick={() => { setMenuOpen(false); setExportSubOpen(false); onPrint?.(); }}
+                    onClick={() => { setMenuOpen(false); onPrint?.(); }}
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     aria-keyshortcuts="Control+P"
                   >
                     <Printer size={13} style={{ opacity: 0.7 }} />
                     <span style={{ flex: 1 }}>{t('Imprimir', 'Print')}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
+                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
                   </button>
                 </div>
               )}
-
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              {/* Toggles */}
+              {moreSectionHeader('options', t('Ajustes rápidos', 'Quick settings'))}
+              {openMoreSection === 'options' && (
+                <div role="group" aria-label={t('Ajustes rápidos', 'Quick settings')}>
+              <Tooltip placement="top" label={t('Guarda los cambios automáticamente mientras escribes.', 'Saves changes automatically as you type.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -684,6 +714,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Autoguardado', 'Autosave')}</span>
                 {menuSwitch(autosaveEnabled)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Desactiva Bloq Mayús automáticamente tras un periodo de inactividad.', 'Turns Caps Lock off automatically after a period of inactivity.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -695,6 +727,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Auto-unlock Caps', 'Auto-unlock Caps')}</span>
                 {menuSwitch(autoUnlockCapsLock)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra una vista general del documento junto al editor.', 'Shows an overview of the document beside the editor.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -706,6 +740,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Minimapa', 'Minimap')}</span>
                 {menuSwitch(showMinimap)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra el total de líneas en la barra de estado.', 'Shows the line total in the status bar.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -717,6 +753,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Contador líneas', 'Line counter')}</span>
                 {menuSwitch(showLineCounter)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra los números junto a cada línea.', 'Shows line numbers beside each line.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -728,6 +766,21 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Líneas numeradas', 'Line gutter')}</span>
                 {menuSwitch(showLineGutter)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra los estados de Bloq Mayús, Num y Insert.', 'Shows Caps Lock, Num Lock, and Insert states.')}>
+              <div
+                className="menu-item"
+                role="menuitem"
+                tabIndex={0}
+                onClick={() => onShowKeyboardIndicatorsChange?.(!showKeyboardIndicators)}
+                onKeyDown={e => activateMenuItem(e, () => onShowKeyboardIndicatorsChange?.(!showKeyboardIndicators))}
+              >
+                <Keyboard size={14} style={{ opacity: 0.7 }} />
+                <span style={{ flex: 1 }}>{t('Indicadores de teclado', 'Keyboard indicators')}</span>
+                {menuSwitch(showKeyboardIndicators)}
+              </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra el recuento de palabras en la barra de estado.', 'Shows the word count in the status bar.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -739,6 +792,8 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Contador palabras', 'Word counter')}</span>
                 {menuSwitch(showWordCounter)}
               </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Muestra una barra de formato al seleccionar texto.', 'Shows a formatting toolbar when you select text.')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -749,7 +804,10 @@ export default function TitleBar({
                 <Sparkles size={14} style={{ opacity: 0.7 }} />
                 <span style={{ flex: 1 }}>{t('Barra flotante', 'Floating toolbar')}</span>
                 {menuSwitch(showFloatingToolbar)}
-              </div>              <div
+              </div>
+              </Tooltip>
+              <Tooltip placement="top" label={t('Reabre la última nota al iniciar la aplicación.', 'Reopens your last note when the app starts.')}>
+              <div
                 className="menu-item"
                 role="menuitem"
                 tabIndex={0}
@@ -760,37 +818,15 @@ export default function TitleBar({
                 <span style={{ flex: 1 }}>{t('Recordar sesión', 'Remember session')}</span>
                 {menuSwitch(rememberLastNote)}
               </div>
+              </Tooltip>
+                </div>
+              )}
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
-              <button
-                className="menu-item"
-                onClick={() => setHelpSubOpen(!helpSubOpen)}
-              >
-                <HelpCircle size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Ayuda', 'Help')}</span>
-                <span style={{
-                  fontSize: 10,
-                  color: 'var(--text-muted)',
-                  transform: helpSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                }}>▶</span>
-              </button>
-              {helpSubOpen && (
-                <div style={{
-                  borderLeft: '2px solid var(--border)',
-                  marginLeft: 19,
-                  paddingLeft: 0,
-                }}>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Pin size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Mantener visible en la bandeja', 'Keep visible in system tray')}</span>
-                  </button>
-                  <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />
+              {moreSectionHeader('help', t('Ayuda', 'Help'))}
+              {openMoreSection === 'help' && (
+                <div role="group" aria-label={t('Ayuda', 'Help')}>
                   <button
                     className="menu-item"
                     onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki'); }}
@@ -823,14 +859,6 @@ export default function TitleBar({
                     <Globe size={13} style={{ opacity: 0.7 }} />
                     <span>{t('Sitio web', 'Website')}</span>
                   </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate'); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Heart size={13} style={{ color: '#F43F5E', opacity: 1 }} fill="#F43F5E" stroke="none" />
-                    <span>{t('Donar', 'Donate')}</span>
-                  </button>
                   <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />
                   <button
                     className="menu-item"
@@ -850,6 +878,19 @@ export default function TitleBar({
                   </button>
                 </div>
               )}
+
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+              {moreSectionHeader('app', t('Aplicación', 'App'))}
+              {openMoreSection === 'app' && (
+                <div role="group" aria-label={t('Aplicación', 'App')}>
+                  <button
+                    className="menu-item"
+                    onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Pin size={13} style={{ opacity: 0.7 }} />
+                    <span>{t('Mantener visible en la bandeja', 'Keep visible in system tray')}</span>
+                  </button>
               {minimizeToTray && (
                 <button
                   className="menu-item"
@@ -901,6 +942,8 @@ export default function TitleBar({
                   <span>{t('Salir', 'Exit')}</span>
                 </button>
               )}
+                </div>
+              )}
             </div>,
             document.body
           )}
@@ -948,9 +991,9 @@ export default function TitleBar({
         </button>
         </Tooltip>
         <Tooltip placement="bottom" label={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
             <span>{closeToTray ? t('Cerrar a la bandeja', 'Close to tray') : t('Cerrar', 'Close')}</span>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 4, padding: '0 4px' }}>Alt+F4</span>
+            <TooltipShortcut>Alt+F4</TooltipShortcut>
           </span>
         }>
         <button

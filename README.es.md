@@ -24,7 +24,7 @@
 
 ## ¿Qué es CyberNotes?
 
-CyberNotes es una aplicación de toma de notas elegante y centrada en la privacidad para Windows que mantiene la escritura y la organización completamente en tu equipo. Crea notas enriquecidas con formato, imágenes, bloques de código y atajos de markdown; organízalas en carpetas de colores; trabaja con varias pestañas; y separa notas importantes en ventanas flotantes. La búsqueda instantánea, el guardado automático, la restauración de sesión, temas personalizables y un bloqueo de acceso opcional con contraseña maestra sostienen tanto las ideas rápidas como los proyectos largos. Los datos se guardan localmente con **SQL.js (SQLite WASM)**. Construido con **Electron + React + TypeScript**.
+CyberNotes es una aplicación de toma de notas elegante y centrada en la privacidad para Windows que mantiene la escritura y la organización completamente en tu equipo. Crea notas enriquecidas con formato, imágenes, bloques de código y atajos de markdown; organízalas en carpetas de colores; trabaja con varias pestañas; y separa notas importantes en ventanas flotantes. La búsqueda instantánea, el guardado automático, la restauración de sesión, temas personalizables y un bloqueo de acceso opcional con contraseña maestra sostienen tanto las ideas rápidas como los proyectos largos. Los datos se guardan localmente en una **base de datos SQLite (better-sqlite3 con WAL)**. Construido con **Electron + React + TypeScript**.
 
 *Gratuito y de código abierto (GPLv3): sin anuncios, sin rastreo y sin recogida de datos. Solo disfrútalo.*
 
@@ -36,7 +36,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 
 | Necesidad | Solución |
 |---|---|
-| Mantener las notas privadas | SQL.js solo local: sin nube, sin cuentas, sin rastreo |
+| Mantener las notas privadas | SQLite solo local: sin nube, sin cuentas, sin rastreo |
 | Edición enriquecida sin bloat | Editor TipTap con atajos de markdown, imágenes y bloques de código |
 | Mantente organizado | Carpetas con iconos y colores, varias pestañas, notas flotantes, arrastrar y soltar |
 | Proteger notas sensibles | Contraseña maestra (bloqueo de acceso con hash bcrypt, notas almacenadas sin cifrar) con bloqueo automático y escudo de privacidad |
@@ -52,13 +52,16 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Tamaños de fuente al estilo Word**: desplegable de tamaño y burbuja flotante en el editor, ciclado con un toque en las notas flotantes
 - **Enlaces e imágenes**: detección automática de enlaces, inserción de imágenes con controles de tamaño y alineación, vistas previas en miniatura locales
 - **Atajos de Markdown**: escribe `##`, `>`, `-`, `` ``` `` para formatear al instante
-- **Herramientas de documento**: contador de líneas y columnas, recuento de palabras y caracteres, tiempo de lectura, minimapa del documento y números de línea
+- **Herramientas de documento**: contador de líneas y columnas, recuento de palabras y caracteres, tiempo de lectura, minimapa, números de línea e indicadores de continuación
+- **Mapa de caracteres y emojis**: busca símbolos Unicode y emojis 18.0 por categoría; inserta uno o reúne varios a la vez
+- **Estado de guardado**: estados de guardado, guardando, pendiente y error con hora en el editor y las notas flotantes
 - **Opciones de guardado**: guardado automático al escribir, guardado manual con protección de borrador y confirmación al cerrar o navegar
 
 ### 📁 Organización
 - **Carpetas**: nombres personalizados, 20 opciones de icono y 20 colores únicos (unicidad garantizada)
-- **Notas flotantes**: separa las notas como widgets adhesivos de escritorio siempre visibles
+- **Notas flotantes**: separa las notas como widgets adhesivos siempre visibles; recorre acciones ocultas de la barra con la rueda del mouse
 - **Interfaz de varias pestañas**: trabaja con varias notas a la vez
+- **Espacio compacto**: contrae la barra lateral o la columna de números de línea para dar más espacio a la edición
 - **Favoritos y anclaje**: fija notas importantes para acceso rápido
 - **Arrastrar y soltar**: mueve notas entre carpetas sin esfuerzo
 - **Búsqueda instantánea**: búsqueda de texto completo en títulos, vistas previas y contenido
@@ -71,7 +74,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Recuperación sin conexión**: código de recuperación de un solo uso con pista y restablecimiento limitado por tasa desde la pantalla de bloqueo
 - **Bloqueo automático**: tiempo de inactividad configurable (1 minuto a 24 horas)
 - **Escudo de privacidad**: escudo de pantalla cuando la app está oculta o minimizada
-- **Gestor de Bloc Mayús**: apagado automático tras la inactividad con cuenta regresiva visual y avisos de sonido (5 preajustes sintetizados)
+- **Gestor de Bloc Mayús**: apagado automático tras la inactividad con cuenta regresiva temática en la barra y aviso cerrable, además de sonidos (5 preajustes sintetizados)
 
 ### 🎨 Personalización
 - **6 temas visuales**: CyberNotes (oscuro), Cian Medianoche, Verde Bosque, Magenta Neón, Blanco Claro y Gris Grafito
@@ -81,6 +84,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Escalado de la interfaz**: ajusta el tamaño de la interfaz a tu gusto
 - **Anchura de pestañas**: normal o ancha, conmutador de minimapa y controles de densidad
 - **Nombre de saludo**: personaliza los saludos según la hora
+- **Diseños adaptables**: menús que se ajustan a la pantalla, barra superior y pie del editor para ventanas angostas
 
 ### 🖥️ Integración con escritorio
 - **Bandeja del sistema**: minimizar o cerrar a la bandeja, menú de bandeja personalizado consciente de DPI
@@ -119,11 +123,11 @@ Para continuar:
 
 Windows muestra este aviso para cualquier instalador sin un certificado de firma de código de pago; no significa que el archivo sea inseguro. No hagas clic en "No ejecutar":
 
-1. Ejecuta el instalador. Windows puede mostrar el diálogo azul "Windows protegió tu PC".
+1. Ejecuta el instalador `CyberNotes-Setup.exe`. Windows puede mostrar el diálogo azul "Windows protegió tu PC".
 
 ![Aviso de Windows SmartScreen](https://cybergems.org/branding/smartscreen-warning.svg)
 
-2. Haz clic en el pequeño enlace **Más información**.
+2. Haz clic en el pequeño enlace **Más información**. El diálogo expandido muestra tu instalador: `CyberNotes-Setup.exe`.
 
 ![Diálogo de SmartScreen tras Más información](https://cybergems.org/branding/smartscreen-runanyway.svg)
 
@@ -139,13 +143,13 @@ Puedes verificar el archivo de forma independiente: compara el SHA con el releas
 - **Plataforma:** Windows 10 / 11
 - **Framework:** Electron 35 + React 19 + TypeScript
 - **Editor:** TipTap (ProseMirror)
-- **Almacenamiento:** SQL.js (SQLite compilado a WebAssembly)
+- **Almacenamiento:** better-sqlite3 (SQLite con WAL)
 - **Seguridad:** hash de contraseña con bcryptjs
 - **Animaciones:** Motion (Framer Motion)
 - **Pruebas:** tests unitarios con Vitest (`npm test`)
 
 ```
-cyber-notes/
+CyberNotes/
 ├── electron/
 │   ├── main.ts           Proceso principal de Electron (ventana, bandeja, adhesivos, manejadores IPC)
 │   ├── preload.ts        Puente de contexto (exposición segura de la API)
@@ -235,8 +239,8 @@ Los artefactos quedan en `release/`:
 
 | Artefacto | Descripción |
 |---|---|
-| `CyberNotes_Setup_1.14.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
-| `CyberNotes_Portable_1.14.0.exe` | Build portable (sin instalación) |
+| `CyberNotes_Setup_1.17.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
+| `CyberNotes_Portable_1.17.0.exe` | Build portable (sin instalación) |
 ---
 
 ## ⌨️ Atajos de teclado
@@ -248,6 +252,7 @@ Los artefactos quedan en `release/`:
 | `Ctrl+Shift+N` | Crear una carpeta nueva |
 | `Ctrl+F` | Enfocar la barra de búsqueda |
 | `Ctrl+S` | Guardar la nota manualmente |
+| `Mayús+F3` | Alternar entre modo oración, minúsculas, MAYÚSCULAS, Capitalizar y alternar mayúsculas |
 | `↑` / `↓` | Navegar por las notas de la lista |
 | `Intro` | Abrir la nota seleccionada en el editor |
 | `Escape` | Devolver el foco a la lista de notas / cerrar la ventana |

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
-import { useEditor, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
-import { EditorState } from '@tiptap/pm/state';
+import { useEditor, useEditorState, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
+import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { Node as TiptapNode } from '@tiptap/core';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
@@ -23,7 +23,7 @@ import { Note, Folder, type NoteRevision } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import { EDITOR_FONTS, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { playSynthSound } from '../utils/audio';
-import { extractPreview, extractThumb } from '../utils/notes';
+import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import Tooltip from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
@@ -37,10 +37,14 @@ import {
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
-    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages,
+    Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info, Sigma, Smile,
     type LucideIcon,
   } from 'lucide-react';
 import { FILTER_COLORS } from './FolderIcon';
+import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
+import CharacterMapModal from './CharacterMapModal';
+
+const EmojiPickerModal = lazy(() => import('./EmojiPickerModal'));
 
 export interface NoteExportActions {
   markdown: () => void;
@@ -49,6 +53,19 @@ export interface NoteExportActions {
   text: () => void;
   print: () => Promise<void>;
 }
+
+/** Acciones de la barra de nota para hotkeys y el menú Nota actual. */
+export interface NoteActionHandlers {
+  manualSave: () => void;
+  requestDelete: () => void;
+  toggleFavorite: () => void;
+  toggleSticky: () => void;
+  toggleRaw: () => void;
+  cycleLayout: () => void;
+  showHistory: () => void;
+}
+
+type NoteSaveStatus = 'saved' | 'pending' | 'saving' | 'error';
 
 interface Props {
   language: Language;
@@ -61,8 +78,12 @@ interface Props {
   layoutMode: number;
   onToggleLayout: () => void;
   showLineCounter?: boolean;
+  showKeyboardIndicators?: boolean;
   showLineGutter?: boolean;
   onShowLineGutterChange?: (v: boolean) => void;
+  /** Guías ↳ en el gutter para renglones de continuación (default on). */
+  showWrapGuides?: boolean;
+  onShowWrapGuidesChange?: (v: boolean) => void;
   showWordCounter?: boolean;
   /** Barra flotante ante selección de texto (default on). */
   showFloatingToolbar?: boolean;
@@ -95,6 +116,7 @@ interface Props {
   canReopenClosedTab?: boolean;
   onReorderTabs?: (fromId: string, toId: string, edge: 'before' | 'after') => void;
   onRegisterExportActions?: (actions: NoteExportActions | null) => void;
+  onRegisterNoteActions?: (actions: NoteActionHandlers | null) => void;
   draftCache?: Record<string, { title: string; content: string }>;
   onEditDraft?: (id: string, title: string, content: string) => void | Promise<void>;
   onDiscardDraft?: (id: string) => void;
@@ -131,11 +153,13 @@ const CustomImage = Image.extend({
 });
 
 /**
- * Marca de tamaño de letra estilo Word (span con font-size). TextStyle no la
- * trae por defecto, así que se extiende con los comandos estándar set/unset.
+ * Marca combinada de tamaño + familia por selección, estilo Word (spans con
+ * font-size / font-family). Un solo `TextStyle` extendido: registrar dos
+ * extensiones con el mismo nombre 'textStyle' duplicaba el mark y TipTap
+ * avisaba `Duplicate extension names found: ['textStyle']`.
  * Se persiste sola en el HTML y el minimapa la hereda al clonar el DOM.
  */
-export const FontSize = TextStyle.extend({
+export const CustomTextStyle = TextStyle.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -145,6 +169,14 @@ export const FontSize = TextStyle.extend({
         renderHTML: (attributes) => {
           if (!attributes.fontSize) return {};
           return { style: `font-size: ${attributes.fontSize}` };
+        },
+      },
+      fontFamily: {
+        default: null,
+        parseHTML: (element) => (element as HTMLElement).style.fontFamily || null,
+        renderHTML: (attributes) => {
+          if (!attributes.fontFamily) return {};
+          return { style: `font-family: ${attributes.fontFamily}` };
         },
       },
     };
@@ -160,6 +192,14 @@ export const FontSize = TextStyle.extend({
         () =>
         ({ chain }) =>
           chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run(),
+      setFontFamily:
+        (fontFamily: string) =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontFamily }).run(),
+      unsetFontFamily:
+        () =>
+        ({ chain }) =>
+          chain().setMark('textStyle', { fontFamily: null }).removeEmptyTextStyle().run(),
     };
   },
 });
@@ -176,40 +216,6 @@ declare module '@tiptap/core' {
     };
   }
 }
-
-/**
- * Marca de familia tipográfica por selección (span con font-family).
- * Aplica solo al rango seleccionado, no es el ajuste global de Ajustes.
- * Se persiste en el HTML igual que FontSize.
- */
-export const FontFamily = TextStyle.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      fontFamily: {
-        default: null,
-        parseHTML: (element) => (element as HTMLElement).style.fontFamily || null,
-        renderHTML: (attributes) => {
-          if (!attributes.fontFamily) return {};
-          return { style: `font-family: ${attributes.fontFamily}` };
-        },
-      },
-    };
-  },
-  addCommands() {
-    return {
-      ...this.parent?.(),
-      setFontFamily:
-        (fontFamily: string) =>
-        ({ chain }) =>
-          chain().setMark('textStyle', { fontFamily }).run(),
-      unsetFontFamily:
-        () =>
-        ({ chain }) =>
-          chain().setMark('textStyle', { fontFamily: null }).removeEmptyTextStyle().run(),
-    };
-  },
-});
 
 /**
  * ¿La tabla bajo el cursor tiene fila/columna de encabezado? Lee el nodo
@@ -288,6 +294,155 @@ function buildFindDecos(doc: any, query: string, current: number): DecorationSet
       Decoration.inline(r.from, r.to, { class: i === norm ? 'find-match-current' : 'find-match' }),
     ),
   );
+}
+
+/**
+ * Agrupa rects de un rango en renglones visuales por solape vertical.
+ * Los fragmentos inline (links, negritas, fuentes mixtas) del mismo renglón
+ * tienen tops levemente distintos: compararlos por igualdad creaba filas
+ * fantasma y marcas donde no hay wrap. Dos rects son el mismo renglón si se
+ * solapan al menos un 40% de la altura del menor.
+ */
+export interface VisualRow {
+  top: number;
+  bottom: number;
+  left: number;
+}
+
+export function groupVisualRows(rects: Array<{ top: number; bottom: number; left: number }>): VisualRow[] {
+  const rows: VisualRow[] = [];
+  for (const r of rects) {
+    if (!(r.bottom > r.top)) continue;
+    const h = r.bottom - r.top;
+    const hit = rows.find(q => {
+      const overlap = Math.min(q.bottom, r.bottom) - Math.max(q.top, r.top);
+      if (overlap <= 0) return false;
+      const qh = q.bottom - q.top;
+      return overlap >= Math.min(qh, h) * 0.4;
+    });
+    if (hit) {
+      hit.top = Math.min(hit.top, r.top);
+      hit.bottom = Math.max(hit.bottom, r.bottom);
+      hit.left = Math.min(hit.left, r.left);
+    } else {
+      rows.push({ top: r.top, bottom: r.bottom, left: r.left });
+    }
+  }
+  rows.sort((a, b) => a.top - b.top || a.left - b.left);
+  return rows;
+}
+
+/**
+ * Planifica las guías estilo Kate para un bloque con wrap: una flecha → por
+ * renglón de continuación y, si hay dos o más, una línea vertical que los
+ * conecta. Solo renglones que arrancan al borde del bloque (en texto
+ * centrado/derecha se omiten antes que mentir). Coordenadas ya relativas
+ * al contenido; `centerY` de cada renglón para las marcas.
+ */
+export interface WrapGuidePlan {
+  marks: number[];
+  link: { top: number; height: number } | null;
+}
+
+export function planWrapGuides(rows: VisualRow[]): WrapGuidePlan {
+  if (rows.length < 2) return { marks: [], link: null };
+  const firstLeft = rows[0].left;
+  const marks = rows
+    .slice(1)
+    .filter(row => row.left <= firstLeft + 12)
+    .map(row => (row.top + row.bottom) / 2);
+  if (marks.length === 0) return { marks, link: null };
+  const link = marks.length >= 2
+    ? { top: marks[0], height: marks[marks.length - 1] - marks[0] }
+    : null;
+  return { marks, link };
+}
+
+interface LogicalLineUnit {
+  node: any;
+  pos: number;
+  segmentIndex?: number;
+  segmentStart?: number;
+  segmentEnd?: number;
+}
+
+const logicalLineUnitsCache = new WeakMap<object, LogicalLineUnit[]>();
+const logicalLineIndicesCache = new WeakMap<object, WeakMap<object, Map<number, number[]>>>();
+
+/**
+ * El contador y el gutter comparten líneas de texto, saltos explícitos, filas
+ * de tabla y bloques atómicos. Las celdas de una fila cuentan juntas. El
+ * resultado se guarda por documento inmutable para no recorrerlo al mover el
+ * cursor o repintar el gutter durante el scroll.
+ */
+function collectLogicalLineUnits(doc: any): LogicalLineUnit[] {
+  const cached = logicalLineUnitsCache.get(doc);
+  if (cached) return cached;
+
+  const lines: LogicalLineUnit[] = [];
+  const visit = (node: any, pos: number) => {
+    const tableRole = node.type?.spec?.tableRole;
+    if (tableRole === 'row' || node.type?.name === 'tableRow') {
+      lines.push({ node, pos });
+      return;
+    }
+    if (node.isTextblock) {
+      const isCodeBlock = Boolean(node.type?.spec?.code);
+      let segmentStart = 0;
+      let segmentIndex = 0;
+      let hasExplicitBreak = false;
+      const addSegment = (segmentEnd: number) => {
+        lines.push({ node, pos, segmentIndex, segmentStart, segmentEnd });
+        segmentIndex++;
+        segmentStart = segmentEnd;
+      };
+
+      node.forEach((child: any, offset: number) => {
+        if (child.isText) {
+          const text = child.text || '';
+          for (let i = 0; i < text.length; i++) {
+            if (text[i] !== '\n') continue;
+            const breakOffset = offset + i;
+            addSegment(breakOffset);
+            segmentStart = breakOffset + 1;
+            hasExplicitBreak = true;
+          }
+        } else if (child.type?.name === 'hardBreak' || child.type?.spec?.linebreakReplacement) {
+          addSegment(offset);
+          segmentStart = offset + child.nodeSize;
+          hasExplicitBreak = true;
+        }
+      });
+
+      if (isCodeBlock || hasExplicitBreak) {
+        addSegment(node.content.size);
+      } else {
+        lines.push({ node, pos });
+      }
+      return;
+    }
+    if (node.isBlock && (node.isAtom || node.isLeaf)) {
+      lines.push({ node, pos });
+      return;
+    }
+    node.forEach?.((child: any, offset: number) => visit(child, pos + 1 + offset));
+  };
+
+  doc.forEach((child: any, offset: number) => visit(child, offset));
+  const byNode = new WeakMap<object, Map<number, number[]>>();
+  lines.forEach((line, index) => {
+    let byPosition = byNode.get(line.node);
+    if (!byPosition) {
+      byPosition = new Map();
+      byNode.set(line.node, byPosition);
+    }
+    const indices = byPosition.get(line.pos) ?? [];
+    indices.push(index);
+    byPosition.set(line.pos, indices);
+  });
+  logicalLineIndicesCache.set(doc, byNode);
+  logicalLineUnitsCache.set(doc, lines);
+  return lines;
 }
 
 /**
@@ -863,10 +1018,16 @@ export function WordFontFamilySelect({
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: compact ? 150 : 200 });
-  const activeFamily = (editor?.getAttributes('textStyle')?.fontFamily as string | null) || null;
+  // Suscripción fina: el combo se actualiza por sí solo cuando cambia la
+  // familia de la selección (el shell ya no se re-renderiza por transacción).
+  const activeFamily = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ((e?.getAttributes('textStyle')?.fontFamily as string | undefined) ?? null),
+  });
   const matched = matchFontFamilyOption(activeFamily);
   const baseFont = EDITOR_FONTS.find(f => f.id === baseFontId) || EDITOR_FONTS[0];
   const baseFontName = baseFont.name;
+  const defaultOption = matchFontFamilyOption(baseFont.family);
   // En blur los atributos se vacían: conservar la última vista en vez de
   // saltar a la base (con foco y sin familia, la base sí es lo correcto).
   const lastMatchedRef = useRef<string | null>(null);
@@ -926,33 +1087,23 @@ export function WordFontFamilySelect({
             onClick={() => setOpen(false)}
           />
           <div data-word-menu="true" style={{ ...wordMenuBoxStyle, ...menuStyle }}>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { editor.chain().focus().unsetFontFamily().run(); setOpen(false); }}
-              className={`word-menu-item${!matched ? ' is-active' : ' is-muted'}`}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-                padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-                border: 'none', textAlign: 'left',
-              }}
-            >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {baseFontName}
-                {' — '}
-                {t.editor.fontFamilyDefault}
-              </span>
-              {!matched && <span>✓</span>}
-            </button>
-            <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }} />
             {FONT_FAMILY_OPTIONS.map((opt) => {
-              const isCurrent = matched?.label === opt.label;
+              const isDefault = defaultOption?.label === opt.label;
+              const isCurrent = matched ? matched.label === opt.label : isDefault;
               return (
                 <button
                   key={opt.label}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { editor.chain().focus().setFontFamily(opt.family).run(); setOpen(false); }}
+                  onClick={() => {
+                    if (isDefault) {
+                      editor.chain().focus().unsetFontFamily().run();
+                      lastMatchedRef.current = null;
+                    } else {
+                      editor.chain().focus().setFontFamily(opt.family).run();
+                    }
+                    setOpen(false);
+                  }}
                   className={`word-menu-item${isCurrent ? ' is-active' : ''}`}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
@@ -961,7 +1112,9 @@ export function WordFontFamilySelect({
                     fontFamily: opt.family, fontSize: compact ? 12 : 14,
                   }}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {opt.label}{isDefault && ` — ${t.editor.fontFamilyDefault}`}
+                  </span>
                   {isCurrent && <span style={{ fontFamily: 'inherit' }}>✓</span>}
                 </button>
               );
@@ -989,21 +1142,41 @@ export function WordFontSizeSelect({
   const justFocusedRef = useRef(false);
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp, minWidth: 72, align: 'right', width: 120 });
-  const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
-  const directNum = parseFontSizeNumber(activeFontSize);
-  // Tamaño "actual": marca directa, vecino del caret o base. Siempre hay
-  // un número visible aunque no haya texto seleccionado.
-  const neighborNum = editor && !directNum ? getCaretNeighborFontSize(editor) : null;
-  const docNum = directNum ?? neighborNum;
+  // Suscripción fina: sin re-render por transacción del shell, este combo
+  // necesita actualizarse por sí solo cuando cambian el tamaño directo de la
+  // selección o el del texto vecino al cursor.
+  const { direct: directFontSize, neighbor: neighborFontSize, mixed, inherited } = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      if (!e) return { direct: null as string | null, neighbor: null as number | null, mixed: false, inherited: null as number | null };
+      const direct = (e.getAttributes('textStyle')?.fontSize as string | undefined) ?? null;
+      const neighbor = direct ? null : getCaretNeighborFontSize(e);
+      // La marca directa solo devuelve el primer mark del rango: si el texto
+      // mezcla tamaños, se detectan aparte para no mostrar un valor engañoso.
+      const sizes = getSelectionFontSizes(e, defaultSize);
+      const mixed = sizes.length > 1;
+      // Tamaño efectivo heredado del bloque cuando el rango no lleva marca
+      // propia (p. ej. un encabezado, que multiplica la base).
+      const inherited = !direct && sizes.length === 1 ? sizes[0] : null;
+      return { direct, neighbor, mixed, inherited };
+    },
+  }) ?? { direct: null as string | null, neighbor: null as number | null, mixed: false, inherited: null as number | null };
+  const directNum = parseFontSizeNumber(directFontSize);
+  // Tamaño "actual": marca directa, tamaño heredado del bloque, vecino del
+  // caret o base. Siempre hay un número visible si no hay formatos mixtos.
+  const neighborNum = neighborFontSize;
+  const docNum = mixed ? null : (directNum ?? inherited ?? neighborNum);
   const displayNum = docNum ?? defaultSize;
+  // Con varios tamaños en la selección no hay un valor único que resaltar.
+  const isNormalActive = !docNum && !mixed;
   const t = TRANSLATIONS[language];
 
   useEffect(() => {
     if (!focused) setDraft(null);
-  }, [activeFontSize, focused]);
+  }, [directFontSize, mixed, focused]);
 
   if (!editor) return null;
-  const shown = draft ?? String(displayNum);
+  const shown = draft ?? (mixed ? '-' : String(displayNum));
 
   const sizeBox = (
     <div
@@ -1099,7 +1272,7 @@ export function WordFontSizeSelect({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => { editor.chain().focus().unsetFontSize().run(); setOpen(false); setDraft(null); }}
-              className={`word-menu-item${!docNum ? ' is-active' : ' is-muted'}`}
+              className={`word-menu-item${isNormalActive ? ' is-active' : ' is-muted'}`}
               style={{
                 padding: '6px 10px', fontSize: 11, borderRadius: 6, cursor: 'pointer', textAlign: 'center',
                 border: 'none',
@@ -1211,9 +1384,9 @@ export function ChangeCaseSelect({
 
 /** Botón tabla estilo Word: presets cuadrados + modal personalizado. */
 export function TableSelect({
-  editor, language, hideTooltip = false,
+  editor, language, hideTooltip = false, active = false,
 }: {
-  editor: Editor | null; language: Language; hideTooltip?: boolean;
+  editor: Editor | null; language: Language; hideTooltip?: boolean; active?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
@@ -1235,14 +1408,9 @@ export function TableSelect({
       data-word-combo="table"
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setOpen((v) => !v)}
-      className="word-combo"
-      aria-label={language === 'es' ? 'Insertar tabla' : 'Insert table'}      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 30, padding: '0 8px',
-        background: open ? 'var(--accent-dim)' : 'var(--bg-surface)',
-        border: open ? '1px solid var(--accent)' : '1px solid var(--border)',
-        borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
-      }}
+      className={`btn-icon toolbar-btn word-combo${active || open ? ' is-active' : ''}`}
+      aria-label={language === 'es' ? 'Insertar tabla' : 'Insert table'}
+      style={{ height: 30, padding: '6px 8px' }}
     >
       <TableIcon size={15} />
     </button>
@@ -1472,9 +1640,9 @@ export function VideoInsertModal({
 
 /** Botón video estilo referencia: abre el modal de inserción. */
 export function VideoSelect({
-  editor, language, hideTooltip = false,
+  editor, language, hideTooltip = false, active = false,
 }: {
-  editor: Editor | null; language: Language; hideTooltip?: boolean;
+  editor: Editor | null; language: Language; hideTooltip?: boolean; active?: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   if (!editor) return null;
@@ -1493,15 +1661,9 @@ export function VideoSelect({
       data-word-combo="video"
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setModalOpen(true)}
-      className="word-combo"
+      className={`btn-icon toolbar-btn word-combo${active ? ' is-active' : ''}`}
       aria-label={language === 'es' ? 'Insertar video' : 'Insert video'}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 30, padding: '0 8px',
-        background: modalOpen ? 'var(--accent-dim)' : 'var(--bg-surface)',
-        border: modalOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
-        borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
-      }}
+      style={{ height: 30, padding: '6px 8px' }}
     >
       <MonitorPlay size={15} />
     </button>
@@ -1551,10 +1713,10 @@ const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProp
 const TAB_DRAG_MIME = 'application/x-cybernotes-tab';
 
 /** Tamaños del desplegable de letra (px), estilo Word. Compartido con stickies. */
-export const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32'];
+export const FONT_SIZE_OPTIONS = ['12', '14', '15', '16', '18', '20', '24', '28', '32'];
 
 /** Lista Word para el combo editable (incluye 8-11 como en la captura). */
-export const WORD_FONT_SIZE_OPTIONS = ['8', '9', '10', '11', '12', '14', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
+export const WORD_FONT_SIZE_OPTIONS = ['8', '9', '10', '11', '12', '14', '15', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
 
 export interface FontFamilyOption {
   label: string;
@@ -1619,7 +1781,7 @@ export type ToolbarItemId =
   | 'bullet' | 'ordered'
   | 'alignLeft' | 'alignCenter' | 'alignRight' | 'alignJustify'
   | 'quote' | 'code'
-  | 'link' | 'image' | 'table' | 'find' | 'video';
+  | 'link' | 'image' | 'table' | 'find' | 'video' | 'characters' | 'emojis';
 
 export interface ToolbarItemDef {
   id: ToolbarItemId;
@@ -1657,6 +1819,8 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'table', labelEs: 'Insertar tabla', labelEn: 'Insert table', icon: TableIcon },
   { id: 'video', labelEs: 'Insertar video', labelEn: 'Insert video', icon: MonitorPlay },
   { id: 'find', labelEs: 'Buscar en la nota', labelEn: 'Find in note', icon: Search },
+  { id: 'characters', labelEs: 'Mapa de caracteres', labelEn: 'Character map', icon: Sigma },
+  { id: 'emojis', labelEs: 'Emojis', labelEn: 'Emoji picker', icon: Smile },
 ];
 
 /** Grupos de la barra, en orden. El separador solo se pinta entre grupos visibles. */
@@ -1670,7 +1834,7 @@ export const TOOLBAR_GROUPS: ToolbarItemId[][] = [
   ['bullet', 'ordered'],
   ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
   ['quote', 'code'],
-  ['link', 'image', 'table', 'video', 'find'],
+  ['link', 'image', 'table', 'video', 'find', 'characters', 'emojis'],
 ];
 
 export function isToolbarItemId(value: unknown): value is ToolbarItemId {
@@ -1702,8 +1866,8 @@ export function applyChangeCaseText(text: string, kind: ChangeCaseKind): string 
   }
 }
 
-/** Orden de Mayús+F3 (como Word: minúsculas → MAYÚSCULAS → Capitalizar). */
-export const CHANGE_CASE_CYCLE: ChangeCaseKind[] = ['lower', 'upper', 'capitalize'];
+/** Orden de Mayús+F3: coincide con los cinco estilos del selector. */
+export const CHANGE_CASE_CYCLE: ChangeCaseKind[] = ['sentence', 'lower', 'upper', 'capitalize', 'toggle'];
 
 /**
  * Aplica el cambio a la selección; con cursor colapsado, a la palabra bajo
@@ -1728,6 +1892,111 @@ export function applyChangeCase(editor: Editor, kind: ChangeCaseKind): boolean {
   if (replaced === slice) return true;
   editor.chain().focus().setTextSelection({ from, to }).deleteSelection().insertContent(replaced).run();
   return true;
+}
+
+/**
+ * Reevalúa la barra flotante tras un arrastre de selección.
+ *
+ * BubbleMenuPlugin solo repinta cuando cambia la selección o el documento,
+ * y el mouseup no dispara ninguno de los dos. Colapsar y restaurar la
+ * selección en dos transacciones consecutivas lo obliga a reevaluar ya con el
+ * arrastre terminado. Solo pasos de selección: nada entra en el undo.
+ *
+ * Tras un clic simple esto no debe hacerse: ProseMirror ya colapsa la
+ * selección de forma nativa y dejar el caret en el punto pulsado. Por eso
+ * solo se aplica si el gesto fue un arrastre real.
+ */
+export function refreshBubbleMenuAfterDrag(
+  editor: Editor,
+  start: { x: number; y: number } | null,
+  end: { clientX: number; clientY: number },
+): boolean {
+  if (!wasDragSelection(start, end)) return false;
+  if (editor.isDestroyed || editor.state.selection.empty) return false;
+  const sel = editor.state.selection;
+  if (!(sel instanceof TextSelection)) return false;
+  try {
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, sel.anchor, sel.anchor)));
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, sel.anchor, sel.head)));
+  } catch {
+    /* vista no lista */
+  }
+  return true;
+}
+
+/**
+ * ¿El gesto fue un arrastre de selección o un clic simple?
+ *
+ * ProseMirror usa el mismo umbral de 4px para distinguir ambos. Un mouseup
+ * fuera de la ventana no trae coordenadas fiables, así que se cuenta como
+ * arrastre. La diferencia importa porque solo tras un arrastre hay que forzar
+ * la reevaluación de la barra flotante: en un clic simple, ProseMirror ya
+ * colapsa la selección de forma nativa y dejar el caret en el punto pulsado.
+ */
+export function wasDragSelection(
+  start: { x: number; y: number } | null,
+  end: { clientX: number; clientY: number },
+): boolean {
+  if (!start) return true;
+  if (end.clientX === 0 && end.clientY === 0) return true;
+  return Math.abs(start.x - end.clientX) > 4 || Math.abs(start.y - end.clientY) > 4;
+}
+
+/**
+ * Multiplicadores de tamaño que el CSS aplica a cada nivel de encabezado.
+ * El texto sin marca explícita hereda el tamaño del bloque.
+ */
+const HEADING_FONT_SIZE_FACTORS: Record<number, number> = { 1: 2, 2: 1.4, 3: 1.15 };
+/**
+ * Factor relativo (em) del bloque de código: el <pre> usa 0.9em y el <code>
+ * que lleva dentro vuelve a aplicar 0.9em sobre ese tamaño.
+ */
+const CODE_BLOCK_FONT_SIZE_FACTOR = 0.9 * 0.9;
+/** Factor relativo (em) que el CSS aplica al código en línea. */
+const CODE_MARK_FONT_SIZE_FACTOR = 0.9;
+
+/**
+ * Tamaños de fuente efectivos dentro de la selección, para detectar texto
+ * con formatos mixtos. Sin marca explícita manda el tamaño heredado del
+ * bloque (encabezado, bloque de código) y de las marcas en línea (código).
+ */
+export function getSelectionFontSizes(editor: Editor, baseSize: number): number[] {
+  const { selection } = editor.state;
+  if (selection.empty) return [];
+  const sizes = new Set<number>();
+  try {
+    editor.state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+      // Con dos tamaños distintos ya sabemos que la selección es mixta:
+      // no hace falta seguir recorriendo el rango.
+      if (sizes.size > 1) return false;
+      if (!node.isText) return;
+      const mark = node.marks.find((m) => m.type.name === 'textStyle');
+      const explicit = parseFontSizeNumber(mark?.attrs.fontSize as string | undefined);
+      if (explicit) {
+        sizes.add(explicit);
+        return;
+      }
+      // Tamaño heredado: los factores de bloque y de marca se multiplican
+      // entre sí, igual que los valores em anidados en CSS.
+      let factor = 1;
+      const $pos = editor.state.doc.resolve(pos);
+      for (let depth = $pos.depth; depth >= 0; depth--) {
+        const ancestor = $pos.node(depth);
+        if (ancestor.type.name === 'heading') {
+          factor *= HEADING_FONT_SIZE_FACTORS[Number(ancestor.attrs.level)] ?? 1;
+        } else if (ancestor.type.name === 'codeBlock') {
+          factor *= CODE_BLOCK_FONT_SIZE_FACTOR;
+        }
+      }
+      for (const m of node.marks) {
+        if (m.type.name === 'code') factor *= CODE_MARK_FONT_SIZE_FACTOR;
+      }
+      sizes.add(Math.round(baseSize * factor));
+    });
+  } catch {
+    /* rango no válido: sin tamaños que comparar */
+  }
+  return [...sizes];
 }
 
 /**
@@ -1767,8 +2036,11 @@ export default function NoteEditor({
   layoutMode, 
   onToggleLayout, 
   showLineCounter, 
-  showLineGutter = true,
+  showKeyboardIndicators = false,
+  showLineGutter = false,
   onShowLineGutterChange,
+  showWrapGuides = true,
+  onShowWrapGuidesChange,
   showWordCounter = false,
   showFloatingToolbar = true,
   hiddenToolbarIds = [],
@@ -1798,6 +2070,7 @@ export default function NoteEditor({
   canReopenClosedTab = false,
   onReorderTabs,
   onRegisterExportActions,
+  onRegisterNoteActions,
   draftCache = {},
   onEditDraft,
   onDiscardDraft,
@@ -1892,10 +2165,69 @@ export default function NoteEditor({
   showMinimapRef.current = showMinimap; // mantener actualizado para callbacks estables
   // El BubbleMenu de TipTap mueve su nodo al popper de tippy: desmontarlo
   // con el editor vivo rompe el DOM (NotFoundError). Nunca se desmonta;
-  // su visibilidad se gobierna con shouldShow mediante este ref.
+  // su visibilidad se gobierna con shouldShow mediante estos refs (incluido
+  // readOnly: al entrar a Papelera el editor pasa a solo lectura pero el
+  // menú sigue montado y simplemente deja de mostrarse).
   const showFloatingToolbarRef = useRef(showFloatingToolbar);
   showFloatingToolbarRef.current = showFloatingToolbar;
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
+  // Spellcheck progresivo: el editor nace con spellcheck="false" y se activa
+  // un instante después de hidratar cada nota. Con "true" desde la creación,
+  // Chromium inicializa el corrector y escanea el documento justo al entrar,
+  // y el caret no aparece hasta que el escaneo termina.
+  const spellcheckOnRef = useRef(false);
+  const spellcheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Click izquierdo presionado dentro del editor: arrastre de selección en
+  // curso. Mientras dure, shouldShow de la barra flotante devuelve false.
+  const isDragSelectingRef = useRef(false);
+  // Posición del mouse al iniciar el arrastre, para distinguir un clic
+  // simple (colapsar la selección en el punto del clic) de un arrastre real.
+  const dragStartPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  /** Activa spellcheck tras el primer pintado del contenido hidratado. */
+  const enableSpellcheckSoon = useCallback((delayMs = 400) => {
+    if (spellcheckTimer.current) clearTimeout(spellcheckTimer.current);
+    spellcheckTimer.current = setTimeout(() => {
+      spellcheckTimer.current = null;
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed || spellcheckOnRef.current) return;
+      spellcheckOnRef.current = true;
+      // Reaplica editorProps para que PM recalcule el atributo ya (si no,
+      // esperaría a la próxima transacción).
+      try { ed.view.setProps(ed.options.editorProps); } catch { /* vista no lista */ }
+    }, delayMs);
+  }, []);
+
+  // Al soltar el click tras un arrastre de selección, mostrar la barra
+  // flotante. BubbleMenuPlugin reevalúa shouldShow solo en transacciones que
+  // cambian selección o documento (handleDebouncedUpdate sale temprano si
+  // nada cambió), y el mouseup no dispara ninguna: colapsar y restaurar la
+  // selección en dos transacciones consecutivas lo obliga a reevaluar ya con
+  // el arrastre terminado.
+  //
+  // Ese truco solo es válido tras un arrastre real. Aplicado también al clic
+  // simple devolvía la selección intacta, así que pulsar sobre un texto ya
+  // seleccionado no dejaba el caret donde se hizo clic. Por eso aquí solo se
+  // fuerza la reevaluación cuando el puntero se movió: en un clic simple
+  // ProseMirror ya colapsa la selección de forma nativa, con el caret en el
+  // punto pulsado.
+  useEffect(() => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (!isDragSelectingRef.current) return;
+      isDragSelectingRef.current = false;
+      const start = dragStartPointRef.current;
+      dragStartPointRef.current = null;
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed) return;
+      // Clic simple: ProseMirror ya colapsó la selección con el caret en el
+      // punto pulsado. No hay que tocar nada.
+      refreshBubbleMenuAfterDrag(ed, start, event);
+    };
+    window.addEventListener('mouseup', onMouseUp);
+    return () => window.removeEventListener('mouseup', onMouseUp);
+  }, []);
   const [minimapScale, setMinimapScale] = useState(0.075);
   const minimapScaleRef = useRef(0.075);
   const [minimapMenu, setMinimapMenu] = useState<{ x: number; y: number } | null>(null);
@@ -2017,7 +2349,9 @@ export default function NoteEditor({
       return;
     }
     if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
-    minimapSyncTimer.current = setTimeout(run, 150);
+    // 400 ms: clonar el DOM completo del editor es caro; sincronizarlo cada
+    // 150 ms mientras se escribe competía con el render del documento real.
+    minimapSyncTimer.current = setTimeout(run, 400);
   }, [updateMinimapIndicator]);
 
   // Escala = ancho del ProseMirror real / ancho del minimapa (mismo wrapping que el documento)
@@ -2149,13 +2483,6 @@ export default function NoteEditor({
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
   const isFloatingNote = !!(note?.id && openStickyIds.includes(note.id));
-  const identityColor = pinned && isFloatingNote
-    ? null
-    : pinned
-      ? FILTER_COLORS.favorites
-      : isFloatingNote
-        ? FILTER_COLORS.sticky
-        : null;
   const identityBorder = pinned && isFloatingNote
     ? '1px solid color-mix(in srgb, #f59e0b 55%, #22d3ee)'
     : pinned
@@ -2172,6 +2499,8 @@ export default function NoteEditor({
         : 'inset 0 1px 3px rgba(0,0,0,0.2)';
   const [isRaw, setIsRaw] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [characterMapOpen, setCharacterMapOpen] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const changeCaseCycleRef = useRef(0);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -2194,23 +2523,66 @@ export default function NoteEditor({
   const [textMetrics, setTextMetrics] = useState({ words: 0, chars: 0, readingTime: 0 });
   const [localTitle, setLocalTitle] = useState(note?.title || '');
   const localTitleRef = useRef(localTitle);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
+  hasUnsavedChangesRef.current = hasUnsavedChanges;
+  const autosaveEnabledRef = useRef(autosaveEnabled);
+  autosaveEnabledRef.current = autosaveEnabled;
+  const [saveStatus, setSaveStatus] = useState<NoteSaveStatus>(() => (
+    note && draftCache[note.id] ? 'pending' : 'saved'
+  ));
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(note?.updated_at || null);
+  const saveRequestRef = useRef(0);
+  const editRevisionRef = useRef(0);
+
+  const markSavePending = useCallback(() => {
+    editRevisionRef.current += 1;
+    setSaveStatus('pending');
+  }, []);
+
+  const persistNote = useCallback(async (updatedNote: Note): Promise<boolean> => {
+    const requestId = ++saveRequestRef.current;
+    const revision = editRevisionRef.current;
+    setSaveStatus('saving');
+    try {
+      await onSave(updatedNote);
+      const isLatestRequest = requestId === saveRequestRef.current;
+      if (isLatestRequest) {
+        setLastSavedAt(new Date().toISOString());
+        const manualDraftRemains = !autosaveEnabledRef.current && hasUnsavedChangesRef.current;
+        setSaveStatus(revision === editRevisionRef.current && !manualDraftRemains ? 'saved' : 'pending');
+      }
+      return isLatestRequest;
+    } catch (error) {
+      console.error('Failed to save note:', error);
+      if (requestId === saveRequestRef.current) {
+        if (revision === editRevisionRef.current) isDirtyRef.current = true;
+        setSaveStatus('error');
+      }
+      return false;
+    }
+  }, [onSave]);
+  const persistNoteRef = useRef(persistNote);
+  persistNoteRef.current = persistNote;
 
   const updateTitle = (newTitle: string) => {
+    newTitle = clampNoteTitle(newTitle);
     setLocalTitle(newTitle);
     localTitleRef.current = newTitle;
     const current = currentNoteRef.current;
     if (current && hydratedNoteIdRef.current === current.id) {
       const updated = { ...current, title: newTitle };
       currentNoteRef.current = updated;
-      if (autosaveEnabled) {
-        onSave(updated);
-      } else {
+      // Mismo camino con debounce que el cuerpo del editor: persistir por
+      // pulsación disparaba IPC + SQL + re-render de las listas por letra.
+      markSavePending();
+      if (!autosaveEnabled) {
         setHasUnsavedChanges(true);
-        onEditDraft?.(current.id, newTitle, editor?.getHTML() || '');
+        hasUnsavedChangesRef.current = true;
       }
+      scheduleAutoSave();
     }
   };
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   /** El brillo del botón Guardar entra poco después del despliegue (no durante). */
   const [saveShineOn, setSaveShineOn] = useState(false);
   useEffect(() => {
@@ -2412,12 +2784,7 @@ export default function NoteEditor({
     return () => window.removeEventListener('keydown', onKey);
   }, [videoMenu]);
 
-  // Refs sincronizados en cada render: garantizan valores frescos dentro de los
-  // callbacks de TipTap (onBlur) evitando cualquier cierre obsoleto (stale closure).
-  const autosaveEnabledRef = useRef(autosaveEnabled);
-  autosaveEnabledRef.current = autosaveEnabled;
-  const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
-  hasUnsavedChangesRef.current = hasUnsavedChanges;
+  // Refs sincronizados arriba: garantizan valores frescos dentro de callbacks de TipTap.
 
   // 1. Initial check on startup / mount
   useEffect(() => {
@@ -2478,7 +2845,10 @@ export default function NoteEditor({
         capsAutoUnlockPendingRef.current = false;
         setCapsToast(TRANSLATIONS[language].editor.capsLockToastAuto);
         if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-        toastTimeoutRef.current = setTimeout(() => setCapsToast(null), 2200);
+        toastTimeoutRef.current = setTimeout(() => {
+          setCapsToast(null);
+          toastTimeoutRef.current = null;
+        }, 3600);
       } else if (!isCapsLockActive) {
         // Apagado manual: no toast
         capsAutoUnlockPendingRef.current = false;
@@ -2748,7 +3118,11 @@ export default function NoteEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        codeBlock: false,
+        blockquote: false,
       }),
+      CopyableCodeBlock,
+      CopyableBlockquote,
       CustomImage.configure({
         allowBase64: true,
         inline: false,
@@ -2778,14 +3152,16 @@ export default function NoteEditor({
       TableRow,
       TableHeader,
       TableCell,
-      FontSize,
-      FontFamily,
+      CustomTextStyle,
       VideoEmbed,
     ],
     editorProps: {
-      attributes: {
-        spellcheck: 'true',
-      },
+      // Función de estado: PM la reevalúa en cada update/setProps, así el
+      // flag del ref se refleja sin recrear el editor (los atributos como
+      // objeto fijo reaplicarían el valor viejo en cada render de TipTap).
+      attributes: () => ({
+        spellcheck: spellcheckOnRef.current ? 'true' : 'false',
+      }),
       // Resaltado del buscador en nota (no toca el documento).
       decorations: (state) => buildFindDecos(state.doc, findDecorRef.current.query, findDecorRef.current.current),
       handleDOMEvents: {
@@ -2799,6 +3175,12 @@ export default function NoteEditor({
               event.preventDefault();
               return true;
             }
+          }
+          // Botón izquierdo: arrastre de selección en curso. La barra flotante
+          // no debe asomarse hasta soltar (el mouseup global la reevalúa).
+          if (event.button === 0) {
+            isDragSelectingRef.current = true;
+            dragStartPointRef.current = { x: event.clientX, y: event.clientY };
           }
           return false;
         },
@@ -2934,13 +3316,12 @@ export default function NoteEditor({
           }
         }
 
-        // Mayús+F3 = rotar minúsculas → MAYÚSCULAS → Capitalizar (como Word).
+        // Mayús+F3 recorre los cinco estilos disponibles en el selector.
         if (event.key === 'F3' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
           event.preventDefault();
           if (editor) {
             const kind = CHANGE_CASE_CYCLE[changeCaseCycleRef.current % CHANGE_CASE_CYCLE.length];
-            changeCaseCycleRef.current += 1;
-            applyChangeCase(editor, kind);
+            if (applyChangeCase(editor, kind)) changeCaseCycleRef.current += 1;
           }
           return true;
         }
@@ -2964,23 +3345,41 @@ export default function NoteEditor({
 
         return false;
       },
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
+        if (files.length === 0 || !editorRef.current?.isEditable) return false;
+        event.preventDefault();
+        void insertImageFiles(files);
+        return true;
+      },
+      handleDrop: (_view, event, _slice, moved) => {
+        if (moved) return false;
+        const files = Array.from(event.dataTransfer?.files ?? []).filter((f) => f.type.startsWith('image/'));
+        if (files.length === 0 || !editorRef.current?.isEditable) return false;
+        event.preventDefault();
+        void insertImageFiles(files);
+        return true;
+      },
     },
     content: '',
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
+    // false: el shell completo no se re-renderiza en cada transacción de
+    // ProseMirror. Los estados que la UI lee del editor (activos de la barra,
+    // undo/redo, atributos de imagen) viven en useEditorState, que re-renderiza
+    // solo cuando cambian; los contadores van coalescidos en scheduleMetrics.
+    shouldRerenderOnTransaction: false,
+    onUpdate: () => {
       const current = currentNoteRef.current;
       const isHydrated = !!current && hydratedNoteIdRef.current === current.id;
       if (!isSelectionChangingRef.current && isHydrated) {
         isDirtyRef.current = true;
-        scheduleAutoSave(html);
+        scheduleAutoSave();
       }
-      updateLineInfo(editor);
-      updateTextMetrics(editor);
+      scheduleMetrics();
       // Actualizar minimap al editar (rAF coalesce llamadas múltiples)
       syncMinimapHtml();
     },
-    onSelectionUpdate: ({ editor }) => {
-      updateLineInfo(editor);
+    onSelectionUpdate: () => {
+      scheduleMetrics();
     },
     onFocus: () => {
       setIsFocused(true);
@@ -2994,7 +3393,7 @@ export default function NoteEditor({
           if (autosaveEnabledRef.current) {
             const preview = extractPreview(html);
             const thumb = extractThumb(html);
-            onSave({ ...current, content: html, preview, thumb });
+            void persistNote({ ...current, content: html, preview, thumb });
             isDirtyRef.current = false;
           } else {
             // Modo manual: NO persistir al perder el foco; solo mantener el borrador al día.
@@ -3146,6 +3545,55 @@ export default function NoteEditor({
   // Sincronizar editorRef después de que useEditor lo haya inicializado
   editorRef.current = editor;
 
+  // Estados del editor que pinta la UI. Con shouldRerenderOnTransaction en
+  // false, este hook es la única vía por la que la barra de herramientas,
+  // el menú flotante y los menús de imagen reaccionan a cambios de selección
+  // o de formato: solo re-renderiza cuando algún valor de aquí cambia de
+  // verdad (deepEqual), no en cada transacción de ProseMirror.
+  const editorUi = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      if (!e) return null;
+      const imageAttrs = e.getAttributes('image');
+      return {
+        canUndo: e.can().undo(),
+        canRedo: e.can().redo(),
+        selectionEmpty: e.state.selection.empty,
+        bold: e.isActive('bold'),
+        italic: e.isActive('italic'),
+        underline: e.isActive('underline'),
+        strike: e.isActive('strike'),
+        highlight: e.isActive('highlight'),
+        h1: e.isActive('heading', { level: 1 }),
+        h2: e.isActive('heading', { level: 2 }),
+        bulletList: e.isActive('bulletList'),
+        orderedList: e.isActive('orderedList'),
+        alignLeft: e.isActive({ textAlign: 'left' }),
+        alignCenter: e.isActive({ textAlign: 'center' }),
+        alignRight: e.isActive({ textAlign: 'right' }),
+        alignJustify: e.isActive({ textAlign: 'justify' }),
+        blockquote: e.isActive('blockquote'),
+        codeBlock: e.isActive('codeBlock'),
+        link: e.isActive('link'),
+        image: e.isActive('image'),
+        table: e.isActive('table'),
+        imageAlign: (imageAttrs?.align as string | undefined) ?? 'center',
+        imageWidth: (imageAttrs?.width as string | undefined) ?? null,
+        fontSize: (e.getAttributes('textStyle')?.fontSize as string | undefined) ?? null,
+        // Con formatos mixtos no hay un tamaño único que mostrar.
+        fontSizeMixed: getSelectionFontSizes(e, Math.round(15 * uiScale)).length > 1,
+      };
+    },
+  });
+  const ui = editorUi ?? {
+    canUndo: false, canRedo: false, selectionEmpty: true, bold: false, italic: false,
+    underline: false, strike: false, highlight: false, h1: false, h2: false,
+    bulletList: false, orderedList: false, alignLeft: false, alignCenter: false,
+    alignRight: false, alignJustify: false, blockquote: false, codeBlock: false,
+    link: false, image: false, table: false, imageAlign: 'center', imageWidth: null,
+    fontSize: null, fontSizeMixed: false,
+  };
+
   useEffect(() => {
     if (!onRegisterDraftFlush) return;
 
@@ -3161,8 +3609,8 @@ export default function NoteEditor({
         if (isDirtyRef.current) {
           const html = editor.getHTML();
           const preview = extractPreview(html);
-          await onSave({ ...current, content: html, preview, thumb: extractThumb(html) });
           isDirtyRef.current = false;
+          await persistNote({ ...current, content: html, preview, thumb: extractThumb(html) });
         }
         return;
       }
@@ -3178,31 +3626,387 @@ export default function NoteEditor({
 
     onRegisterDraftFlush(flushBeforeLock);
     return () => onRegisterDraftFlush(null);
-  }, [editor, onEditDraft, onRegisterDraftFlush, onSave]);
+  }, [editor, onEditDraft, onRegisterDraftFlush, persistNote]);
 
-  const updateLineInfo = (editor: any) => {
-    if (!showLineCounter) return;
-    const { from } = editor.state.selection;
-    const textBefore = editor.state.doc.textBetween(0, from, '\n');
-    const linesBefore = textBefore.split('\n');
-    const currentLine = linesBefore.length;
-    const currentCol = linesBefore[linesBefore.length - 1].length + 1;
-    
-    const totalText = editor.getText();
-    const totalLines = totalText.split('\n').length;
-    
-    setLineInfo({ line: currentLine, col: currentCol, total: totalLines });
-  };
+  const updateLineInfo = useCallback((editor: any) => {
+    const doc = editor.state.doc;
+    const logicalLines = collectLogicalLineUnits(doc);
+    if (logicalLines.length === 0) {
+      setLineInfo({ line: 1, col: 1, total: 1 });
+      return;
+    }
 
-  const updateTextMetrics = (editor: any) => {
+    const selection = editor.state.selection;
+    const headPos = selection.$head?.pos ?? selection.to;
+    let currentLineIndex = -1;
+
+    // Prefer the selection head's actual ancestor, so a reversed selection
+    // reports the active end and nested table/list blocks resolve correctly.
+    if (selection.$head) {
+      for (let depth = selection.$head.depth; depth >= 0; depth--) {
+        const node = selection.$head.node(depth);
+        const pos = depth === 0 ? 0 : selection.$head.before(depth);
+        const matchingIndices = logicalLineIndicesCache.get(doc)?.get(node)?.get(pos);
+        if (!matchingIndices?.length) continue;
+
+        const parentOffset = selection.$head.parentOffset;
+        const matchingSegment = matchingIndices.find(index => {
+          const line = logicalLines[index];
+          return line.segmentStart !== undefined && line.segmentEnd !== undefined &&
+            parentOffset >= line.segmentStart && parentOffset <= line.segmentEnd;
+        });
+        currentLineIndex = matchingSegment ?? matchingIndices[0];
+        break;
+      }
+    }
+
+    if (currentLineIndex < 0) {
+      if (selection.node) {
+        currentLineIndex = logicalLines.findIndex(line => line.node === selection.node);
+      }
+    }
+    if (currentLineIndex < 0) {
+      currentLineIndex = logicalLines.findIndex(line =>
+        headPos >= line.pos && headPos <= line.pos + line.node.nodeSize,
+      );
+    }
+    if (currentLineIndex < 0) currentLineIndex = logicalLines.length - 1;
+
+    const currentUnit = logicalLines[currentLineIndex];
+    const lineStart = currentUnit.segmentStart === undefined
+      ? currentUnit.pos
+      : currentUnit.pos + 1 + currentUnit.segmentStart;
+    const textBefore = doc.textBetween(lineStart, Math.max(lineStart, headPos), '\n');
+    const currentCol = textBefore.split('\n').pop()!.length + 1;
+    setLineInfo({ line: currentLineIndex + 1, col: currentCol, total: logicalLines.length });
+  }, []);
+
+  useEffect(() => {
+    if (editor) updateLineInfo(editor);
+  }, [editor, showLineCounter, updateLineInfo]);
+
+  const updateTextMetrics = useCallback((editor: any) => {
     const text = editor.getText();
     const chars = text.length;
     const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
     const readingTime = Math.ceil(words / 200);
     setTextMetrics({ words, chars, readingTime });
-  };
+  }, []);
 
-  const handleManualSave = useCallback(() => {
+  // Métricas (línea/col y palabras/caracteres) con coalescido de 120 ms:
+  // ambas recorren el documento completo y hacerlo por tecla es O(doc) por
+  // pulsación. Coalesciendo, el indicador sigue percibiéndose inmediato.
+  const metricsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleMetrics = useCallback(() => {
+    if (metricsTimer.current) return;
+    metricsTimer.current = setTimeout(() => {
+      metricsTimer.current = null;
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed) return;
+      updateLineInfo(ed);
+      updateTextMetrics(ed);
+    }, 120);
+  }, [updateLineInfo, updateTextMetrics]);
+
+  // ─── Números y guías de continuación del gutter ─────────────────────
+  // Ambos indicadores comparten unidades de línea y coordenadas DOM. La capa
+  // sigue el viewport desplazable y se repinta al hacer scroll.
+  const wrapGuidesRef = useRef<HTMLDivElement>(null);
+  const visibleGutterNodesRef = useRef<Set<Element>>(new Set());
+  const intersectionObserverActiveRef = useRef(false);
+  const syncGutterObserverRef = useRef<(() => void) | null>(null);
+  const showWrapGuidesRef = useRef(showWrapGuides);
+  showWrapGuidesRef.current = showWrapGuides;
+  const wrapGuidesRaf = useRef(0);
+
+  const paintWrapGuides = useCallback(() => {
+    const layer = wrapGuidesRef.current;
+    const liveEditor = editorRef.current;
+    if (!layer) return;
+    if (!liveEditor || liveEditor.view.isDestroyed || !showLineGutter || isRaw) {
+      if (layer.childNodes.length > 0) layer.innerHTML = '';
+      return;
+    }
+    try {
+      const dom = liveEditor.view.dom as HTMLElement;
+      const scroller = scrollContainerRef.current;
+      if (!scroller) return;
+      layer.style.top = `${scroller.scrollTop}px`;
+      layer.style.height = `${scroller.clientHeight}px`;
+      const wrapBox = layer.getBoundingClientRect();
+      if (wrapBox.width <= 0) return;
+      const viewport = scroller.getBoundingClientRect();
+      const range = document.createRange();
+      const MAX_GUIDES = 2500;
+      const lineNumberHtml: string[] = [];
+      const guideHtml: string[] = [];
+      const seenLineY = new Set<number>();
+      const seenMarkY = new Set<number>();
+      const seenLink = new Set<string>();
+      const logicalLines = collectLogicalLineUnits(liveEditor.state.doc);
+      const lineElementsByPos = new Map<number, HTMLElement | null>();
+      const getLineElement = (pos: number): HTMLElement | null => {
+        if (lineElementsByPos.has(pos)) return lineElementsByPos.get(pos) ?? null;
+        const node = liveEditor.view.nodeDOM(pos);
+        const element = node instanceof HTMLElement ? node : node?.parentElement ?? null;
+        lineElementsByPos.set(pos, element);
+        return element;
+      };
+      const isVisible = (element: Element) => {
+        if (intersectionObserverActiveRef.current) return visibleGutterNodesRef.current.has(element);
+        const rect = element.getBoundingClientRect();
+        return rect.bottom >= viewport.top && rect.top <= viewport.bottom;
+      };
+      const getCodeTextBlock = (element: HTMLElement) => (
+        element.matches('pre') ? element : element.querySelector('pre') as HTMLElement | null
+      ) || element;
+      const getSegmentTextBlock = (line: LogicalLineUnit, element: HTMLElement) => (
+        line.node.type?.spec?.code ? getCodeTextBlock(element) : element
+      );
+      const segmentedTextBlocks = new Set<Element>();
+      for (const line of logicalLines) {
+        if (line.segmentIndex === undefined) continue;
+        const element = getLineElement(line.pos);
+        if (element) segmentedTextBlocks.add(getSegmentTextBlock(line, element));
+      }
+
+      const collectVisualSegments = (block: Element): VisualRow[][] => {
+        const rawSegments: DOMRect[][] = [];
+        let segmentRects: DOMRect[] = [];
+        const flushSegment = () => {
+          rawSegments.push(segmentRects);
+          segmentRects = [];
+        };
+        const addTextRects = (text: Text, start: number, end: number) => {
+          if (end <= start) return;
+          range.setStart(text, start);
+          range.setEnd(text, end);
+          for (const rect of Array.from(range.getClientRects())) {
+            if (rect.width > 1 && rect.height > 1) segmentRects.push(rect);
+          }
+        };
+        const visitInline = (node: Node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const text = node as Text;
+            const value = text.nodeValue || '';
+            let start = 0;
+            for (let i = 0; i < value.length; i++) {
+              if (value[i] === '\n') {
+                addTextRects(text, start, i);
+                flushSegment();
+                start = i + 1;
+              }
+            }
+            addTextRects(text, start, value.length);
+            return;
+          }
+          if (node instanceof HTMLBRElement) {
+            if (node.classList.contains('ProseMirror-trailingBreak')) return;
+            flushSegment();
+            return;
+          }
+          node.childNodes.forEach(visitInline);
+        };
+        block.childNodes.forEach(visitInline);
+        flushSegment();
+        return rawSegments.map(rects => groupVisualRows(
+          rects.map(rect => ({ top: rect.top, bottom: rect.bottom, left: rect.left })),
+        ));
+      };
+
+      const visualSegmentsByBlock = new Map<Element, VisualRow[][]>();
+      const textBlocks = Array.from(dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre'));
+      for (const block of textBlocks) {
+        const hasWrapGuides = showWrapGuidesRef.current && isVisible(block);
+        if (!hasWrapGuides && !segmentedTextBlocks.has(block)) continue;
+        if (!isVisible(block)) continue;
+        const segments = collectVisualSegments(block);
+        visualSegmentsByBlock.set(block, segments);
+        if (!hasWrapGuides) continue;
+
+        for (const rows of segments) {
+          if (rows.length < 2 || guideHtml.length >= MAX_GUIDES) continue;
+          const plan = planWrapGuides(rows);
+          for (const y of plan.marks) {
+            if (guideHtml.length >= MAX_GUIDES) break;
+            const relativeY = y - wrapBox.top;
+            const key = Math.round(relativeY);
+            if (seenMarkY.has(key)) continue;
+            seenMarkY.add(key);
+            guideHtml.push(`<span class="wrap-guide-mark" style="top:${relativeY.toFixed(1)}px">→</span>`);
+          }
+          if (plan.link && guideHtml.length < MAX_GUIDES) {
+            const top = plan.link.top - wrapBox.top;
+            const key = `${Math.round(top)}:${Math.round(plan.link.height)}`;
+            if (!seenLink.has(key)) {
+              seenLink.add(key);
+              guideHtml.push(
+                `<span class="wrap-guide-link" style="top:${top.toFixed(1)}px;height:${plan.link.height.toFixed(1)}px"></span>`,
+              );
+            }
+          }
+        }
+      }
+
+      const segmentedLineTops = new Map<Element, number[]>();
+      for (const block of segmentedTextBlocks) {
+        const segments = visualSegmentsByBlock.get(block);
+        if (!segments) continue;
+        const blockRect = block.getBoundingClientRect();
+        const style = window.getComputedStyle(block);
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.3 || 16;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const borderTop = parseFloat(style.borderTopWidth) || 0;
+        const tops: number[] = [];
+        for (let i = 0; i < segments.length; i++) {
+          if (segments[i].length > 0) {
+            tops[i] = segments[i][0].top;
+            continue;
+          }
+          let previous = i - 1;
+          while (previous >= 0 && segments[previous].length === 0) previous--;
+          if (previous >= 0) {
+            tops[i] = segments[previous][segments[previous].length - 1].top + lineHeight * (i - previous);
+            continue;
+          }
+          let next = i + 1;
+          while (next < segments.length && segments[next].length === 0) next++;
+          tops[i] = next < segments.length
+            ? segments[next][0].top - lineHeight * (next - i)
+            : blockRect.top + borderTop + paddingTop + lineHeight * i;
+        }
+        segmentedLineTops.set(block, tops);
+      }
+
+      logicalLines.forEach((line, index) => {
+        const element = getLineElement(line.pos);
+        if (!element || !isVisible(element)) return;
+        const rect = element.getBoundingClientRect();
+        if (rect.height <= 0) return;
+        const textBlock = line.segmentIndex === undefined ? null : getSegmentTextBlock(line, element);
+        const y = line.segmentIndex !== undefined && textBlock
+          ? (segmentedLineTops.get(textBlock)?.[line.segmentIndex] ?? rect.top) - wrapBox.top
+          : rect.top - wrapBox.top;
+        const key = Math.round(y);
+        if (seenLineY.has(key)) return;
+        seenLineY.add(key);
+        lineNumberHtml.push(`<span class="line-number-mark" style="top:${y.toFixed(1)}px">${index + 1}</span>`);
+      });
+
+      layer.innerHTML = lineNumberHtml.concat(guideHtml).join('');
+    } catch {
+      /* DOM en transición: se reintenta en el próximo update */
+    }
+  }, [showLineGutter, isRaw]);
+
+  const scheduleWrapGuides = useCallback(() => {
+    if (wrapGuidesRaf.current) return;
+    wrapGuidesRaf.current = requestAnimationFrame(() => {
+      wrapGuidesRaf.current = 0;
+      paintWrapGuides();
+    });
+  }, [paintWrapGuides]);
+
+  // Recalcular ante contenido, nota, zoom, fuente, gutter y resize
+  // (imágenes que cargan cambian alturas: ResizeObserver al dom).
+  useEffect(() => {
+    scheduleWrapGuides();
+    if (!showLineGutter || isRaw) return;
+    const liveEditor = editorRef.current;
+    const scroller = scrollContainerRef.current;
+    const observedNodes = new Set<Element>();
+    visibleGutterNodesRef.current.clear();
+    intersectionObserverActiveRef.current = false;
+    const observer = scroller && typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver((entries) => {
+          let changed = false;
+          for (const entry of entries) {
+            const target = entry.target;
+            if (!observedNodes.has(target)) continue;
+            if (entry.isIntersecting) {
+              if (!visibleGutterNodesRef.current.has(target)) {
+                visibleGutterNodesRef.current.add(target);
+                changed = true;
+              }
+            } else if (visibleGutterNodesRef.current.delete(target)) {
+              changed = true;
+            }
+          }
+          intersectionObserverActiveRef.current = true;
+          if (changed) scheduleWrapGuides();
+        }, { root: scroller, rootMargin: '100px 0px' })
+      : null;
+
+    const syncObservedNodes = () => {
+      if (!observer || !liveEditor || liveEditor.view.isDestroyed) return;
+      const dom = liveEditor.view.dom as HTMLElement;
+      const nextNodes = new Set<Element>();
+      const lineElementsByPos = new Map<number, HTMLElement | null>();
+      for (const line of collectLogicalLineUnits(liveEditor.state.doc)) {
+        let element: HTMLElement | null;
+        if (lineElementsByPos.has(line.pos)) {
+          element = lineElementsByPos.get(line.pos) ?? null;
+        } else {
+          const node = liveEditor.view.nodeDOM(line.pos);
+          element = node instanceof HTMLElement ? node : node?.parentElement ?? null;
+          lineElementsByPos.set(line.pos, element);
+        }
+        if (element) {
+          nextNodes.add(element);
+          if (line.segmentIndex !== undefined && line.node.type?.spec?.code) {
+            const textBlock = element.matches('pre') ? element : element.querySelector('pre');
+            if (textBlock) nextNodes.add(textBlock);
+          }
+        }
+      }
+      if (showWrapGuidesRef.current) {
+        dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre').forEach(node => nextNodes.add(node));
+      }
+
+      for (const node of observedNodes) {
+        if (nextNodes.has(node)) continue;
+        observer.unobserve(node);
+        observedNodes.delete(node);
+        visibleGutterNodesRef.current.delete(node);
+      }
+      for (const node of nextNodes) {
+        if (observedNodes.has(node)) continue;
+        observedNodes.add(node);
+        observer.observe(node);
+      }
+    };
+    const handleEditorUpdate = () => {
+      syncObservedNodes();
+      scheduleWrapGuides();
+    };
+
+    syncGutterObserverRef.current = syncObservedNodes;
+    syncObservedNodes();
+    liveEditor?.on('update', handleEditorUpdate);
+    const ro = new ResizeObserver(scheduleWrapGuides);
+    if (scroller) ro.observe(scroller);
+    const dom = liveEditor?.view?.dom as HTMLElement | undefined;
+    if (dom) ro.observe(dom);
+    scroller?.addEventListener('scroll', scheduleWrapGuides, { passive: true });
+    window.addEventListener('resize', scheduleWrapGuides);
+    return () => {
+      liveEditor?.off('update', handleEditorUpdate);
+      observer?.disconnect();
+      observedNodes.clear();
+      if (syncGutterObserverRef.current === syncObservedNodes) syncGutterObserverRef.current = null;
+      visibleGutterNodesRef.current.clear();
+      intersectionObserverActiveRef.current = false;
+      ro.disconnect();
+      scroller?.removeEventListener('scroll', scheduleWrapGuides);
+      window.removeEventListener('resize', scheduleWrapGuides);
+      if (wrapGuidesRaf.current) {
+        cancelAnimationFrame(wrapGuidesRaf.current);
+        wrapGuidesRaf.current = 0;
+      }
+    };
+  }, [editor, note?.id, uiScale, editorFontId, showLineGutter, showWrapGuides, isRaw, scheduleWrapGuides]);
+
+  const handleManualSave = useCallback(async () => {
     if (!editor || !note || hydratedNoteIdRef.current !== note.id) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     if (draftSyncTimer.current) {
@@ -3211,10 +4015,15 @@ export default function NoteEditor({
     }
     const html = editor.getHTML();
     const preview = extractPreview(html);
-    onSave({ ...note, content: html, title: localTitle, preview, thumb: extractThumb(html) });
-    setHasUnsavedChanges(false);
     isDirtyRef.current = false;
-  }, [editor, note, localTitle, onSave]);
+    const revision = editRevisionRef.current;
+    const didSave = await persistNote({ ...note, content: html, title: localTitle, preview, thumb: extractThumb(html) });
+    if (didSave && revision === editRevisionRef.current) {
+      hasUnsavedChangesRef.current = false;
+      setHasUnsavedChanges(false);
+      setSaveStatus('saved');
+    }
+  }, [editor, note, localTitle, persistNote]);
 
   /** Restaura una versión del historial: recarga el editor y persiste. */
   const handleRestoreRevision = useCallback((rev: NoteRevision) => {
@@ -3239,13 +4048,16 @@ export default function NoteEditor({
     isDirtyRef.current = false;
     loadEditorContent(editor, content);
     hydratedNoteIdRef.current = note.id;
+    syncGutterObserverRef.current?.();
+    scheduleWrapGuides();
     updateTextMetrics(editor);
     updateLineInfo(editor);
     syncMinimapHtml(true);
+    hasUnsavedChangesRef.current = false;
     setHasUnsavedChanges(false);
-    onSave(restored);
+    void persistNote(restored);
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
-  }, [editor, note, onSave, syncMinimapHtml]);
+  }, [editor, note, persistNote, scheduleWrapGuides, syncMinimapHtml, updateLineInfo]);
 
   // Descarta el borrador y restaura el editor al último estado guardado en disco.
   const handleRevertToSaved = useCallback(() => {
@@ -3258,15 +4070,19 @@ export default function NoteEditor({
     isSelectionChangingRef.current = true;
     hydratedNoteIdRef.current = null;
     loadEditorContent(editor, note.content || '');
+    syncGutterObserverRef.current?.();
+    scheduleWrapGuides();
+    updateLineInfo(editor);
     setLocalTitle(note.title || '');
     localTitleRef.current = note.title || '';
     isDirtyRef.current = false;
+    hasUnsavedChangesRef.current = false;
     setHasUnsavedChanges(false);
     onDiscardDraft?.(note.id);
     hydratedNoteIdRef.current = note.id;
     syncMinimapHtml(true);
     setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
-  }, [editor, note, onDiscardDraft, syncMinimapHtml]);
+  }, [editor, note, onDiscardDraft, scheduleWrapGuides, syncMinimapHtml, updateLineInfo]);
 
   useModalKeys({
     enabled: showLeaveEditorWarning,
@@ -3282,10 +4098,15 @@ export default function NoteEditor({
   // Actualizar editor cuando cambia la nota seleccionada o cuando se monta/desmonta
   useLayoutEffect(() => {
     const draft = note ? draftCache[note.id] : null;
+    saveRequestRef.current += 1;
+    editRevisionRef.current += 1;
     setPinned(note?.pinned === 1);
     setLocalTitle(draft ? draft.title : (note?.title || ''));
     localTitleRef.current = draft ? draft.title : (note?.title || '');
+    hasUnsavedChangesRef.current = !!draft;
     setHasUnsavedChanges(!!draft);
+    setLastSavedAt(note?.updated_at || null);
+    setSaveStatus(draft ? 'pending' : 'saved');
 
     hydratedNoteIdRef.current = null;
     setVideoMenu(null);
@@ -3303,6 +4124,12 @@ export default function NoteEditor({
     const content = draft ? draft.content : (note.content || '');
     loadEditorContent(editor, content);
     hydratedNoteIdRef.current = note.id;
+
+    // Spellcheck diferido: nota nueva = documento nuevo que escanear. El
+    // atributo se apaga (loadEditorContent dispara una transacción y PM
+    // reaplica los atributos) y se enciende tras el primer pintado.
+    spellcheckOnRef.current = false;
+    enableSpellcheckSoon();
 
     // Métricas aquí mismo: la sonda mostró hidratación de ~2ms, así que no
     // tiene sentido pagar un render pasivo extra por estos números.
@@ -3343,6 +4170,10 @@ export default function NoteEditor({
 
     return () => {
       clearTimeout(timeoutId);
+      if (spellcheckTimer.current) {
+        clearTimeout(spellcheckTimer.current);
+        spellcheckTimer.current = null;
+      }
       if (draftSyncTimer.current) {
         clearTimeout(draftSyncTimer.current);
         draftSyncTimer.current = null;
@@ -3359,7 +4190,7 @@ export default function NoteEditor({
         if (current && editor && autosaveEnabledRef.current) {
           const html = editor.getHTML();
           const preview = extractPreview(html);
-          onSave({ ...current, content: html, preview, thumb: extractThumb(html) });
+          void persistNoteRef.current({ ...current, content: html, preview, thumb: extractThumb(html) });
           isDirtyRef.current = false;
         }
       }
@@ -3371,17 +4202,19 @@ export default function NoteEditor({
     currentNoteRef.current = note;
   }, [note]);
 
-  const scheduleAutoSave = useCallback((html: string) => {
+  const scheduleAutoSave = useCallback(() => {
     const current = currentNoteRef.current;
     if (!current || hydratedNoteIdRef.current !== current.id) return;
     const noteId = current.id;
+    markSavePending();
     if (!autosaveEnabled) {
       setHasUnsavedChanges(true);
+      hasUnsavedChangesRef.current = true;
       // Throttle: no bombardear al padre en cada tecla (solo marcar dirty + sync periódico)
       if (draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
       draftSyncTimer.current = setTimeout(() => {
         if (currentNoteRef.current?.id !== noteId || hydratedNoteIdRef.current !== noteId) return;
-        onEditDraft?.(noteId, localTitleRef.current, html);
+        onEditDraft?.(noteId, localTitleRef.current, editorRef.current?.getHTML() || '');
       }, 300);
       return;
     }
@@ -3389,20 +4222,73 @@ export default function NoteEditor({
     saveTimer.current = setTimeout(() => {
       const current = currentNoteRef.current;
       if (!current || current.id !== noteId || hydratedNoteIdRef.current !== noteId) return;
+      // getHTML se calcula aquí, una vez al vencimiento del debounce, y no en
+      // cada tecla: serializar el documento entero por pulsación era uno de
+      // los mayores costes del hot path.
+      const html = editorRef.current?.getHTML() || '';
       const preview = extractPreview(html);
       const thumb = extractThumb(html);
-      onSave({ ...current, content: html, preview, thumb });
+      void persistNote({ ...current, title: localTitleRef.current, content: html, preview, thumb });
       isDirtyRef.current = false;
     }, 500);
-  }, [onSave, autosaveEnabled, onEditDraft]);
+  }, [persistNote, autosaveEnabled, onEditDraft, markSavePending]);
 
-  const handlePin = () => {
+  const handlePin = useCallback(() => {
     if (!note) return;
     const newPinned = pinned ? 0 : 1;
     setPinned(!pinned);
-    onSave({ ...note, pinned: newPinned });
+    void persistNote({ ...note, pinned: newPinned });
     currentNoteRef.current = { ...note, pinned: newPinned };
-  };
+  }, [note, pinned, persistNote]);
+
+  const toggleStickyNote = useCallback(() => {
+    if (!note?.id) return;
+    if (isFloatingNote) {
+      window.cyberNotesAPI.revealStickyNote(note.id);
+    } else {
+      window.cyberNotesAPI.openStickyNote(note.id);
+    }
+  }, [note?.id, isFloatingNote]);
+
+  // Acciones de la barra de nota expuestas a hotkeys y al menú Nota actual.
+  const noteActions = useMemo<NoteActionHandlers>(() => ({
+    manualSave: () => { void handleManualSave(); },
+    requestDelete: () => { if (note?.id) onRequestDeleteNote?.(note.id); },
+    toggleFavorite: () => handlePin(),
+    toggleSticky: () => toggleStickyNote(),
+    toggleRaw: () => setIsRaw(v => !v),
+    cycleLayout: () => onToggleLayout(),
+    showHistory: () => { if (note) setShowHistory(true); },
+  }), [handleManualSave, note, onRequestDeleteNote, handlePin, toggleStickyNote, onToggleLayout]);
+
+  useEffect(() => {
+    if (!onRegisterNoteActions) return;
+    onRegisterNoteActions(noteActions);
+    return () => onRegisterNoteActions(null);
+  }, [onRegisterNoteActions, noteActions]);
+
+  // Atajos de la barra de acciones (ver tooltips de cada botón):
+  // Alt+C caps auto, Alt+S favorita, Alt+A flotante, Alt+H HTML,
+  // Alt+L vista, Alt+R historial. Se omiten en campos, diálogos y menús.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (!note) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'c' && k !== 's' && k !== 'a' && k !== 'h' && k !== 'l' && k !== 'r') return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [role="dialog"], [role="menu"], [data-word-menu]')) return;
+      e.preventDefault();
+      if (k === 'c') onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock);
+      else if (k === 's') handlePin();
+      else if (k === 'a') toggleStickyNote();
+      else if (k === 'h') setIsRaw(v => !v);
+      else if (k === 'l') onToggleLayout();
+      else if (k === 'r') setShowHistory(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [note, autoUnlockCapsLock, onAutoUnlockCapsLockChange, handlePin, toggleStickyNote, onToggleLayout]);
 
   const convertHtmlToMarkdown = (html: string): string => {
     if (!html) return '';
@@ -3566,7 +4452,7 @@ export default function NoteEditor({
   };
 
   const exportMenu = (
-    <div style={{ position: 'relative', display: 'flex', zIndex: 40 }}>
+    <div data-export-menu="true" style={{ position: 'relative', display: 'flex', zIndex: 40 }}>
       <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota' : 'Export note'}>
         <button
           type="button"
@@ -3664,7 +4550,12 @@ export default function NoteEditor({
 
   useEffect(() => {
     if (!showExportMenu) return;
-    const close = () => setShowExportMenu(false);
+    // Ignora clics dentro del propio conjunto botón+menú: sin esto, el
+    // mousedown cerraba y el onClick del botón reabría en el mismo gesto.
+    const close = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('[data-export-menu]')) return;
+      setShowExportMenu(false);
+    };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [showExportMenu]);
@@ -3681,6 +4572,25 @@ export default function NoteEditor({
     if (!url) return;
     editor.chain().focus().setImage({ src: url }).run();
   };
+
+  /**
+   * Imágenes pegadas o arrastradas al editor: se guardan como archivo en
+   * images/ (vía images:saveBinary) y se inserta la URL file:. Sin esto,
+   * Chromium pegaría la imagen embebida en base64 dentro del HTML de la nota
+   * y la base volvería a inflarse con cada copia/revisión.
+   */
+  const insertImageFiles = useCallback(async (files: File[]) => {
+    for (const file of files) {
+      try {
+        const buf = await file.arrayBuffer();
+        const url = await window.cyberNotesAPI.saveImageBinary(new Uint8Array(buf), file.type);
+        if (!url) continue;
+        editorRef.current?.chain().focus().setImage({ src: url }).run();
+      } catch {
+        /* imagen no insertable: continuar con la siguiente */
+      }
+    }
+  }, []);
 
   const handleCopySelection = useCallback(() => {
     if (!editor || editor.state.selection.empty) return;
@@ -3705,7 +4615,29 @@ export default function NoteEditor({
 
   const t = TRANSLATIONS[language];
 
-  const activeFontSize = (editor?.getAttributes('textStyle')?.fontSize as string | null) || null;
+  const saveStatusLabel = saveStatus === 'error'
+    ? t.editor.saveError
+    : saveStatus === 'saving'
+      ? t.editor.saving
+      : saveStatus === 'pending'
+        ? (autosaveEnabled ? t.editor.pendingSave : t.editor.unsavedChanges)
+        : t.editor.saved;
+  const saveDate = lastSavedAt ? new Date(lastSavedAt) : null;
+  const hasValidSaveDate = !!saveDate && Number.isFinite(saveDate.getTime());
+  const saveTime = hasValidSaveDate
+    ? saveDate!.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : '';
+  const fullSaveTimestamp = hasValidSaveDate
+    ? saveDate!.toLocaleString(language === 'es' ? 'es-CR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    : '';
+  const saveStatusTooltip = hasValidSaveDate
+    ? `${saveStatusLabel} · ${t.editor.lastSavedAt}: ${fullSaveTimestamp}`
+    : `${saveStatusLabel} · ${t.editor.notSavedYet}`;
+  const saveStatusDisplay = saveTime
+    ? `${saveStatusLabel} ${saveTime}`
+    : saveStatusLabel;
+
+  const activeFontSize = ui.fontSize;
 
   const renderedToolbarGroups = TOOLBAR_GROUPS
     .map((group) => group.filter((gid) => !hiddenToolbarSet.has(gid)))
@@ -3731,11 +4663,11 @@ export default function NoteEditor({
     };
     switch (id) {
       case 'undo':
-        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().undo().run()} disabled={!ui.canUndo} title={language === 'es' ? 'Deshacer (Ctrl+Z)' : 'Undo (Ctrl+Z)'}><Undo size={15} /></ToolbarBtn>;
       case 'redo':
-        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => editor.chain().focus().redo().run()} disabled={!ui.canRedo} title={language === 'es' ? 'Rehacer (Ctrl+Y)' : 'Redo (Ctrl+Y)'}><Redo size={15} /></ToolbarBtn>;
       case 'copy':
-        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleCopySelection} disabled={editor.state.selection.empty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleCopySelection} disabled={ui.selectionEmpty} title={language === 'es' ? 'Copiar (Ctrl+C)' : 'Copy (Ctrl+C)'}><Copy size={15} /></ToolbarBtn>;
       case 'paste':
         return <ToolbarBtn {...ctxProps} active={menuHl} onClick={() => { void handlePasteFromClipboard(); }} disabled={readOnly} title={language === 'es' ? 'Pegar (Ctrl+V)' : 'Paste (Ctrl+V)'}><Clipboard size={15} /></ToolbarBtn>;
       case 'fontFamily':
@@ -3757,53 +4689,62 @@ export default function NoteEditor({
           </span>
         );
       case 'bold':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold') || menuHl} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBold().run()} active={ui.bold || menuHl} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={15} /></ToolbarBtn>;
       case 'italic':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic') || menuHl} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleItalic().run()} active={ui.italic || menuHl} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={15} /></ToolbarBtn>;
       case 'underline':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline') || menuHl} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline || menuHl} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={15} /></ToolbarBtn>;
       case 'strike':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike') || menuHl} title={language === 'es' ? 'Tachado (Ctrl+Mayús+S)' : 'Strikethrough (Ctrl+Shift+S)'}><Strikethrough size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={ui.strike || menuHl} title={language === 'es' ? 'Tachado (Ctrl+Mayús+S)' : 'Strikethrough (Ctrl+Shift+S)'}><Strikethrough size={15} /></ToolbarBtn>;
       case 'highlight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight') || menuHl} title={language === 'es' ? 'Resaltar (Ctrl+H)' : 'Highlight (Ctrl+H)'}><Highlighter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={ui.highlight || menuHl} title={language === 'es' ? 'Resaltar (Ctrl+H)' : 'Highlight (Ctrl+H)'}><Highlighter size={15} /></ToolbarBtn>;
       case 'clearFormat':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} active={menuHl} title={language === 'es' ? 'Limpiar formato (Ctrl+Espacio)' : 'Clear formatting (Ctrl+Space)'}><RemoveFormatting size={15} /></ToolbarBtn>;
       case 'h1':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 }) || menuHl} title={language === 'es' ? 'Título 1 (Ctrl+1)' : 'Heading 1 (Ctrl+1)'}><Heading1 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={ui.h1 || menuHl} title={language === 'es' ? 'Título 1 (Ctrl+1)' : 'Heading 1 (Ctrl+1)'}><Heading1 size={15} /></ToolbarBtn>;
       case 'h2':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 }) || menuHl} title={language === 'es' ? 'Título 2 (Ctrl+2)' : 'Heading 2 (Ctrl+2)'}><Heading2 size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={ui.h2 || menuHl} title={language === 'es' ? 'Título 2 (Ctrl+2)' : 'Heading 2 (Ctrl+2)'}><Heading2 size={15} /></ToolbarBtn>;
       case 'bullet':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList') || menuHl} title={language === 'es' ? 'Lista (Ctrl+8)' : 'Bullet List (Ctrl+8)'}><List size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBulletList().run()} active={ui.bulletList || menuHl} title={language === 'es' ? 'Lista (Ctrl+8)' : 'Bullet List (Ctrl+8)'}><List size={15} /></ToolbarBtn>;
       case 'ordered':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList') || menuHl} title={language === 'es' ? 'Lista numerada (Ctrl+7)' : 'Numbered List (Ctrl+7)'}><ListOrdered size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={ui.orderedList || menuHl} title={language === 'es' ? 'Lista numerada (Ctrl+7)' : 'Numbered List (Ctrl+7)'}><ListOrdered size={15} /></ToolbarBtn>;
       case 'alignLeft':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' }) || menuHl} title={language === 'es' ? 'Alinear a la izquierda (Ctrl+L)' : 'Align left (Ctrl+L)'}><AlignLeft size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('left').run()} active={ui.alignLeft || menuHl} title={language === 'es' ? 'Alinear a la izquierda (Ctrl+L)' : 'Align left (Ctrl+L)'}><AlignLeft size={15} /></ToolbarBtn>;
       case 'alignCenter':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' }) || menuHl} title={language === 'es' ? 'Centrar (Ctrl+E)' : 'Center (Ctrl+E)'}><AlignCenter size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('center').run()} active={ui.alignCenter || menuHl} title={language === 'es' ? 'Centrar (Ctrl+E)' : 'Center (Ctrl+E)'}><AlignCenter size={15} /></ToolbarBtn>;
       case 'alignRight':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' }) || menuHl} title={language === 'es' ? 'Alinear a la derecha (Ctrl+R)' : 'Align right (Ctrl+R)'}><AlignRight size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('right').run()} active={ui.alignRight || menuHl} title={language === 'es' ? 'Alinear a la derecha (Ctrl+R)' : 'Align right (Ctrl+R)'}><AlignRight size={15} /></ToolbarBtn>;
       case 'alignJustify':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={editor.isActive({ textAlign: 'justify' }) || menuHl} title={language === 'es' ? 'Justificar (Ctrl+J)' : 'Justify (Ctrl+J)'}><AlignJustify size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().setTextAlign('justify').run()} active={ui.alignJustify || menuHl} title={language === 'es' ? 'Justificar (Ctrl+J)' : 'Justify (Ctrl+J)'}><AlignJustify size={15} /></ToolbarBtn>;
       case 'quote':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote') || menuHl} title={language === 'es' ? 'Cita (Ctrl+Q)' : 'Blockquote (Ctrl+Q)'}><Quote size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={ui.blockquote || menuHl} title={language === 'es' ? 'Cita (Ctrl+Q)' : 'Blockquote (Ctrl+Q)'}><Quote size={15} /></ToolbarBtn>;
       case 'code':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock') || menuHl} title={language === 'es' ? 'Bloque de código (Ctrl+Alt+C)' : 'Code block (Ctrl+Alt+C)'}><Code size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={ui.codeBlock || menuHl} title={language === 'es' ? 'Bloque de código (Ctrl+Alt+C)' : 'Code block (Ctrl+Alt+C)'}><Code size={15} /></ToolbarBtn>;
       case 'link':
-        return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={editor.isActive('link') || menuHl} title={language === 'es' ? 'Insertar link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}><LinkIcon size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={ui.link || menuHl} title={language === 'es' ? 'Insertar link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}><LinkIcon size={15} /></ToolbarBtn>;
       case 'image':
         return <ToolbarBtn {...ctxProps} active={menuHl} onClick={handleInsertImage} title={language === 'es' ? 'Insertar imagen (Ctrl+G)' : 'Insert Image (Ctrl+G)'}><ImageIcon size={15} /></ToolbarBtn>;
       case 'table':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <TableSelect editor={editor} language={language} hideTooltip={tipOff} />
+            <TableSelect editor={editor} language={language} hideTooltip={tipOff} active={ui.table} />
           </span>
         );
       case 'find':
         return <ToolbarBtn {...ctxProps} active={findOpen || menuHl} onClick={() => { if (findOpen) closeFindBar(); else openFindBar(); }} title={language === 'es' ? 'Buscar en la nota (F3)' : 'Find in note (F3)'}><Search size={15} /></ToolbarBtn>;
+      case 'characters':
+        return <ToolbarBtn {...ctxProps} active={characterMapOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setCharacterMapOpen(true); }} title={language === 'es' ? 'Mapa de caracteres' : 'Character map'}><Sigma size={15} /></ToolbarBtn>;
+      case 'emojis':
+        return <ToolbarBtn {...ctxProps} active={emojiPickerOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setEmojiPickerOpen(true); }} title={language === 'es' ? 'Selector de emojis' : 'Emoji picker'}><Smile size={15} /></ToolbarBtn>;
       case 'video':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>
-            <VideoSelect editor={editor} language={language} hideTooltip={tipOff} />
+            <VideoSelect
+              editor={editor}
+              language={language}
+              hideTooltip={tipOff}
+              active={editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name === 'videoEmbed'}
+            />
           </span>
         );
       default:
@@ -3992,6 +4933,26 @@ export default function NoteEditor({
           onClose={() => setShowHistory(false)}
           onRestore={handleRestoreRevision}
         />
+      )}
+      {characterMapOpen && editor && (
+        <CharacterMapModal
+          editor={editor}
+          language={language}
+          uiScale={uiScale}
+          onClose={() => setCharacterMapOpen(false)}
+        />
+      )}
+      {emojiPickerOpen && editor && (
+        <Suspense fallback={(
+          <div className="modal-overlay character-map-overlay emoji-picker-overlay" style={{ ...modalOverlayStyle, zIndex: 10020, '--ui-scale': uiScale.toString() } as CSSProperties} role="status">
+            <div className="modal emoji-picker-loading">
+              <span className="character-map-title-icon"><Smile size={19} aria-hidden="true" /></span>
+              <span>{language === 'es' ? 'Cargando emojis…' : 'Loading emojis…'}</span>
+            </div>
+          </div>
+        )}>
+          <EmojiPickerModal editor={editor} language={language} uiScale={uiScale} onClose={() => setEmojiPickerOpen(false)} />
+        </Suspense>
       )}
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (
@@ -4328,26 +5289,30 @@ export default function NoteEditor({
       }}>
         {/* Top glowing cyber border line */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%)', opacity: 0.6 }} />
-        {(pinned || isFloatingNote) && (
+
+        {/* Aviso de Papelera: la nota es de solo lectura (readOnly solo es
+            true en la vista de Papelera). Atenúa también el título de abajo. */}
+        {readOnly && note && (
           <div
-            aria-hidden="true"
+            role="status"
             style={{
-              position: 'absolute',
-              left: 0,
-              top: 14,
-              bottom: 14,
-              width: 3,
-              borderRadius: 2,
-              background: pinned && isFloatingNote
-                ? 'linear-gradient(180deg, #f59e0b 0%, #22d3ee 100%)'
-                : (identityColor || FILTER_COLORS.favorites),
-              boxShadow: pinned && isFloatingNote
-                ? '0 0 10px rgba(245, 158, 11, 0.35), 0 0 10px rgba(34, 211, 238, 0.28)'
-                : `0 0 10px ${identityColor}88`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '7px 12px',
+              marginBottom: 10,
+              borderRadius: 8,
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              fontSize: 'calc(12px * var(--ui-scale))',
+              color: '#fca5a5',
             }}
-          />
+          >
+            <Trash2 size={13} style={{ flexShrink: 0 }} />
+            <span>{t.noteList.trashReadOnly}</span>
+          </div>
         )}
-        
+
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
           {showBackButton && (
             <Tooltip placement="bottom" label={language === 'es' ? 'Atrás' : 'Back'}>
@@ -4415,6 +5380,7 @@ export default function NoteEditor({
               }}
               placeholder={t.editor.placeholderTitle}
               className="title-input"
+              maxLength={NOTE_TITLE_MAX_LENGTH}
               style={{
                 width: '100%',
                 fontSize: 'calc(26px * var(--ui-scale))',
@@ -4423,6 +5389,7 @@ export default function NoteEditor({
                 border: identityBorder,
                 outline: 'none',
                 color: 'var(--text-primary)',
+                opacity: readOnly ? 0.6 : 1,
                 marginBottom: 4,
                 letterSpacing: '-0.02em',
                 padding: '8px 16px',
@@ -4509,11 +5476,7 @@ export default function NoteEditor({
             {/* Grupo 1: Estado y Marcadores (Bloq Mayús, Favorito) */}
             <Tooltip
               placement="bottom"
-              label={
-                autoUnlockCapsLock
-                  ? t.editor.capsLockAutoOn
-                  : t.editor.capsLockAutoOff
-              }
+              label={language === 'es' ? 'Mayús auto (Alt+C)' : 'Auto Caps (Alt+C)'}
             >
             <button
               type="button"
@@ -4550,7 +5513,7 @@ export default function NoteEditor({
             </Tooltip>
 
             {/* Favorite */}
-            <Tooltip placement="bottom" label={pinned ? (language === 'es' ? 'Quitar de favoritos' : 'Remove from favorites') : (language === 'es' ? 'Marcar favorito' : 'Add to favorites')}>
+            <Tooltip placement="bottom" label={pinned ? (language === 'es' ? 'Quitar de favoritos (Alt+S)' : 'Remove from favorites (Alt+S)') : (language === 'es' ? 'Marcar favorito (Alt+S)' : 'Add to favorites (Alt+S)')}>
             <button
               type="button"
               onClick={handlePin}
@@ -4577,17 +5540,10 @@ export default function NoteEditor({
             </Tooltip>
 
             {/* Abrir / mostrar nota flotante */}
-            <Tooltip placement="bottom" label={isFloatingNote ? t.noteList.showFloatingNote : t.noteList.openSticky}>
+            <Tooltip placement="bottom" label={`${isFloatingNote ? t.noteList.showFloatingNote : t.noteList.openSticky} (Alt+A)`}>
               <button
                 type="button"
-                onClick={() => {
-                  if (!note?.id) return;
-                  if (isFloatingNote) {
-                    window.cyberNotesAPI.revealStickyNote(note.id);
-                  } else {
-                    window.cyberNotesAPI.openStickyNote(note.id);
-                  }
-                }}
+                onClick={toggleStickyNote}
                 style={{
                   ...noteActionBtnStyle(isFloatingNote),
                   ...(isFloatingNote ? {
@@ -4634,7 +5590,7 @@ export default function NoteEditor({
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
 
             {/* Grupo 2: Vistas y Edición (HTML, Columnas) */}
-            <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Ver código fuente)' : 'HTML View (Source code)'}>
+            <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Alt+H)' : 'HTML view (Alt+H)'}>
             <button
               type="button"
               onClick={() => setIsRaw(!isRaw)}
@@ -4653,7 +5609,7 @@ export default function NoteEditor({
             </Tooltip>
 
             {/* Cambiar vista */}
-            <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Actual: ${layoutMode} columnas)` : `Change view (Current: ${layoutMode} columns)`}>
+            <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Alt+L, actual: ${layoutMode})` : `Switch view (Alt+L, current: ${layoutMode})`}>
             <button
               type="button"
               onClick={onToggleLayout}
@@ -4674,7 +5630,7 @@ export default function NoteEditor({
             {exportMenu}
 
             {/* Historial de versiones */}
-            <Tooltip placement="bottom" label={language === 'es' ? 'Historial de versiones' : 'Version history'}>
+            <Tooltip placement="bottom" label={language === 'es' ? 'Historial de versiones (Alt+R)' : 'Version history (Alt+R)'}>
             <button
               type="button"
               onClick={() => setShowHistory(true)}
@@ -4721,9 +5677,12 @@ export default function NoteEditor({
                     const moreTipOff = !!toolbarMenu || showMoreMenu;
                     const moreTrigger = (
                       <button
+                        type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
-                        className="btn-icon toolbar-btn"
+                        className={`btn-icon toolbar-btn${showMoreMenu ? ' is-active' : ''}`}
+                        aria-haspopup="menu"
+                        aria-expanded={showMoreMenu}
                         style={{ position: 'relative' }}
                       >                      <MoreHorizontal size={15} />
                         <span style={{
@@ -4880,14 +5839,21 @@ export default function NoteEditor({
         {/* Barra flotante de formato (estilo Word): solo ante selección de
             texto. Convive con la barra fija y el menú de click derecho.
             Los desplegables de fuente/tamaño usan portal con z-index
-            superior, así que la tapan sin necesidad de desmontarla. */}
-        {editor && !readOnly && (
+            superior, así que la tapan sin necesidad de desmontarla.
+            OJO: siempre montada mientras haya editor (también en readOnly /
+            Papelera): tippy mueve su nodo fuera del árbol React y desmontarla
+            lanza NotFoundError en removeChild. Se oculta vía shouldShow. */}
+        {editor && (
           <BubbleMenu
             editor={editor}
             tippyOptions={{ placement: 'top', offset: [0, 8], arrow: false }}
             shouldShow={({ editor: e, state }) => {
+              if (readOnlyRef.current) return false;
               if (!showFloatingToolbarRef.current) return false;
               if (!e.isEditable) return false;
+              // Durante un arrastre de selección (click sostenido) la barra
+              // estorba: solo se muestra al soltar el botón.
+              if (isDragSelectingRef.current) return false;
               const { selection } = state;
               if (selection.empty) return false;
               if ('node' in selection && selection.node) return false;
@@ -4903,25 +5869,33 @@ export default function NoteEditor({
                 boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
               }}
             >
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={14} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={14} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={ui.bold} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={ui.italic} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={14} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
               <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 3px' }} />
               <ToolbarBtn
                 onClick={() => {
                   const values: (string | null)[] = [null, ...FONT_SIZE_OPTIONS.map((s) => `${s}px`)];
+                  // Con formatos mixtos no hay un tamaño actual fiable: la
+                  // marca que reporta Tiptap es solo la primera del rango y
+                  // el ciclo arrancaría desde ella, encogiendo texto grande.
+                  // Se normaliza al tamaño base en su lugar.
+                  if (ui.fontSizeMixed) {
+                    editor.chain().focus().setFontSize('15px').run();
+                    return;
+                  }
                   const next = values[(values.indexOf(activeFontSize) + 1) % values.length];
                   if (next) editor.chain().focus().setFontSize(next).run();
                   else editor.chain().focus().unsetFontSize().run();
                 }}
-                active={!!activeFontSize}
+                active={!!activeFontSize || ui.fontSizeMixed}
                 title={t.editor.fontSize}
               >
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                   <ALargeSmall size={16} />
-                  {activeFontSize && (
+                  {(activeFontSize || ui.fontSizeMixed) && (
                     <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-light)', minWidth: 14, textAlign: 'left' }}>
-                      {parseInt(activeFontSize, 10)}
+                      {ui.fontSizeMixed ? '-' : parseInt(activeFontSize!, 10)}
                     </span>
                   )}
                 </span>
@@ -4932,7 +5906,7 @@ export default function NoteEditor({
 
         {/* Barra de imagen flotante: posicionada absolutamente para no desplazar el contenido */}
         <AnimatePresence>
-          {editor?.isActive('image') && (
+          {editor && ui.image && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -4958,9 +5932,9 @@ export default function NoteEditor({
             >
               <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>{language === 'es' ? 'Imagen:' : 'Image:'}</span>
               <div style={{ display: 'flex', gap: 4 }}>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()} active={editor.getAttributes('image').align === 'left'} title={language === 'es' ? 'Izquierda' : 'Left'}><AlignLeft size={14} /></ToolbarBtn>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()} active={editor.getAttributes('image').align === 'center'} title={language === 'es' ? 'Centro' : 'Center'}><AlignCenter size={14} /></ToolbarBtn>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()} active={editor.getAttributes('image').align === 'right'} title={language === 'es' ? 'Derecha' : 'Right'}><AlignRight size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()} active={ui.imageAlign === 'left'} title={language === 'es' ? 'Izquierda' : 'Left'}><AlignLeft size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()} active={ui.imageAlign === 'center'} title={language === 'es' ? 'Centro' : 'Center'}><AlignCenter size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()} active={ui.imageAlign === 'right'} title={language === 'es' ? 'Derecha' : 'Right'}><AlignRight size={14} /></ToolbarBtn>
               </div>
               <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
               <div style={{ display: 'flex', gap: 4 }}>
@@ -4973,8 +5947,8 @@ export default function NoteEditor({
                     style={{
                       padding: '4px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4,
                       border: '1px solid var(--border)', cursor: 'pointer',
-                      background: editor.getAttributes('image').width === size ? 'var(--accent)' : 'transparent',
-                      color: editor.getAttributes('image').width === size ? '#fff' : 'var(--text-muted)',
+                      background: ui.imageWidth === size ? 'var(--accent)' : 'transparent',
+                      color: ui.imageWidth === size ? '#fff' : 'var(--text-muted)',
                     }}
                   >
                     {size}
@@ -4987,7 +5961,7 @@ export default function NoteEditor({
 
         {/* Barra de tabla: filas/columnas mientras el cursor está en una tabla */}
         <AnimatePresence>
-          {editor?.isActive('table') && !editor?.isActive('image') && (
+          {editor && ui.table && !ui.image && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -5178,6 +6152,12 @@ export default function NoteEditor({
           </Tooltip>
         )}
 
+        {/* Capa de guías de continuación (↳) del gutter: la pinta
+            paintWrapGuides por DOM directo y se desplaza con el contenido. */}
+        {showLineGutter && (
+          <div ref={wrapGuidesRef} aria-hidden="true" className="wrap-guides-layer" />
+        )}
+
         <div 
           className={showLineGutter ? 'show-line-numbers' : ''}
           style={{ position: 'relative', cursor: 'text', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}
@@ -5233,6 +6213,75 @@ export default function NoteEditor({
         </div>
 
       </div>
+
+      {/* Carril de toggle del gutter: permanece accesible en ambos estados. */}
+      <Tooltip
+        placement="right"
+        label={showLineGutter
+          ? (language === 'es' ? 'Ocultar números de línea' : 'Hide line numbers')
+          : (language === 'es' ? 'Mostrar números de línea' : 'Show line numbers')}
+      >
+        <button
+          type="button"
+          className="editor-edge-rail-toggle"
+          aria-label={showLineGutter
+            ? (language === 'es' ? 'Ocultar números de línea' : 'Hide line numbers')
+            : (language === 'es' ? 'Mostrar números de línea' : 'Show line numbers')}
+          aria-pressed={showLineGutter}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onShowLineGutterChange?.(!showLineGutter)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openGutterMenu(e.clientX, e.clientY);
+          }}
+          style={{
+            position: 'absolute',
+            left: showLineGutter ? 50 : 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 10,
+            height: 56,
+            zIndex: 8,
+            padding: 0,
+            border: 'none',
+            borderRadius: '0 6px 6px 0',
+            cursor: 'pointer',
+            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'left 0.22s ease, background 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+            const line = e.currentTarget.querySelector('[data-gutter-rail]') as HTMLElement | null;
+            if (line) {
+              line.style.background = 'var(--accent)';
+              line.style.boxShadow = '0 0 8px var(--accent-glow)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            const line = e.currentTarget.querySelector('[data-gutter-rail]') as HTMLElement | null;
+            if (line) {
+              line.style.background = 'rgba(255,255,255,0.22)';
+              line.style.boxShadow = 'none';
+            }
+          }}
+        >
+          <span
+            data-gutter-rail
+            style={{
+              width: 2,
+              height: 36,
+              borderRadius: 2,
+              background: 'rgba(255,255,255,0.22)',
+              transition: 'background 0.15s ease, box-shadow 0.15s ease',
+            }}
+          />
+        </button>
+      </Tooltip>
 
       {/* ─── Minimap (retraíble) ─────────────────────────────────── */}
       {/* Carril de toggle: siempre visible a la derecha del editor */}
@@ -5478,6 +6527,26 @@ export default function NoteEditor({
             >
               {language === 'es' ? 'Ocultar barra de líneas' : 'Hide line numbers'}
             </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onShowWrapGuidesChange?.(!showWrapGuides);
+                setGutterMenu(null);
+              }}
+              style={{
+                textAlign: 'left', padding: '6px 10px', fontSize: 13,
+                background: 'transparent', border: 'none', borderRadius: 4,
+                color: 'var(--text-primary)', cursor: 'pointer',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              {showWrapGuides
+                ? (language === 'es' ? 'Ocultar guías de continuación' : 'Hide wrap guides')
+                : (language === 'es' ? 'Mostrar guías de continuación' : 'Show wrap guides')}
+            </button>
           </div>
         </>,
         document.body
@@ -5492,14 +6561,13 @@ export default function NoteEditor({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 12,
+        gap: '4px 12px',
         fontSize: 10,
         color: 'var(--text-muted)',
         fontFamily: 'var(--font-mono)',
         letterSpacing: 0.3,
         flexShrink: 0,
         minHeight: 28,
-        whiteSpace: 'nowrap',
       }}>
         {/* Escala UI — sin etiqueta textual; tooltips descriptivos */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -5567,6 +6635,7 @@ export default function NoteEditor({
 
         {/* Indicadores de teclado (clic para cambiar) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {showKeyboardIndicators && <>
           <Tooltip
             placement="top"
             label={language === 'es'
@@ -5659,6 +6728,7 @@ export default function NoteEditor({
             aria-hidden="true"
             style={{ width: 1, height: 14, background: 'var(--border)', opacity: 0.7, margin: '0 5px 0 3px', flexShrink: 0 }}
           />
+          </>}
           <SpellCheckSelect language={language} />
         </div>
 
@@ -5671,6 +6741,7 @@ export default function NoteEditor({
             flexShrink: 0,
             minWidth: 0,
             overflow: 'hidden',
+            marginLeft: 'auto',
           }}>
             {showLineCounter && (
               <>
@@ -5737,6 +6808,50 @@ export default function NoteEditor({
               </>
             )}
           </div>
+        )}
+
+        {note && (
+          <Tooltip placement="top" label={saveStatusTooltip}>
+            <span
+              role="status"
+              aria-live="polite"
+              aria-label={saveStatusTooltip}
+              className="note-save-status"
+              data-save-status={saveStatus}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                minWidth: 'max-content',
+                flexShrink: 0,
+                marginLeft: 8,
+                userSelect: 'none',
+                color: saveStatus === 'error'
+                  ? '#fca5a5'
+                  : saveStatus === 'saving' || saveStatus === 'pending'
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-muted)',
+                opacity: saveStatus === 'saved' ? 0.85 : 1,
+              }}
+            >
+              <span
+                className={`note-save-led${saveStatus === 'saving' ? ' is-saving' : ''}`}
+                style={{
+                  background: saveStatus === 'error'
+                    ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #ef4444 46%, rgba(0, 0, 0, 0.55) 100%)'
+                    : saveStatus === 'saving' || saveStatus === 'pending'
+                      ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
+                      : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
+                  boxShadow: saveStatus === 'error'
+                    ? '0 0 7px rgba(239, 68, 68, 0.65)'
+                    : saveStatus === 'saving' || saveStatus === 'pending'
+                      ? '0 0 7px rgba(245, 158, 11, 0.55)'
+                      : '0 0 7px rgba(52, 211, 153, 0.45)',
+                }}
+              />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', userSelect: 'none' }}>{saveStatusDisplay}</span>
+            </span>
+          </Tooltip>
         )}
       </div>
 
@@ -6280,28 +7395,59 @@ export default function NoteEditor({
             {capsToast && (
               <motion.div
                 key="caps-toast"
-                initial={{ opacity: 0, y: -10, scale: 0.96 }}
+                role="status"
+                aria-live="polite"
+                initial={{ opacity: 0, y: -8, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 28 }}
                 style={{
-                  background: 'var(--bg-modal)',
-                  border: '1px solid var(--accent)',
-                  color: 'var(--accent-light)',
-                  padding: '8px 18px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
+                  background: 'linear-gradient(145deg, var(--bg-modal), var(--bg-surface))',
+                  border: '1px solid color-mix(in srgb, var(--accent) 38%, var(--border))',
+                  color: 'var(--text-primary)',
+                  padding: '9px 10px 9px 12px',
+                  borderRadius: 12,
+                  fontSize: 13,
                   fontWeight: 600,
-                  boxShadow: '0 8px 28px rgba(0,0,0,0.45), 0 0 16px var(--accent-glow)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.42), 0 0 18px color-mix(in srgb, var(--accent-glow) 55%, transparent)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  maxWidth: 'min(420px, 92vw)',
+                  gap: 10,
+                  maxWidth: 'min(460px, calc(100vw - 32px))',
+                  pointerEvents: 'auto',
+                  backdropFilter: 'blur(14px)',
                 }}
                 className="glass-effect"
               >
-                <span style={{ color: 'var(--accent)' }} aria-hidden>ℹ️</span>
-                <span>{capsToast}</span>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 26,
+                    height: 26,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                    borderRadius: 8,
+                    color: 'var(--accent)',
+                    background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+                  }}
+                >
+                  <Info size={15} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0, lineHeight: 1.35 }}>{capsToast}</span>
+                <button
+                  type="button"
+                  className="btn-icon"
+                  aria-label={TRANSLATIONS[language].editor.capsToastDismiss}
+                  onClick={() => {
+                    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+                    toastTimeoutRef.current = null;
+                    setCapsToast(null);
+                  }}
+                  style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, color: 'var(--text-muted)' }}
+                >
+                  <X size={14} />
+                </button>
               </motion.div>
             )}
           </AnimatePresence>

@@ -2,18 +2,28 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
 import { initUpdater, setAutoUpdate } from './updater';
 import { initLogger, writeLog, logRendererError } from './logger';
-import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId } from '../shared/sticky';
+import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
-import { parseBackupHours, parseBackupKeep, isBackupDue, backupFileName, isBackupFile, selectBackupsToPrune } from '../shared/backup';
+import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, isBackupFile, selectBackupsToPrune } from '../shared/backup';
+import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
+import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
+
+// ─── Nombre de la aplicación (carpeta de datos en AppData) ────────────────
+// El directorio userData se deriva del nombre de la app. package.json ya
+// declara name/productName = "CyberNotes", pero lo fijamos aquí de forma
+// explícita para que la carpeta de datos no dependa de cómo empaquete el
+// builder ni de qué campo lea cada versión de Electron.
+app.setName('CyberNotes');
 
 // ─── Detectar si estamos en dev o producción ───────────────────────────────
 const isDev = !app.isPackaged;
@@ -73,85 +83,317 @@ function getTrayIcon(): string | Electron.NativeImage {
 const bcrypt = require('bcryptjs');
 
 // ─── Paths de datos ────────────────────────────────────────────────────────
+// Gancho de pruebas/CI: redirige el perfil completo (BD, imágenes, backups)
+// para correr la app aislada del perfil real. También permite fumar la app
+// junto a una instalación de producción sin pelear por el single-instance.
+if (process.env.CYBERNOTES_USER_DATA_DIR) {
+  app.setPath('userData', path.resolve(process.env.CYBERNOTES_USER_DATA_DIR));
+}
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
 const imagesPath = path.join(userDataPath, 'images');
-const backupsDir = path.join(userDataPath, 'backups');
+const DEFAULT_BACKUPS_DIR = path.join(userDataPath, 'backups');
+
+// ─── Migración de la carpeta de datos (cyber-notes → CyberNotes) ──────────
+// El directorio userData venía del package.json#name = "cyber-notes". Al
+// cambiarlo a "CyberNotes" la carpeta antigua queda huérfana; su contenido se
+// traslada a la nueva para que los usuarios conserven notas, imágenes y
+// respaldos. Se ejecuta una vez por perfil: si el destino ya tiene datos de
+// usuario no se toca nada, y si solo tiene contenido demo recién sembrado
+// (arranque previo con la migración fallida) es descartado y reemplazado.
+// La carpeta antigua nunca se borra: queda como respaldo si algo falla.
+
+/** Mueve una carpeta; si está en uso (app vieja abierta), la copia. */
+function moveOrCopyDir(src: string, dest: string): void {
+  if (!fs.existsSync(src)) return;
+  try {
+    if (!fs.existsSync(dest)) {
+      fs.renameSync(src, dest);
+      return;
+    }
+    // Destino existente y vacío: renombrar encima es seguro e instantáneo.
+    if (fs.readdirSync(dest).length === 0) {
+      fs.rmdirSync(dest);
+      fs.renameSync(src, dest);
+      return;
+    }
+  } catch { /* en uso o multi-volumen: copiar */ }
+  fs.cpSync(src, dest, { recursive: true, force: true });
+}
+
+function copyDirMerge(src: string, dest: string): void {
+  if (!fs.existsSync(src)) return;
+  try {
+    fs.cpSync(src, dest, { recursive: true, force: true });
+  } catch { /* la continuidad de estos archivos no es crítica */ }
+}
+
+/** Snapshot consistente de la BD legacy (tolera la app antigua abierta en WAL). */
+async function backupLegacyDatabase(legacyDb: string, targetDb: string): Promise<void> {
+  const Database = require('better-sqlite3');
+  let src: any = null;
+  try {
+    src = new Database(legacyDb);
+    src.pragma('busy_timeout = 5000');
+    await src.backup(targetDb);
+    return;
+  } catch (err) {
+    writeLog('warn', `[migration] db.backup() falló, se copia el archivo directamente: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    try { src?.close(); } catch { /* ignore */ }
+  }
+  // Último recurso: copia directa de db+wal+shm (unidad de un solo bloque).
+  for (const suffix of ['', '-wal', '-shm']) {
+    const from = legacyDb + suffix;
+    if (fs.existsSync(from)) fs.copyFileSync(from, targetDb + suffix);
+  }
+}
+
+/** Reescribe las URLs file:/// que apuntaban a la carpeta antigua. */
+function rewriteLegacyFileUrls(legacyDir: string): void {
+  const { from, to } = buildFileUrlRewrite(legacyDir, userDataPath);
+  const targets: Array<[string, string]> = [
+    ['notes', 'content'],
+    ['notes', 'thumb'],
+    ['note_revisions', 'content'],
+    ['note_drafts', 'content'],
+  ];
+  const Database = require('better-sqlite3');
+  const migratedDb = new Database(dbPath);
+  try {
+    migratedDb.pragma('busy_timeout = 5000');
+    let rows = 0;
+    for (const [table, col] of targets) {
+      const row = migratedDb.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE ${col} LIKE ?`).get(`%${from}%`);
+      if (!row?.c) continue;
+      migratedDb.prepare(`UPDATE ${table} SET ${col} = REPLACE(${col}, ?, ?) WHERE ${col} LIKE ?`).run(from, to, `%${from}%`);
+      rows += row.c;
+    }
+    // Respaldo personalizado apuntando a la carpeta vieja: vuelve al default.
+    const legacyBackupsPosix = path.join(legacyDir, 'backups').replace(/\\/g, '/').toLowerCase();
+    migratedDb.prepare("DELETE FROM settings WHERE key = 'backup_folder' AND LOWER(REPLACE(value, '\\', '/')) = ?").run(legacyBackupsPosix);
+    if (rows > 0) {
+      writeLog('info', `[migration] Reescritas ${rows} fila(s) con URLs de la carpeta antigua`);
+    }
+  } finally {
+    migratedDb.close();
+  }
+}
+
+async function migrateLegacyDataFolder(): Promise<void> {
+  // Solo aplica con el perfil predeterminado: con CYBERNOTES_USER_DATA_DIR
+  // (pruebas/CI) la ruta vieja sería la del usuario real y no se toca.
+  if (process.env.CYBERNOTES_USER_DATA_DIR) return;
+  if (userDataPath !== path.join(app.getPath('appData'), DATA_FOLDER_NAME)) return;
+  const legacyDir = path.join(app.getPath('appData'), LEGACY_DATA_FOLDER_NAME);
+  if (!fs.existsSync(legacyDir) || fs.existsSync(path.join(userDataPath, DATA_MIGRATION_MARKER))) return;
+  const legacyDb = path.join(legacyDir, 'cybernotes.db');
+  if (!fs.existsSync(legacyDb)) return;
+
+  try {
+    // El destino puede existir vacío (renombre fallido en un arranque previo)
+    // o con contenido demo recién sembrado. En ambos casos los datos reales
+    // están en la carpeta legacy y deben ganar; si el destino ya guarda notas
+    // de usuario, no se toca nada y se avisa dónde quedó la carpeta antigua.
+    let replaceTarget = false;
+    if (fs.existsSync(dbPath)) {
+      const Database = require('better-sqlite3');
+      let probe: any = null;
+      try {
+        probe = new Database(dbPath);
+        const ids: string[] = probe.prepare('SELECT id FROM notes').all().map((r: any) => r.id);
+        replaceTarget = isPristineSeedProfile(ids);
+      } catch (probeErr) {
+        // BD ilegible en destino: no se arriesga nada; el aviso queda en el log.
+        writeLog('warn', `[migration] No se pudo leer el perfil destino para decidir la migración: ${probeErr instanceof Error ? probeErr.message : String(probeErr)}`);
+      } finally {
+        try { probe?.close(); } catch { /* ignore */ }
+      }
+      if (!replaceTarget) {
+        writeLog('warn', `[migration] ${LEGACY_DATA_FOLDER_NAME} tiene datos pero ${DATA_FOLDER_NAME} ya guarda un perfil con notas; nada se movió. Carpeta antigua conservada en: ${legacyDir}`);
+        return;
+      }
+    }
+
+    if (replaceTarget) {
+      // Perfil demo: descartar su BD y sus imágenes/respaldos vacíos para
+      // que la migración entre en una carpeta limpia.
+      for (const suffix of ['', '-wal', '-shm']) {
+        try { fs.rmSync(dbPath + suffix, { force: true }); } catch { /* ignore */ }
+      }
+      try { fs.rmSync(imagesPath, { recursive: true, force: true }); } catch { /* ignore */ }
+      try { fs.rmSync(DEFAULT_BACKUPS_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+
+    // Imágenes y respaldos: renombrar (instantáneo, mismo volumen) y, si la
+    // carpeta está en uso, copiar. Logs y diccionarios: solo continuidad.
+    moveOrCopyDir(path.join(legacyDir, 'images'), imagesPath);
+    moveOrCopyDir(path.join(legacyDir, 'backups'), DEFAULT_BACKUPS_DIR);
+    copyDirMerge(path.join(legacyDir, 'logs'), path.join(userDataPath, 'logs'));
+    copyDirMerge(path.join(legacyDir, 'Dictionaries'), path.join(userDataPath, 'Dictionaries'));
+    for (const name of ['.updaterId', 'Custom Dictionary.txt', 'Custom Dictionary.txt.backup']) {
+      const src = path.join(legacyDir, name);
+      const dest = path.join(userDataPath, name);
+      if (fs.existsSync(src) && !fs.existsSync(dest)) {
+        try { fs.copyFileSync(src, dest); } catch { /* ignore */ }
+      }
+    }
+
+    await backupLegacyDatabase(legacyDb, dbPath);
+    rewriteLegacyFileUrls(legacyDir);
+    fs.writeFileSync(path.join(userDataPath, DATA_MIGRATION_MARKER), new Date().toISOString());
+    writeLog('info', `[migration] Datos migrados de ${legacyDir} a ${userDataPath}`);
+  } catch (err) {
+    // La migración jamás impide el arranque: si falla, el perfil nuevo queda
+    // como esté y los datos siguen intactos en la carpeta antigua.
+    writeLog('error', `[migration] Falló la migración de datos: ${err instanceof Error ? err.stack || err.message : String(err)}`);
+  }
+}
+
+/**
+ * Carpeta destino de los respaldos automáticos. Por defecto userData/backups,
+ * personalizable con el ajuste backup_folder (ruta absoluta). Se lee en cada
+ * uso: cambiar el ajuste en Ajustes aplica al siguiente respaldo sin reinicio.
+ */
+function getBackupsDir(): string {
+  try {
+    const row = queryGet("SELECT value FROM settings WHERE key = 'backup_folder'");
+    const custom = typeof row?.value === 'string' ? row.value.trim() : '';
+    if (custom && path.isAbsolute(custom)) return custom;
+  } catch {
+    /* BD no lista (arranque temprano): usar el default */
+  }
+  return DEFAULT_BACKUPS_DIR;
+}
 initLogger(userDataPath);
 
 // ─── uuid ─────────────────────────────────────────────────────────────────
 const { v4: uuidv4 } = require('uuid');
 
-// ─── SQL.js DB ────────────────────────────────────────────────────────────
+// ─── SQLite (better-sqlite3, archivo nativo con WAL) ─────────────────────
+// Persistencia incremental: cada transacción escribe solo las páginas sucias
+// al archivo. Sustituye a sql.js, que re-serializaba la base completa en cada
+// guardado y bloqueaba el proceso principal mientras trabajaba el editor.
 let db: any = null;
-let SQL: any = null;
 
 /** Columnas ligeras para listados (sin content HTML completo). */
 const NOTE_META_COLS = 'id, folder_id, title, preview, thumb, pinned, created_at, updated_at, deleted_at';
 const TRASH_RETENTION_DAYS = 30;
 
-const DB_FLUSH_MS = 1500;
-let dbDirty = false;
-let dbFlushTimer: ReturnType<typeof setTimeout> | null = null;
-
-function saveDbToDisk() {
-  if (!db) return;
-  const data = db.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
-  dbDirty = false;
-}
-
-/** Programa un flush diferido; coalescea muchas escrituras (autosave, settings, etc.). */
-function scheduleDbFlush(delayMs = DB_FLUSH_MS) {
-  dbDirty = true;
-  if (dbFlushTimer) clearTimeout(dbFlushTimer);
-  dbFlushTimer = setTimeout(() => {
-    dbFlushTimer = null;
-    if (dbDirty) saveDbToDisk();
-  }, delayMs);
-}
-
-/** Fuerza escritura inmediata (quit, export, import, operaciones críticas). */
-function flushDbNow() {
-  if (dbFlushTimer) {
-    clearTimeout(dbFlushTimer);
-    dbFlushTimer = null;
-  }
-  if (dbDirty || db) {
-    // Siempre exportar si hay dirty; si no dirty y solo se pide flush, no-op salvo dirty
-    if (dbDirty) saveDbToDisk();
-  }
-}
-
 function ensureColumn(table: string, column: string, typeSql: string) {
   const cols = queryAll(`PRAGMA table_info(${table})`);
   if (!cols.some((c: any) => c.name === column)) {
-    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeSql}`);
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeSql}`);
   }
 }
 
-async function initDatabase() {
-  // Resolver path del WASM de sql.js
-  const sqlWasmPath = isDev 
-    ? path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm')
-    : path.join(process.resourcesPath, 'sql-wasm.wasm');
-  
-  // Inicializar sql.js con el archivo WASM
-  const initSqlJs = require('sql.js');
-  SQL = await initSqlJs({
-    locateFile: () => sqlWasmPath,
-  });
+// ─── Migración única: imágenes base64 → archivos en images/ ──────────────
+// El HTML de notas y revisiones podía incrustar imágenes como data:URL
+// base64 (pegado directo en el editor). Eso inflaba la base: cada imagen se
+// duplicaba en cada snapshot de revisión. Esta pasada extrae cada imagen a
+// images/ (deduplicada por hash SHA-1 del binario) y deja solo la URL file:.
+const BASE64_IMAGE_RE = /data:image\/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)/g;
 
-  // Cargar DB desde disco si existe, o crear nueva
-  if (fs.existsSync(dbPath)) {
-    const fileBuffer = fs.readFileSync(dbPath);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
+function sniffImageExt(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'gif';
+  if (buf.slice(0, 4).toString('latin1') === 'RIFF' && buf.slice(8, 12).toString('latin1') === 'WEBP') return 'webp';
+  const head = buf.slice(0, 200).toString('utf8').trim().toLowerCase();
+  if (head.startsWith('<svg') || head.startsWith('<?xml')) return 'svg';
+  return null;
+}
+
+function migrateBase64ImagesToFiles(): void {
+  if (!db) return;
+  const flag = queryGet("SELECT value FROM settings WHERE key = 'base64_images_migrated'");
+  if (flag?.value === 'true') return;
+  if (!fs.existsSync(imagesPath)) fs.mkdirSync(imagesPath, { recursive: true });
+
+  const fileUrlFor = new Map<string, string>();
+  const REJECTED = '\u0000rejected';
+  let filesWritten = 0;
+
+  const toFileUrl = (dataUrl: string): string | null => {
+    const cached = fileUrlFor.get(dataUrl);
+    if (cached !== undefined) return cached === REJECTED ? null : cached;
+    const m = /^data:image\/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+    if (!m) {
+      fileUrlFor.set(dataUrl, REJECTED);
+      return null;
+    }
+    let buf: Buffer;
+    try {
+      buf = Buffer.from(m[2], 'base64');
+    } catch {
+      fileUrlFor.set(dataUrl, REJECTED);
+      return null;
+    }
+    const ext = sniffImageExt(buf);
+    if (!ext || buf.length === 0 || buf.length > IMAGE_MAX_BYTES) {
+      fileUrlFor.set(dataUrl, REJECTED);
+      return null;
+    }
+    const hash = crypto.createHash('sha1').update(buf).digest('hex');
+    const dest = path.join(imagesPath, `${hash}.${ext}`);
+    if (!fs.existsSync(dest)) {
+      fs.writeFileSync(dest, buf);
+      filesWritten++;
+    }
+    const url = `file:///${dest.replace(/\\/g, '/')}`;
+    fileUrlFor.set(dataUrl, url);
+    return url;
+  };
+
+  const migrateColumn = (table: string, pkCol: string, col: string): number => {
+    const rows = queryAll(`SELECT ${pkCol} AS pk, ${col} AS val FROM ${table} WHERE ${col} LIKE '%data:image/%'`);
+    const updates: Array<{ pk: any; next: string }> = [];
+    for (const row of rows) {
+      const val: string = row.val ?? '';
+      if (!val.includes('data:image/')) continue;
+      const next = val.replace(BASE64_IMAGE_RE, (full: string) => toFileUrl(full) ?? full);
+      if (next !== val) updates.push({ pk: row.pk, next });
+    }
+    if (updates.length > 0) {
+      const tx = db.transaction((batch: Array<{ pk: any; next: string }>) => {
+        for (const u of batch) {
+          db.prepare(`UPDATE ${table} SET ${col} = ? WHERE ${pkCol} = ?`).run(u.next, u.pk);
+        }
+      });
+      tx(updates);
+    }
+    return updates.length;
+  };
+
+  const notesUpdated = migrateColumn('notes', 'id', 'content');
+  const notesThumbs = migrateColumn('notes', 'id', 'thumb');
+  const revisionsUpdated = migrateColumn('note_revisions', 'id', 'content');
+  const draftsUpdated = migrateColumn('note_drafts', 'note_id', 'content');
+
+  runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['base64_images_migrated', 'true']);
+  if (notesUpdated + notesThumbs + revisionsUpdated + draftsUpdated > 0) {
+    // Reclama el espacio liberado por los blobs embebidos (una sola vez).
+    db.exec('VACUUM');
   }
+  writeLog('info', `[images] base64 migration: notes=${notesUpdated} thumbs=${notesThumbs} revisions=${revisionsUpdated} drafts=${draftsUpdated}, files=${filesWritten}`);
+}
+
+async function initDatabase() {
+  // better-sqlite3 abre (o crea) el archivo directamente; el esquema y las
+  // migraciones de columnas se ejecutan igual que antes.
+  const Database = require('better-sqlite3');
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  // NORMAL en WAL: durable ante caída de la app; el único riesgo de pérdida
+  // es un corte de luz en el preciso instante de un checkpoint (aceptable,
+  // el auto-backup cubre el resto).
+  db.pragma('synchronous = NORMAL');
+  db.pragma('busy_timeout = 3000');
+  db.pragma('cache_size = -8000');
 
   // Crear tablas si no existen
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -241,8 +483,12 @@ async function initDatabase() {
     seedInitialDemoContent();
   }
 
-  // Guardar schema inicial
-  saveDbToDisk();
+  // Migración única: imágenes base64 embebidas → archivos en images/
+  try {
+    migrateBase64ImagesToFiles();
+  } catch (err) {
+    writeLog('error', `base64 image migration failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   // Carpeta de imágenes
   if (!fs.existsSync(imagesPath)) {
@@ -373,26 +619,30 @@ function backfillNoteThumbs() {
   for (const row of rows) {
     const thumb = extractThumbFromContent(row.content);
     if (!thumb) continue;
-    db.run('UPDATE notes SET thumb = ? WHERE id = ?', [thumb, row.id]);
+    db.prepare('UPDATE notes SET thumb = ? WHERE id = ?').run(thumb, row.id);
     updated++;
   }
   if (updated > 0) {
-    dbDirty = true;
     console.log(`[CyberNotes] Backfilled thumbs for ${updated} note(s)`);
   }
 }
 
 // ─── Helper: query → array de objetos ─────────────────────────────────────
+// Caché de prepared statements: better-sqlite3 reutiliza el compilado, lo que
+// abarata los handlers calientes (settings, autosave, drafts).
+const stmtCache = new Map<string, any>();
+function cachedStmt(sql: string): any {
+  let stmt = stmtCache.get(sql);
+  if (!stmt) {
+    stmt = db.prepare(sql);
+    stmtCache.set(sql, stmt);
+  }
+  return stmt;
+}
+
 function queryAll(sql: string, params: any[] = []): any[] {
   if (!db) throw new Error('Base de datos no inicializada');
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows: any[] = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
+  return cachedStmt(sql).all(...params);
 }
 
 function queryGet(sql: string, params: any[] = []): any | null {
@@ -400,29 +650,21 @@ function queryGet(sql: string, params: any[] = []): any | null {
   return rows.length > 0 ? rows[0] : null;
 }
 
-/** Ejecuta SQL y programa flush diferido (no bloquea el main en cada UPDATE). */
-function runQuery(sql: string, params: any[] = [], opts?: { flushNow?: boolean }) {
+/** Ejecuta SQL en el archivo (WAL persiste automáticamente; no hay flush manual). */
+function runQuery(sql: string, params: any[] = []) {
   if (!db) throw new Error('Base de datos no inicializada');
-  db.run(sql, params);
-  if (opts?.flushNow) {
-    dbDirty = true;
-    flushDbNow();
-  } else {
-    scheduleDbFlush();
-  }
+  cachedStmt(sql).run(...params);
 }
 
-/** Varias mutaciones sin flush intermedio; un solo schedule al final. */
-function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>, opts?: { flushNow?: boolean }) {  if (!db) throw new Error('Base de datos no inicializada');
+/** Varias mutaciones en una sola transacción atómica. */
+const runQueryBatchTx = (ops: Array<{ sql: string; params?: any[] }>) => {
   for (const op of ops) {
-    db.run(op.sql, op.params ?? []);
+    cachedStmt(op.sql).run(...(op.params ?? []));
   }
-  if (opts?.flushNow) {
-    dbDirty = true;
-    flushDbNow();
-  } else {
-    scheduleDbFlush();
-  }
+};
+function runQueryBatch(ops: Array<{ sql: string; params?: any[] }>) {
+  if (!db) throw new Error('Base de datos no inicializada');
+  db.transaction(runQueryBatchTx)(ops);
 }
 
 function purgeOldTrash(): void {
@@ -693,21 +935,41 @@ function getAutoBackupConfig(): { enabled: boolean; hours: number; keep: number 
   };
 }
 
-function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): { ok: boolean; file?: string } {
+async function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): Promise<{ ok: boolean; file?: string }> {
   if (autoBackupRunning) return { ok: false };
+  if (!db) return { ok: false };
   autoBackupRunning = true;
+  // Respaldo unificado: un archivo JSON v2 autocontenido (notas, carpetas,
+  // uso e imágenes embebidas). Mismo formato que el export manual: portable
+  // entre equipos y restaurable desde Ajustes.
+  let dest: string | null = null;
   try {
-    flushDbNow();
-    if (!fs.existsSync(dbPath)) return { ok: false };
+    const backupsDir = getBackupsDir();
     fs.mkdirSync(backupsDir, { recursive: true });
-    const file = backupFileName(new Date());
-    fs.copyFileSync(dbPath, path.join(backupsDir, file));
+    const baseName = `${backupEntryName(new Date())}.json`;
+    // Dos respaldos en el mismo segundo: sufijo -2, -3, ... en vez de fallar.
+    for (let attempt = 1; attempt < 100; attempt++) {
+      const candidate = path.join(backupsDir, attempt === 1 ? baseName : `${backupEntryName(new Date())}-${attempt}.json`);
+      if (fs.existsSync(candidate)) continue;
+      dest = candidate;
+      break;
+    }
+    if (!dest) throw new Error('no usable backup file name');
+    // Escritura en dos pasos: nunca dejar un .json a medias tras un fallo.
+    const tmpDest = path.join(backupsDir, `.${path.basename(dest)}.part`);
+    fs.writeFileSync(tmpDest, JSON.stringify(buildExportPayload(), null, 2));
+    fs.renameSync(tmpDest, dest);
 
     const keep = getAutoBackupConfig().keep;
-    const files = fs.readdirSync(backupsDir);
-    for (const old of selectBackupsToPrune(files, keep)) {
+    const entries = fs.readdirSync(backupsDir);
+    for (const old of selectBackupsToPrune(entries, keep)) {
       try {
-        fs.unlinkSync(path.join(backupsDir, old));
+        const oldPath = path.join(backupsDir, old);
+        if (fs.statSync(oldPath).isDirectory()) {
+          fs.rmSync(oldPath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(oldPath);
+        }
       } catch {
         /* conserva las demas */
       }
@@ -715,12 +977,17 @@ function runAutoBackup(reason: 'schedule' | 'startup' | 'manual'): { ok: boolean
 
     const now = new Date().toISOString();
     runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['auto_backup_last', now]);
-    writeLog('info', `Auto backup (${reason}) saved as ${file}`);
+    const entryName = path.basename(dest);
+    writeLog('info', `Auto backup (${reason}) saved as ${entryName}`);
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('backup:completed', { at: now, file });
+      mainWindow.webContents.send('backup:completed', { at: now, file: entryName });
     }
-    return { ok: true, file };
+    return { ok: true, file: entryName };
   } catch (err) {
+    // No dejar respaldos a medio formar (disco lleno, carpeta perdida, etc.).
+    if (dest) {
+      try { fs.rmSync(dest, { force: true }); } catch { /* ignore */ }
+    }
     writeLog('error', `Auto backup (${reason}) failed: ${err instanceof Error ? err.message : String(err)}`);
     return { ok: false };
   } finally {
@@ -843,20 +1110,13 @@ function clampStickySize(width: number, height: number, maxWidth: number, maxHei
   };
 }
 
-function clampStickyWindowOpacity(value: number): number {
-  const bounded = Math.min(1, Math.max(0.1, value));
-  return [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1].reduce((closest, option) => (
-    Math.abs(option - bounded) <= Math.abs(closest - bounded) ? option : closest
-  ), 0.9);
-}
-
 function applyStickyWindowChrome(win: BrowserWindow, color?: string, opacity?: number): void {
   if (win.isDestroyed()) return;
   if (color) {
     win.setBackgroundColor(STICKY_BACKGROUNDS[asStickyColorId(color)]);
   }
   if (typeof opacity === 'number' && Number.isFinite(opacity)) {
-    win.setOpacity(clampStickyWindowOpacity(opacity));
+    win.setOpacity(normalizeStickyOpacity(opacity));
   }
 }
 
@@ -1041,8 +1301,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     const [contentWidth, contentHeight] = win.getContentSize();
     runQuery(
       `UPDATE sticky_notes SET x = ?, y = ?, width = ?, height = ? WHERE note_id = ?`,
-      [position.x, position.y, contentWidth, contentHeight, noteId],
-      { flushNow: isQuitting }
+      [position.x, position.y, contentWidth, contentHeight, noteId]
     );
   };
   const saveBounds = () => {
@@ -1075,8 +1334,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     // sticky's X still dismisses it until they explicitly open it again.
     runQuery(
       'UPDATE sticky_notes SET is_open = ? WHERE note_id = ?',
-      [isQuitting ? 1 : 0, noteId],
-      { flushNow: isQuitting }
+      [isQuitting ? 1 : 0, noteId]
     );
     notifyStickyListChanged();
     updateTrayMenu();
@@ -1108,6 +1366,22 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   // the renderer's first fully painted frame, which makes creation feel slow.
   win.webContents.once('dom-ready', revealStickyWindow);
   win.once('ready-to-show', revealStickyWindow);
+
+  // Mismo menú contextual del título que la ventana principal: se reenvían
+  // los datos (sugerencias de ortografía) al renderer de la flotante. El
+  // cuerpo conserva su propio menú (lo pinta el renderer al recibir esto).
+  win.webContents.on('context-menu', (event, params) => {
+    if (win.isDestroyed()) return;
+    event.preventDefault();
+    win.webContents.send('context-menu-data', {
+      x: params.x,
+      y: params.y,
+      suggestions: params.dictionarySuggestions,
+      misspelledWord: params.misspelledWord,
+      linkURL: params.linkURL,
+      imageSrc: null,
+    });
+  });
 
   if (isDev) {
     win.loadURL(getDevRendererUrl({ sticky: noteId }));
@@ -1185,7 +1459,7 @@ function getStickyConfig(noteId: string) {
   const row = queryGet('SELECT color, opacity, pinned_top, zoom FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
     color: row?.color || 'cyber-yellow',
-    opacity: clampStickyWindowOpacity(readNumericSetting(row?.opacity, 0.9)),
+    opacity: normalizeStickyOpacity(readNumericSetting(row?.opacity, 0.9)),
     pinned_top: row ? row.pinned_top !== 0 : true,
     zoom: clampStickyZoom(row?.zoom ?? 1.0),
   };
@@ -1194,7 +1468,7 @@ function getStickyConfig(noteId: string) {
 function saveStickyConfig(noteId: string, config: { color?: string; opacity?: number; pinned_top?: boolean; zoom?: number }) {
   const current = getStickyConfig(noteId);
   const color = config.color !== undefined ? config.color : current.color;
-  const opacity = config.opacity !== undefined ? config.opacity : current.opacity;
+  const opacity = normalizeStickyOpacity(config.opacity !== undefined ? config.opacity : current.opacity);
   const pinnedTop = config.pinned_top !== undefined ? (config.pinned_top ? 1 : 0) : (current.pinned_top ? 1 : 0);
   const zoom = config.zoom !== undefined ? clampStickyZoom(config.zoom) : current.zoom;
 
@@ -1293,6 +1567,9 @@ const TRAY_MENU_EST_HEIGHT = 220;
 let trayMenuWin: BrowserWindow | null = null;
 let trayMenuAnchor: any = null;
 let trayMenuHideTimer: NodeJS.Timeout | null = null;
+let trayMenuShowPending = false;
+let trayMenuShowFallback: NodeJS.Timeout | null = null;
+let trayMenuRevealTimer: NodeJS.Timeout | null = null;
 let trayMenuLastShown = 0;
 
 function isWindowShown(): boolean {
@@ -1549,6 +1826,7 @@ function ensureTrayMenuWin() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     }
   });
   trayMenuWin.setAlwaysOnTop(true, 'pop-up-menu');
@@ -1565,9 +1843,29 @@ function ensureTrayMenuWin() {
   trayMenuWin.webContents.once('did-finish-load', () => {
     if (!trayMenuWin || trayMenuWin.isDestroyed()) return;
     trayMenuWin.webContents.send('tray-menu-state', { ...buildTrayMenuState(), resetView: true });
-    trayMenuWin.webContents.send('tray-menu-show');
   });
   return trayMenuWin;
+}
+
+function revealTrayMenuWin() {
+  if (!trayMenuWin || trayMenuWin.isDestroyed()) return;
+  if (trayMenuShowFallback) { clearTimeout(trayMenuShowFallback); trayMenuShowFallback = null; }
+  trayMenuShowPending = false;
+  if (!trayMenuWin.isVisible()) {
+    try { trayMenuWin.setOpacity(0); } catch { /* ignore */ }
+    trayMenuWin.show();
+    if (trayMenuRevealTimer) clearTimeout(trayMenuRevealTimer);
+    trayMenuRevealTimer = setTimeout(() => {
+      trayMenuRevealTimer = null;
+      if (trayMenuWin && !trayMenuWin.isDestroyed()) {
+        try { trayMenuWin.setOpacity(1); } catch { /* ignore */ }
+      }
+    }, 40);
+  } else {
+    try { trayMenuWin.setOpacity(1); } catch { /* ignore */ }
+  }
+  trayMenuWin.focus();
+  trayMenuLastShown = Date.now();
 }
 
 function showTrayMenu(eventBounds?: any) {
@@ -1584,20 +1882,33 @@ function showTrayMenu(eventBounds?: any) {
   const w = ensureTrayMenuWin();
   if (!w || w.isDestroyed()) return;
   const geo = trayMenuGeometry(trayMenuAnchor, TRAY_MENU_WIDTH + 2 * TRAY_MENU_SHADOW_PAD, TRAY_MENU_EST_HEIGHT);
-  w.setBounds(geo);
-  if (!w.isVisible()) w.show();
-  w.focus();
-  trayMenuLastShown = Date.now();
+  const current = w.getBounds();
+  if (current.x !== geo.x || current.y !== geo.y || current.width !== geo.width || current.height !== geo.height) {
+    w.setBounds(geo);
+  }
+
+  trayMenuShowPending = true;
+  if (trayMenuShowFallback) { clearTimeout(trayMenuShowFallback); trayMenuShowFallback = null; }
+  trayMenuShowFallback = setTimeout(() => {
+    trayMenuShowFallback = null;
+    if (trayMenuShowPending) revealTrayMenuWin();
+  }, 500);
+
   if (!w.webContents.isLoading()) {
     w.webContents.send('tray-menu-state', { ...buildTrayMenuState(), resetView: true });
-    w.webContents.send('tray-menu-show');
   }
 }
 
 function hideTrayMenu() {
   if (trayMenuHideTimer) { clearTimeout(trayMenuHideTimer); trayMenuHideTimer = null; }
-  if (trayMenuWin && !trayMenuWin.isDestroyed() && trayMenuWin.isVisible()) {
-    trayMenuWin.hide();
+  if (trayMenuShowFallback) { clearTimeout(trayMenuShowFallback); trayMenuShowFallback = null; }
+  if (trayMenuRevealTimer) { clearTimeout(trayMenuRevealTimer); trayMenuRevealTimer = null; }
+  trayMenuShowPending = false;
+  if (trayMenuWin && !trayMenuWin.isDestroyed()) {
+    try { trayMenuWin.setOpacity(1); } catch { /* ignore */ }
+    if (trayMenuWin.isVisible()) {
+      trayMenuWin.hide();
+    }
   }
 }
 
@@ -1724,16 +2035,19 @@ ipcMain.on('tray-menu-ready', (_event, rect) => {
   const targetW = Math.round((rect.width || TRAY_MENU_WIDTH) + 2 * pad);
   const targetH = Math.round((rect.height || (TRAY_MENU_EST_HEIGHT - 2 * pad)) + 2 * pad);
   const geo = trayMenuGeometry(trayMenuAnchor, targetW, targetH);
-  trayMenuWin.setBounds(geo);
+  const current = trayMenuWin.getBounds();
+  if (current.x !== geo.x || current.y !== geo.y || current.width !== geo.width || current.height !== geo.height) {
+    trayMenuWin.setBounds(geo);
+  }
+  if (trayMenuShowPending) revealTrayMenuWin();
 });
 
-function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
-  width: number;
-  height: number;
-  x?: number;
-  y?: number;
-  center: boolean;
-} {
+const MAIN_WINDOW_MIN_WIDTH = 840;
+const MAIN_WINDOW_MIN_HEIGHT = 560;
+const MAIN_WINDOW_HORIZONTAL_MARGIN = 48;
+const MAIN_WINDOW_VERTICAL_MARGIN = 16;
+
+function getValidWindowBounds(savedBoundsJson: string | null | undefined) {
   const primaryDisplay = screen.getPrimaryDisplay();
   const primaryWorkArea = primaryDisplay.workArea;
 
@@ -1746,19 +2060,10 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
       parsed = JSON.parse(savedBoundsJson);
     } catch (_) {}
   }
+  if (!parsed || typeof parsed !== 'object') parsed = {};
 
-  if (!parsed || typeof parsed !== 'object') {
-    return {
-      width: defaultWidth,
-      height: defaultHeight,
-      x: undefined,
-      y: undefined,
-      center: true,
-    };
-  }
-
-  let width = typeof parsed.width === 'number' && parsed.width >= 500 ? parsed.width : defaultWidth;
-  let height = typeof parsed.height === 'number' && parsed.height >= 400 ? parsed.height : defaultHeight;
+  const width = typeof parsed.width === 'number' && parsed.width >= 320 ? parsed.width : defaultWidth;
+  const height = typeof parsed.height === 'number' && parsed.height >= 240 ? parsed.height : defaultHeight;
   const x = typeof parsed.x === 'number' ? parsed.x : undefined;
   const y = typeof parsed.y === 'number' ? parsed.y : undefined;
 
@@ -1783,18 +2088,13 @@ function getValidWindowBounds(savedBoundsJson: string | null | undefined): {
   }
   if (!target) target = primaryDisplay;
 
-  // Restaurada siempre centrada en su pantalla: evita ventanas a caballo
-  // entre monitores con distinta escala.
-  const wa = target.workArea;
-  width = Math.min(width, wa.width);
-  height = Math.min(height, wa.height);
-  return {
-    width,
-    height,
-    x: Math.round(wa.x + (wa.width - width) / 2),
-    y: Math.round(wa.y + (wa.height - height) / 2),
-    center: false,
-  };
+  // El mínimo preferido se reduce si no cabe en el área útil del monitor.
+  return fitWindowToWorkArea(
+    { width, height },
+    target.workArea,
+    { width: MAIN_WINDOW_MIN_WIDTH, height: MAIN_WINDOW_MIN_HEIGHT },
+    { width: MAIN_WINDOW_HORIZONTAL_MARGIN, height: MAIN_WINDOW_VERTICAL_MARGIN },
+  );
 }
 
 function createWindow() {
@@ -1802,17 +2102,16 @@ function createWindow() {
   const boundsJson = queryGet('SELECT value FROM settings WHERE key = ?', ['window_bounds']);
   const isMaximizedVal = queryGet('SELECT value FROM settings WHERE key = ?', ['is_maximized']);
 
-  const winBounds = getValidWindowBounds(boundsJson?.value);
+  const { bounds: winBounds, minimum: winMinimum } = getValidWindowBounds(boundsJson?.value);
 
   mainWindow = new BrowserWindow({
     width: winBounds.width,
     height: winBounds.height,
     x: winBounds.x,
     y: winBounds.y,
-    center: winBounds.center,
-    // 840x560 lógicos caben en 1280x800 físicos al 150% de escala.
-    minWidth: 840,
-    minHeight: 560,
+    center: false,
+    minWidth: winMinimum.width,
+    minHeight: winMinimum.height,
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0d0d14',
@@ -1826,33 +2125,55 @@ function createWindow() {
     show: false,
   });
 
+  // On Windows with mixed display scales, BrowserWindow's constructor can
+  // enlarge the requested size when placing the window on a secondary display.
+  // setBounds uses the correct display scale once the native window exists.
+  mainWindow.setBounds(winBounds);
+
   // Guardar estado al cambiar (debounce: evitar N flushes durante resize/drag)
   let windowStateTimer: ReturnType<typeof setTimeout> | null = null;
+  let initialPlacementActive = isMaximizedVal?.value !== 'true';
+  let placementTimer: ReturnType<typeof setTimeout> | null = null;
+  let placementEndTimer: ReturnType<typeof setTimeout> | null = null;
+  const correctInitialPlacement = () => {
+    if (!initialPlacementActive || !mainWindow || mainWindow.isDestroyed()
+      || !mainWindow.isVisible() || mainWindow.isMaximized()) return;
+    if (needsPlacementCorrection(mainWindow.getBounds(), winBounds)) {
+      mainWindow.setBounds(winBounds);
+    }
+  };
+  const schedulePlacementCorrection = () => {
+    if (!initialPlacementActive || placementTimer) return;
+    placementTimer = setTimeout(() => {
+      placementTimer = null;
+      correctInitialPlacement();
+    }, 0);
+  };
   const saveWindowState = (immediate = false) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
     const doSave = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
-      const isMax = mainWindow.isMaximized();
+      const bounds = mainWindow.getBounds();
+      const display = screen.getDisplayMatching(bounds);
+      const isMax = isVisiblyMaximized(mainWindow.isMaximized(), bounds, display.workArea);
       const isMin = mainWindow.isMinimized();
       const isFull = mainWindow.isFullScreen();
 
       if (!isMin) {
-        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false'], { flushNow: immediate });
+        runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['is_maximized', isMax ? 'true' : 'false']);
       }
 
       if (!isMax && !isMin && !isFull) {
-        const b = mainWindow.getBounds();
-        if (b.width >= 500 && b.height >= 400) {
-          const disp = screen.getDisplayMatching(b);
-          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...b, displayId: disp.id })], { flushNow: immediate });
+        if (bounds.width >= 320 && bounds.height >= 240) {
+          runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...bounds, displayId: display.id })]);
         }
       } else {
         try {
           const nb = mainWindow.getNormalBounds();
-          if (nb && nb.width >= 500 && nb.height >= 400) {
+          if (nb && nb.width >= 320 && nb.height >= 240) {
             const disp = screen.getDisplayMatching(nb);
-            runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...nb, displayId: disp.id })], { flushNow: immediate });
+            runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['window_bounds', JSON.stringify({ ...nb, displayId: disp.id })]);
           }
         } catch (_) {}
       }
@@ -1868,10 +2189,15 @@ function createWindow() {
     windowStateTimer = setTimeout(doSave, 300);
   };
 
-  mainWindow.on('resize', () => saveWindowState(false));
-  mainWindow.on('move', () => saveWindowState(false));
+  mainWindow.on('resize', () => { schedulePlacementCorrection(); saveWindowState(false); });
+  mainWindow.on('move', () => { schedulePlacementCorrection(); saveWindowState(false); });
+  // These events are emitted for manual moves/resizes, not setBounds. Once the
+  // user changes the window, its position and size take precedence.
+  mainWindow.on('will-move', () => { initialPlacementActive = false; });
+  mainWindow.on('will-resize', () => { initialPlacementActive = false; });
   mainWindow.on('close', () => saveWindowState(true));
   mainWindow.on('maximize', () => {
+    initialPlacementActive = false;
     saveWindowState(true);
     mainWindow?.webContents.send('window:maximized-state', true);
   });
@@ -1911,6 +2237,53 @@ function createWindow() {
     }
     updateTrayMenu();
   });
+  // Windows can move a restored window again after its first show on a monitor
+  // with a different scale. Correct those native move/resize events until the
+  // user interacts with the window or startup placement has settled.
+  mainWindow.once('show', () => {
+    correctInitialPlacement();
+    placementEndTimer = setTimeout(() => { initialPlacementActive = false; }, 10_000);
+  });
+  mainWindow.on('closed', () => {
+    if (placementTimer) clearTimeout(placementTimer);
+    if (placementEndTimer) clearTimeout(placementEndTimer);
+    screen.removeListener('display-metrics-changed', onDisplayMetricsChanged);
+    screen.removeListener('display-removed', onDisplayRemoved);
+  });
+
+  // A window moved onto a smaller display needs a smaller native minimum too.
+  // Otherwise Windows can keep it larger than the destination work area.
+  const fitToCurrentDisplay = (repositionIfOutside: boolean) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const isMax = mainWindow.isMaximized();
+    const isMin = mainWindow.isMinimized();
+    const isFull = mainWindow.isFullScreen();
+    const current = isMax || isMin || isFull ? mainWindow.getNormalBounds() : mainWindow.getBounds();
+    const workArea = screen.getDisplayMatching(current).workArea;
+    const fitted = fitWindowToWorkArea(
+      current,
+      workArea,
+      { width: MAIN_WINDOW_MIN_WIDTH, height: MAIN_WINDOW_MIN_HEIGHT },
+      { width: MAIN_WINDOW_HORIZONTAL_MARGIN, height: MAIN_WINDOW_VERTICAL_MARGIN },
+    );
+    const [minWidth, minHeight] = mainWindow.getMinimumSize();
+    if (minWidth !== fitted.minimum.width || minHeight !== fitted.minimum.height) {
+      mainWindow.setMinimumSize(fitted.minimum.width, fitted.minimum.height);
+    }
+    if (isMax || isMin || isFull) return;
+    const tooLarge = current.width > fitted.bounds.width + 3 || current.height > fitted.bounds.height + 3;
+    const outside = current.x < workArea.x || current.y < workArea.y
+      || current.x + current.width > workArea.x + workArea.width
+      || current.y + current.height > workArea.y + workArea.height;
+    if (tooLarge || (repositionIfOutside && outside)) {
+      mainWindow.setBounds(fitted.bounds);
+    }
+  };
+  const onDisplayMetricsChanged = () => fitToCurrentDisplay(true);
+  const onDisplayRemoved = () => fitToCurrentDisplay(true);
+  mainWindow.on('moved', () => fitToCurrentDisplay(false));
+  screen.on('display-metrics-changed', onDisplayMetricsChanged);
+  screen.on('display-removed', onDisplayRemoved);
 
   // Manejar cierre (Bandeja de sistema)
   // Primera vez: preguntar qué hacer (estilo CyberPaste) salvo elección recordada.
@@ -2053,7 +2426,9 @@ ipcMain.handle('open-dev-tools', () => {
 ipcMain.handle('open-data-folder', () => shell.openPath(userDataPath));
 ipcMain.handle('open-logs-folder', () => shell.openPath(path.join(userDataPath, 'logs')));
 ipcMain.handle('log:renderer-error', (_e: any, message: string) => logRendererError(message));
-ipcMain.handle('replace-misspelling', (_e: any, word: string) => mainWindow?.webContents.replaceMisspelling(word));
+ipcMain.handle('replace-misspelling', (e: any, word: string) =>
+  // En la ventana que lo pide (principal o flotante), no siempre la principal.
+  (e.sender as any)?.replaceMisspelling?.(word));
 ipcMain.handle('add-to-dictionary', (_e: any, word: string) => {
   if (typeof word !== 'string') return false;
   const clean = word.trim().slice(0, 100);
@@ -2569,8 +2944,8 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'auto_lock_minutes', 'auto_check_updates',
   'last_note_id', 'open_note_ids', 'opened_history', 'recent_cleared_at',
   'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity',
-  'remember_last_note', 'minimize_to_tray', 'close_to_tray',
-  'show_line_counter', 'show_line_gutter', 'show_word_counter', 'show_minimap',
+  'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'close_choice_remembered',
+  'show_line_counter', 'show_line_gutter', 'show_word_counter', 'show_minimap', 'show_keyboard_indicators',
   'autosave_enabled', 'confirm_leave_note_dismissed', 'confirm_move_note_to_trash_dismissed',
   'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
   'caps_lock_sound', 'caps_lock_sound_scope',
@@ -2579,7 +2954,7 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
   'toggle_hotkey', 'toggle_hotkey_enabled',
   'auth_method', 'show_suite_promo', 'usage_stats_enabled', 'usage_stats_expanded',
-  'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep',
+  'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'backup_folder',
   'notes_created_total', 'stickies_created_total',
 ]);
 
@@ -2634,6 +3009,46 @@ ipcMain.handle('settings:reset', () => {
   return true;
 });
 
+// -- Borrado total de datos (Danger Zone) --
+// A diferencia de settings:reset, aquí nada sobrevive: notas, carpetas,
+// borradores, stickies, revisiones, estadísticas, registro de acceso,
+// ajustes (incluidas contraseña y código de recuperación) e imágenes.
+// Los archivos de respaldo automático se conservan: son la única vía
+// de recuperación si el usuario se arrepiente.
+const WIPE_TABLES = [
+  'notes', 'folders', 'note_drafts', 'sticky_notes',
+  'note_revisions', 'usage_days', 'access_log', 'settings',
+] as const;
+
+function wipeDataTables(): void {
+  for (const table of WIPE_TABLES) runQuery(`DELETE FROM ${table}`);
+  try {
+    fs.rmSync(imagesPath, { recursive: true, force: true });
+  } catch { /* se recrea bajo demanda */ }
+  fs.mkdirSync(imagesPath, { recursive: true });
+}
+
+ipcMain.handle('data:wipe-all', async () => {
+  try {
+    // Cerrar todas las stickies primero: referencian notas que van a
+    // desaparecer y su autoguardado podría reinsertarlas tras el borrado.
+    Array.from(stickyWindows.keys()).forEach(noteId => closeStickyNote(noteId));
+    // Segunda pasada tras un margen: cualquier save en vuelo de un renderer
+    // de sticky recién destruido caería después del primer DELETE.
+    wipeDataTables();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    wipeDataTables();
+
+    registerToggleHotkey();
+    startAutoBackupWatcher();
+    updateTrayMenu();
+    writeLog('warn', '[data] Borrado total de fábrica: notas, carpetas, imágenes y ajustes eliminados');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+});
+
 ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
   if (typeof key !== 'string' || typeof value !== 'string') return false;
   if (SETTINGS_RESERVED_KEYS.has(key) || !RENDERER_WRITABLE_SETTINGS.has(key)) {
@@ -2644,11 +3059,28 @@ ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
     console.warn(`[settings] rejected oversized value for key "${key}" (${value.length} chars)`);
     return false;
   }
-  runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
+  // backup_folder: solo rutas absolutas saneadas; cadena vacía = volver al
+  // default. Debe poder crearse la carpeta antes de aceptarla.
+  let normalizedValue = value;
+  if (key === 'backup_folder' && value !== '') {
+    const trimmed = value.trim();
+    if (!path.isAbsolute(trimmed) || trimmed.length > 500 || /[\u0000-\u001f]/.test(trimmed)) {
+      console.warn('[settings] rejected invalid backup_folder path');
+      return false;
+    }
+    try {
+      fs.mkdirSync(trimmed, { recursive: true });
+    } catch {
+      console.warn('[settings] rejected backup_folder (not creatable):', trimmed);
+      return false;
+    }
+    normalizedValue = trimmed;
+  }
+  runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, normalizedValue]);
   const openWindows = [mainWindow, ...stickyWindows.values()];
   openWindows.forEach((win) => {
     if (win && !win.isDestroyed()) {
-      win.webContents.send('setting-changed', { key, value });
+      win.webContents.send('setting-changed', { key, value: normalizedValue });
     }
   });
   if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled') {
@@ -2958,7 +3390,7 @@ ipcMain.handle('drafts:getAll', () => {
   );
 });
 
-ipcMain.handle('drafts:save', (_e: any, draft: any, flushNow = false) => {
+ipcMain.handle('drafts:save', (_e: any, draft: any, _flushNow = false) => {
   const noteId = typeof draft?.note_id === 'string' ? draft.note_id : '';
   const title = typeof draft?.title === 'string' ? draft.title : '';
   const content = typeof draft?.content === 'string' ? draft.content : '';
@@ -2975,7 +3407,6 @@ ipcMain.handle('drafts:save', (_e: any, draft: any, flushNow = false) => {
       (note_id, title, content, base_updated_at, updated_at)
      VALUES (?, ?, ?, ?, ?)`,
     [noteId, title, content, baseUpdatedAt, updatedAt],
-    { flushNow: Boolean(flushNow) }
   );
   return true;
 });
@@ -3178,6 +3609,30 @@ ipcMain.handle('images:selectAndSave', async () => {
   return `file:///${destPath.replace(/\\/g, '/')}`;
 });
 
+/**
+ * Guarda una imagen recibida como binario (pegar / arrastrar al editor) en
+ * images/ y devuelve su URL file:. Evita que el HTML de la nota lleve la
+ * imagen embebida en base64: la nota pesa menos y la base no crece con cada
+ * copia. El tipo real se verifica por magic bytes, no se confía en el MIME.
+ */
+ipcMain.handle('images:saveBinary', (_e: any, data: unknown, _mime: string) => {
+  try {
+    if (!db) return null;
+    if (!(data instanceof ArrayBuffer) && !(ArrayBuffer.isView(data as any))) return null;
+    const buf = Buffer.from(data as ArrayBuffer | Uint8Array);
+    if (buf.length <= 0 || buf.length > CLIPBOARD_IMAGE_MAX_BYTES) return null;
+    const ext = sniffImageExt(buf);
+    if (!ext) return null;
+    fs.mkdirSync(imagesPath, { recursive: true });
+    const destPath = path.join(imagesPath, `${uuidv4()}.${ext}`);
+    fs.writeFileSync(destPath, buf);
+    return `file:///${destPath.replace(/\\/g, '/')}`;
+  } catch (err) {
+    console.error('[CyberNotes] images:saveBinary failed:', err);
+    return null;
+  }
+});
+
 // -- Note document export / print --
 ipcMain.handle('document:export-pdf', async (_e: any, payload: { title?: string; html?: string }) => {
   const title = String(payload?.title || 'cybernotes-note')
@@ -3234,53 +3689,115 @@ ipcMain.handle('document:print', async (_e: any, payload: { title?: string; html
   }
 });
 
-// -- Import/Export --
-ipcMain.handle('data:export', async () => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
-    title: dialogTitle('Exportar datos de CyberNotes', 'Export CyberNotes data'),
-    defaultPath: 'cybernotes-export.json',
-    filters: [{ name: 'JSON', extensions: ['json'] }]
-  });
-  if (result.canceled || !result.filePath) return false;
+// -- Import/Export / Respaldo unificado en JSON v2 --
+// Un mismo formato para todo: notas, carpetas, días de uso y las imágenes
+// embebidas en base64 en el mapa "images". Los refs file:///.../images/x se
+// reescriben a la forma relativa images/x para que el archivo sea portable
+// entre equipos y carpetas. Sirve para el export manual, los respaldos
+// automáticos y la restauración desde Ajustes.
 
-  flushDbNow();
+type ExportPayload = {
+  folders: any[];
+  notes: any[];
+  usage_days: any[];
+  images: Record<string, string>;
+  version: number;
+};
+
+function buildExportPayload(): ExportPayload {
   const folders = queryAll('SELECT * FROM folders');
   const notes = queryAll('SELECT * FROM notes');
   const usageDays = queryAll('SELECT day, opens FROM usage_days ORDER BY day ASC');
-  const exportData = { folders, notes, usage_days: usageDays, version: 1 };
-  
-  fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2));
-  return true;
-});
 
-ipcMain.handle('data:import', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
-    title: dialogTitle('Importar datos a CyberNotes', 'Import CyberNotes data'),
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-    properties: ['openFile']
-  });
-  if (result.canceled || !result.filePaths.length) return false;
+  const images: Record<string, string> = {};
+  const portablizeImageRefs = (text: string): string => {
+    if (typeof text !== 'string' || !text) return text;
+    return text.replace(/file:\/\/\/[^"'\\\s()<>]+/g, (url) => {
+      let filePath = '';
+      try {
+        filePath = decodeURIComponent(url.slice('file:///'.length));
+      } catch {
+        return url;
+      }
+      const resolved = path.normalize(filePath);
+      const rel = path.relative(imagesPath, resolved);
+      if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return url;
+      try {
+        images[path.basename(resolved)] = fs.readFileSync(resolved).toString('base64');
+      } catch {
+        return url; // imagen ausente: se deja el ref tal cual
+      }
+      return `images/${path.basename(resolved)}`;
+    });
+  };
+  for (const n of notes) {
+    n.content = portablizeImageRefs(n.content);
+    n.preview = portablizeImageRefs(n.preview);
+    n.thumb = portablizeImageRefs(n.thumb);
+  }
 
+  return { folders, notes, usage_days: usageDays, images, version: 2 };
+}
+
+/** Decodifica el mapa "images" a archivos reales en imagesPath: nombre -> file URL. */
+function materializeEmbeddedImages(data: any): Map<string, string> {
+  const imageUrls = new Map<string, string>();
+  const embedded = data?.images;
+  if (embedded && typeof embedded === 'object' && !Array.isArray(embedded)) {
+    fs.mkdirSync(imagesPath, { recursive: true });
+    for (const [name, b64] of Object.entries(embedded)) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(name) || typeof b64 !== 'string') continue;
+      let buf: Buffer;
+      try {
+        buf = Buffer.from(b64, 'base64');
+      } catch {
+        continue;
+      }
+      if (buf.length === 0 || buf.length > 64 * 1024 * 1024 || !sniffImageExt(buf)) continue;
+      const dest = path.join(imagesPath, name);
+      try {
+        fs.writeFileSync(dest, buf);
+      } catch {
+        continue;
+      }
+      imageUrls.set(name, `file:///${dest.replace(/\\/g, '/')}`);
+    }
+  }
+  return imageUrls;
+}
+
+function localizeImageRefs(text: string, imageUrls: Map<string, string>): string {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(/(?<![\w/-])images\/([A-Za-z0-9][A-Za-z0-9._-]*)/g, (m, name) => imageUrls.get(name) || m);
+}
+
+/**
+ * Aplica un payload JSON a la base de datos.
+ * merge: inserta/actualiza sin borrar lo actual (Importar).
+ * replace: deja notas, carpetas, borradores y uso tal cual el respaldo
+ * (Restaurar); ajustes, contraseña e historial de versiones no se tocan.
+ */
+function applyImportedData(data: any, mode: 'merge' | 'replace'): { ok: boolean; error?: string } {
   try {
-    const stat = fs.statSync(result.filePaths[0]);
-    if (!stat.isFile() || stat.size > IMPORT_FILE_MAX_BYTES) return false;
-    const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
-    if (!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)) return false;
-    if (data.folders.length + data.notes.length > IMPORT_MAX_ROWS) return false;
+    if (!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)) return { ok: false, error: 'invalid backup file' };
+    if (data.folders.length + data.notes.length > IMPORT_MAX_ROWS) return { ok: false, error: 'backup too large' };
+    if (!db) return { ok: false, error: 'database not ready' };
 
-    // Backup current DB
-    flushDbNow();
-    const backupPath = dbPath + '.backup-' + Date.now();
-    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
+    const imageUrls = materializeEmbeddedImages(data);
 
     const str = (v: unknown, max: number): string =>
       typeof v === 'string' ? v.slice(0, max) : '';
     const idStr = (v: unknown): string | null =>
       typeof v === 'string' && v && v.length <= 100 ? v : null;
 
-    // Insert imported en un solo batch + un flush (evita N exports a disco).
-    // Filas invalidas se omiten en lugar de abortar todo el import.
     const ops: Array<{ sql: string; params?: any[] }> = [];
+    if (mode === 'replace') {
+      ops.push(
+        { sql: 'DELETE FROM notes' },
+        { sql: 'DELETE FROM folders' },
+        { sql: 'DELETE FROM usage_days' },
+      );
+    }
     for (const f of data.folders) {
       const id = idStr(f?.id);
       if (!id) continue;
@@ -3292,16 +3809,18 @@ ipcMain.handle('data:import', async () => {
     for (const n of data.notes) {
       const id = idStr(n?.id);
       if (!id) continue;
-      if (typeof n?.content === 'string' && n.content.length > NOTE_CONTENT_MAX_CHARS) continue;
+      const content = localizeImageRefs(typeof n?.content === 'string' ? n.content : '', imageUrls);
+      if (content.length > NOTE_CONTENT_MAX_CHARS) continue;
+      const thumb = localizeImageRefs(typeof n?.thumb === 'string' ? n.thumb : '', imageUrls);
       ops.push({
         sql: 'INSERT OR REPLACE INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         params: [
           id,
           typeof n?.folder_id === 'string' ? n.folder_id : null,
           str(n?.title, NOTE_TITLE_MAX_CHARS),
-          str(n?.content, NOTE_CONTENT_MAX_CHARS),
-          str(n?.preview, NOTE_PREVIEW_MAX_CHARS),
-          isThumbUrl(n?.thumb) ? (n.thumb as string).slice(0, THUMB_MAX_CHARS) : '',
+          content,
+          localizeImageRefs(str(n?.preview, NOTE_PREVIEW_MAX_CHARS), imageUrls),
+          isThumbUrl(thumb) ? thumb.slice(0, THUMB_MAX_CHARS) : '',
           n?.pinned ? 1 : 0,
           str(n?.created_at, 100),
           str(n?.updated_at, 100),
@@ -3328,8 +3847,62 @@ ipcMain.handle('data:import', async () => {
         });
       }
     }
-    runQueryBatch(ops, { flushNow: true });
-    return true;
+    runQueryBatch(ops);
+
+    if (mode === 'replace') {
+      // La carpeta de imágenes debe quedar como en el respaldo: fuera las
+      // sobrantes que ya nada referencia (quedaron huérfanas).
+      const embedded = data?.images;
+      const keptNames = new Set(
+        embedded && typeof embedded === 'object' && !Array.isArray(embedded)
+          ? Object.keys(embedded).filter(n => /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(n))
+          : []
+      );
+      if (fs.existsSync(imagesPath)) {
+        for (const name of fs.readdirSync(imagesPath)) {
+          if (keptNames.has(name)) continue;
+          try {
+            fs.rmSync(path.join(imagesPath, name), { force: true });
+          } catch { /* conserva el archivo */ }
+        }
+      }
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  }
+}
+
+ipcMain.handle('data:export', async () => {
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    title: dialogTitle('Exportar datos de CyberNotes', 'Export CyberNotes data'),
+    defaultPath: 'cybernotes-export.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  });
+  if (result.canceled || !result.filePath) return false;
+
+  fs.writeFileSync(result.filePath, JSON.stringify(buildExportPayload(), null, 2));
+  return true;
+});
+
+ipcMain.handle('data:import', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: dialogTitle('Importar datos a CyberNotes', 'Import CyberNotes data'),
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths.length) return false;
+
+  try {
+    const stat = fs.statSync(result.filePaths[0]);
+    if (!stat.isFile() || stat.size > IMPORT_FILE_MAX_BYTES) return false;
+    const data = JSON.parse(fs.readFileSync(result.filePaths[0], 'utf-8'));
+
+    // Backup current DB (snapshot consistente con WAL)
+    const backupPath = dbPath + '.backup-' + Date.now();
+    if (db) await db.backup(backupPath);
+
+    return applyImportedData(data, 'merge').ok;
   } catch (e) {
     console.error('Import error:', e);
     return false;
@@ -3341,16 +3914,38 @@ ipcMain.handle('backup:now', () => runAutoBackup('manual'));
 
 ipcMain.handle('backup:list', () => {
   try {
+    const backupsDir = getBackupsDir();
     if (!fs.existsSync(backupsDir)) return [];
+    // Tamano real: en carpetas autocontenidas incluye la copia de images/.
+    const entrySize = (p: string, isDir: boolean): number => {
+      try {
+        if (!isDir) return fs.statSync(p).size;
+        let total = 0;
+        const stack = [p];
+        while (stack.length) {
+          const dir = stack.pop()!;
+          for (const name of fs.readdirSync(dir)) {
+            const child = path.join(dir, name);
+            const st = fs.statSync(child);
+            if (st.isDirectory()) stack.push(child);
+            else total += st.size;
+          }
+        }
+        return total;
+      } catch {
+        return 0;
+      }
+    };
     return fs
       .readdirSync(backupsDir)
-      .filter(isBackupFile)
+      .filter(isBackupEntry)
       .sort()
       .reverse()
       .map((file) => {
         try {
-          const stat = fs.statSync(path.join(backupsDir, file));
-          return { file, size: stat.size, mtime: stat.mtime.toISOString() };
+          const full = path.join(backupsDir, file);
+          const stat = fs.statSync(full);
+          return { file, size: entrySize(full, stat.isDirectory()), mtime: stat.mtime.toISOString() };
         } catch {
           return null;
         }
@@ -3362,12 +3957,138 @@ ipcMain.handle('backup:list', () => {
 });
 
 ipcMain.handle('backup:openFolder', () => {
+  const backupsDir = getBackupsDir();
   try {
     fs.mkdirSync(backupsDir, { recursive: true });
   } catch {
     /* openPath informa el error */
   }
   return shell.openPath(backupsDir);
+});
+
+/** Selector nativo de carpeta para personalizar el destino de los respaldos. */
+ipcMain.handle('backup:pickFolder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: dialogTitle('Elegir carpeta de respaldos', 'Choose backups folder'),
+    defaultPath: getBackupsDir(),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return result.filePaths[0];
+});
+
+// -- Restaurar desde respaldo --
+// Reemplaza BD (y fotos cuando el respaldo las trae) por el contenido de una
+// entrada de la carpeta de respaldos y reinicia la app. La entrada se copia
+// antes a una carpeta temporal: el respaldo de seguridad que se crea a
+// continuación podaría la fuente si retención = 1.
+const RESTORE_ENTRY_MAX_LENGTH = 120;
+
+ipcMain.handle('backup:restore', async (_e: any, entryName: string) => {
+  let stagingDir: string | null = null;
+  try {
+    if (
+      typeof entryName !== 'string' || !isBackupEntry(entryName)
+      || entryName.includes('/') || entryName.includes('\\') || entryName.includes('..')
+      || entryName.length > RESTORE_ENTRY_MAX_LENGTH
+    ) {
+      return { ok: false, error: 'invalid backup name' };
+    }
+    const backupsDir = getBackupsDir();
+    const entryPath = path.join(backupsDir, entryName);
+    if (!fs.existsSync(entryPath)) return { ok: false, error: 'backup not found' };
+    const entryStat = fs.statSync(entryPath);
+
+    // Formato unificado v2 (archivo .json): reemplazo de datos con la BD
+    // abierta. No hace falta reiniciar el proceso: el renderer recarga al
+    // recibir ok. Ajustes, contraseña e historial de versiones se conservan.
+    if (entryStat.isFile() && entryName.endsWith('.json')) {
+      if (entryStat.size > IMPORT_FILE_MAX_BYTES) return { ok: false, error: 'backup file too large' };
+      let data: any;
+      try {
+        data = JSON.parse(fs.readFileSync(entryPath, 'utf-8'));
+      } catch {
+        return { ok: false, error: 'invalid backup file' };
+      }
+      const safety = await runAutoBackup('manual');
+      if (!safety.ok) return { ok: false, error: 'safety backup failed; nothing was changed' };
+      Array.from(stickyWindows.keys()).forEach(noteId => closeStickyNote(noteId));
+      const applied = applyImportedData(data, 'replace');
+      if (!applied.ok) return applied;
+      writeLog('warn', `[backup] Restored data from ${entryName}`);
+      return { ok: true };
+    }
+
+    let backupDb: string | null = null;
+    let backupImages: string | null = null;
+    if (entryStat.isDirectory()) {
+      const candidate = path.join(entryPath, 'cybernotes.db');
+      if (!fs.existsSync(candidate)) return { ok: false, error: 'backup folder has no database' };
+      backupDb = candidate;
+      const images = path.join(entryPath, 'images');
+      if (fs.existsSync(images)) backupImages = images;
+    } else if (isBackupFile(entryName)) {
+      // Legado: solo contiene la BD, sin imágenes.
+      backupDb = entryPath;
+    } else {
+      return { ok: false, error: 'unsupported backup entry' };
+    }
+
+    // 1) Llevar la entrada a staging: inmutable frente a la poda posterior.
+    stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybernotes-restore-'));
+    fs.copyFileSync(backupDb, path.join(stagingDir, 'cybernotes.db'));
+    if (backupImages) {
+      fs.cpSync(backupImages, path.join(stagingDir, 'images'), { recursive: true, force: true });
+    }
+
+    // 2) Respaldo de seguridad del estado actual antes de pisar nada.
+    const safety = await runAutoBackup('manual');
+    if (!safety.ok) {
+      return { ok: false, error: 'safety backup failed; nothing was changed' };
+    }
+
+    // 3) Cerrar stickies y la base de datos: los archivos quedan libres.
+    Array.from(stickyWindows.keys()).forEach(noteId => closeStickyNote(noteId));
+    if (autoBackupTimer) {
+      clearInterval(autoBackupTimer);
+      autoBackupTimer = null;
+    }
+    try {
+      db?.close();
+    } catch (err) {
+      writeLog('warn', `[backup] close before restore: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    db = null;
+
+    // 4) Reemplazar la BD (WAL/SHM fuera primero) y las imágenes.
+    for (const suffix of ['-wal', '-shm']) {
+      try { fs.rmSync(dbPath + suffix, { force: true }); } catch { /* ignore */ }
+    }
+    fs.copyFileSync(path.join(stagingDir, 'cybernotes.db'), dbPath);
+    if (fs.existsSync(path.join(stagingDir, 'images'))) {
+      try {
+        fs.rmSync(imagesPath, { recursive: true, force: true });
+      } catch (err) {
+        writeLog('warn', `[backup] old images removal during restore: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      fs.cpSync(path.join(stagingDir, 'images'), imagesPath, { recursive: true, force: true });
+    }
+
+    try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    stagingDir = null;
+    writeLog('warn', `[backup] Restored from ${entryName}; restarting app`);
+
+    // 5) Reinicio limpio: el nuevo proceso abre la BD ya restaurada.
+    app.relaunch();
+    app.exit(0);
+    return { ok: true, restarting: true };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message || err) };
+  } finally {
+    if (stagingDir) {
+      try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  }
 });
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
@@ -3382,6 +4103,7 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     writeLog('info', `CyberNotes ${app.getVersion()} started (packaged: ${app.isPackaged})`);
+    await migrateLegacyDataFolder();
     await initDatabase();
     recordAppOpen();
     // Diccionarios del corrector según preferencia guardada (bilingüe por
@@ -3450,7 +4172,9 @@ if (!gotTheLock) {
       autoBackupTimer = null;
     }
     stopCapsLockWorker();
-    flushDbNow();
+    // WAL ya persistió todo; cerrar limpio hace checkpoint final.
+    try { db?.close(); } catch { /* no bloquear la salida */ }
+    db = null;
   });
 }
 

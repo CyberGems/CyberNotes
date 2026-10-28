@@ -8,11 +8,51 @@ interface TooltipProps {
   label: ReactNode;
   placement?: Placement;
   delay?: number;
+  maxWidth?: CSSProperties['maxWidth'];
+  wrap?: boolean;
   children: ReactElement;
 }
 
 const VIEWPORT_MARGIN = 8; // separación mínima respecto al borde de la ventana
 const GAP = 8;             // separación respecto al elemento ancla
+const SHORTCUT_PATTERN = /(?:(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta)(?:\+(?:Control|Ctrl|Alt|Shift|Mayús|Win|Meta))*\+(?:F\d{1,2}|Enter|Space|Espacio|Supr|Delete|Del|Backspace|Tab|Escape|Esc|[A-Z0-9]|,|\.)(?![A-Za-z0-9]))|\b(?:F\d{1,2}|Enter|Space|Espacio|Supr|Backspace|Tab|Escape|Esc)\b/i;
+
+export function TooltipShortcut({ children }: { children: ReactNode }) {
+  return <kbd className="tooltip-shortcut-key">{children}</kbd>;
+}
+
+function formatTooltipLabel(label: ReactNode): ReactNode {
+  if (typeof label !== 'string') return label;
+
+  // Elimina los paréntesis que solo envuelven la combinación (y conserva los
+  // detalles adicionales, como el número de vista, fuera del chip).
+  const normalized = label.replace(/\(([^()]*)\)/g, (group, contents: string) => {
+    const text = contents.trim();
+    const match = SHORTCUT_PATTERN.exec(text);
+    return match?.index === 0 ? text : group;
+  });
+  const matcher = new RegExp(SHORTCUT_PATTERN.source, 'gi');
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = matcher.exec(normalized)) !== null) {
+    const prefix = normalized.slice(cursor, match.index);
+    if (prefix) parts.push(<span key={`text-${cursor}`}>{prefix.trimEnd()}</span>);
+    parts.push(
+      <TooltipShortcut key={`shortcut-${match.index}`}>
+        {match[0]}
+      </TooltipShortcut>,
+    );
+    cursor = matcher.lastIndex;
+  }
+
+  if (cursor === 0) return label;
+  if (cursor < normalized.length) {
+    parts.push(<span key={`text-${cursor}`}>{normalized.slice(cursor)}</span>);
+  }
+  return <span className="tooltip-label-with-shortcuts">{parts}</span>;
+}
 
 function clamp(value: number, min: number, max: number) {
   if (max < min) return min; // el tooltip es más grande que el espacio: prioriza el margen
@@ -23,7 +63,7 @@ function clamp(value: number, min: number, max: number) {
 // Clona al hijo y le añade los handlers de hover sin envolverlo en otro nodo,
 // de modo que no altera los layouts flex existentes. Se reposiciona para no
 // salirse de la pantalla y la flecha se re-ancla al centro del elemento.
-export default function Tooltip({ label, placement = 'bottom', delay = 250, children }: TooltipProps) {
+export default function Tooltip({ label, placement = 'bottom', delay = 250, maxWidth, wrap = false, children }: TooltipProps) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; arrow: CSSProperties } | null>(null);
@@ -52,9 +92,18 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, chil
 
     if (placement === 'top' || placement === 'bottom') {
       left = clamp(cx - card.width / 2, VIEWPORT_MARGIN, vw - card.width - VIEWPORT_MARGIN);
-      top = placement === 'bottom' ? anchor.bottom + GAP : anchor.top - GAP - card.height;
+      const spaceAbove = anchor.top - GAP - VIEWPORT_MARGIN;
+      const spaceBelow = vh - anchor.bottom - GAP - VIEWPORT_MARGIN;
+      let verticalPlacement = placement;
+      if (placement === 'top' && card.height > spaceAbove && spaceBelow > spaceAbove) {
+        verticalPlacement = 'bottom';
+      } else if (placement === 'bottom' && card.height > spaceBelow && spaceAbove > spaceBelow) {
+        verticalPlacement = 'top';
+      }
+      top = verticalPlacement === 'bottom' ? anchor.bottom + GAP : anchor.top - GAP - card.height;
+      top = clamp(top, VIEWPORT_MARGIN, vh - card.height - VIEWPORT_MARGIN);
       const ax = clamp(cx - left, 12, card.width - 12); // flecha alineada al centro del ancla
-      arrow = placement === 'bottom'
+      arrow = verticalPlacement === 'bottom'
         ? { top: -4, left: ax, marginLeft: -4, borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)' }
         : { bottom: -4, left: ax, marginLeft: -4, borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)' };
     } else {
@@ -66,9 +115,7 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, chil
         : { right: -4, top: ay, marginTop: -4, borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)' };
     }
     setPos({ left, top, arrow });
-    // Nota: no dependemos de `label` para evitar recálculos en bucle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchor, placement]);
+  }, [anchor, placement, label, maxWidth, wrap]);
 
   // Ocultar al hacer scroll para que el tooltip no quede "flotando".
   // También al perder el foco la ventana (minimizar): sin mouseleave que lo
@@ -138,10 +185,12 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, chil
               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 10px var(--accent-glow)',
               borderRadius: 8,
               padding: '6px 10px',
+              maxWidth,
               color: 'rgba(255, 255, 255, 0.95)',
               fontSize: 11,
               fontWeight: 600,
-              whiteSpace: 'nowrap',
+              whiteSpace: wrap ? 'normal' : 'nowrap',
+              overflowWrap: wrap ? 'anywhere' : undefined,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -149,7 +198,7 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, chil
               animation: 'tooltipPop 0.14s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
-            {label}
+            {formatTooltipLabel(label)}
             <div style={{
               position: 'absolute',
               width: 8,

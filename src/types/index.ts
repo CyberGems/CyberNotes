@@ -75,6 +75,15 @@ export interface Theme {
 
 export type AppView = 'lock' | 'setup' | 'app';
 
+export type UpdateStatus =
+  | { state: 'checking' }
+  | { state: 'available'; version: string; releaseNotes?: string; releaseUrl?: string }
+  | { state: 'not-available'; version: string }
+  | { state: 'downloading'; percent: number; version?: string; bytesPerSecond?: number; transferred?: number; total?: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'installing'; version: string }
+  | { state: 'error'; message: string };
+
 // Window API type
 declare global {
   interface Window {
@@ -121,6 +130,7 @@ declare global {
       getSettings: (keys: string[]) => Promise<Record<string, string | null>>;
       setSetting: (key: string, value: string) => Promise<boolean>;
       resetSettings: () => Promise<boolean>;
+      wipeAllData: () => Promise<{ ok: boolean; error?: string }>;
       setAutoStart: (enable: boolean) => Promise<boolean>;
       getAutoStart: () => Promise<boolean>;
       // Folders
@@ -151,23 +161,19 @@ declare global {
       // Automatic backups
       backupNow: () => Promise<{ ok: boolean; file?: string }>;
       listBackups: () => Promise<Array<{ file: string; size: number; mtime: string }>>;
+      restoreBackup: (entryName: string) => Promise<{ ok: boolean; restarting?: boolean; error?: string }>;
       openBackupsFolder: () => Promise<void>;
+      pickBackupFolder: () => Promise<string | null>;
       onBackupCompleted: (callback: (info: { at: string; file: string }) => void) => () => void;
       exportNotePdf: (title: string, html: string) => Promise<boolean>;
       printDocument: (title: string, html: string) => Promise<boolean>;
       // Updates / About
       checkForUpdates: () => Promise<{ ok: boolean; version?: string; error?: string }>;
+      getUpdateStatus: () => Promise<UpdateStatus | null>;
       downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;
       installUpdate: () => Promise<void>;
       cancelAutoInstall: () => Promise<boolean>;
-      onUpdateStatus: (callback: (status: {
-        state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'installing' | 'error';
-        version?: string;
-        percent?: number;
-        message?: string;
-        releaseNotes?: string;
-        releaseUrl?: string;
-      }) => void) => () => void;
+      onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
       getVersions: () => Promise<{
         app: string;
         electron: string;
@@ -182,6 +188,7 @@ declare global {
       openExternal: (url: string) => Promise<boolean>;
       // Assets
       selectAndSaveImage: () => Promise<string | null>;
+      saveImageBinary: (data: ArrayBuffer | Uint8Array, mime: string) => Promise<string | null>;
       // Events
       onStatusBarUrl: (callback: (url: string) => void) => () => void;
       onContextMenuData: (callback: (data: any) => void) => () => void;

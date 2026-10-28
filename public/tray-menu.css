@@ -55,6 +55,17 @@ html, body {
   padding: 10px 14px;
 }
 
+/* Título del submenú a la derecha del encabezado (estilo familia). */
+.head-title {
+  margin-left: auto;
+  padding: 2px 0 2px 6px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
 .head-back {
   appearance: none;
   border: 0;
@@ -321,11 +332,6 @@ html, body {
 
 .shell.help-view .divider:last-of-type,
 .shell.suite-view .divider:last-of-type { display: none; }
-.shell.help-view .card,
-.shell.suite-view .card {
-  background: #202226;
-  border-color: rgba(255, 255, 255, 0.1);
-}
 
 .icon svg {
   display: block;

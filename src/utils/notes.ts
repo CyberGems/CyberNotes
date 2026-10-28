@@ -1,6 +1,14 @@
 import { Note } from '../types';
 import { extractThumbFromContent } from '../../shared/notes';
 
+/** Longitud máxima del nombre de la nota (inputs + guardados). */
+export const NOTE_TITLE_MAX_LENGTH = 120;
+
+/** Recorta el título al máximo (los inputs ya lo limitan; esto cubre pegados y rutas programáticas). */
+export function clampNoteTitle(title: string): string {
+  return (title || '').slice(0, NOTE_TITLE_MAX_LENGTH);
+}
+
 /** Copia meta para listas: sin content HTML (ahorra memoria y re-renders pesados). */
 export function toNoteMeta(note: Note): Note {
   return {

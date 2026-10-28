@@ -1,7 +1,8 @@
 {
-  "name": "cyber-notes",
+  "name": "CyberNotes",
+  "productName": "CyberNotes",
   "private": true,
-  "version": "1.14.0",
+  "version": "1.17.0",
   "author": "CyberGems",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -12,7 +13,9 @@
     "build:electron": "tsc && vite build && electron-builder",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "installer-graphics": "node scripts/generate-installer-graphics.mjs",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "appId": "com.cybernotes.app",
@@ -35,12 +38,19 @@
       "artifactName": "${productName}_Setup_${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerSidebar": "public/installerSidebar.bmp",
+      "uninstallerSidebar": "public/installerSidebar.bmp",
+      "installerHeaderIcon": "public/icon.ico",
+      "include": "electron/installer.nsh",
       "createDesktopShortcut": "always",
       "runAfterFinish": true,
       "perMachine": true,
       "installerLanguages": [
-        "es",
-        "en"
+        "en",
+        "es"
       ],
       "multiLanguageInstaller": true,
       "shortcutName": "CyberNotes"
@@ -55,17 +65,15 @@
     },
     "extraResources": [
       {
-        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
-        "to": "sql-wasm.wasm"
-      },
-      {
         "from": "electron/open-taskbar-settings.exe",
         "to": "open-taskbar-settings.exe"
       }
     ]
   },
   "dependencies": {
+    "@tiptap/extension-blockquote": "2.27.2",
     "@tiptap/extension-bubble-menu": "^2.27.3",
+    "@tiptap/extension-code-block": "2.27.2",
     "@tiptap/extension-highlight": "^2.11.5",
     "@tiptap/extension-image": "^2.27.2",
     "@tiptap/extension-link": "^2.27.2",
@@ -81,12 +89,12 @@
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",
     "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.8.9",
     "lucide-react": "^0.511.0",
     "motion": "^12.12.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sql.js": "^1.14.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -98,11 +106,15 @@
     "electron": "^35.2.1",
     "electron-builder": "^26.0.12",
     "jsdom": "^30.1.0",
+    "sharp": "^0.35.5",
     "tsx": "^4.19.4",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.7",
     "vitest": "^5.0.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }

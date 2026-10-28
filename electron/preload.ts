@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   getSettings: (keys: string[]) => ipcRenderer.invoke('settings:getMany', keys),
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
   resetSettings: () => ipcRenderer.invoke('settings:reset'),
+  wipeAllData: () => ipcRenderer.invoke('data:wipe-all'),
   setAutoStart: (enable: boolean) => ipcRenderer.invoke('settings:setAutoStart', enable),
   getAutoStart: () => ipcRenderer.invoke('settings:getAutoStart'),
 
@@ -158,6 +159,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
 
   // -- Images --
   selectAndSaveImage: () => ipcRenderer.invoke('images:selectAndSave'),
+  saveImageBinary: (data: ArrayBuffer | Uint8Array, mime: string) => ipcRenderer.invoke('images:saveBinary', data, mime),
 
   // -- Import / Export --
   exportData: () => ipcRenderer.invoke('data:export'),
@@ -166,7 +168,9 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Automatic backups --
   backupNow: () => ipcRenderer.invoke('backup:now'),
   listBackups: () => ipcRenderer.invoke('backup:list'),
+  restoreBackup: (entryName: string) => ipcRenderer.invoke('backup:restore', entryName),
   openBackupsFolder: () => ipcRenderer.invoke('backup:openFolder'),
+  pickBackupFolder: () => ipcRenderer.invoke('backup:pickFolder'),
   onBackupCompleted: (callback: (info: { at: string; file: string }) => void) => {
     const listener = (_e: any, info: any) => callback(info);
     ipcRenderer.on('backup:completed', listener);
@@ -177,6 +181,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
 
   // -- Updates / About --
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  getUpdateStatus: () => ipcRenderer.invoke('update:get-status'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   cancelAutoInstall: () => ipcRenderer.invoke('update:cancelAutoInstall'),

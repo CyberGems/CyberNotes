@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect, useMemo, type CSSProperties, type ReactNode, type DragEvent as ReactDragEvent } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, type CSSProperties, type ReactNode, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Folder, Note } from '../types';
 import { Language, TRANSLATIONS } from '../languages';
 import {
   Plus, FolderOpen, Settings, Lock, Search, X,
-  ChevronRight, Pencil, Trash2, FileText, Clock, Inbox, Star, AppWindow,
+  ChevronRight, Pencil, Trash2, BrushCleaning, FileText, Clock, Inbox, Star, AppWindow,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { playSynthSound } from '../utils/audio';
@@ -19,7 +20,6 @@ interface Props {
   selectedFolderId: string | null;
   noteCount: number;
   trashCount: number;
-  recentNotes: Note[];
   allNotes: Note[];
   stickyNoteIds: string[];
   openedHistory?: Record<string, number>;
@@ -36,6 +36,7 @@ interface Props {
   onSearch: (q: string) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void;
   rail?: boolean;
+  onToggleRail: () => void;
   getAvailableColors: (currentFolderId?: string) => { all: string[]; available: string[]; usedColors: Set<string> };
   triggerNewFolderSignal?: number;
 }
@@ -90,9 +91,9 @@ function timeAgo(iso: string, language: Language): string {
 }
 
 export default function Sidebar({
-  language, folders, selectedFolderId, noteCount, trashCount, recentNotes, allNotes, stickyNoteIds, onSelectNote,
+  language, folders, selectedFolderId, noteCount, trashCount, allNotes, stickyNoteIds, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
-  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, rail = false, getAvailableColors,
+  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, rail = false, onToggleRail, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
   triggerNewFolderSignal,
 }: Props) {
@@ -105,6 +106,7 @@ export default function Sidebar({
   const [contextMenu, setContextMenu] = useState<{ folder: Folder; x: number; y: number } | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [showRecent, setShowRecent] = useState(false);
+  const [recentMenuLayout, setRecentMenuLayout] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const [railSearchOpen, setRailSearchOpen] = useState(false);
   const [railSearchPos, setRailSearchPos] = useState<{ top: number; left: number } | null>(null);
   const railSearchBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -333,6 +335,39 @@ export default function Sidebar({
 
   // Cerrar menú recientes al hacer click fuera
   const recentMenuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!showRecent || !recentBtnRef.current) {
+      setRecentMenuLayout(null);
+      return;
+    }
+
+    const updateLayout = () => {
+      const anchor = recentBtnRef.current?.getBoundingClientRect();
+      if (!anchor) return;
+
+      const edge = 8;
+      const gap = 4;
+      const width = Math.min(360, window.innerWidth - edge * 2);
+      const left = Math.max(edge, Math.min(anchor.left, window.innerWidth - width - edge));
+      const spaceAbove = Math.max(0, anchor.top - gap - edge);
+      const spaceBelow = Math.max(0, window.innerHeight - anchor.bottom - gap - edge);
+      const opensBelow = spaceBelow > spaceAbove;
+
+      setRecentMenuLayout({
+        left,
+        width,
+        maxHeight: opensBelow ? spaceBelow : spaceAbove,
+        ...(opensBelow
+          ? { top: anchor.bottom + gap }
+          : { bottom: window.innerHeight - anchor.top + gap }),
+      });
+    };
+
+    updateLayout();
+    window.addEventListener('resize', updateLayout);
+    return () => window.removeEventListener('resize', updateLayout);
+  }, [showRecent, rail]);
+
   useEffect(() => {
     if (!showRecent) return;
     const handler = (e: MouseEvent) => {
@@ -398,7 +433,7 @@ export default function Sidebar({
 
   // Lista de notas recientes según la pestaña activa (Editadas / Abiertas / Creadas).
   // Memoizada: antes se reordenaba con Date parsing en cada render (cada click de tab).
-  const RECENT_LIMIT = 6;
+  const RECENT_LIMIT = 10;
   const recentForTab = useMemo(() => {
     if (recentTab === 'opened') {
       return [...allNotes]
@@ -434,50 +469,66 @@ export default function Sidebar({
       {/* Search (el rail trae su propio acceso) */}
       {!rail && (
       <div style={{ padding: '12px 12px 8px' }}>
-        <div style={{ position: 'relative' }}>
-          <Search size={14} style={{
-            position: 'absolute', left: 10, top: '50%',
-            transform: 'translateY(-50%)', color: 'var(--text-muted)',
-            pointerEvents: 'none',
-          }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+            <Search size={14} style={{
+              position: 'absolute', left: 10, top: '50%',
+              transform: 'translateY(-50%)', color: 'var(--text-muted)',
+              pointerEvents: 'none',
+            }} />
+            <Tooltip
+              placement="bottom"
+              label={language === 'es' ? 'Buscar notas (Esc para limpiar)' : 'Search notes (Esc to clear)'}
+            >
+            <input
+              id="cybernotes-search-input"
+              type="text"
+              value={searchQuery}
+              onChange={e => onSearch(e.target.value)}
+              onKeyDown={e => {
+                // Esc limpia la búsqueda y devuelve la lista a su vista normal.
+                if (e.key === 'Escape' && searchQuery) {
+                  e.preventDefault();
+                  onSearch('');
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder={`${t.general.search} (Ctrl+F)`}
+              className="input"
+              onContextMenu={inputMenu.onContextMenu}
+              style={{ padding: '7px 10px 7px 32px', paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))' }}
+            />
+            </Tooltip>
+            {searchQuery && (
+              <Tooltip
+                placement="right"
+                label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+              >
+              <button
+                className="btn-icon"
+                onClick={() => onSearch('')}
+                aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: 2 }}
+              >
+                <X size={12} />
+              </button>
+              </Tooltip>
+            )}
+          </div>
           <Tooltip
             placement="bottom"
-            label={language === 'es' ? 'Buscar notas (Esc para limpiar)' : 'Search notes (Esc to clear)'}
+            label={language === 'es' ? 'Colapsar columna izquierda' : 'Collapse left sidebar'}
           >
-          <input
-            id="cybernotes-search-input"
-            type="text"
-            value={searchQuery}
-            onChange={e => onSearch(e.target.value)}
-            onKeyDown={e => {
-              // Esc limpia la búsqueda y devuelve la lista a su vista normal.
-              if (e.key === 'Escape' && searchQuery) {
-                e.preventDefault();
-                onSearch('');
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder={`${t.general.search} (Ctrl+F)`}
-            className="input"
-            onContextMenu={inputMenu.onContextMenu}
-            style={{ padding: '7px 10px 7px 32px', paddingRight: searchQuery ? 30 : 12, fontSize: 'calc(12px * var(--ui-scale))' }}
-          />
-          </Tooltip>
-          {searchQuery && (
-            <Tooltip
-              placement="right"
-              label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
-            >
             <button
+              type="button"
               className="btn-icon"
-              onClick={() => onSearch('')}
-              aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: 2 }}
+              aria-label={language === 'es' ? 'Colapsar columna izquierda' : 'Collapse left sidebar'}
+              onClick={onToggleRail}
+              style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8 }}
             >
-              <X size={12} />
+              <PanelLeftClose size={15} />
             </button>
-            </Tooltip>
-          )}
+          </Tooltip>
         </div>
       </div>
       )}
@@ -706,9 +757,7 @@ export default function Sidebar({
               ? activeDropTargetId === 'all'
                 ? '1px solid var(--accent)'
                 : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
-              : selectedFolderId === null && !searchQuery
-                ? '1px solid var(--accent)'
-                : '1px solid transparent',
+              : '1px solid transparent',
             background: isNoteDragging && activeDropTargetId === 'all'
               ? 'var(--accent-dim)'
               : selectedFolderId === null && !searchQuery
@@ -728,16 +777,13 @@ export default function Sidebar({
             position: 'relative',
             boxShadow: isNoteDragging && activeDropTargetId === 'all'
               ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
-              : selectedFolderId === null && !searchQuery
-                ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
-                : 'none',
+              : 'none',
             transform: isNoteDragging && activeDropTargetId === 'all' ? 'translateX(4px) scale(1.01)' : 'none',
           }}
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === null && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -793,8 +839,7 @@ export default function Sidebar({
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'favorites' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -858,8 +903,7 @@ export default function Sidebar({
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'sticky' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -920,9 +964,7 @@ export default function Sidebar({
               ? activeDropTargetId === 'floating'
                 ? '1px solid var(--accent)'
                 : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
-              : selectedFolderId === 'floating' && !searchQuery
-                ? '1px solid var(--accent)'
-                : '1px solid transparent',
+              : '1px solid transparent',
             background: isNoteDragging && activeDropTargetId === 'floating'
               ? 'var(--accent-dim)'
               : selectedFolderId === 'floating' && !searchQuery
@@ -942,16 +984,13 @@ export default function Sidebar({
             position: 'relative',
             boxShadow: isNoteDragging && activeDropTargetId === 'floating'
               ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
-              : selectedFolderId === 'floating' && !searchQuery
-                ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
-                : 'none',
+              : 'none',
             transform: isNoteDragging && activeDropTargetId === 'floating' ? 'translateX(4px) scale(1.01)' : 'none',
           }}
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'floating' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 }
             },
@@ -1007,8 +1046,7 @@ export default function Sidebar({
           variants={{
             hover: {
               x: 3,
-              boxShadow: '0 0 14px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03)',
               background: selectedFolderId === 'trash' && !searchQuery ? 'var(--bg-active)' : 'rgba(255, 255, 255, 0.02)',
               transition: { duration: 0.1 },
             },
@@ -1246,18 +1284,45 @@ export default function Sidebar({
             {!rail && <span>{language === 'es' ? 'Bloquear' : 'Lock'}</span>}
           </button>
         </Tooltip>
+        {rail && (
+          <Tooltip
+            placement="top"
+            label={language === 'es' ? 'Expandir columna izquierda' : 'Expand left sidebar'}
+          >
+            <button
+              type="button"
+              className="btn btn-ghost"
+              aria-label={language === 'es' ? 'Expandir columna izquierda' : 'Expand left sidebar'}
+              onClick={onToggleRail}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '7px 8px',
+              }}
+            >
+              <PanelLeftOpen size={14} />
+            </button>
+          </Tooltip>
+        )}
       </div>
 
       {/* Drop-up recientes */}
-      {showRecent && recentBtnRef.current && createPortal(
+      {showRecent && recentBtnRef.current && recentMenuLayout && createPortal(
         <div
           ref={recentMenuRef}
           className="glass-effect"
           style={{
             position: 'fixed',
-            left: recentBtnRef.current.getBoundingClientRect().left,
-            bottom: window.innerHeight - recentBtnRef.current.getBoundingClientRect().top + 4,
-            width: 360,
+            left: recentMenuLayout.left,
+            top: recentMenuLayout.top,
+            bottom: recentMenuLayout.bottom,
+            width: recentMenuLayout.width,
+            maxHeight: recentMenuLayout.maxHeight,
+            boxSizing: 'border-box',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
             background: 'var(--bg-modal)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
@@ -1327,8 +1392,8 @@ export default function Sidebar({
             })}
           </div>
 
-          {/* Lista de notas (altura fija para 6 elementos) */}
-          <div style={{ minHeight: 312, maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* Lista compacta para mostrar hasta 10 notas */}
+          <div style={{ minHeight: 0, maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
             {recentForTab.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '40px 10px', textAlign: 'center' }}>
                 {t.noteList.noNotes}
@@ -1338,7 +1403,7 @@ export default function Sidebar({
                 const parentFolder = note.folder_id ? folders.find(f => f.id === note.folder_id) : null;
                 return (
                 <div key={note.id}>
-                  {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />}
+                  {i > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '1px 0' }} />}
                   <Tooltip
                     placement="right"
                     delay={400}
@@ -1361,8 +1426,8 @@ export default function Sidebar({
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'flex-start',
-                      gap: 2,
-                      padding: '8px 12px',
+                      gap: 1,
+                      padding: '4px 10px',
                       background: 'transparent',
                       color: 'var(--text-primary)',
                       border: 'none',
@@ -1373,7 +1438,7 @@ export default function Sidebar({
                     }}
                   >
                     <span style={{
-                      fontSize: 12.5,
+                      fontSize: 11.5,
                       fontWeight: 600,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -1383,7 +1448,7 @@ export default function Sidebar({
                       {note.title || t.noteList.unnamedNote}
                     </span>
                     <span style={{
-                      fontSize: 12, color: 'var(--text-muted)',
+                      fontSize: 10.5, color: 'var(--text-muted)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       width: '100%',
                     }}>
@@ -1453,7 +1518,7 @@ export default function Sidebar({
                 transition: 'background 0.12s, color 0.12s',
               }}
             >
-              <Trash2 size={14} />
+              <BrushCleaning size={14} />
               {t.sidebar.clearHistory}
             </button>
           )}

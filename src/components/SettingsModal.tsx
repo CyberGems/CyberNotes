@@ -5,9 +5,11 @@ import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
+import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
+import { EnterGlyph, KeyHint, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 
@@ -34,6 +36,8 @@ interface Props {
   onShowLineCounterChange: (v: boolean) => void;
   showLineGutter: boolean;
   onShowLineGutterChange: (v: boolean) => void;
+  showWrapGuides: boolean;
+  onShowWrapGuidesChange: (v: boolean) => void;
   autosaveEnabled: boolean;
   onAutosaveEnabledChange: (v: boolean) => void;
   autoUnlockCapsLock: boolean;
@@ -56,6 +60,8 @@ interface Props {
   onShowMinimapChange: (v: boolean) => void;
   showWordCounter: boolean;
   onShowWordCounterChange: (v: boolean) => void;
+  showKeyboardIndicators: boolean;
+  onShowKeyboardIndicatorsChange: (v: boolean) => void;
   showFloatingToolbar: boolean;
   onShowFloatingToolbarChange: (v: boolean) => void;
   hiddenToolbarIds: string[];
@@ -71,6 +77,7 @@ const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
 const DISMISSIBLE_CONFIRMATION_KEYS = [
   'confirm_move_note_to_trash_dismissed',
   'confirm_leave_note_dismissed',
+  'close_choice_remembered',
 ] as const;
 
 type SettingsIconTone = 'accent' | 'warning' | 'danger' | 'success';
@@ -92,6 +99,13 @@ function SettingsIcon({
       {icon}
     </span>
   );
+}
+
+/** 8912896 -> "8.5 MB" (los respaldos incluyen la copia de imágenes). */
+function formatBackupSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
 }
 
 function SettingsHeading({
@@ -599,6 +613,7 @@ export default function SettingsModal({
   rememberLastNote, onRememberLastNoteChange,
   showLineCounter, onShowLineCounterChange,
   showLineGutter, onShowLineGutterChange,
+  showWrapGuides, onShowWrapGuidesChange,
   autosaveEnabled, onAutosaveEnabledChange,
   autoUnlockCapsLock, onAutoUnlockCapsLockChange,
   autoUnlockCapsLockTimeout, onAutoUnlockCapsLockTimeoutChange,
@@ -609,6 +624,7 @@ export default function SettingsModal({
   editorFont = DEFAULT_EDITOR_FONT, onEditorFontChange,
   showMinimap, onShowMinimapChange,
   showWordCounter, onShowWordCounterChange,
+  showKeyboardIndicators, onShowKeyboardIndicatorsChange,
   showFloatingToolbar, onShowFloatingToolbarChange,
   hiddenToolbarIds, onHiddenToolbarIdsChange,
   initialTab = 'general',
@@ -649,8 +665,9 @@ export default function SettingsModal({
   }, []);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
   const [autoBackupHours, setAutoBackupHours] = useState('24');
-  const [autoBackupKeep, setAutoBackupKeep] = useState('7');
+  const [autoBackupKeep, setAutoBackupKeep] = useState(String(DEFAULT_AUTO_BACKUP_KEEP));
   const [autoBackupLast, setAutoBackupLast] = useState<string | null>(null);
+  const [backupFolder, setBackupFolder] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
   const [isCapturingHotkey, setIsCapturingHotkey] = useState(false);
   const [hotkeyError, setHotkeyError] = useState<string | null>(null);
@@ -774,6 +791,20 @@ export default function SettingsModal({
     await window.cyberNotesAPI.setSetting('auto_backup_keep', val);
   };
 
+  const handlePickBackupFolder = async () => {
+    const picked = await window.cyberNotesAPI.pickBackupFolder();
+    if (!picked) return;
+    // El proceso principal valida la ruta (absoluta y creable); si la
+    // rechaza, el ajuste queda como estaba.
+    const ok = await window.cyberNotesAPI.setSetting('backup_folder', picked);
+    if (ok) setBackupFolder(picked);
+  };
+
+  const handleResetBackupFolder = async () => {
+    const ok = await window.cyberNotesAPI.setSetting('backup_folder', '');
+    if (ok) setBackupFolder('');
+  };
+
   const handleBackupNow = async () => {
     if (backupBusy) return;
     setBackupBusy(true);
@@ -784,8 +815,8 @@ export default function SettingsModal({
           variant: 'success',
           title: language === 'es' ? 'Respaldo completado' : 'Backup complete',
           message: language === 'es'
-            ? `Copia guardada como ${res.file || 'respaldo.db'}.`
-            : `Backup saved as ${res.file || 'backup.db'}.`,
+            ? `Copia guardada como ${res.file || 'respaldo'}. Incluye notas, carpetas e imágenes.`
+            : `Backup saved as ${res.file || 'backup'}. It includes notes, folders, and images.`,
         });
       } else {
         await showDialog({
@@ -800,6 +831,65 @@ export default function SettingsModal({
       setBackupBusy(false);
     }
   };
+
+  // -- Restaurar desde respaldo --
+  const [restorePickerOpen, setRestorePickerOpen] = useState(false);
+  const [restoreList, setRestoreList] = useState<Array<{ file: string; size: number; mtime: string }>>([]);
+  const [restoreSelected, setRestoreSelected] = useState<string | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+
+  const handleOpenRestorePicker = async () => {
+    const list = (await window.cyberNotesAPI.listBackups?.()) ?? [];
+    if (!list.length) {
+      await showDialog({
+        variant: 'info',
+        title: language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup',
+        message: language === 'es'
+          ? 'Todavía no hay respaldos en la carpeta de respaldos. Crea uno con "Respaldar ahora".'
+          : 'There are no backups in the backups folder yet. Create one with "Back up now".',
+      });
+      return;
+    }
+    setRestoreList(list);
+    setRestoreSelected(null);
+    setRestorePickerOpen(true);
+  };
+
+  const handleRestoreConfirm = async () => {
+    if (!restoreSelected || restoreBusy) return;
+    setRestoreBusy(true);
+    try {
+      const res = await window.cyberNotesAPI.restoreBackup(restoreSelected);
+      if (res?.ok) {
+        // Respaldo .json unificado: recargar con los datos restaurados.
+        // (Los formatos legados reinician la app antes de responder.)
+        window.location.reload();
+        return;
+      }
+      setRestorePickerOpen(false);
+      await showDialog({
+        variant: 'warning',
+        title: language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup',
+        message: language === 'es'
+          ? `No se pudo restaurar el respaldo. Tus datos actuales no fueron modificados.${res?.error ? ` (${res.error})` : ''}`
+          : `The backup could not be restored. Your current data was not modified.${res?.error ? ` (${res.error})` : ''}`,
+      });
+    } finally {
+      setRestoreBusy(false);
+    }
+  };
+
+  useModalKeys({
+    enabled: restorePickerOpen && !restoreBusy,
+    onEsc: () => setRestorePickerOpen(false),
+    onEnter: () => void handleRestoreConfirm(),
+  });
+  // El foco entra al modal al abrirse (no queda en el botón que lo abrió,
+  // así Enter no vuelve a dispararlo) y salta al botón primario al elegir.
+  const restoreConfirmRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (restorePickerOpen && restoreSelected) restoreConfirmRef.current?.focus();
+  }, [restorePickerOpen, restoreSelected]);
 
   const formatBackupDate = (iso: string | null): string => {
     if (!iso) return language === 'es' ? 'Nunca' : 'Never';
@@ -887,18 +977,19 @@ export default function SettingsModal({
       );
 
       const backupSettings = await window.cyberNotesAPI.getSettings([
-        'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'auto_backup_last',
+        'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'auto_backup_last', 'backup_folder',
       ]);
       setAutoBackupEnabled(backupSettings.auto_backup_enabled !== 'false');
       if (backupSettings.auto_backup_hours) setAutoBackupHours(backupSettings.auto_backup_hours);
       if (backupSettings.auto_backup_keep) setAutoBackupKeep(backupSettings.auto_backup_keep);
       setAutoBackupLast(backupSettings.auto_backup_last);
+      setBackupFolder(backupSettings.backup_folder || '');
 
       initialSnapshotRef.current = JSON.stringify({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
-        autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+        autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
+        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
         closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk,
         stickyRestoreOnStartup: sStickyRestore !== 'false',
         stickySkipTaskbar: sStickySkip !== 'false',
@@ -913,9 +1004,9 @@ export default function SettingsModal({
     if (!loaded || !initialSnapshotRef.current) return;
     const currentSnapshot = JSON.stringify({
       language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
-      autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+      autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
+      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
       closeToTray, minimizeToTray, autoStart, toggleHotkey,
       stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
     });
@@ -925,9 +1016,9 @@ export default function SettingsModal({
   }, [
     loaded,
     language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
-    autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter,
+    autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter,
+    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
     closeToTray, minimizeToTray, autoStart, toggleHotkey,
     stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
   ]);
@@ -1296,12 +1387,12 @@ export default function SettingsModal({
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={language === 'es' ? 'Ajustes' : 'Settings'}
+        aria-label={language === 'es' ? 'Configuración' : 'Settings'}
       >
         <div className="settings-header">
           <div className="settings-header-title">
             <Settings size={15} />
-            <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
+            <span>{language === 'es' ? 'Configuración' : 'Settings'}</span>
           </div>
           <Tooltip label={language === 'es' ? 'Cerrar' : 'Close'} placement="bottom">
           <button
@@ -1549,8 +1640,8 @@ export default function SettingsModal({
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {language === 'es'
-                          ? 'Vuelve a mostrar las confirmaciones que marcaste como no mostrar más'
-                          : 'Show again the confirmations you chose not to display'}
+                          ? 'Vuelve a mostrar las confirmaciones omitidas y la elección al cerrar'
+                          : 'Show dismissed confirmations and the close-window choice again'}
                       </span>
                     </SettingsOptionCopy>
                     <button
@@ -1719,12 +1810,7 @@ export default function SettingsModal({
                     gap: 12,
                   }}>
                     <label
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                      }}
+                      className="settings-inline-row"
                       onClick={() => onAutoUnlockCapsLockChange(!autoUnlockCapsLock)}
                     >
                       <SettingsOptionCopy icon={<Keyboard />}>
@@ -2117,6 +2203,18 @@ export default function SettingsModal({
                   <div className={`custom-switch ${showLineGutter ? 'active' : ''}`} />
                 </label>
 
+                <label className="settings-option-row" onClick={() => onShowWrapGuidesChange(!showWrapGuides)}>
+                  <SettingsOptionCopy icon={<WrapText />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Guías de continuación de línea' : 'Wrapped line guides'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Marca los renglones de continuación en el gutter' : 'Mark wrapped continuation rows in the gutter'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showWrapGuides ? 'active' : ''}`} />
+                </label>
+
                 <label className="settings-option-row" onClick={() => onShowMinimapChange(!showMinimap)}>
                   <SettingsOptionCopy icon={<Map />}>
                     <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
@@ -2139,6 +2237,18 @@ export default function SettingsModal({
                     </span>
                   </SettingsOptionCopy>
                   <div className={`custom-switch ${showWordCounter ? 'active' : ''}`} />
+                </label>
+
+                <label className="settings-option-row" onClick={() => onShowKeyboardIndicatorsChange(!showKeyboardIndicators)}>
+                  <SettingsOptionCopy icon={<Keyboard />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Indicadores de teclado' : 'Keyboard indicators'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra CAPS, NUM e INS en el pie del editor' : 'Show CAPS, NUM and INS in the editor footer'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showKeyboardIndicators ? 'active' : ''}`} />
                 </label>
 
                 <label className="settings-option-row" onClick={() => onShowFloatingToolbarChange(!showFloatingToolbar)}>
@@ -2781,8 +2891,8 @@ export default function SettingsModal({
                       </span>
                       <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
                         {language === 'es'
-                          ? 'Genera un archivo JSON descargable con todo el contenido actual.'
-                          : 'Create a downloadable JSON file with all current content.'}
+                          ? 'Genera un archivo JSON portátil con notas, carpetas e imágenes incluidas.'
+                          : 'Create a portable JSON file with notes, folders, and images included.'}
                       </span>
                     </div>
                     <button
@@ -2792,7 +2902,9 @@ export default function SettingsModal({
                         if (ok) await showDialog({
                           variant: 'success',
                           title: language === 'es' ? 'Exportación completada' : 'Export complete',
-                          message: language === 'es' ? 'Datos exportados exitosamente.' : 'Data successfully exported.',
+                          message: language === 'es'
+                            ? 'Datos exportados exitosamente, incluyendo las imágenes.'
+                            : 'Data successfully exported, including the images.',
                         });
                       }}
                       style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px', color: 'var(--warning)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
@@ -2863,24 +2975,9 @@ export default function SettingsModal({
                 </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
-                    ? 'Copia la base de datos a una carpeta local cada cierto tiempo y conserva las copias más recientes.'
-                    : 'Copies the database to a local folder on a schedule and keeps the most recent copies.'}
+                    ? 'Crea copias automáticas en la carpeta de respaldos y conserva las más recientes. Cada respaldo es un archivo JSON único con notas, carpetas, uso e imágenes dentro: portable y restaurable desde aquí, incluso en otro equipo.'
+                    : 'Creates backups in the backups folder on a schedule and keeps the most recent ones. Each backup is a single JSON file with notes, folders, usage, and images inside: portable and restorable from here, even on another computer.'}
                 </p>
-
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => window.cyberNotesAPI.openBackupsFolder()}
-                  style={{
-                    gap: 8, justifyContent: 'flex-start',
-                    padding: '9px 14px', fontSize: 'calc(12.5px * var(--ui-scale))',
-                    border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-surface)', marginBottom: 12,
-                  }}
-                >
-                  <FolderOpen size={15} style={{ color: 'var(--accent)' }} />
-                  <span>{language === 'es' ? 'Abrir carpeta de respaldos' : 'Open backups folder'}</span>
-                </button>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <label style={{
@@ -2961,11 +3058,10 @@ export default function SettingsModal({
                       disabled={!autoBackupEnabled}
                       style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
                     >
+                      <option value="1">1</option>
                       <option value="3">3</option>
                       <option value="5">5</option>
                       <option value="7">7</option>
-                      <option value="14">14</option>
-                      <option value="30">30</option>
                     </select>
                   </div>
 
@@ -2999,6 +3095,74 @@ export default function SettingsModal({
                           ? (language === 'es' ? 'Respaldando...' : 'Backing up...')
                           : (language === 'es' ? 'Respaldar ahora' : 'Back up now')}
                       </button>
+                      <button
+                      className="btn btn-ghost"
+                      onClick={handleOpenRestorePicker}
+                      disabled={restoreBusy || backupBusy}
+                      style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', padding: '8px 14px', color: 'var(--warning)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}
+                      >
+                        <History size={15} />
+                        {restoreBusy
+                          ? (language === 'es' ? 'Restaurando...' : 'Restoring...')
+                          : (language === 'es' ? 'Restaurar…' : 'Restore…')}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    padding: '12px 16px',
+                    background: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ color: 'var(--accent)', opacity: 0.8 }}><FolderOpen size={18} /></div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Carpeta de respaldos' : 'Backups folder'}
+                        </span>
+                        <span
+                          style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={backupFolder || (language === 'es' ? 'Predeterminada: dentro de los datos de CyberNotes' : 'Default: inside the CyberNotes data folder')}
+                        >
+                          {backupFolder
+                            ? backupFolder
+                            : (language === 'es' ? 'Predeterminada (datos de CyberNotes)' : 'Default (CyberNotes data folder)')}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => window.cyberNotesAPI.openBackupsFolder()}
+                        style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                      >
+                        <FolderOpen size={13} style={{ color: 'var(--accent)' }} />
+                        {language === 'es' ? 'Abrir carpeta' : 'Open folder'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handlePickBackupFolder}
+                        style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                      >
+                        <FolderOpen size={13} />
+                        {language === 'es' ? 'Cambiar…' : 'Change…'}
+                      </button>
+                      {backupFolder && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={handleResetBackupFolder}
+                          style={{ gap: 6, fontSize: 'calc(12px * var(--ui-scale))', padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', color: 'var(--text-muted)' }}
+                        >
+                          {language === 'es' ? 'Predeterminada' : 'Use default'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3046,17 +3210,22 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              {/* Card 4: Restablecer Ajustes de Fábrica */}
+              {/* Card 4: Danger Zone */}
               <div className="settings-card">
                 <SettingsHeading icon={<RotateCcw />} tone="danger">
-                  {language === 'es' ? 'Restablecer Ajustes' : 'Reset Settings'}
+                  {language === 'es' ? 'Zona de peligro' : 'Danger Zone'}
                 </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
-                    ? 'Restaura todos los ajustes de configuración de la app a sus valores originales de fábrica sin borrar tus notas ni carpetas.'
-                    : 'Restores all application settings to their original factory values without deleting your notes or folders.'}
+                    ? 'Acciones irreversibles: restablecer las preferencias de la app o borrar permanentemente todos tus datos.'
+                    : 'Irreversible actions: reset app preferences or permanently delete all your data.'}
                 </p>
 
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -3073,8 +3242,8 @@ export default function SettingsModal({
                     </span>
                     <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
                       {language === 'es'
-                        ? 'Tema, interfaz, atajos y preferencias volverán a su estado inicial.'
-                        : 'Theme, interface, shortcuts, and preferences will return to initial state.'}
+                        ? 'Tema, interfaz, atajos y preferencias volverán a su estado inicial. Tus notas se conservan.'
+                        : 'Theme, interface, shortcuts, and preferences will return to initial state. Your notes are kept.'}
                     </span>
                   </div>
                   <button
@@ -3098,6 +3267,60 @@ export default function SettingsModal({
                     {language === 'es' ? 'Restablecer' : 'Reset'}
                   </button>
                 </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid color-mix(in srgb, #ef4444 35%, var(--border))',
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                    <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {language === 'es' ? 'Borrar todos los datos' : 'Delete all data'}
+                    </span>
+                    <span style={{ fontSize: 'calc(11.5px * var(--ui-scale))', color: 'var(--text-secondary)' }}>
+                      {language === 'es'
+                        ? 'Elimina notas, carpetas, notas adhesivas, imágenes, estadísticas y ajustes, incluida la contraseña de acceso. Los respaldos automáticos se conservan. No se puede deshacer.'
+                        : 'Deletes notes, folders, sticky notes, images, statistics, and settings, including the access password. Automatic backups are kept. This cannot be undone.'}
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-danger"
+                    onClick={async () => {
+                      const proceed = await showDialog({
+                        variant: 'warning',
+                        confirm: true,
+                        confirmLabel: language === 'es' ? 'Sí, borrar todo' : 'Yes, delete everything',
+                        title: language === 'es' ? 'Borrar todos los datos' : 'Delete all data',
+                        message: language === 'es'
+                          ? '¿Seguro que quieres borrar PERMANENTEMENTE todas tus notas, carpetas y datos? Se eliminará también la contraseña de acceso. Esta acción no se puede deshacer.'
+                          : 'Are you sure you want to PERMANENTLY delete all your notes, folders, and data? The access password will also be removed. This action cannot be undone.',
+                      });
+                      if (!proceed) return;
+                      const result = await window.cyberNotesAPI.wipeAllData?.();
+                      if (!result?.ok) {
+                        await showDialog({
+                          variant: 'warning',
+                          title: language === 'es' ? 'Borrar todos los datos' : 'Delete all data',
+                          message: language === 'es'
+                            ? `No se pudieron borrar los datos.${result?.error ? ` (${result.error})` : ''}`
+                            : `The data could not be deleted.${result?.error ? ` (${result.error})` : ''}`,
+                        });
+                        return;
+                      }
+                      window.location.reload();
+                    }}
+                    style={{ gap: 8, fontSize: 'calc(12.5px * var(--ui-scale))', flexShrink: 0, padding: '8px 14px' }}
+                  >
+                    <Trash2 size={15} />
+                    {language === 'es' ? 'Borrar todo' : 'Delete all'}
+                  </button>
+                </div>
+                </div>
               </div>
             </div>
           )}
@@ -3119,7 +3342,7 @@ export default function SettingsModal({
         >
           <div className="config-brand-line">
             <img className="config-brand-icon" src="icon.png" alt="" aria-hidden="true" draggable={false} />
-            <span>CyberNotes <span className="config-brand-version">v{appVersion || '1.14.0'}</span></span>
+            <span>CyberNotes <span className="config-brand-version">v{appVersion || '1.17.0'}</span></span>
           </div>
           <span className="config-brand-copyright">© 2026 CyberGems</span>
         </button>
@@ -3224,6 +3447,126 @@ export default function SettingsModal({
               <Check size={14} />
               {language === 'es' ? 'Continuar' : 'Continue'}
             </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+      {restorePickerOpen && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup'}
+          onClick={e => {
+            e.stopPropagation();
+            if (!restoreBusy) setRestorePickerOpen(false);
+          }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(4, 4, 10, 0.72)', padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            tabIndex={-1}
+            autoFocus
+            style={{
+              width: '100%', maxWidth: 460, borderRadius: 14, padding: 24,
+              background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
+              border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
+              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
+              display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
+              outline: 'none',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                color: 'var(--accent-light)', flexShrink: 0,
+              }}>
+                <History size={17} />
+              </span>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup'}
+              </h3>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {language === 'es'
+                ? 'Tus datos actuales se reemplazarán por los del respaldo elegido. Antes se guardará un respaldo de seguridad con el estado actual y, al terminar, la aplicación se recargará con los datos restaurados.'
+                : 'Your current data will be replaced with the selected backup. A safety backup of the current state is saved first and, when done, the application reloads with the restored data.'}
+            </p>
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 8,
+              maxHeight: 260, overflowY: 'auto', padding: 2,
+            }}>
+              {restoreList.map(entry => {
+                const selected = restoreSelected === entry.file;
+                const legacy = isBackupFile(entry.file);
+                return (
+                  <button
+                    key={entry.file}
+                    type="button"
+                    onClick={() => setRestoreSelected(entry.file)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      textAlign: 'left', padding: '9px 12px', cursor: 'pointer',
+                      borderRadius: 'var(--radius-md)',
+                      background: selected
+                        ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-surface))'
+                        : 'var(--bg-surface)',
+                      border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                  >
+                    <span style={{
+                      width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                      border: '2px solid var(--accent)',
+                      background: selected ? 'var(--accent)' : 'transparent',
+                    }} />
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {formatBackupDate(entry.mtime)}
+                        {legacy && (
+                          <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                            {' · '}{language === 'es' ? 'solo base de datos' : 'database only'}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{
+                        fontSize: 11, color: 'var(--text-muted)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {entry.file} · {formatBackupSize(entry.size)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-action-btn is-cancel"
+                disabled={restoreBusy}
+                onClick={() => setRestorePickerOpen(false)}
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+                <KeyHint>Esc</KeyHint>
+              </button>
+              <button
+                type="button"
+                className="modal-action-btn is-save"
+                disabled={!restoreSelected || restoreBusy}
+                ref={restoreConfirmRef}
+                onClick={() => void handleRestoreConfirm()}
+              >
+                {restoreBusy
+                  ? (language === 'es' ? 'Restaurando...' : 'Restoring...')
+                  : (language === 'es' ? 'Restaurar' : 'Restore')}
+                <EnterGlyph />
+              </button>
+            </div>
           </div>
         </div>,
         document.body,

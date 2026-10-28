@@ -5,7 +5,7 @@ import { EditorFontId, applyEditorFont, DEFAULT_EDITOR_FONT } from '../fonts';
 import TitleBar from './TitleBar';
 import Sidebar from './Sidebar';
 import NoteList from './NoteList';
-import NoteEditor, { type NoteExportActions, isToolbarItemId } from './NoteEditor';
+import NoteEditor, { type NoteExportActions, type NoteActionHandlers, isToolbarItemId } from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
 import TrayPinModal from './TrayPinModal';
@@ -14,7 +14,7 @@ import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayS
 import { Download, Power, X } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
-import { toNoteMeta, extractThumb } from '../utils/notes';
+import { toNoteMeta, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabSwitchStart, tabSwitchResolve } from '../utils/tabPerf';
 import UpdaterBanner from './UpdaterBanner';
 import { FILTER_COLORS } from './FolderIcon';
@@ -191,13 +191,15 @@ export default function MainApp({
   }, [showFirstCloseDialog, chooseFirstClose]);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
   const [sidebarWidth, setSidebarWidth] = useState(240);
-  // Fase 1 responsive: bajo este ancho lógico el sidebar colapsa a rail de
-  // iconos (automático; el layoutMode manual sigue mandando en columnas).
-  const [isSidebarRail, setIsSidebarRail] = useState(
+  // En ancho angosto usa automáticamente el rail de iconos. El usuario puede
+  // alternarlo manualmente mientras quiera recuperar espacio para el editor.
+  const [isSidebarNarrow, setIsSidebarNarrow] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < SIDEBAR_RAIL_BREAKPOINT,
   );
+  const [sidebarRailOverride, setSidebarRailOverride] = useState<boolean | null>(null);
+  const isSidebarRail = sidebarRailOverride ?? isSidebarNarrow;
   useEffect(() => {
-    const onResize = () => setIsSidebarRail(window.innerWidth < SIDEBAR_RAIL_BREAKPOINT);
+    const onResize = () => setIsSidebarNarrow(window.innerWidth < SIDEBAR_RAIL_BREAKPOINT);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -237,7 +239,8 @@ export default function MainApp({
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
   const [showLineCounter, setShowLineCounter] = useState(false);
-  const [showLineGutter, setShowLineGutter] = useState(true);
+  const [showLineGutter, setShowLineGutter] = useState(false);
+  const [showWrapGuides, setShowWrapGuides] = useState(true);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [autoUnlockCapsLock, setAutoUnlockCapsLock] = useState(true);
   const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(5);
@@ -248,6 +251,7 @@ export default function MainApp({
   const [editorFont, setEditorFont] = useState<EditorFontId>(DEFAULT_EDITOR_FONT);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showWordCounter, setShowWordCounter] = useState(false);
+  const [showKeyboardIndicators, setShowKeyboardIndicators] = useState(false);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
   const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>(['h1', 'h2']);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
@@ -286,6 +290,11 @@ export default function MainApp({
 
   const registerEditorExportActions = useCallback((actions: NoteExportActions | null) => {
     editorExportActionsRef.current = actions;
+  }, []);
+
+  const noteActionsRef = useRef<NoteActionHandlers | null>(null);
+  const registerNoteActions = useCallback((actions: NoteActionHandlers | null) => {
+    noteActionsRef.current = actions;
   }, []);
 
   useEffect(() => {
@@ -562,10 +571,10 @@ export default function MainApp({
     await loadDrafts();
     const s = await window.cyberNotesAPI.getSettings([
       'ui_scale', 'bg_image', 'glass_blur', 'bg_opacity', 'auto_lock_minutes',
-      'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'autosave_enabled',
+      'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'show_wrap_guides', 'autosave_enabled',
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
-      'show_word_counter', 'show_floating_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
+      'show_word_counter', 'show_keyboard_indicators', 'show_floating_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
       'editor_font',
     ]);
 
@@ -579,8 +588,9 @@ export default function MainApp({
     setMinimizeToTray(s.minimize_to_tray === 'true');
     setCloseToTray(s.close_to_tray === 'true');
 
-    if (s.show_line_gutter === null) setShowLineGutter(true);
-    else setShowLineGutter(s.show_line_gutter === 'true');
+    setShowLineGutter(s.show_line_gutter === 'true');
+    if (s.show_wrap_guides === null) setShowWrapGuides(true);
+    else setShowWrapGuides(s.show_wrap_guides === 'true');
     setShowLineCounter(s.show_line_counter === 'true');
     setAutosaveEnabled(s.autosave_enabled === 'true');
     setConfirmLeaveDismissed(s.confirm_leave_note_dismissed === 'true');
@@ -595,6 +605,7 @@ export default function MainApp({
     }
     if (s.show_minimap) setShowMinimap(s.show_minimap === 'true');
     setShowWordCounter(s.show_word_counter === 'true');
+    setShowKeyboardIndicators(s.show_keyboard_indicators === 'true');
     if (s.show_floating_toolbar === null) setShowFloatingToolbar(true);
     else setShowFloatingToolbar(s.show_floating_toolbar === 'true');
     if (s.toolbar_hidden_ids) {
@@ -934,6 +945,7 @@ export default function MainApp({
   const handleRenameNote = async (id: string, title: string) => {
     const note = allNotes.find(n => n.id === id);
     if (!note) return;
+    title = clampNoteTitle(title);
     
     // Si la nota posee borrador en caché, actualizamos el título del borrador
     if (draftCache[id]) {
@@ -1070,7 +1082,7 @@ export default function MainApp({
     const copy: Note = {
       id: window.crypto.randomUUID(),
       folder_id: full?.folder_id ?? meta.folder_id,
-      title: `${baseTitle} ${language === 'es' ? '(copia)' : '(copy)'}`.slice(0, 500),
+      title: `${baseTitle} ${language === 'es' ? '(copia)' : '(copy)'}`.slice(0, NOTE_TITLE_MAX_LENGTH),
       content: full?.content ?? '',
       preview: full?.preview ?? meta.preview ?? '',
       thumb: full?.thumb ?? meta.thumb ?? '',
@@ -1787,6 +1799,15 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('show_minimap', v.toString());
   };
 
+  const handleToggleSidebarRail = () => {
+    setSidebarRailOverride(!isSidebarRail);
+  };
+
+  const handleShowKeyboardIndicatorsChange = async (v: boolean) => {
+    setShowKeyboardIndicators(v);
+    await window.cyberNotesAPI.setSetting('show_keyboard_indicators', v.toString());
+  };
+
   const handleShowLineCounterChange = async (v: boolean) => {
     setShowLineCounter(v);
     await window.cyberNotesAPI.setSetting('show_line_counter', v.toString());
@@ -1795,6 +1816,11 @@ export default function MainApp({
   const handleShowLineGutterChange = async (v: boolean) => {
     setShowLineGutter(v);
     await window.cyberNotesAPI.setSetting('show_line_gutter', v.toString());
+  };
+
+  const handleShowWrapGuidesChange = async (v: boolean) => {
+    setShowWrapGuides(v);
+    await window.cyberNotesAPI.setSetting('show_wrap_guides', v.toString());
   };
 
   const handleShowFloatingToolbarChange = async (v: boolean) => {
@@ -1831,17 +1857,6 @@ export default function MainApp({
     setCapsLockSoundScope(val);
     await window.cyberNotesAPI.setSetting('caps_lock_sound_scope', val);
   };
-
-  const recentNotesSorted = useMemo(() =>
-    [...allNotes]
-      .filter(n => !recentClearedAt || new Date(n.updated_at).getTime() > recentClearedAt)
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
-  [allNotes, recentClearedAt]);
-
-  const recentNotesTop10 = useMemo(() => recentNotesSorted.slice(0, 10), [recentNotesSorted]);
-  const recentNotesTop6 = useMemo(() =>
-    [...allNotes].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 6),
-  [allNotes]);
 
   const startDragSidebar = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -1916,9 +1931,9 @@ export default function MainApp({
   });
 
   return (
-    <div 
+    <div
       ref={rootStyleRef}
-      className={bgImage ? 'has-bg' : ''}
+      className={`${bgImage ? 'has-bg' : ''} ${glassBlur > 0 ? 'glass-blur-on' : ''}`.trim() || undefined}
       style={{ 
         display: 'flex', 
         flexDirection: 'column', 
@@ -1945,6 +1960,7 @@ export default function MainApp({
 
       <TitleBar
         language={language}
+        uiScale={uiScale}
         displayName={displayName}
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
@@ -1958,23 +1974,17 @@ export default function MainApp({
         onExportPdf={() => { void editorExportActionsRef.current?.pdf(); }}
         onExportText={() => editorExportActionsRef.current?.text()}
         onPrint={() => { void editorExportActionsRef.current?.print(); }}
-        onSelectNote={(id) => {
-          setSelectedNoteId(id);
-          const note = allNotes.find(n => n.id === id);
-          if (note) setSelectedFolderId(prev => prev === 'sticky' ? prev : note.folder_id);
-        }}
         currentNoteId={selectedNoteId}
         currentNotePinned={selectedNote?.pinned === 1}
         isCurrentNoteSticky={!!selectedNoteId && openStickyIds.includes(selectedNoteId)}
         onDuplicateNote={handleDuplicateNote}
         onToggleNoteFavorite={handleToggleSelectedFavorite}
         onToggleNoteSticky={handleToggleSelectedSticky}
-        recentNotes={recentNotesTop10}
-        onClearRecent={async () => {
-          const now = Date.now().toString();
-          await window.cyberNotesAPI.setSetting('recent_cleared_at', now);
-          setRecentClearedAt(parseInt(now));
-        }}
+        onSaveNote={() => noteActionsRef.current?.manualSave()}
+        onDeleteNote={() => noteActionsRef.current?.requestDelete()}
+        onToggleRaw={() => noteActionsRef.current?.toggleRaw()}
+        onCycleLayout={() => noteActionsRef.current?.cycleLayout()}
+        onShowHistory={() => noteActionsRef.current?.showHistory()}
         autosaveEnabled={autosaveEnabled}
         onAutosaveChange={handleAutosaveEnabledChange}
         autoUnlockCapsLock={autoUnlockCapsLock}
@@ -1983,6 +1993,8 @@ export default function MainApp({
         capsStatus={capsStatus}
         showMinimap={showMinimap}
         onShowMinimapChange={handleShowMinimapChange}
+        showKeyboardIndicators={showKeyboardIndicators}
+        onShowKeyboardIndicatorsChange={handleShowKeyboardIndicatorsChange}
         showLineCounter={showLineCounter}
         onShowLineCounterChange={handleShowLineCounterChange}
         showLineGutter={showLineGutter}
@@ -2004,11 +2016,11 @@ export default function MainApp({
             <Sidebar
               language={language}
               rail={isSidebarRail}
+              onToggleRail={handleToggleSidebarRail}
               folders={folders}
               selectedFolderId={selectedFolderId}
               noteCount={allNotes.length}
               trashCount={trashCount}
-              recentNotes={recentNotesTop6}
               allNotes={allNotes}
               stickyNoteIds={openStickyIds}
               openedHistory={openedHistory}
@@ -2154,6 +2166,7 @@ export default function MainApp({
           canReopenClosedTab={closedTabHistory.length > 0}
           onReorderTabs={handleReorderTabs}
           onRegisterExportActions={registerEditorExportActions}
+          onRegisterNoteActions={registerNoteActions}
           draftCache={draftCache}
           onEditDraft={handleEditDraft}
           onDiscardDraft={handleDiscardDraft}
@@ -2163,8 +2176,11 @@ export default function MainApp({
           editorFontId={editorFont}
           showMinimap={showMinimap}
           onShowMinimapChange={handleShowMinimapChange}
+          showKeyboardIndicators={showKeyboardIndicators}
           showLineGutter={showLineGutter}
           onShowLineGutterChange={handleShowLineGutterChange}
+          showWrapGuides={showWrapGuides}
+          onShowWrapGuidesChange={handleShowWrapGuidesChange}
           showWordCounter={showWordCounter}
           showFloatingToolbar={showFloatingToolbar}
           hiddenToolbarIds={hiddenToolbarIds}
@@ -2196,8 +2212,12 @@ export default function MainApp({
           onRememberLastNoteChange={handleRememberLastNoteChange}
           showLineCounter={showLineCounter}
           onShowLineCounterChange={handleShowLineCounterChange}
+          showKeyboardIndicators={showKeyboardIndicators}
+          onShowKeyboardIndicatorsChange={handleShowKeyboardIndicatorsChange}
           showLineGutter={showLineGutter}
           onShowLineGutterChange={handleShowLineGutterChange}
+          showWrapGuides={showWrapGuides}
+          onShowWrapGuidesChange={handleShowWrapGuidesChange}
           autosaveEnabled={autosaveEnabled}
           onAutosaveEnabledChange={handleAutosaveEnabledChange}
           autoUnlockCapsLock={autoUnlockCapsLock}

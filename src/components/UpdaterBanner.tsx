@@ -1,15 +1,9 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Download, Rocket, X, RefreshCw, Info, ChevronDown, ChevronUp, Sparkles, ExternalLink, SkipForward } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
+import type { UpdateStatus } from '../types';
 
-type Status =
-  | { state: 'idle' }
-  | { state: 'checking' }
-  | { state: 'available'; version: string; releaseNotes?: string; releaseUrl?: string }
-  | { state: 'downloading'; percent: number; version?: string }
-  | { state: 'downloaded'; version: string }
-  | { state: 'installing'; version: string }
-  | { state: 'error'; message: string };
+type Status = { state: 'idle' } | UpdateStatus;
 
 const SKIP_KEY = 'cybernotes_skipped_update_version';
 const RELEASES_REPO = 'CyberGems/CyberNotes';
@@ -172,8 +166,11 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     : '';
 
   useEffect(() => {
-    const off = window.cyberNotesAPI.onUpdateStatus((s: any) => {
-      let next = s as Status;
+    let active = true;
+    let receivedEvent = false;
+
+    const applyStatus = (s: UpdateStatus) => {
+      let next: Status = s;
       if (next.state === 'error' && isNetworkOrOfflineError(next.message)) {
         return;
       }
@@ -192,13 +189,28 @@ export default function UpdaterBanner({ language }: { language: Language }) {
       if (next.state === 'downloading' || next.state === 'downloaded' || next.state === 'installing' || next.state === 'available' || next.state === 'error') {
         setDismissed(false);
       }
-      if (next.state === 'not-available' as any) {
+      if (next.state === 'not-available') {
         setStatus({ state: 'idle' });
         return;
       }
       setStatus(next);
+    };
+
+    const off = window.cyberNotesAPI.onUpdateStatus((status) => {
+      receivedEvent = true;
+      applyStatus(status);
     });
-    return () => { off(); };
+
+    void window.cyberNotesAPI.getUpdateStatus()
+      .then((status) => {
+        if (active && !receivedEvent && status) applyStatus(status);
+      })
+      .catch(() => { /* The event subscription remains available if the snapshot cannot be read. */ });
+
+    return () => {
+      active = false;
+      off();
+    };
   }, []);
 
   useEffect(() => {
