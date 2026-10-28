@@ -4633,9 +4633,22 @@ export default function NoteEditor({
   const saveStatusTooltip = hasValidSaveDate
     ? `${saveStatusLabel} · ${t.editor.lastSavedAt}: ${fullSaveTimestamp}`
     : `${saveStatusLabel} · ${t.editor.notSavedYet}`;
-  const saveStatusDisplay = saveTime
-    ? `${saveStatusLabel} ${saveTime}`
-    : saveStatusLabel;
+  // Footer calmado: con autoguardado bastan el LED y la hora del último
+  // guardado (patrón de las notas adhesivas); en guardado manual se mantiene
+  // el aviso explícito "Sin guardar", que ahí sí es crítico.
+  const saveStatusDisplay = autosaveEnabled
+    ? saveTime
+    : saveStatus === 'error'
+      ? t.editor.saveError
+      : saveStatus === 'saved'
+        ? (saveTime ? `${t.editor.saved} ${saveTime}` : t.editor.saved)
+        : t.editor.unsavedChanges;
+  // El bloque reserva el ancho de su estado más ancho para que las métricas
+  // y el LED no salten al cambiar de estado ni al rodar la hora.
+  const widestSaveLabel = (autosaveEnabled
+    ? ['10:00 PM']
+    : [`${t.editor.saved} 10:00 PM`, t.editor.unsavedChanges, t.editor.saveError]
+  ).reduce((widest, label) => (label.length > widest.length ? label : widest));
 
   const activeFontSize = ui.fontSize;
 
@@ -6849,7 +6862,17 @@ export default function NoteEditor({
                       : '0 0 7px rgba(52, 211, 153, 0.45)',
                 }}
               />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', userSelect: 'none' }}>{saveStatusDisplay}</span>
+              <span style={{ position: 'relative', display: 'inline-block', userSelect: 'none' }}>
+                <span
+                  aria-hidden="true"
+                  style={{ visibility: 'hidden', display: 'block', whiteSpace: 'nowrap' }}
+                >
+                  {widestSaveLabel}
+                </span>
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                  {saveStatusDisplay}
+                </span>
+              </span>
             </span>
           </Tooltip>
         )}
