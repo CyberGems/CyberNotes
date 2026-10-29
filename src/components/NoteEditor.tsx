@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, useId, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1279,6 +1279,147 @@ export function WordFontSizeSelect({
           </div>
         </>,
         document.body,
+      )}
+    </div>
+  );
+}
+
+/** Selección explícita de tamaño en la barra flotante, sin entrada editable. */
+export function FloatingFontSizeSelect({ editor, language, defaultSize = 15 }: {
+  editor: Editor; language: Language; defaultSize?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const menuStyle = useWordMenuPosition(open, anchorRef, { dropUp: false, minWidth: 112, width: 112 });
+  const positioned = menuStyle !== null;
+  const size = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const sizes = getSelectionFontSizes(e, defaultSize);
+      return sizes.length > 1 ? null : (sizes[0]
+        ?? parseFontSizeNumber(e.getAttributes('textStyle').fontSize)
+        ?? defaultSize);
+    },
+  });
+  const label = size === null ? (language === 'es' ? 'Mixto' : 'Mixed') : String(size);
+  const title = language === 'es' ? 'Tamaño de letra' : 'Font size';
+  const options = [...new Set([...FONT_SIZE_OPTIONS.map(Number), ...(size === null ? [] : [size])])].sort((a, b) => a - b);
+  const t = TRANSLATIONS[language];
+
+  const close = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) editor.view.focus();
+  };
+  const choose = (index: number) => {
+    if (index === options.length) editor.commands.unsetFontSize();
+    else editor.commands.setFontSize(`${options[index]}px`);
+    close(true);
+  };
+  const show = (last = false) => {
+    setActiveIndex(last ? options.length : Math.max(0, options.findIndex(value => value === size)));
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    anchorRef.current?.focus({ preventScroll: true });
+    const outside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!anchorRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    };
+    const changed = () => setOpen(false);
+    document.addEventListener('mousedown', outside, true);
+    editor.on('selectionUpdate', changed);
+    editor.on('update', changed);
+    return () => {
+      document.removeEventListener('mousedown', outside, true);
+      editor.off('selectionUpdate', changed);
+      editor.off('update', changed);
+    };
+  }, [open, editor]);
+
+  useEffect(() => {
+    if (open && positioned) menuRef.current?.children[activeIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex, positioned]);
+
+  return (
+    <div data-word-menu="true" style={{ flexShrink: 0 }}>
+      <Tooltip label={title} placement="top">
+        <button
+          ref={anchorRef}
+          type="button"
+          role="combobox"
+          data-floating-font-size="true"
+          className="word-combo"
+          aria-label={`${title}: ${label}`}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? menuId : undefined}
+          aria-activedescendant={open && positioned ? `${menuId}-${activeIndex}` : undefined}
+          disabled={!editor.isEditable}
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => { if (open) close(true); else show(); }}
+          onKeyDown={event => {
+            const { key } = event;
+            if (key === 'Escape' && open) {
+              event.preventDefault(); event.stopPropagation(); close(true);
+            } else if (key === 'Tab') {
+              setOpen(false);
+            } else if (key === 'ArrowDown' || key === 'ArrowUp' || (open && (key === 'Home' || key === 'End'))) {
+              event.preventDefault();
+              if (!open) show(key === 'ArrowUp');
+              else if (key === 'Home') setActiveIndex(0);
+              else if (key === 'End') setActiveIndex(options.length);
+              else setActiveIndex(index => (index + (key === 'ArrowUp' ? -1 : 1) + options.length + 1) % (options.length + 1));
+            } else if (open && (key === 'Enter' || key === ' ')) {
+              event.preventDefault(); choose(activeIndex);
+            }
+          }}
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+            minWidth: 52, height: 28, padding: '0 7px', borderRadius: 6, cursor: 'pointer',
+            border: `1px solid ${open ? 'var(--accent)' : 'var(--border)'}`,
+            background: open ? 'var(--accent-dim)' : 'transparent', color: 'var(--text-primary)',
+            fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          <span>{label}</span><span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>▾</span>
+        </button>
+      </Tooltip>
+      {open && menuStyle && createPortal(
+        <div
+          ref={menuRef}
+          id={menuId}
+          role="listbox"
+          aria-label={title}
+          data-word-menu="true"
+          data-floating-font-menu="true"
+          style={{ ...wordMenuBoxStyle, ...menuStyle }}
+        >
+          {[...options, null].map((value, index) => (
+            <button
+              key={value ?? 'normal'}
+              id={`${menuId}-${index}`}
+              type="button"
+              role="option"
+              tabIndex={-1}
+              aria-selected={value !== null && size === value}
+              aria-label={value === null ? t.editor.fontSizeNormal : undefined}
+              className={`word-menu-item${value !== null && size === value ? ' is-active' : ''}`}
+              onMouseDown={event => event.preventDefault()}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => choose(index)}
+              style={{
+                padding: '4px 10px', border: 'none', borderRadius: 5, cursor: 'pointer',
+                fontSize: 12, fontVariantNumeric: 'tabular-nums', textAlign: 'center',
+                outline: index === activeIndex ? '1px solid var(--border)' : 'none',
+              }}
+            >{value ?? 'Normal'}</button>
+          ))}
+        </div>, document.body,
       )}
     </div>
   );
@@ -3592,9 +3733,6 @@ export default function NoteEditor({
         table: e.isActive('table'),
         imageAlign: (imageAttrs?.align as string | undefined) ?? 'center',
         imageWidth: (imageAttrs?.width as string | undefined) ?? null,
-        fontSize: (e.getAttributes('textStyle')?.fontSize as string | undefined) ?? null,
-        // Con formatos mixtos no hay un tamaño único que mostrar.
-        fontSizeMixed: getSelectionFontSizes(e, Math.round(15 * uiScale)).length > 1,
       };
     },
   });
@@ -3604,7 +3742,6 @@ export default function NoteEditor({
     bulletList: false, orderedList: false, alignLeft: false, alignCenter: false,
     alignRight: false, alignJustify: false, blockquote: false, codeBlock: false,
     link: false, image: false, table: false, imageAlign: 'center', imageWidth: null,
-    fontSize: null, fontSizeMixed: false,
   };
 
   useEffect(() => {
@@ -4676,8 +4813,6 @@ export default function NoteEditor({
     ? ['10:00 PM']
     : [`${t.editor.saved} 10:00 PM`, t.editor.unsavedChanges, t.editor.saveError]
   ).reduce((widest, label) => (label.length > widest.length ? label : widest));
-
-  const activeFontSize = ui.fontSize;
 
   const renderedToolbarGroups = TOOLBAR_GROUPS
     .map((group) => group.filter((gid) => !hiddenToolbarSet.has(gid)))
@@ -5937,33 +6072,7 @@ export default function NoteEditor({
               <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={ui.italic} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={14} /></ToolbarBtn>
               <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
               <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 3px' }} />
-              <ToolbarBtn
-                onClick={() => {
-                  const values: (string | null)[] = [null, ...FONT_SIZE_OPTIONS.map((s) => `${s}px`)];
-                  // Con formatos mixtos no hay un tamaño actual fiable: la
-                  // marca que reporta Tiptap es solo la primera del rango y
-                  // el ciclo arrancaría desde ella, encogiendo texto grande.
-                  // Se normaliza al tamaño base en su lugar.
-                  if (ui.fontSizeMixed) {
-                    editor.chain().focus().setFontSize('15px').run();
-                    return;
-                  }
-                  const next = values[(values.indexOf(activeFontSize) + 1) % values.length];
-                  if (next) editor.chain().focus().setFontSize(next).run();
-                  else editor.chain().focus().unsetFontSize().run();
-                }}
-                active={!!activeFontSize || ui.fontSizeMixed}
-                title={t.editor.fontSize}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                  <ALargeSmall size={16} />
-                  {(activeFontSize || ui.fontSizeMixed) && (
-                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-light)', minWidth: 14, textAlign: 'left' }}>
-                      {ui.fontSizeMixed ? '-' : parseInt(activeFontSize!, 10)}
-                    </span>
-                  )}
-                </span>
-              </ToolbarBtn>
+              <FloatingFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
             </div>
           </BubbleMenu>
         )}
