@@ -17,6 +17,7 @@ vi.mock('@tiptap/react', async importOriginal => {
 
 describe('NoteEditor tab hydration', () => {
   const scrollToDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTo');
+  const rangeRectsDescriptor = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
   let root: ReturnType<typeof createRoot> | undefined;
   let container: HTMLDivElement | undefined;
   const note: Note = {
@@ -45,6 +46,8 @@ describe('NoteEditor tab hydration', () => {
     vi.restoreAllMocks();
     if (scrollToDescriptor) Object.defineProperty(Element.prototype, 'scrollTo', scrollToDescriptor);
     else delete (Element.prototype as Partial<Element>).scrollTo;
+    if (rangeRectsDescriptor) Object.defineProperty(Range.prototype, 'getClientRects', rangeRectsDescriptor);
+    else delete (Range.prototype as Partial<Range>).getClientRects;
   });
 
   it('disables spellcheck before replacing a tab and enables it after the delay', async () => {
@@ -147,9 +150,13 @@ describe('NoteEditor tab hydration', () => {
     };
     await act(async () => root!.render(<NoteEditor {...props} />));
     const paragraph = container!.querySelector<HTMLElement>('.tiptap p')!;
+    const editor = (container!.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
+    // jsdom has no text layout; native geometry is verified in Electron.
+    const caret = vi.spyOn(editor.view, 'coordsAtPos').mockReturnValue({ top: 20, bottom: 40, left: 0, right: 0 });
     const measure = vi.spyOn(paragraph, 'getBoundingClientRect');
     await act(async () => { vi.advanceTimersToNextFrame(); });
     expect(measure).not.toHaveBeenCalled();
+    expect(caret).not.toHaveBeenCalled();
     expect(container!.querySelector('.line-number-mark')).toBeNull();
     const notify = (callback: IntersectionObserverCallback, target: Element) => callback([
       { target, isIntersecting: true } as IntersectionObserverEntry,
@@ -172,6 +179,84 @@ describe('NoteEditor tab hydration', () => {
     await act(async () => root!.render(<NoteEditor {...props} note={{ ...note, id: 'fallback', content: '<p>Fallback</p>' }} />));
     await act(async () => { vi.advanceTimersToNextFrame(); });
     expect(container!.querySelector('.line-number-mark')?.textContent).toBe('1');
+  });
+
+  it('numbers every code line from its text coordinates when only its wrapper is visible', async () => {
+    let notify: IntersectionObserverCallback;
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) { notify = callback; }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 400));
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(), layoutMode: 1,
+      onToggleLayout: vi.fn(), showFloatingToolbar: false, showLineGutter: true, showWrapGuides: false,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    await act(async () => root!.render(<NoteEditor {...props} note={{
+      ...note, id: 'code', content: '<pre><code>a\n\n\nb\n</code></pre><p>Offscreen</p>',
+    }} />));
+    const editor = (container!.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
+    const positions = [1, 3, 4, 5, 7];
+    const caret = vi.spyOn(editor.view, 'coordsAtPos').mockImplementation(pos => {
+      const index = positions.indexOf(pos);
+      if (index < 0) throw Error('Measured an offscreen line');
+      return { top: 100 + index * 26, bottom: 120 + index * 26, left: 70, right: 70 };
+    });
+    await act(async () => {
+      notify!([{ target: container!.querySelector('.node-codeBlock')!, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+      vi.advanceTimersToNextFrame();
+    });
+    const marks = Array.from(container!.querySelectorAll<HTMLElement>('.line-number-mark'));
+    expect(marks.map(mark => mark.textContent)).toEqual(['1', '2', '3', '4', '5']);
+    expect(marks.map(mark => mark.style.top)).toEqual(['110px', '136px', '162px', '188px', '214px']);
+    expect(marks.every(mark => mark.classList.contains('is-text-line'))).toBe(true);
+    expect(caret.mock.calls.map(([pos]) => pos)).toEqual(positions);
+    expect(props.onSave).not.toHaveBeenCalled();
+  });
+
+  it('uses the observed code wrapper for continuation guides after its inner pre mounts', async () => {
+    let notify: IntersectionObserverCallback;
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) { notify = callback; }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 400));
+    Object.defineProperty(Range.prototype, 'getClientRects', {
+      configurable: true, value: () => [new DOMRect(70, 100, 150, 24), new DOMRect(70, 132, 150, 24), new DOMRect(70, 164, 100, 24)],
+    });
+    await act(async () => root!.render(<NoteEditor
+      language="es" note={{ ...note, content: '<pre><code>wrapped code</code></pre>' }}
+      onSave={vi.fn()} onCreateNote={vi.fn()} layoutMode={1} onToggleLayout={vi.fn()}
+      showFloatingToolbar={false} showLineGutter showWrapGuides
+    />));
+    await act(async () => {
+      notify!([{ target: container!.querySelector('.node-codeBlock')!, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+      vi.advanceTimersToNextFrame();
+    });
+    expect(container!.querySelector<HTMLElement>('.line-number-mark')?.style.top).toBe('112px');
+    expect(Array.from(container!.querySelectorAll<HTMLElement>('.wrap-guide-mark')).map(mark => mark.style.top)).toEqual(['144px', '176px']);
+    expect(container!.querySelectorAll('.wrap-guide-link')).toHaveLength(1);
+  });
+
+  it('positions blank quote lines using their actual caret height without font-size estimates', async () => {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 400));
+    await act(async () => root!.render(<NoteEditor
+      language="es" note={{ ...note, content: '<blockquote><p><span style="font-size:24px">First<br><br>Last</span></p></blockquote>' }}
+      onSave={vi.fn()} onCreateNote={vi.fn()} layoutMode={1} onToggleLayout={vi.fn()}
+      showFloatingToolbar={false} showLineGutter showWrapGuides={false}
+    />));
+    const editor = (container!.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
+    vi.spyOn(editor.view, 'coordsAtPos').mockImplementation(pos => {
+      const index = [2, 8, 9].indexOf(pos);
+      return { top: 100 + index * 34, bottom: 128 + index * 34, left: 70, right: 70 };
+    });
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(Array.from(container!.querySelectorAll<HTMLElement>('.line-number-mark')).map(mark => mark.style.top)).toEqual(['114px', '148px', '182px']);
   });
 
   it('lets the editor paint first and coalesces minimap refreshes to the latest tab', async () => {

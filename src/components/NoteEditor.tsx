@@ -3914,14 +3914,17 @@ export default function NoteEditor({
       const getCodeTextBlock = (element: HTMLElement) => (
         element.matches('pre') ? element : element.querySelector('pre') as HTMLElement | null
       ) || element;
-      const getSegmentTextBlock = (line: LogicalLineUnit, element: HTMLElement) => (
-        line.node.type?.spec?.code ? getCodeTextBlock(element) : element
-      );
-      const segmentedTextBlocks = new Set<Element>();
-      for (const line of logicalLines) {
-        if (line.segmentIndex === undefined) continue;
-        const element = getLineElement(line.pos);
-        if (element) segmentedTextBlocks.add(getSegmentTextBlock(line, element));
+      const codeOwners = new Set<Element>();
+      const textBlockOwners = new Map<Element, Element>();
+      if (showWrapGuidesRef.current) {
+        for (const line of logicalLines) {
+          if (!line.node.type?.spec?.code) continue;
+          const element = getLineElement(line.pos);
+          if (!element || codeOwners.has(element) || !isVisible(element)) continue;
+          const block = getCodeTextBlock(element);
+          codeOwners.add(element);
+          textBlockOwners.set(block, element);
+        }
       }
 
       const collectVisualSegments = (block: Element): VisualRow[][] => {
@@ -3968,15 +3971,14 @@ export default function NoteEditor({
         ));
       };
 
-      const visualSegmentsByBlock = new Map<Element, VisualRow[][]>();
-      const textBlocks = Array.from(dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre'));
+      const textBlocks = showWrapGuidesRef.current
+        ? Array.from(dom.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre')) : [];
       for (const block of textBlocks) {
-        const hasWrapGuides = showWrapGuidesRef.current && isVisible(block);
-        if (!hasWrapGuides && !segmentedTextBlocks.has(block)) continue;
-        if (!isVisible(block)) continue;
+        // El wrapper de ProseMirror ya está observado aunque React todavía
+        // no hubiera montado el <pre> al registrar las intersecciones.
+        const visible = isVisible(textBlockOwners.get(block) ?? block);
+        if (!visible) continue;
         const segments = collectVisualSegments(block);
-        visualSegmentsByBlock.set(block, segments);
-        if (!hasWrapGuides) continue;
 
         for (const rows of segments) {
           if (rows.length < 2 || guideHtml.length >= MAX_GUIDES) continue;
@@ -4002,49 +4004,25 @@ export default function NoteEditor({
         }
       }
 
-      const segmentedLineTops = new Map<Element, number[]>();
-      for (const block of segmentedTextBlocks) {
-        const segments = visualSegmentsByBlock.get(block);
-        if (!segments) continue;
-        const blockRect = block.getBoundingClientRect();
-        const style = window.getComputedStyle(block);
-        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.3 || 16;
-        const paddingTop = parseFloat(style.paddingTop) || 0;
-        const borderTop = parseFloat(style.borderTopWidth) || 0;
-        const tops: number[] = [];
-        for (let i = 0; i < segments.length; i++) {
-          if (segments[i].length > 0) {
-            tops[i] = segments[i][0].top;
-            continue;
-          }
-          let previous = i - 1;
-          while (previous >= 0 && segments[previous].length === 0) previous--;
-          if (previous >= 0) {
-            tops[i] = segments[previous][segments[previous].length - 1].top + lineHeight * (i - previous);
-            continue;
-          }
-          let next = i + 1;
-          while (next < segments.length && segments[next].length === 0) next++;
-          tops[i] = next < segments.length
-            ? segments[next][0].top - lineHeight * (next - i)
-            : blockRect.top + borderTop + paddingTop + lineHeight * i;
-        }
-        segmentedLineTops.set(block, tops);
-      }
-
       logicalLines.forEach((line, index) => {
         const element = getLineElement(line.pos);
         if (!element || !isVisible(element)) return;
         const rect = element.getBoundingClientRect();
         if (rect.height <= 0) return;
-        const textBlock = line.segmentIndex === undefined ? null : getSegmentTextBlock(line, element);
-        const y = line.segmentIndex !== undefined && textBlock
-          ? (segmentedLineTops.get(textBlock)?.[line.segmentIndex] ?? rect.top) - wrapBox.top
-          : rect.top - wrapBox.top;
+        let y = rect.top - wrapBox.top;
+        if (line.node.isTextblock) {
+          // Usar la posición real del cursor al inicio de cada línea, también
+          // en saltos vacíos. Así la alineación no depende del padding, de una
+          // fuente estimada ni de que las guías de continuación estén activas.
+          const caret = liveEditor.view.coordsAtPos(line.pos + 1 + (line.segmentStart ?? 0));
+          if (caret.bottom <= caret.top) return;
+          y = (caret.top + caret.bottom) / 2 - wrapBox.top;
+        }
         const key = Math.round(y);
         if (seenLineY.has(key)) return;
         seenLineY.add(key);
-        lineNumberHtml.push(`<span class="line-number-mark" style="top:${y.toFixed(1)}px">${index + 1}</span>`);
+        const textClass = line.node.isTextblock ? ' is-text-line' : '';
+        lineNumberHtml.push(`<span class="line-number-mark${textClass}" style="top:${y.toFixed(1)}px">${index + 1}</span>`);
       });
 
       layer.innerHTML = lineNumberHtml.concat(guideHtml).join('');
