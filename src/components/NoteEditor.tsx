@@ -2489,7 +2489,8 @@ export default function NoteEditor({
     const updateScale = () => {
       const prose = editorRef.current?.view?.dom as HTMLElement | undefined;
       if (!prose) return;
-      const editorWidth = prose.offsetWidth;
+      // Keep fractional widths so images and line wrapping match after resize.
+      const editorWidth = prose.getBoundingClientRect().width;
       if (editorWidth > 0) {
         const next = MINIMAP_WIDTH / editorWidth;
         minimapScaleRef.current = next;
