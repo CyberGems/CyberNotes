@@ -26,6 +26,7 @@ import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import { loadEditorContent } from '../utils/editorContent';
+import { createMinimapMirror, getMinimapGeometry } from '../utils/minimap';
 import Tooltip from './Tooltip';
 import EditorEdgeToggle from './EditorEdgeToggle';
 import WelcomeGreeting from './WelcomeGreeting';
@@ -2399,97 +2400,75 @@ export default function NoteEditor({
     setGutterMenu({ x: Math.max(margin, x), y: Math.max(margin, y) });
   };
 
-  // Actualizar indicador vía DOM directo (sin React → sin re-renders en scroll)
-  const updateMinimapIndicator = useCallback(() => {
+  const minimapIndicatorFrame = useRef(0);
+  const minimapMirrorRef = useRef<ReturnType<typeof createMinimapMirror> | null>(null);
+  const minimapDragCleanup = useRef<(() => void) | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const readMinimapGeometry = useCallback(() => {
     const el = scrollContainerRef.current;
-    const indicator = minimapIndicatorRef.current;
     const mm = minimapRef.current;
     const content = minimapContentRef.current;
-    const panEl = minimapPanRef.current;
-    if (!el || !indicator || !mm || !content) return;
-
-    const total = el.scrollHeight;
-    const view = el.clientHeight;
-    const top = el.scrollTop;
-    if (total <= 0) {
-      indicator.style.display = 'none';
-      return;
-    }
-
-    const scale = minimapScaleRef.current || 0;
-    const scaledH = content.offsetHeight * scale;
-    const mmH = mm.clientHeight;
-    const maxScroll = Math.max(0, total - view);
-    const scrollRatio = maxScroll > 0 ? top / maxScroll : 0;
-
-    // Docs largos: desplazar el preview para que coincida con el scroll del editor
-    if (panEl) {
-      const pan = scaledH > mmH && maxScroll > 0 ? scrollRatio * (scaledH - mmH) : 0;
-      panEl.style.transform = `translateY(${-pan}px)`;
-    }
-
-    const mapH = scaledH > 0 ? Math.min(Math.max(scaledH, 8), mmH) : mmH;
-    const indH = Math.max(8, (view / total) * mapH);
-    indicator.style.display = 'block';
-    indicator.style.top = `${scrollRatio * Math.max(0, mapH - indH)}px`;
-    indicator.style.height = `${indH}px`;
+    if (!el || !mm || !content) return null;
+    return getMinimapGeometry({
+      total: el.scrollHeight, view: el.clientHeight, top: el.scrollTop,
+      contentHeight: content.offsetHeight, scale: minimapScaleRef.current,
+      height: mm.clientHeight,
+    });
   }, []);
 
-  // Sincronizar el minimapa desde el DOM renderizado del editor (más fiel que getHTML())
+  // Coalesce scroll, resize and snapshot updates without re-rendering React.
+  const updateMinimapIndicator = useCallback(() => {
+    if (minimapIndicatorFrame.current || !showMinimapRef.current) return;
+    minimapIndicatorFrame.current = requestAnimationFrame(() => {
+      minimapIndicatorFrame.current = 0;
+      if (!showMinimapRef.current) return;
+      const geometry = readMinimapGeometry();
+      const indicator = minimapIndicatorRef.current;
+      const pan = minimapPanRef.current;
+      if (!geometry || !indicator || !pan) return;
+      pan.style.transform = `translateY(${-geometry.pan}px)`;
+      indicator.style.display = 'block';
+      indicator.style.top = `${geometry.indicatorTop}px`;
+      indicator.style.height = `${geometry.indicatorHeight}px`;
+    });
+  }, [readMinimapGeometry]);
+
   const minimapSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const minimapSyncFrame = useRef(0);
   const minimapSyncIdle = useRef<number | null>(null);
-  useEffect(() => () => {
+  const cancelMinimapSync = useCallback(() => {
     if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
     if (minimapSyncFrame.current) cancelAnimationFrame(minimapSyncFrame.current);
     if (minimapSyncIdle.current !== null) cancelIdleCallback(minimapSyncIdle.current);
+    minimapSyncTimer.current = null;
+    minimapSyncFrame.current = 0;
+    minimapSyncIdle.current = null;
   }, []);
-  const syncMinimapHtml = useCallback((immediate = false) => {
+  const syncMinimapHtml = useCallback((immediate = false): void => {
     if (!showMinimapRef.current) return;
     const run = () => {
       if (minimapSyncFrame.current) cancelAnimationFrame(minimapSyncFrame.current);
       if (minimapSyncIdle.current !== null) cancelIdleCallback(minimapSyncIdle.current);
       minimapSyncIdle.current = null;
-      // Dar un frame al editor antes de copiar todo su DOM al minimapa.
-      // Coalescer las solicitudes de hidratación, montaje y cambios rápidos.
+      // Preserve the editor's first frame and coalesce rapid tab changes.
       minimapSyncFrame.current = requestAnimationFrame(() => {
         minimapSyncFrame.current = 0;
         const copySnapshot = () => {
           minimapSyncIdle.current = null;
           minimapSyncFrame.current = 0;
           const target = minimapContentRef.current;
-          const ed = editorRef.current;
-          if (!showMinimapRef.current || !target || !ed?.view?.dom) return;
-
-          // Copiar nodos directamente evita serializar y volver a parsear todo
-          // el documento. Preparar el snapshot separado evita montar iframes.
-          const snapshot = ed.view.dom.cloneNode(true) as HTMLElement;
-
-          // Los iframes (videos en reproducción) no van al minimapa: marcador.
-          snapshot.querySelectorAll('iframe').forEach((frame) => {
-            const ph = document.createElement('div');
-            ph.className = 'minimap-media-ph';
-            ph.textContent = '▶';
-            frame.replaceWith(ph);
-          });
-
-          // Quitar ruido visual de edición (placeholder, selección)
-          snapshot.querySelectorAll('.ProseMirror-selectednode').forEach((n) => {
-            n.classList.remove('ProseMirror-selectednode');
-          });
-          snapshot.querySelectorAll('[data-placeholder]').forEach((n) => {
-            n.removeAttribute('data-placeholder');
-            n.classList.remove('is-editor-empty', 'is-empty');
-          });
-
-          const range = target.ownerDocument.createRange();
-          range.selectNodeContents(snapshot);
-          target.replaceChildren(range.extractContents());
+          const source = editorRef.current?.view?.dom as HTMLElement | undefined;
+          if (!showMinimapRef.current || !target || !source) return;
+          let mirror = minimapMirrorRef.current;
+          if (!mirror || mirror.source !== source || mirror.target !== target) {
+            mirror?.destroy();
+            mirror = createMinimapMirror(source, target, () => syncMinimapHtml());
+            minimapMirrorRef.current = mirror;
+          }
+          mirror.flush();
           updateMinimapIndicator();
         };
-        // El minimapa puede costar un layout completo. Dejar que el navegador
-        // pinte el editor antes de hacerlo, con un límite para no postergarlo
-        // indefinidamente mientras se escribe o se cambia de pestaña.
         if (typeof requestIdleCallback === 'function') {
           minimapSyncIdle.current = requestIdleCallback(copySnapshot, { timeout: 200 });
         } else {
@@ -2497,19 +2476,14 @@ export default function NoteEditor({
         }
       });
     };
-    if (immediate) {
-      if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
-      minimapSyncTimer.current = null;
-      run();
-      return;
-    }
     if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
-    // 400 ms: clonar el DOM completo del editor es caro; sincronizarlo cada
-    // 150 ms mientras se escribe competía con el render del documento real.
-    minimapSyncTimer.current = setTimeout(run, 400);
+    minimapSyncTimer.current = null;
+    if (immediate) run();
+    else minimapSyncTimer.current = setTimeout(run, 400);
   }, [updateMinimapIndicator]);
 
-  // Escala = ancho del ProseMirror real / ancho del minimapa (mismo wrapping que el documento)
+  // Same width and wrapping as the rich editor. Preview image loads also
+  // change geometry, even when they finish after the editor's own images.
   useEffect(() => {
     if (!showMinimap) return;
     const updateScale = () => {
@@ -2520,25 +2494,30 @@ export default function NoteEditor({
         const next = MINIMAP_WIDTH / editorWidth;
         minimapScaleRef.current = next;
         setMinimapScale(next);
-        requestAnimationFrame(updateMinimapIndicator);
+        updateMinimapIndicator();
       }
     };
     updateScale();
-    const prose = editorRef.current?.view?.dom as HTMLElement | undefined;
     const observer = new ResizeObserver(updateScale);
+    const prose = editorRef.current?.view?.dom as HTMLElement | undefined;
     if (prose) observer.observe(prose);
     if (scrollContainerRef.current) observer.observe(scrollContainerRef.current);
+    if (minimapContentRef.current) observer.observe(minimapContentRef.current);
     return () => observer.disconnect();
   }, [showMinimap, note?.id, showLineGutter, updateMinimapIndicator]);
 
-  // Poblar minimap solo al activarlo (el cambio de nota lo maneja syncMinimapHtml)
   useEffect(() => {
-    if (!showMinimap) return;
-    syncMinimapHtml(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showMinimap, showLineGutter]);
+    if (showMinimap) syncMinimapHtml(true);
+    return () => {
+      cancelMinimapSync();
+      if (minimapIndicatorFrame.current) cancelAnimationFrame(minimapIndicatorFrame.current);
+      minimapIndicatorFrame.current = 0;
+      minimapMirrorRef.current?.destroy();
+      minimapMirrorRef.current = null;
+      minimapDragCleanup.current?.();
+    };
+  }, [showMinimap, syncMinimapHtml, cancelMinimapSync]);
 
-  // Scroll del editor → actualizar indicador vía DOM (sin React)
   useEffect(() => {
     if (!showMinimap) return;
     const el = scrollContainerRef.current;
@@ -2548,48 +2527,59 @@ export default function NoteEditor({
     return () => el.removeEventListener('scroll', updateMinimapIndicator);
   }, [showMinimap, note?.id, updateMinimapIndicator]);
 
-  // ─── Minimap: arrastre del indicador de viewport ──────────────
-  const isDraggingMinimap = useRef(false);
-  const [isDragging, setIsDragging] = useState(false);
+  useEffect(() => () => minimapDragCleanup.current?.(), [note?.id]);
 
-  const scrollEditorToMinimapY = (clientY: number) => {
+  const handleMinimapClick = (event: React.MouseEvent) => {
     const el = scrollContainerRef.current;
     const mm = minimapRef.current;
-    const content = minimapContentRef.current;
-    if (!el || !mm) return;
-    const rect = mm.getBoundingClientRect();
-    const scale = minimapScaleRef.current || 0;
-    const scaledH = content ? content.offsetHeight * scale : rect.height;
-    const mapH = scaledH > 0 ? Math.min(Math.max(scaledH, 8), rect.height) : rect.height;
-    const y = clientY - rect.top;
-    const ratio = Math.max(0, Math.min(1, y / mapH));
-    const maxScroll = el.scrollHeight - el.clientHeight;
-    el.scrollTop = ratio * maxScroll;
+    const geometry = readMinimapGeometry();
+    const scale = minimapScaleRef.current;
+    if (!el || !mm || !geometry || scale <= 0) return;
+    // Center the position actually shown in the panned preview.
+    const y = event.clientY - mm.getBoundingClientRect().top + geometry.pan;
+    el.scrollTop = Math.max(0, Math.min(geometry.maxScroll, y / scale - el.clientHeight / 2));
   };
 
-  const handleMinimapClick = (e: React.MouseEvent) => {
-    scrollEditorToMinimapY(e.clientY);
-  };
-
-  const handleMinimapIndicatorMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    isDraggingMinimap.current = true;
+  const handleMinimapIndicatorMouseDown = (event: React.MouseEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const el = scrollContainerRef.current;
+    const geometry = readMinimapGeometry();
+    if (!el || !geometry || geometry.travel <= 0 || geometry.maxScroll <= 0) return;
+    minimapDragCleanup.current?.();
+    const startY = event.clientY;
+    const startScroll = el.scrollTop;
+    let latestY = startY;
+    let frame = 0;
     setIsDragging(true);
-    scrollEditorToMinimapY(e.clientY);
-
-    const onMove = (ev: MouseEvent) => {
-      if (!isDraggingMinimap.current) return;
-      scrollEditorToMinimapY(ev.clientY);
+    const move = () => {
+      frame = 0;
+      el.scrollTop = Math.max(0, Math.min(geometry.maxScroll,
+        startScroll + (latestY - startY) * geometry.maxScroll / geometry.travel));
     };
-    const onUp = () => {
-      isDraggingMinimap.current = false;
-      setIsDragging(false);
+    const onMove = (ev: MouseEvent) => {
+      latestY = ev.clientY;
+      if (!frame) frame = requestAnimationFrame(move);
+    };
+    const stop = (finishPending: boolean) => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        if (finishPending) move();
+        frame = 0;
+      }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onBlur);
+      minimapDragCleanup.current = null;
+      setIsDragging(false);
     };
+    const onUp = () => stop(true);
+    const onBlur = () => stop(false);
+    minimapDragCleanup.current = onBlur;
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onBlur);
   };
 
   // Rueda vertical → scroll horizontal de la tira. Sin rebote elástico: mover
@@ -3530,7 +3520,7 @@ export default function NoteEditor({
         scheduleAutoSave();
       }
       scheduleMetrics();
-      // Actualizar minimap al editar (rAF coalesce llamadas múltiples)
+      // Refresh changed preview blocks after the editor has painted.
       syncMinimapHtml();
     },
     onSelectionUpdate: () => {
@@ -6410,6 +6400,7 @@ export default function NoteEditor({
 
       <div
         ref={minimapRef}
+        onMouseDown={event => event.preventDefault()}
         onClick={showMinimap ? handleMinimapClick : undefined}
         onContextMenu={(e) => {
           if (!showMinimap) return;
@@ -6448,6 +6439,8 @@ export default function NoteEditor({
         {/* Contenido escalado: clona el DOM del ProseMirror con los mismos estilos */}
         <div
           ref={minimapPanRef}
+          aria-hidden="true"
+          inert
           className={showLineGutter ? 'show-line-numbers' : undefined}
           style={{ pointerEvents: 'none', willChange: 'transform' }}
         >
@@ -6466,6 +6459,7 @@ export default function NoteEditor({
         <div
           ref={minimapIndicatorRef}
           onMouseDown={handleMinimapIndicatorMouseDown}
+          onClick={event => event.stopPropagation()}
           style={{
             position: 'absolute',
             left: 0,
@@ -6477,7 +6471,7 @@ export default function NoteEditor({
             borderBottom: '1px solid var(--accent)',
             cursor: isDragging ? 'grabbing' : 'grab',
             pointerEvents: 'auto',
-            transition: isDragging ? 'none' : 'top 0.05s linear, height 0.05s linear',
+            transition: 'none',
           }}
         />
       </div>

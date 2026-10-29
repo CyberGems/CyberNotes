@@ -38,6 +38,8 @@
   --sidebar-width: 220px;
   --notelist-width: 280px;
   --ui-scale: 1.0;
+  --editor-edge-toggle-width: 18px;
+  --editor-edge-text-gap: 10px;
 
   --bg-image: none;
   --glass-blur: 0px;
@@ -737,7 +739,7 @@ select option {
   top: 50%;
   transform: translateY(-50%);
   z-index: 8;
-  width: 18px;
+  width: var(--editor-edge-toggle-width);
   height: 30px;
   padding: 0;
   display: flex;
@@ -773,7 +775,7 @@ select option {
 
 /* ─── Line Numbers Gutter ─── */
 .show-line-numbers .ProseMirror {
-  padding-left: 70px !important;
+  padding-left: calc(50px + var(--editor-edge-toggle-width) + var(--editor-edge-text-gap)) !important;
 }
 
 .line-number-mark {
