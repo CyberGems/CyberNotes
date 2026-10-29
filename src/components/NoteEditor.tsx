@@ -224,6 +224,16 @@ declare module '@tiptap/core' {
   }
 }
 
+/** Position of the selected table, including selections inside its cells. */
+function selectedTablePosition(editor: Editor): number | null {
+  const selection = editor.state.selection;
+  if (selection instanceof NodeSelection && selection.node.type.name === 'table') return selection.from;
+  for (let depth = selection.$from.depth; depth > 0; depth--) {
+    if (selection.$from.node(depth).type.name === 'table') return selection.$from.before(depth);
+  }
+  return null;
+}
+
 /**
  * ¿La tabla bajo el cursor tiene fila/columna de encabezado? Lee el nodo
  * tabla real para marcar los toggles (ambos pueden estar activos a la vez).
@@ -899,12 +909,13 @@ export function SpellCheckSelect({ language }: { language: Language }) {
 }
 
 const ToolbarBtn = ({
-  onClick, active = false, title, children, disabled = false, toolbarId, onToolbarContextMenu, suppressTooltip = false,
+  onClick, active = false, title, children, disabled = false, toolbarId, onToolbarContextMenu, suppressTooltip = false, tooltipSide = 'bottom',
 }: {
   onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean;
   toolbarId?: ToolbarItemId; onToolbarContextMenu?: (e: React.MouseEvent, id: ToolbarItemId) => void;
   /** Oculta el tooltip (p. ej. mientras un menú de la barra está abierto). */
   suppressTooltip?: boolean;
+  tooltipSide?: 'top' | 'bottom';
 }) => {
   const btn = (
     <button
@@ -920,7 +931,7 @@ const ToolbarBtn = ({
   );
   if (suppressTooltip) return btn;
   return (
-    <Tooltip label={title} placement="bottom">
+    <Tooltip label={title} placement={tooltipSide}>
       {btn}
     </Tooltip>
   );
@@ -2306,6 +2317,8 @@ export default function NoteEditor({
   const textBubbleMenuRef = useRef<TippyInstance | null>(null);
   const dismissedTextSelectionRef = useRef<Selection | null>(null);
   const [imageToolbarDismissed, setImageToolbarDismissed] = useState(false);
+  const [tableToolbarDismissed, setTableToolbarDismissed] = useState(false);
+  const dismissedTablePositionRef = useRef<number | null>(null);
   const readOnlyRef = useRef(readOnly);
   readOnlyRef.current = readOnly;
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
@@ -3543,9 +3556,15 @@ export default function NoteEditor({
       // Refresh changed preview blocks after the editor has painted.
       syncMinimapHtml();
     },
-    onSelectionUpdate: () => {
+    onSelectionUpdate: ({ editor: ed }) => {
       dismissedTextSelectionRef.current = null;
       setImageToolbarDismissed(false);
+      // Moving the caret or typing inside the same table is still the same
+      // appearance. Reopen only after leaving it or entering another table.
+      if (dismissedTablePositionRef.current !== null && selectedTablePosition(ed) !== dismissedTablePositionRef.current) {
+        dismissedTablePositionRef.current = null;
+        setTableToolbarDismissed(false);
+      }
       scheduleMetrics();
     },
     onFocus: () => {
@@ -4264,6 +4283,8 @@ export default function NoteEditor({
     hydratedNoteIdRef.current = null;
     dismissedTextSelectionRef.current = null;
     setImageToolbarDismissed(false);
+    dismissedTablePositionRef.current = null;
+    setTableToolbarDismissed(false);
     setVideoMenu(null);
     setVideoEdit(null);
     if (!editor || !note) return;
@@ -6086,12 +6107,12 @@ export default function NoteEditor({
                 boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
               }}
             >
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={ui.bold} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={14} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={ui.italic} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={14} /></ToolbarBtn>
-              <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
+              <ToolbarBtn tooltipSide="top" onClick={() => editor.chain().focus().toggleBold().run()} active={ui.bold} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={14} /></ToolbarBtn>
+              <ToolbarBtn tooltipSide="top" onClick={() => editor.chain().focus().toggleItalic().run()} active={ui.italic} title={language === 'es' ? 'Cursiva (Ctrl+I)' : 'Italic (Ctrl+I)'}><Italic size={14} /></ToolbarBtn>
+              <ToolbarBtn tooltipSide="top" onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
               <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 3px' }} />
               <FloatingFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
-              <Tooltip label={language === 'es' ? 'Volverá al hacer una nueva selección de texto' : 'Returns with a new text selection'} placement="top">
+              <Tooltip label={language === 'es' ? 'Cerrar esta vez' : 'Close for now'} placement="top">
                 <button
                   type="button"
                   className="editor-context-bar-close"
@@ -6161,7 +6182,7 @@ export default function NoteEditor({
                   </motion.button>
                 ))}
               </div>
-              <Tooltip label={language === 'es' ? 'Volverá al seleccionar otra vez una imagen' : 'Returns when you select an image again'} placement="bottom">
+              <Tooltip label={language === 'es' ? 'Cerrar esta vez' : 'Close for now'} placement="bottom">
                 <button
                   type="button"
                   className="editor-context-bar-close"
@@ -6178,8 +6199,10 @@ export default function NoteEditor({
 
         {/* Barra de tabla: filas/columnas mientras el cursor está en una tabla */}
         <AnimatePresence>
-          {editor && ui.table && !ui.image && (
+          {editor && ui.table && !ui.image && !tableToolbarDismissed && !readOnly && (
             <motion.div
+              data-editor-toolbar="table"
+              onMouseDown={event => event.preventDefault()}
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -6231,6 +6254,18 @@ export default function NoteEditor({
               </ToolbarBtn>
               <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
               <ToolbarBtn onClick={() => editor.chain().focus().deleteTable().run()} title={language === 'es' ? 'Eliminar tabla' : 'Delete table'}><Trash2 size={14} /></ToolbarBtn>
+              <Tooltip label={language === 'es' ? 'Cerrar esta vez' : 'Close for now'} placement="bottom">
+                <button
+                  type="button"
+                  className="editor-context-bar-close"
+                  aria-label={language === 'es' ? 'Ocultar barra de tabla' : 'Hide table toolbar'}
+                  onClick={event => {
+                    dismissedTablePositionRef.current = selectedTablePosition(editor);
+                    setTableToolbarDismissed(true);
+                    if (document.activeElement === event.currentTarget) editor.view.focus();
+                  }}
+                ><X size={13} /></button>
+              </Tooltip>
             </motion.div>
           )}
         </AnimatePresence>

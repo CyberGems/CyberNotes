@@ -16,7 +16,8 @@ describe('temporary context toolbar dismissal', () => {
   const setSetting = vi.fn();
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    // Keep real timers: Motion captures RAF at import time, before test setup.
+    // Mixing that RAF with a fake clock can leave exit animations unfinished.
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
     vi.stubGlobal('cyberNotesAPI', { setUnsavedChanges: vi.fn(), setSetting });
     setSetting.mockClear();
@@ -36,7 +37,6 @@ describe('temporary context toolbar dismissal', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
-    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     if (scrollToDescriptor) Object.defineProperty(Element.prototype, 'scrollTo', scrollToDescriptor);
@@ -51,7 +51,7 @@ describe('temporary context toolbar dismissal', () => {
   }
 
   async function settle() {
-    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 400)); });
   }
 
   function textToolbarVisible() {
@@ -112,5 +112,40 @@ describe('temporary context toolbar dismissal', () => {
     await act(async () => { editor.commands.setTextSelection({ from: 1, to: 7 }); editor.view.focus(); });
     await settle();
     expect(textToolbarVisible()).toBe(false);
+  });
+
+  it('keeps a table toolbar dismissed while editing that table, and reopens on reentry or another table', async () => {
+    props = { ...props, note: { ...props.note!, content: '<p>Outside</p><table><tr><td><p>First cell</p></td><td><p>Other cell</p></td></tr></table><p>Between</p><table><tr><td><p>Second table</p></td></tr></table>' } };
+    await render();
+    const selectText = (text: string) => {
+      editor.state.doc.descendants((node, pos) => {
+        if (node.isTextblock && node.textContent === text) editor.commands.setTextSelection(pos + 1);
+      });
+    };
+    await act(async () => selectText('First cell'));
+    await settle();
+    expect(container.querySelector('[data-editor-toolbar="table"]')).not.toBeNull();
+    const selection = editor.state.selection;
+    const html = editor.getHTML();
+    const close = () => container.querySelector<HTMLButtonElement>('[aria-label="Ocultar barra de tabla"]')!.click();
+    await act(async () => close());
+    await settle();
+    expect(container.querySelector('[data-editor-toolbar="table"]')).toBeNull();
+    expect(editor.state.selection.eq(selection)).toBe(true);
+    expect(editor.getHTML()).toBe(html);
+    expect(editor.can().undo()).toBe(false);
+    expect(setSetting).not.toHaveBeenCalled();
+
+    await act(async () => { editor.commands.insertContent('New '); });
+    await act(async () => selectText('Other cell'));
+    await settle();
+    expect(container.querySelector('[data-editor-toolbar="table"]')).toBeNull();
+    await act(async () => { selectText('Outside'); selectText('Other cell'); });
+    await settle();
+    expect(container.querySelector('[data-editor-toolbar="table"]')).not.toBeNull();
+    await act(async () => close());
+    await settle();
+    await act(async () => selectText('Second table'));
+    expect(container.querySelector('[data-editor-toolbar="table"]')).not.toBeNull();
   });
 });
