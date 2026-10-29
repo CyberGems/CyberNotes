@@ -26,6 +26,7 @@ import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import { loadEditorContent } from '../utils/editorContent';
+import { cutSelectedImage } from '../utils/editorClipboard';
 import { createMinimapMirror, getMinimapGeometry } from '../utils/minimap';
 import Tooltip from './Tooltip';
 import EditorEdgeToggle from './EditorEdgeToggle';
@@ -3218,10 +3219,14 @@ export default function NoteEditor({
           canRedo,
         });
 
-        // Pegar: habilitar solo si el portapapeles tiene texto
-        navigator.clipboard.readText()
-          .then(text => {
-            setContextMenu(cm => (cm ? { ...cm, canPaste: text.length > 0 } : cm));
+        // Las imágenes nativas no tienen por qué incluir texto en el portapapeles.
+        const canPaste = target === 'editor' && navigator.clipboard.read
+          ? navigator.clipboard.read().then(items => items.some(item =>
+            item.types.some(type => type.startsWith('image/') || type === 'text/plain' || type === 'text/html')))
+          : navigator.clipboard.readText().then(text => text.length > 0);
+        canPaste
+          .then(available => {
+            setContextMenu(cm => (cm ? { ...cm, canPaste: available } : cm));
           })
           .catch(() => {
             // Sin permiso de clipboard: permitir pegar (el SO puede gestionar el paste)
@@ -3311,6 +3316,14 @@ export default function NoteEditor({
       // Resaltado del buscador en nota (no toca el documento).
       decorations: (state) => buildFindDecos(state.doc, findDecorRef.current.query, findDecorRef.current.current),
       handleDOMEvents: {
+        cut: (_view, event) => {
+          const ed = editorRef.current;
+          const selection = _view.state.selection;
+          if (!ed || !(selection instanceof NodeSelection) || selection.node.type.name !== 'image') return false;
+          event.preventDefault();
+          void cutSelectedImage(ed);
+          return true;
+        },
         mousedown: (_view, event) => {
           if (event.button === 2) {
             const { from, to } = _view.state.selection;
@@ -4743,13 +4756,29 @@ export default function NoteEditor({
   const handlePasteFromClipboard = useCallback(async () => {
     if (!editor || readOnly) return;
     editor.commands.focus();
+    // Electron's native paste retains rich text and routes image files through
+    // handlePaste. The async API also supports environments without execCommand.
+    if (document.execCommand('paste')) return;
     try {
+      if (navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        const files: File[] = [];
+        for (const item of items) {
+          const type = item.types.find(type => type.startsWith('image/'));
+          if (!type) continue;
+          files.push(new File([await item.getType(type)], 'clipboard-image', { type }));
+        }
+        if (files.length > 0) {
+          await insertImageFiles(files);
+          return;
+        }
+      }
       const text = await navigator.clipboard.readText();
       if (text) editor.chain().focus().insertContent(text).run();
     } catch {
       document.execCommand('paste');
     }
-  }, [editor, readOnly]);
+  }, [editor, readOnly, insertImageFiles]);
 
   const t = TRANSLATIONS[language];
 
@@ -7231,8 +7260,14 @@ export default function NoteEditor({
           <MenuBtn
             icon={<Scissors size={13} />}
             label={language === 'es' ? 'Cortar' : 'Cut'}
-            enabled={contextMenu.hasSelection}
-            onAction={() => { document.execCommand('cut'); }}
+            enabled={contextMenu.hasSelection && !readOnly}
+            onAction={() => {
+              if (contextMenu.target === 'editor' && contextMenu.imageSrc) {
+                void cutSelectedImage(editor);
+              } else {
+                document.execCommand('cut');
+              }
+            }}
           />
           <MenuBtn
             icon={<Copy size={13} />}
@@ -7245,6 +7280,10 @@ export default function NoteEditor({
             label={language === 'es' ? 'Pegar' : 'Paste'}
             enabled={contextMenu.canPaste}
             onAction={() => {
+              if (contextMenu.target === 'editor') {
+                void handlePasteFromClipboard();
+                return;
+              }
               navigator.clipboard.readText().then(text => {
                 if (contextMenu.target === 'title') {
                   const input = titleInputRef.current;
