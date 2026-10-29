@@ -2972,11 +2972,75 @@ body.sticky-is-dragging * {
   right: 0;
   bottom: 0;
   left: 0;
-  height: 48px;
+  height: 68px;
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--bg-sidebar) 92%, transparent) 100%);
-  backdrop-filter: blur(1.5px);
-  -webkit-backdrop-filter: blur(1.5px);
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--bg-notelist) 28%, transparent) 32%,
+    color-mix(in srgb, var(--bg-notelist) 78%, transparent) 72%,
+    var(--bg-notelist) 100%);
+}
+.note-list-marquee {
+  display: none;
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  border: 1px solid var(--accent-light);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.note-list-is-selecting {
+  user-select: none;
+}
+.note-selection-actions {
+  position: absolute;
+  z-index: 12;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.3);
+}
+.note-selection-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.note-selection-count {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-selection-move {
+  width: auto;
+  min-width: 0;
+  max-width: 110px;
+  padding: 5px 6px;
+  font-size: 11px;
+}
+.note-selection-actions .btn-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+}
+.note-selection-error {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--danger);
+  font-size: 11px;
+}
+.note-selection-menu-heading {
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 @media (max-height: 620px) {
   .character-map-details { min-height: 42px; }

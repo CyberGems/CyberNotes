@@ -1443,25 +1443,37 @@ export default function MainApp({
     executeCloseTab(id);
   }, [draftCache, autosaveEnabled, allNotes, executeCloseTab]);
 
-  const handleDeleteNote = async (id: string) => {
-    const movedToTrash = await window.cyberNotesAPI.deleteNote(id);
-    if (!movedToTrash) return;
-    setTrashCount(prev => prev + 1);
-    delete contentCacheRef.current[id];
-    setClosedTabHistory(prev => prev.filter(noteId => noteId !== id));
-    const remaining = notes.filter(n => n.id !== id);
-    setNotes(remaining);
-    setAllNotes(prev => prev.filter(n => n.id !== id));
-    
-    // Remover de las pestañas abiertas inmediatamente
-    setOpenNoteIds(prev => prev.filter(noteId => noteId !== id));
-    
-    // Limpiar caché de borrador si existía
-    clearDraftState(id);
+  const handleDeleteNotes = async (ids: string[], permanent = false): Promise<string[]> => {
+    const deleted = new Set<string>();
+    const failed: string[] = [];
+    for (const id of new Set(ids)) {
+      try {
+        const ok = permanent ? await window.cyberNotesAPI.purgeNote(id) : await window.cyberNotesAPI.deleteNote(id);
+        if (ok) deleted.add(id);
+        else failed.push(id);
+      } catch (error) {
+        console.error('[CyberNotes] Could not delete note:', id, error);
+        failed.push(id);
+      }
+    }
+    if (!deleted.size) return failed;
+    setTrashCount(prev => Math.max(0, prev + (permanent ? -deleted.size : deleted.size)));
+    for (const id of deleted) {
+      delete contentCacheRef.current[id];
+      clearDraftState(id);
+    }
+    setClosedTabHistory(prev => prev.filter(id => !deleted.has(id)));
+    const remaining = notes.filter(note => !deleted.has(note.id));
+    setNotes(prev => prev.filter(note => !deleted.has(note.id)));
+    setAllNotes(prev => prev.filter(note => !deleted.has(note.id)));
+    setOpenNoteIds(prev => prev.filter(id => !deleted.has(id)));
 
-    if (selectedNoteId === id) {
-      const remainingTabs = openNoteIds.filter(noteId => noteId !== id);
-      if (remainingTabs.length > 0) {
+    if (selectedNoteId && deleted.has(selectedNoteId)) {
+      const remainingTabs = openNoteIds.filter(id => !deleted.has(id));
+      if (permanent) {
+        setSelectedNote(null);
+        setSelectedNoteId(null);
+      } else if (remainingTabs.length > 0) {
         setSelectedNoteId(remainingTabs[0]);
       } else if (remaining.length > 0) {
         setSelectedNoteId(remaining[0].id);
@@ -1470,6 +1482,11 @@ export default function MainApp({
         setSelectedNoteId(null);
       }
     }
+    return failed;
+  };
+
+  const handleDeleteNote = async (id: string) => {
+    if ((await handleDeleteNotes([id])).length) throw new Error('Could not move the note to the trash.');
   };
 
   const handleRestoreNote = async (id: string) => {
@@ -1503,15 +1520,7 @@ export default function MainApp({
   };
 
   const handlePurgeNote = async (id: string) => {
-    const purged = await window.cyberNotesAPI.purgeNote(id);
-    if (!purged) return;
-    clearDraftState(id);
-    setNotes(prev => prev.filter(n => n.id !== id));
-    if (selectedNoteId === id) {
-      setSelectedNote(null);
-      setSelectedNoteId(null);
-    }
-    setTrashCount(prev => Math.max(0, prev - 1));
+    if ((await handleDeleteNotes([id], true)).length) throw new Error('Could not permanently delete the note.');
   };
 
   const handleEmptyTrash = async () => {
@@ -2095,6 +2104,7 @@ export default function MainApp({
                 setTriggerNewFolderSignal(prev => prev + 1);
               }}
               onDeleteNote={handleDeleteNote}
+              onDeleteNotes={handleDeleteNotes}
               onRestoreNote={handleRestoreNote}
               onRestoreAllTrash={handleRestoreAllTrash}
               onPurgeNote={handlePurgeNote}

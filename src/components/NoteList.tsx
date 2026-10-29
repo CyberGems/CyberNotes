@@ -9,6 +9,8 @@ import FolderIcon, { FILTER_COLORS } from './FolderIcon';
 import { NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import Tooltip from './Tooltip';
 import { EnterGlyph, KeyHint, useModalKeys } from './ModalActions';
+import { useNoteMarquee } from '../hooks/useNoteMarquee';
+import { measureNoteSelectionRects } from '../utils/noteSelection';
 
 interface Props {
   language: Language;
@@ -19,13 +21,15 @@ interface Props {
   onCreateNote: (kind?: 'note' | 'floating' | 'favorite') => void;
   onRequestCreateFolder: () => void;
   onDeleteNote: (id: string) => void;
+  /** Returns the IDs that could not be deleted. */
+  onDeleteNotes: (ids: string[], permanent?: boolean) => Promise<string[]>;
   onRestoreNote: (id: string) => void;
   onRestoreAllTrash: () => void;
   onPurgeNote: (id: string) => void;
   onEmptyTrash: () => void;
   trashCount: number;
   onTogglePin: (note: Note) => void;
-  onMoveNote: (noteId: string, folderId: string | null) => void;
+  onMoveNote: (noteId: string, folderId: string | null) => void | Promise<void>;
   onRenameNote: (id: string, title: string) => void;
   onDuplicateNote: (id: string) => void;
   onRegisterDeleteSelected?: (handler: (id?: string) => void) => () => void;
@@ -459,7 +463,7 @@ function NewNoteSplitButton({
 export default function NoteList({
   language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
   onRequestCreateFolder,
-  onDeleteNote, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
+  onDeleteNote, onDeleteNotes, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
   onTogglePin, onMoveNote, onRenameNote, onDuplicateNote, onRegisterDeleteSelected,
   selectedFolder, searchQuery, onSearch, singleColumn = false, onSelectFolder, uiScale = 1,
 }: Props) {
@@ -488,7 +492,13 @@ export default function NoteList({
   const [hiddenCount, setHiddenCount] = useState(0);
   const [renameTarget, setRenameTarget] = useState<Note | null>(null);
   const [renameInput, setRenameInput] = useState('');
-  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const [notesToDelete, setNotesToDelete] = useState<Note[] | null>(null);
+  const noteToDelete = notesToDelete?.[0] ?? null;
+  const setNoteToDelete = useCallback((note: Note | null) => setNotesToDelete(note ? [note] : null), []);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
+  const [selectionBusy, setSelectionBusy] = useState(false);
+  const [selectionError, setSelectionError] = useState(false);
   const [skipMoveToTrashConfirmation, setSkipMoveToTrashConfirmation] = useState(false);
   const [dontAskMoveToTrash, setDontAskMoveToTrash] = useState(false);
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
@@ -533,22 +543,37 @@ export default function NoteList({
     };
   }, []);
 
-  useModalKeys({
-    enabled: !!noteToDelete,
-    onEsc: () => setNoteToDelete(null),
-    onEnter: () => {
-      if (!noteToDelete) return;
-      void (async () => {
-        if (!isTrashFolder && dontAskMoveToTrash) {
-          setSkipMoveToTrashConfirmation(true);
-          await window.cyberNotesAPI.setSetting('confirm_move_note_to_trash_dismissed', 'true');
-        }
-        if (isTrashFolder) onPurgeNote(noteToDelete.id);
-        else onDeleteNote(noteToDelete.id);
+  const confirmDelete = async () => {
+    if (!notesToDelete || deleteBusy) return;
+    setDeleteBusy(true);
+    setDeleteError(false);
+    try {
+      if (!isTrashFolder && notesToDelete.length === 1 && dontAskMoveToTrash) {
+        await window.cyberNotesAPI.setSetting('confirm_move_note_to_trash_dismissed', 'true');
+        setSkipMoveToTrashConfirmation(true);
+      }
+      const failed = new Set(await onDeleteNotes(notesToDelete.map(note => note.id), isTrashFolder));
+      const targets = new Set(notesToDelete.map(note => note.id));
+      setSelectedIds(previous => new Set([...previous].filter(id => !targets.has(id) || failed.has(id))));
+      if (failed.size) {
+        setNotesToDelete(notesToDelete.filter(note => failed.has(note.id)));
+        setDeleteError(true);
+      } else {
         setNoteToDelete(null);
         setContextMenu(null);
-      })();
-    },
+      }
+    } catch (error) {
+      console.error('[CyberNotes] Could not delete selected notes:', error);
+      setDeleteError(true);
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  useModalKeys({
+    enabled: !!noteToDelete && !deleteBusy,
+    onEsc: () => setNoteToDelete(null),
+    onEnter: () => { void confirmDelete(); },
   });
 
   useModalKeys({
@@ -864,6 +889,51 @@ export default function NoteList({
     [virtualNotes, startIndex, endIndex]
   );
 
+  const marquee = useNoteMarquee(listRef, () => listRef.current ? measureNoteSelectionRects(
+    listRef.current,
+    !isGroupingActive && viewMode !== 'grid' ? virtualNotes.map(note => note.id) : [],
+    rowHeight,
+  ) : []);
+  const { selectedIds, setSelectedIds, clear: clearSelection } = marquee;
+  useEffect(() => {
+    if (!selectedIds.size) setSelectionError(false);
+  }, [selectedIds.size]);
+  const selectionAnchorRef = useRef<string | null>(null);
+  useEffect(() => {
+    clearSelection();
+    selectionAnchorRef.current = null;
+  }, [selectedFolder?.id, searchQuery, viewMode, sortBy, groupByDate, collapsedGroups, clearSelection]);
+  useEffect(() => {
+    const available = new Set(navigableNotes.map(note => note.id));
+    setSelectedIds(previous => {
+      const next = new Set([...previous].filter(id => available.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [navigableNotes, setSelectedIds]);
+  const isNoteSelected = (id: string) => selectedIds.size ? selectedIds.has(id) : selectedNoteId === id;
+  const handleNoteClick = (event: React.MouseEvent, note: Note) => {
+    if (event.shiftKey) {
+      const anchor = selectionAnchorRef.current ?? selectedNoteId ?? note.id;
+      const start = navigableNotes.findIndex(item => item.id === anchor);
+      const end = navigableNotes.findIndex(item => item.id === note.id);
+      const ids = navigableNotes.slice(Math.min(start < 0 ? end : start, end), Math.max(start, end) + 1).map(item => item.id);
+      setSelectedIds(previous => new Set(event.ctrlKey || event.metaKey ? [...previous, ...ids] : ids));
+    } else if (event.ctrlKey || event.metaKey) {
+      setSelectedIds(previous => {
+        const next = new Set(previous.size ? previous : (navigableNotes.some(item => item.id === selectedNoteId) ? [selectedNoteId!] : []));
+        if (next.has(note.id)) next.delete(note.id);
+        else next.add(note.id);
+        return next;
+      });
+      selectionAnchorRef.current = note.id;
+    } else {
+      clearSelection();
+      selectionAnchorRef.current = note.id;
+      onSelectNote(note.id);
+    }
+    listRef.current?.focus({ preventScroll: true });
+  };
+
   // Calcular notas ocultas debajo del scroll + medir viewport
   useEffect(() => {
     const el = listRef.current;
@@ -947,14 +1017,11 @@ export default function NoteList({
             language={language}
             note={note}
             folder={folder}
-            isSelected={selectedNoteId === note.id}
+            isSelected={isNoteSelected(note.id)}
             isContextActive={contextMenu?.note.id === note.id}
             isStickyOpen={openStickyIds.includes(note.id)}
             isTrash={isTrashFolder}
-            onClick={() => {
-              onSelectNote(note.id);
-              listRef.current?.focus({ preventScroll: true });
-            }}
+            onClick={event => handleNoteClick(event, note)}
             onDelete={() => requestDeleteNote(note)}
             onContextMenu={(e) => handleContextMenu(e, note)}
           />
@@ -992,8 +1059,40 @@ export default function NoteList({
       return;
     }
     setDontAskMoveToTrash(false);
+    setDeleteError(false);
     setNoteToDelete(note);
   }, [isTrashFolder, onDeleteNote, skipMoveToTrashConfirmation]);
+
+  const requestDeleteSelection = (targets = sortedNotes.filter(note => selectedIds.has(note.id))) => {
+    if (!targets.length) return;
+    setDontAskMoveToTrash(false);
+    setDeleteError(false);
+    setNotesToDelete(targets);
+    setContextMenu(null);
+  };
+
+  const moveSelection = async (folderId: string | null, ids = [...selectedIds]) => {
+    if (selectionBusy) return;
+    setSelectionBusy(true);
+    setSelectionError(false);
+    setContextMenu(null);
+    const moved = new Set<string>();
+    try {
+      for (const id of ids) {
+        try {
+          await onMoveNote(id, folderId);
+          moved.add(id);
+        } catch (error) {
+          console.error('[CyberNotes] Could not move selected note:', id, error);
+          setSelectedIds(previous => new Set([...previous, id]));
+          setSelectionError(true);
+        }
+      }
+      setSelectedIds(previous => new Set([...previous].filter(id => !moved.has(id))));
+    } finally {
+      setSelectionBusy(false);
+    }
+  };
 
   // Expone "eliminar nota" para el hotkey global Alt+Supr de MainApp y los
   // accesos del editor: mismo flujo con confirmación que el botón y el menú.
@@ -1001,17 +1100,35 @@ export default function NoteList({
   useEffect(() => {
     if (!onRegisterDeleteSelected) return;
     return onRegisterDeleteSelected((id?: string) => {
+      if (!id && selectedIds.size) {
+        requestDeleteSelection();
+        return;
+      }
       const targetId = id ?? selectedNoteId;
       if (!targetId) return;
       const current = sortedNotes.find(n => n.id === targetId);
       if (current) requestDeleteNote(current);
     });
-  }, [onRegisterDeleteSelected, selectedNoteId, sortedNotes, requestDeleteNote]);
+  }, [onRegisterDeleteSelected, selectedNoteId, selectedIds, sortedNotes, requestDeleteNote]);
 
   const handleListKeyDown = (e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
     }
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      e.stopPropagation();
+      setSelectedIds(new Set(navigableNotes.map(note => note.id)));
+      return;
+    }
+    if (e.key === 'Escape' && selectedIds.size) {
+      e.preventDefault();
+      e.stopPropagation();
+      clearSelection();
+      return;
+    }
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) clearSelection();
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -1056,6 +1173,12 @@ export default function NoteList({
         editorEl.focus();
       }
     } else if (e.key === 'Delete') {
+      if (selectedIds.size) {
+        e.preventDefault();
+        e.stopPropagation();
+        requestDeleteSelection();
+        return;
+      }
       if (selectedNoteId) {
         const currentNote = sortedNotes.find(n => n.id === selectedNoteId);
         if (currentNote) {
@@ -1074,10 +1197,15 @@ export default function NoteList({
 
   const handleContextMenu = useCallback((e: React.MouseEvent, note: Note) => {
     e.preventDefault();
+    if (!selectedIds.has(note.id)) clearSelection();
     // Posición inicial aproximada; el useLayoutEffect de abajo la ajusta con
     // el tamaño real medido (el menú varía: papelera, sección "Mover a…", etc.).
     setContextMenu({ x: e.clientX, y: e.clientY, note });
-  }, []);
+  }, [selectedIds, clearSelection]);
+
+  const contextTargets = contextMenu
+    ? (selectedIds.has(contextMenu.note.id) ? sortedNotes.filter(note => selectedIds.has(note.id)) : [contextMenu.note])
+    : [];
 
   // Reposiciona el menú contextual para que no se desborde de la ventana,
   // sobre todo por abajo cuando la nota está cerca del borde inferior.
@@ -1385,7 +1513,12 @@ export default function NoteList({
         <div
           ref={listRef}
           data-notelist-container="true"
+          role="listbox"
+          aria-label={language === 'es' ? 'Lista de notas' : 'Note list'}
+          aria-multiselectable="true"
           tabIndex={0}
+          onPointerDown={event => { setContextMenu(null); marquee.onPointerDown(event); }}
+          onClickCapture={marquee.onClickCapture}
           onKeyDown={handleListKeyDown}
           style={{ height: '100%', overflowY: 'auto', outline: 'none' }}
         >
@@ -1448,14 +1581,11 @@ export default function NoteList({
                                     note={note}
                                     folder={folder}
                                     viewMode={viewMode}
-                                    isSelected={selectedNoteId === note.id}
+                                    isSelected={isNoteSelected(note.id)}
                                     isContextActive={contextMenu?.note.id === note.id}
                                     isStickyOpen={openStickyIds.includes(note.id)}
                                     isTrash={isTrashFolder}
-                                    onClick={() => {
-                                      onSelectNote(note.id);
-                                      listRef.current?.focus({ preventScroll: true });
-                                    }}
+                                    onClick={event => handleNoteClick(event, note)}
                                     onDelete={() => requestDeleteNote(note)}
                                     onContextMenu={(e) => handleContextMenu(e, note)}
                                   />
@@ -1487,14 +1617,11 @@ export default function NoteList({
                                 note={note}
                                 folder={folder}
                                 viewMode={viewMode}
-                                isSelected={selectedNoteId === note.id}
+                                isSelected={isNoteSelected(note.id)}
                                 isContextActive={contextMenu?.note.id === note.id}
                                 isStickyOpen={openStickyIds.includes(note.id)}
                                 isTrash={isTrashFolder}
-                                onClick={() => {
-                                  onSelectNote(note.id);
-                                  listRef.current?.focus({ preventScroll: true });
-                                }}
+                                onClick={event => handleNoteClick(event, note)}
                                 onDelete={() => requestDeleteNote(note)}
                                 onContextMenu={(e) => handleContextMenu(e, note)}
                               />
@@ -1525,14 +1652,11 @@ export default function NoteList({
                             note={note}
                             folder={folder}
                             viewMode={viewMode}
-                            isSelected={selectedNoteId === note.id}
+                            isSelected={isNoteSelected(note.id)}
                             isContextActive={contextMenu?.note.id === note.id}
                             isStickyOpen={openStickyIds.includes(note.id)}
                             isTrash={isTrashFolder}
-                            onClick={() => {
-                              onSelectNote(note.id);
-                              listRef.current?.focus({ preventScroll: true });
-                            }}
+                            onClick={event => handleNoteClick(event, note)}
                             onDelete={() => requestDeleteNote(note)}
                             onContextMenu={(e) => handleContextMenu(e, note)}
                           />
@@ -1546,10 +1670,11 @@ export default function NoteList({
         </AnimatePresence>
         </div>
 
+        <div ref={marquee.boxRef} className="note-list-marquee" aria-hidden="true" />
         {hiddenCount > 0 && <div className="note-list-bottom-fade" aria-hidden="true" />}
 
         {/* X Más pill (solo filas: en tarjetas no hay virtualización) */}
-        {viewMode !== 'grid' && (
+        {viewMode !== 'grid' && !selectedIds.size && (
         <div style={{
           position: 'absolute',
           bottom: 12,
@@ -1588,6 +1713,35 @@ export default function NoteList({
             </button>
         </div>
         )}
+        {selectedIds.size > 0 && (
+          <div className="note-selection-actions" aria-label={language === 'es' ? 'Acciones de selección' : 'Selection actions'}>
+            {selectionError && <span role="alert" className="note-selection-error">{language === 'es' ? 'No se pudieron mover todas las notas. Puedes reintentar las restantes.' : 'Some notes could not be moved. You can retry the remaining notes.'}</span>}
+            <div className="note-selection-actions-row">
+              <span className="note-selection-count" role="status">
+                {selectedIds.size} {language === 'es' ? (selectedIds.size === 1 ? 'seleccionada' : 'seleccionadas') : 'selected'}
+              </span>
+              {!isTrashFolder && (
+                <select
+                  className="input note-selection-move"
+                  aria-label={language === 'es' ? 'Mover notas seleccionadas a' : 'Move selected notes to'}
+                  value=""
+                  disabled={selectionBusy}
+                  onChange={event => { void moveSelection(event.target.value === '__unfiled__' ? null : event.target.value); }}
+                >
+                  <option value="" disabled>{language === 'es' ? 'Mover a…' : 'Move to…'}</option>
+                  <option value="__unfiled__">{t.sidebar.floatingNotes}</option>
+                  {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                </select>
+              )}
+              <Tooltip label={language === 'es' ? 'Eliminar selección' : 'Delete selection'} placement="top">
+                <button type="button" className="btn-icon" disabled={selectionBusy} aria-label={language === 'es' ? 'Eliminar notas seleccionadas' : 'Delete selected notes'} onClick={() => requestDeleteSelection()}><Trash2 size={14} /></button>
+              </Tooltip>
+              <Tooltip label={language === 'es' ? 'Limpiar selección (Esc)' : 'Clear selection (Esc)'} placement="top">
+                <button type="button" className="btn-icon" disabled={selectionBusy} aria-label={language === 'es' ? 'Limpiar selección' : 'Clear selection'} onClick={() => { clearSelection(); listRef.current?.focus({ preventScroll: true }); }}><X size={14} /></button>
+              </Tooltip>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Menú Contextual */}
@@ -1612,6 +1766,7 @@ export default function NoteList({
           }}
           onClick={e => e.stopPropagation()}
         >
+          {contextTargets.length === 1 ? <>
           <button
             onClick={() => { onSelectNote(contextMenu.note.id); setContextMenu(null); }}
             style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
@@ -1685,8 +1840,9 @@ export default function NoteList({
             <Copy size={13} style={{ flexShrink: 0 }} />
             <span>{language === 'es' ? 'Duplicar nota' : 'Duplicate note'}</span>
           </button>
+          </> : <div className="note-selection-menu-heading">{contextTargets.length} {language === 'es' ? 'notas seleccionadas' : 'selected notes'}</div>}
 
-          {!isTrashFolder && folders.length > 0 && (
+          {!isTrashFolder && (folders.length > 0 || contextTargets.length > 1) && (
             <>
               <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
               <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1695,7 +1851,7 @@ export default function NoteList({
               </div>
               <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <button
-                  onClick={() => { onMoveNote(contextMenu.note.id, null); setContextMenu(null); }}
+                  onClick={() => { void moveSelection(null, contextTargets.map(note => note.id)); }}
                   style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
@@ -1705,7 +1861,7 @@ export default function NoteList({
                 {folders.map(f => (
                   <button
                     key={f.id}
-                    onClick={() => { onMoveNote(contextMenu.note.id, f.id); setContextMenu(null); }}
+                    onClick={() => { void moveSelection(f.id, contextTargets.map(note => note.id)); }}
                     style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, background: 'transparent', color: 'var(--text-primary)', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
@@ -1721,7 +1877,8 @@ export default function NoteList({
           <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
           <button
             onClick={() => {
-              requestDeleteNote(contextMenu.note);
+              if (contextTargets.length > 1) requestDeleteSelection(contextTargets);
+              else requestDeleteNote(contextMenu.note);
               setContextMenu(null);
             }}
             style={{ textAlign: 'left', padding: '6px 10px', fontSize: 12, color: 'var(--text-primary)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
@@ -1729,7 +1886,7 @@ export default function NoteList({
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           >
             <Trash2 size={13} color="var(--danger)" style={{ color: 'var(--danger)', flexShrink: 0 }} />
-            <span>{isTrashFolder ? t.noteList.permanentDelete : t.general.delete}</span>
+            <span>{contextTargets.length > 1 ? (language === 'es' ? `Eliminar ${contextTargets.length} notas` : `Delete ${contextTargets.length} notes`) : (isTrashFolder ? t.noteList.permanentDelete : t.general.delete)}</span>
           </button>
         </div>,
         document.body
@@ -1788,7 +1945,7 @@ export default function NoteList({
           position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.72)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
-        }} onClick={() => setNoteToDelete(null)}>
+        }} onClick={() => { if (!deleteBusy) setNoteToDelete(null); }}>
           <div style={{
             background: 'var(--bg-modal)', padding: '24px 32px', borderRadius: 'var(--radius-lg)',
             width: 380, display: 'flex', flexDirection: 'column', gap: 20, border: '1px solid var(--border)',
@@ -1812,10 +1969,18 @@ export default function NoteList({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 700 }}>
-                  {isTrashFolder ? t.noteList.permanentDeleteConfirm : (language === 'es' ? '¿Enviar esta nota a la papelera?' : 'Move this note to the trash?')}
+                  {notesToDelete!.length > 1
+                    ? (isTrashFolder
+                      ? (language === 'es' ? `¿Eliminar ${notesToDelete!.length} notas definitivamente?` : `Permanently delete ${notesToDelete!.length} notes?`)
+                      : (language === 'es' ? `¿Enviar ${notesToDelete!.length} notas a la papelera?` : `Move ${notesToDelete!.length} notes to the trash?`))
+                    : (isTrashFolder ? t.noteList.permanentDeleteConfirm : (language === 'es' ? '¿Enviar esta nota a la papelera?' : 'Move this note to the trash?'))}
                 </h3>
                 <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                  {isTrashFolder ? t.noteList.permanentDeleteDesc : t.noteList.deleteToTrashDesc}
+                  {notesToDelete!.length > 1
+                    ? (isTrashFolder
+                      ? (language === 'es' ? 'Esta acción no se puede deshacer.' : 'This cannot be undone.')
+                      : (language === 'es' ? 'Podrás restaurarlas desde la papelera.' : 'You can restore them from the trash.'))
+                    : (isTrashFolder ? t.noteList.permanentDeleteDesc : t.noteList.deleteToTrashDesc)}
                 </span>
               </div>
             </div>
@@ -1830,10 +1995,13 @@ export default function NoteList({
               fontWeight: 500,
               fontStyle: 'italic',
             }} className="truncate">
-              "{noteToDelete.title || t.noteList.unnamedNote}"
+              {notesToDelete!.length > 1
+                ? notesToDelete!.map(note => note.title || t.noteList.unnamedNote).join(', ')
+                : `"${noteToDelete.title || t.noteList.unnamedNote}"`}
             </div>
 
-            {!isTrashFolder && (
+            {deleteError && <p role="alert" className="note-selection-error">{language === 'es' ? 'No se pudo completar la eliminación. Puedes reintentar las notas restantes.' : 'Deletion could not be completed. You can retry the remaining notes.'}</p>}
+            {!isTrashFolder && notesToDelete!.length === 1 && (
               <label style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1857,6 +2025,7 @@ export default function NoteList({
               <button
                 type="button"
                 className="modal-action-btn is-cancel"
+                disabled={deleteBusy}
                 onClick={() => setNoteToDelete(null)}
               >
                 {t.general.cancel}
@@ -1864,18 +2033,10 @@ export default function NoteList({
               </button>
               <button
                 type="button"
-                className={isTrashFolder ? 'modal-action-btn is-danger' : 'modal-action-btn is-save'}
+                className="modal-action-btn is-save"
+                disabled={deleteBusy}
                 style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                onClick={async () => {
-                  if (!isTrashFolder && dontAskMoveToTrash) {
-                    setSkipMoveToTrashConfirmation(true);
-                    await window.cyberNotesAPI.setSetting('confirm_move_note_to_trash_dismissed', 'true');
-                  }
-                  if (isTrashFolder) onPurgeNote(noteToDelete.id);
-                  else onDeleteNote(noteToDelete.id);
-                  setNoteToDelete(null);
-                  setContextMenu(null);
-                }}
+                onClick={() => { void confirmDelete(); }}
               >
                 {isTrashFolder ? t.noteList.permanentDelete : t.noteList.moveToTrash}
                 <EnterGlyph />
@@ -1947,7 +2108,7 @@ interface NoteItemProps {
   isContextActive?: boolean;
   isStickyOpen?: boolean;
   isTrash?: boolean;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
   onDelete: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }
@@ -1978,6 +2139,9 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
 
   return (
     <div
+      data-note-id={note.id}
+      role="option"
+      aria-selected={isSelected}
       onClick={onClick}
       onContextMenu={onContextMenu}
       draggable={!isTrash}
@@ -2230,7 +2394,7 @@ interface NoteCardProps {
   isContextActive?: boolean;
   isStickyOpen?: boolean;
   isTrash?: boolean;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
   onDelete: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }
@@ -2245,6 +2409,8 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
   return (
     <div
       data-note-id={note.id}
+      role="option"
+      aria-selected={isSelected}
       onClick={onClick}
       onContextMenu={onContextMenu}
       draggable={!isTrash}
