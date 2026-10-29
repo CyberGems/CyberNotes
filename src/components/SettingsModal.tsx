@@ -67,6 +67,8 @@ interface Props {
   onShowFloatingToolbarChange: (v: boolean) => void;
   showImageToolbar: boolean;
   onShowImageToolbarChange: (v: boolean) => void;
+  showTableToolbar: boolean;
+  onShowTableToolbarChange: (v: boolean) => void;
   hiddenToolbarIds: string[];
   onHiddenToolbarIdsChange: (ids: string[]) => void;
   initialTab?: Tab;
@@ -630,6 +632,7 @@ export default function SettingsModal({
   showKeyboardIndicators, onShowKeyboardIndicatorsChange,
   showFloatingToolbar, onShowFloatingToolbarChange,
   showImageToolbar, onShowImageToolbarChange,
+  showTableToolbar, onShowTableToolbarChange,
   hiddenToolbarIds, onHiddenToolbarIdsChange,
   initialTab = 'general',
 }: Props) {
@@ -1000,7 +1003,7 @@ export default function SettingsModal({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
         autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar,
+        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar, showTableToolbar,
         closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk,
         stickyRestoreOnStartup: sStickyRestore !== 'false',
         stickySkipTaskbar: sStickySkip !== 'false',
@@ -1017,7 +1020,7 @@ export default function SettingsModal({
       language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
       autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar,
+      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar, showTableToolbar,
       closeToTray, minimizeToTray, autoStart, toggleHotkey,
       stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
     });
@@ -1029,7 +1032,7 @@ export default function SettingsModal({
     language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar,
+    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar, showTableToolbar,
     closeToTray, minimizeToTray, autoStart, toggleHotkey,
     stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
   ]);
@@ -2316,6 +2319,17 @@ export default function SettingsModal({
                     </span>
                   </SettingsOptionCopy>
                   <div className={`custom-switch ${showImageToolbar ? 'active' : ''}`} />
+                </button>
+                <button type="button" role="switch" aria-checked={showTableToolbar} className="settings-option-row settings-toolbar-switch" onClick={() => onShowTableToolbarChange(!showTableToolbar)}>
+                  <SettingsOptionCopy icon={<LayoutGrid />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Barra de tablas' : 'Table toolbar'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra los controles de filas, columnas y encabezados al editar una tabla' : 'Show row, column and header controls when editing a table'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showTableToolbar ? 'active' : ''}`} />
                 </button>
               </div>
             </div>

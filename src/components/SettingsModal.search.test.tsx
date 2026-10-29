@@ -36,6 +36,7 @@ describe('settings search', () => {
       showKeyboardIndicators: true, onShowKeyboardIndicatorsChange: noop,
       showFloatingToolbar: true, onShowFloatingToolbarChange: vi.fn(),
       showImageToolbar: true, onShowImageToolbarChange: vi.fn(), hiddenToolbarIds: [], onHiddenToolbarIdsChange: noop,
+      showTableToolbar: true, onShowTableToolbarChange: vi.fn(),
     };
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -63,7 +64,7 @@ describe('settings search', () => {
     });
   }
 
-  it('finds both actionable toolbar preferences across tabs without changing settings', async () => {
+  it('finds all three actionable toolbar preferences across tabs without changing settings', async () => {
     await render();
     expect(content().textContent).not.toContain('Barra de imagen');
     await search('BARRA');
@@ -71,17 +72,24 @@ describe('settings search', () => {
     const switches = Array.from(content().querySelectorAll<HTMLButtonElement>('[role="switch"]'));
     const image = switches.find(button => button.textContent?.includes('Barra de imagen'))!;
     const text = switches.find(button => button.textContent?.includes('Barra flotante de texto'))!;
+    const table = switches.find(button => button.textContent?.includes('Barra de tablas'))!;
     expect(image.getAttribute('aria-checked')).toBe('true');
     expect(text.getAttribute('aria-checked')).toBe('true');
+    expect(table.getAttribute('aria-checked')).toBe('true');
     expect(content().textContent).not.toContain('Tema visual');
     expect(setSetting).not.toHaveBeenCalled();
-    await act(async () => { image.click(); text.click(); });
+    await act(async () => { image.click(); text.click(); table.click(); });
     expect(props.onShowImageToolbarChange).toHaveBeenCalledExactlyOnceWith(false);
     expect(props.onShowFloatingToolbarChange).toHaveBeenCalledExactlyOnceWith(false);
+    expect(props.onShowTableToolbarChange).toHaveBeenCalledExactlyOnceWith(false);
     await search('BARRA IMAGEN');
     expect(content().textContent).toContain('Barra de imagen');
     expect(content().textContent).not.toContain('Barra flotante de texto');
     expect(content().textContent).not.toContain('Ancho de pestañas');
+    await search('BARRA TABLAS');
+    expect(content().querySelector('[role="switch"]')?.textContent).toContain('Barra de tablas');
+    expect(content().textContent).not.toContain('Barra de imagen');
+    expect(content().textContent).not.toContain('Barra flotante de texto');
   });
 
   it('ignores accents and searches security, statistics, and component-rendered cards', async () => {
@@ -130,6 +138,9 @@ describe('settings search', () => {
     expect(content().querySelector('h2')?.textContent).toBe('Appearance');
     expect(content().textContent).toContain('Floating text toolbar');
     expect(content().textContent).toContain('Image toolbar');
+    expect(content().textContent).toContain('Table toolbar');
+    await search('table toolbar');
+    expect(content().querySelector('[role="switch"]')?.textContent).toContain('Table toolbar');
     await search('zz-no-such-setting');
     expect(content().querySelector('[role="status"]')?.textContent).toBe('No matching settings found.');
   });

@@ -94,6 +94,7 @@ interface Props {
   /** Barra flotante ante selección de texto (default on). */
   showFloatingToolbar?: boolean;
   showImageToolbar?: boolean;
+  showTableToolbar?: boolean;
   /** Ids de botones ocultos hacia el menú "Más" (persistido en Ajustes). */
   hiddenToolbarIds?: string[];
   onHiddenToolbarIdsChange?: (ids: string[]) => void;
@@ -2180,6 +2181,7 @@ export default function NoteEditor({
   showWordCounter = false,
   showFloatingToolbar = true,
   showImageToolbar = true,
+  showTableToolbar = true,
   hiddenToolbarIds = [],
   onHiddenToolbarIdsChange,
   autosaveEnabled = true,
@@ -6199,7 +6201,7 @@ export default function NoteEditor({
 
         {/* Barra de tabla: filas/columnas mientras el cursor está en una tabla */}
         <AnimatePresence>
-          {editor && ui.table && !ui.image && !tableToolbarDismissed && !readOnly && (
+          {editor && ui.table && !ui.image && showTableToolbar && !tableToolbarDismissed && !readOnly && (
             <motion.div
               data-editor-toolbar="table"
               onMouseDown={event => event.preventDefault()}

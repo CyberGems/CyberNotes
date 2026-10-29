@@ -105,13 +105,27 @@ describe('temporary context toolbar dismissal', () => {
   });
 
   it('honors the persistent toolbar preferences even for new selections', async () => {
-    props = { ...props, showFloatingToolbar: false, showImageToolbar: false };
+    props = { ...props, showFloatingToolbar: false, showImageToolbar: false, showTableToolbar: false,
+      note: { ...props.note!, content: props.note!.content + '<table><tr><td><p>Cell</p></td></tr></table>' } };
     await render();
     await act(async () => { editor.commands.setNodeSelection(18); });
     expect(container.querySelector('[data-editor-toolbar="image"]')).toBeNull();
     await act(async () => { editor.commands.setTextSelection({ from: 1, to: 7 }); editor.view.focus(); });
     await settle();
     expect(textToolbarVisible()).toBe(false);
+    await act(async () => {
+      editor.state.doc.descendants((node, pos) => {
+        if (node.isTextblock && node.textContent === 'Cell') editor.commands.setTextSelection(pos + 1);
+      });
+    });
+    expect(container.querySelector('[data-editor-toolbar="table"]')).toBeNull();
+    props = { ...props, showTableToolbar: true };
+    await act(async () => root.render(<NoteEditor {...props} />));
+    expect(container.querySelector('[data-editor-toolbar="table"]')).not.toBeNull();
+    props = { ...props, showTableToolbar: false };
+    await act(async () => root.render(<NoteEditor {...props} />));
+    await settle();
+    expect(container.querySelector('[data-editor-toolbar="table"]')).toBeNull();
   });
 
   it('keeps a table toolbar dismissed while editing that table, and reopens on reentry or another table', async () => {
