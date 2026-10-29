@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
+import { removeImageAt } from './editorImages';
 
 /** Copy the native image before removing its original, including for Ctrl+X. */
 export async function cutSelectedImage(editor: Editor): Promise<void> {
@@ -13,8 +14,8 @@ export async function cutSelectedImage(editor: Editor): Promise<void> {
   // Clipboard IPC can finish after the user changes tabs, edits, or moves the
   // selection. Never delete a different document or the new selection.
   if (editor.isDestroyed || !editor.isEditable || editor.state.doc !== doc) return;
-  editor.view.dispatch(editor.state.tr
-    .delete(selection.from, selection.to)
-    .scrollIntoView()
-    .setMeta('uiEvent', 'cut'));
+  removeImageAt(editor, selection.from, {
+    preserveSelection: !editor.state.selection.eq(selection),
+    uiEvent: 'cut',
+  });
 }

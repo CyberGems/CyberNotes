@@ -2,6 +2,7 @@
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cutSelectedImage } from './editorClipboard';
 
@@ -35,9 +36,16 @@ describe('cutting an image', () => {
     expect(editor.getHTML()).toBe(original);
     finishCopy(true);
     await cutting;
-    expect(editor.getHTML()).toBe('<p>Before</p><p>After</p>');
+    expect(editor.getHTML()).toBe('<p>Before</p><p></p><p>After</p>');
+    expect(editor.state.selection).toBeInstanceOf(TextSelection);
+    expect(editor.state.selection.from).toBe(9);
     expect(editor.commands.undo()).toBe(true);
     expect(editor.getHTML()).toBe(original);
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+    expect(editor.state.selection.from).toBe(8);
+    expect(editor.commands.redo()).toBe(true);
+    expect(editor.state.selection).toBeInstanceOf(TextSelection);
+    expect(editor.state.selection.from).toBe(9);
   });
 
   it('keeps the image and reports a failed native copy', async () => {
@@ -61,7 +69,9 @@ describe('cutting an image', () => {
     editor.commands.setTextSelection({ from: 1, to: 7 });
     finishCopy(true);
     await cutting;
-    expect(editor.getHTML()).toBe('<p>Before</p><p>After</p>');
+    expect(editor.getHTML()).toBe('<p>Before</p><p></p><p>After</p>');
+    expect(editor.state.selection.from).toBe(1);
+    expect(editor.state.selection.to).toBe(7);
   });
 
   it('does not delete content in a different note loaded during the copy', async () => {

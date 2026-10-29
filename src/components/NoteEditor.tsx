@@ -27,6 +27,7 @@ import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } f
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import { loadEditorContent } from '../utils/editorContent';
 import { cutSelectedImage } from '../utils/editorClipboard';
+import { removeSelectedImage } from '../utils/editorImages';
 import { createMinimapMirror, getMinimapGeometry } from '../utils/minimap';
 import Tooltip from './Tooltip';
 import EditorEdgeToggle from './EditorEdgeToggle';
@@ -2212,6 +2213,7 @@ export default function NoteEditor({
   const editorRootRef = useRef<HTMLDivElement | null>(null);
   const isSelectionChangingRef = useRef(false);
   const lastContextMenuTargetRef = useRef<'title' | 'editor'>('editor');
+  const lastContextMenuElementRef = useRef<HTMLElement | null>(null);
   const lastContextMenuTimeRef = useRef(0);
   const isDirtyRef = useRef(false);
   const tabStripRef = useRef<HTMLDivElement>(null);
@@ -3159,7 +3161,7 @@ export default function NoteEditor({
         let hasContent = false;
         let canUndo = false;
         let canRedo = false;
-        let imageSrc: string | null = data.imageSrc || null;
+        let imageSrc: string | null = null;
 
         if (target === 'title') {
           const input = titleInputRef.current;
@@ -3178,29 +3180,17 @@ export default function NoteEditor({
           hasContent = ed.state.doc.textContent.length > 0;
           canUndo = ed.can().undo();
           canRedo = ed.can().redo();
-          if (!imageSrc && ed.isActive('image')) {
-            imageSrc = ed.getAttributes('image').src || null;
+          // La URL puede repetirse. Resolver el elemento pulsado a su posición
+          // real evita seleccionar o borrar la primera copia de otra imagen.
+          const img = lastContextMenuElementRef.current?.closest('img');
+          if (img && ed.view.dom.contains(img)) {
+            const pos = ed.view.posAtDOM(img, 0);
+            if (ed.state.doc.nodeAt(pos)?.type.name === 'image') ed.commands.setNodeSelection(pos);
           }
-          // Fallback: nodo bajo el cursor del último mousedown
-          if (!imageSrc) {
-            const el = (window as any).lastMouseDownEl as HTMLElement | null;
-            const img = el?.closest?.('img') as HTMLImageElement | null;
-            if (img?.src) imageSrc = img.src;
-          }
-          // Seleccionar el nodo imagen para que Cortar/Eliminar funcionen
-          if (imageSrc) {
-            let foundPos: number | null = null;
-            ed.state.doc.descendants((node: any, pos: number) => {
-              if (foundPos !== null) return false;
-              if (node.type.name === 'image' && node.attrs?.src === imageSrc) {
-                foundPos = pos;
-                return false;
-              }
-            });
-            if (foundPos !== null) {
-              ed.commands.setNodeSelection(foundPos);
-              hasSelection = true;
-            }
+          const selection = ed.state.selection;
+          if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+            imageSrc = selection.node.attrs.src || null;
+            hasSelection = true;
           }
         }
 
@@ -3355,6 +3345,16 @@ export default function NoteEditor({
         },
       },
       handleKeyDown: (_view, event) => {
+        // Shift+Supr conserva el corte nativo. Los demás borrados de una
+        // imagen seleccionada comparten el mismo destino explícito del caret.
+        if (
+          !event.altKey && !(event.key === 'Delete' && event.shiftKey)
+          && (event.key === 'Delete' || event.key === 'Backspace')
+          && editorRef.current && removeSelectedImage(editorRef.current)
+        ) {
+          event.preventDefault();
+          return true;
+        }
         // INS = alternar sobreescritura (el badge INS lo refleja)
         if (event.key === 'Insert') {
           event.preventDefault();
@@ -5577,6 +5577,7 @@ export default function NoteEditor({
               }}
               onContextMenu={(e) => {
                 lastContextMenuTargetRef.current = 'title';
+                lastContextMenuElementRef.current = null;
                 lastContextMenuTimeRef.current = Date.now();
                 e.stopPropagation();
               }}
@@ -6365,6 +6366,7 @@ export default function NoteEditor({
               }
             }
             lastContextMenuTargetRef.current = 'editor';
+            lastContextMenuElementRef.current = e.target as HTMLElement;
             lastContextMenuTimeRef.current = Date.now();
           }}
           onClick={(e) => {
@@ -7322,7 +7324,7 @@ export default function NoteEditor({
           <MenuBtn
             icon={<Trash2 size={13} />}
             label={t.general.delete}
-            enabled={contextMenu.hasSelection}
+            enabled={contextMenu.hasSelection && !readOnly}
             danger
             onAction={() => {
               if (contextMenu.target === 'title') {
@@ -7338,7 +7340,8 @@ export default function NoteEditor({
                   }, 0);
                 }
               } else {
-                editor.chain().focus().deleteSelection().run();
+                if (removeSelectedImage(editor)) editor.view.focus();
+                else editor.chain().focus().deleteSelection().run();
               }
             }}
           />
