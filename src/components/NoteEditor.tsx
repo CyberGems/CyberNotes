@@ -3877,8 +3877,12 @@ export default function NoteEditor({
       const dom = liveEditor.view.dom as HTMLElement;
       const scroller = scrollContainerRef.current;
       if (!scroller) return;
-      layer.style.top = `${scroller.scrollTop}px`;
-      layer.style.height = `${scroller.clientHeight}px`;
+      const viewHeight = scroller.clientHeight;
+      // A stale overlay below a resized document can otherwise keep empty
+      // space scrollable. Keep it within the real document's bounds.
+      const maxLayerTop = Math.max(0, dom.offsetHeight - viewHeight);
+      layer.style.top = `${Math.min(scroller.scrollTop, maxLayerTop)}px`;
+      layer.style.height = `${viewHeight}px`;
       const wrapBox = layer.getBoundingClientRect();
       if (wrapBox.width <= 0) return;
       const viewport = scroller.getBoundingClientRect();

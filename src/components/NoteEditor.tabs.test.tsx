@@ -259,6 +259,50 @@ describe('NoteEditor tab hydration', () => {
     expect(Array.from(container!.querySelectorAll<HTMLElement>('.line-number-mark')).map(mark => mark.style.top)).toEqual(['114px', '148px', '182px']);
   });
 
+  it('keeps the gutter overlay inside the document when its height shrinks', async () => {
+    let notify: IntersectionObserverCallback | undefined;
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) { notify = callback; }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 400, width: 800, height: 400, toJSON() {},
+    });
+    await act(async () => root!.render(<NoteEditor
+      language="es" note={note} onSave={vi.fn()} onCreateNote={vi.fn()} layoutMode={1}
+      onToggleLayout={vi.fn()} showFloatingToolbar={false} showLineGutter showWrapGuides={false}
+    />));
+    const dom = container!.querySelector<HTMLElement>('.tiptap')!;
+    const editor = (dom as HTMLElement & { editor: Editor }).editor;
+    const layer = container!.querySelector<HTMLElement>('.wrap-guides-layer')!;
+    const scroller = layer.parentElement!;
+    Object.defineProperty(dom, 'offsetHeight', { configurable: true, value: 800 });
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 300 });
+    scroller.scrollTop = 1400;
+    vi.spyOn(editor.view, 'coordsAtPos').mockReturnValue({ top: 20, bottom: 40, left: 0, right: 0 });
+    const paragraph = dom.querySelector('p')!;
+    const rect = paragraph.getBoundingClientRect();
+    const entry: IntersectionObserverEntry = {
+      target: paragraph, isIntersecting: true, intersectionRatio: 1, time: 0,
+      boundingClientRect: rect, intersectionRect: rect, rootBounds: scroller.getBoundingClientRect(),
+    };
+    await act(async () => {
+      notify!([entry], {} as IntersectionObserver);
+      vi.advanceTimersToNextFrame();
+    });
+    expect(parseFloat(layer.style.top) + parseFloat(layer.style.height)).toBeLessThanOrEqual(dom.offsetHeight);
+
+    Object.defineProperty(dom, 'offsetHeight', { configurable: true, value: 400 });
+    await act(async () => {
+      scroller.dispatchEvent(new Event('scroll'));
+      vi.advanceTimersToNextFrame();
+    });
+    expect(parseFloat(layer.style.top) + parseFloat(layer.style.height)).toBeLessThanOrEqual(dom.offsetHeight);
+    expect(layer.querySelector('.line-number-mark')?.textContent).toBe('1');
+  });
+
   it('lets the editor paint first and coalesces minimap refreshes to the latest tab', async () => {
     const props: ComponentProps<typeof NoteEditor> = {
       language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),
