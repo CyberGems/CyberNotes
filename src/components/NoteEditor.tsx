@@ -2071,6 +2071,11 @@ export default function NoteEditor({
   const lastContextMenuTimeRef = useRef(0);
   const isDirtyRef = useRef(false);
   const tabStripRef = useRef<HTMLDivElement>(null);
+  const pressedTabRef = useRef<string | null>(null);
+  const tabPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (tabPressTimerRef.current !== null) clearTimeout(tabPressTimerRef.current);
+  }, []);
   // Degradados en los bordes de la tira cuando hay overflow (elegante).
   const [tabEdges, setTabEdges] = useState({ left: false, right: false });
   const updateTabEdges = useCallback(() => {
@@ -2093,6 +2098,7 @@ export default function NoteEditor({
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
 
   const clearTabDrag = useCallback(() => {
+    pressedTabRef.current = null;
     draggingTabIdRef.current = null;
     setDraggingTabId(null);
     setTabDropHint(null);
@@ -3721,6 +3727,7 @@ export default function NoteEditor({
   const wrapGuidesRef = useRef<HTMLDivElement>(null);
   const visibleGutterNodesRef = useRef<Set<Element>>(new Set());
   const intersectionObserverActiveRef = useRef(false);
+  const awaitingGutterVisibilityRef = useRef(false);
   const syncGutterObserverRef = useRef<(() => void) | null>(null);
   const showWrapGuidesRef = useRef(showWrapGuides);
   showWrapGuidesRef.current = showWrapGuides;
@@ -3734,6 +3741,9 @@ export default function NoteEditor({
       if (layer.childNodes.length > 0) layer.innerHTML = '';
       return;
     }
+    // La primera notificación ya incluye las líneas visibles. Medir todo el
+    // documento antes de recibirla bloqueaba el primer frame innecesariamente.
+    if (awaitingGutterVisibilityRef.current) return;
     try {
       const dom = liveEditor.view.dom as HTMLElement;
       const scroller = scrollContainerRef.current;
@@ -3922,10 +3932,14 @@ export default function NoteEditor({
     const liveEditor = editorRef.current;
     const scroller = scrollContainerRef.current;
     const observedNodes = new Set<Element>();
+    let disposed = false;
     visibleGutterNodesRef.current.clear();
     intersectionObserverActiveRef.current = false;
     const observer = scroller && typeof IntersectionObserver !== 'undefined'
       ? new IntersectionObserver((entries) => {
+          if (disposed) return;
+          const initialVisibility = awaitingGutterVisibilityRef.current;
+          awaitingGutterVisibilityRef.current = false;
           let changed = false;
           for (const entry of entries) {
             const target = entry.target;
@@ -3940,9 +3954,11 @@ export default function NoteEditor({
             }
           }
           intersectionObserverActiveRef.current = true;
-          if (changed) scheduleWrapGuides();
+          if (changed || initialVisibility) scheduleWrapGuides();
         }, { root: scroller, rootMargin: '100px 0px' })
       : null;
+    awaitingGutterVisibilityRef.current = !!observer;
+    wrapGuidesRef.current?.replaceChildren();
 
     const syncObservedNodes = () => {
       if (!observer || !liveEditor || liveEditor.view.isDestroyed) return;
@@ -3997,12 +4013,14 @@ export default function NoteEditor({
     scroller?.addEventListener('scroll', scheduleWrapGuides, { passive: true });
     window.addEventListener('resize', scheduleWrapGuides);
     return () => {
+      disposed = true;
       liveEditor?.off('update', handleEditorUpdate);
       observer?.disconnect();
       observedNodes.clear();
       if (syncGutterObserverRef.current === syncObservedNodes) syncGutterObserverRef.current = null;
       visibleGutterNodesRef.current.clear();
       intersectionObserverActiveRef.current = false;
+      awaitingGutterVisibilityRef.current = false;
       ro.disconnect();
       scroller?.removeEventListener('scroll', scheduleWrapGuides);
       window.removeEventListener('resize', scheduleWrapGuides);
@@ -5048,7 +5066,27 @@ export default function NoteEditor({
                   data-note-id={tabId}
                   draggable
                   className={`editor-tab ${isActive ? 'active' : ''} ${draggingTabId === tabId ? 'is-dragging' : ''} ${dropClass}`}
-                  onClick={() => onSelectNote?.(tabId)}
+                  onMouseDown={(event) => {
+                    if (event.button !== 0) return;
+                    pressedTabRef.current = tabId;
+                    if (tabPressTimerRef.current !== null) clearTimeout(tabPressTimerRef.current);
+                    // Dejar terminar el mousedown nativo antes de enfocar el
+                    // editor. No cancelar el evento: debe permitir arrastrar.
+                    tabPressTimerRef.current = setTimeout(() => {
+                      tabPressTimerRef.current = null;
+                      onSelectNote?.(tabId);
+                    }, 0);
+                  }}
+                  onClick={(event) => {
+                    const selectedOnPress = event.detail > 0 && pressedTabRef.current === tabId;
+                    pressedTabRef.current = null;
+                    // Mantener click para activaciones por teclado o código.
+                    if (!selectedOnPress) {
+                      if (tabPressTimerRef.current !== null) clearTimeout(tabPressTimerRef.current);
+                      tabPressTimerRef.current = null;
+                      onSelectNote?.(tabId);
+                    }
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -5144,7 +5182,12 @@ export default function NoteEditor({
                     <button
                       className="tab-close-btn"
                       draggable={false}
-                      onMouseDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        if (tabPressTimerRef.current !== null) clearTimeout(tabPressTimerRef.current);
+                        tabPressTimerRef.current = null;
+                        pressedTabRef.current = null;
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onCloseTab?.(tabId);
