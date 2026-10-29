@@ -253,6 +253,7 @@ export default function MainApp({
   const [showWordCounter, setShowWordCounter] = useState(false);
   const [showKeyboardIndicators, setShowKeyboardIndicators] = useState(false);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
+  const [showImageToolbar, setShowImageToolbar] = useState(true);
   const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>(['h1', 'h2']);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
@@ -574,7 +575,7 @@ export default function MainApp({
       'remember_last_note', 'minimize_to_tray', 'close_to_tray', 'show_line_counter', 'show_line_gutter', 'show_wrap_guides', 'autosave_enabled',
       'confirm_leave_note_dismissed', 'auto_unlock_caps_lock', 'auto_unlock_caps_lock_timeout',
       'caps_lock_sound', 'caps_lock_sound_scope', 'tabs_width_mode', 'show_minimap',
-      'show_word_counter', 'show_keyboard_indicators', 'show_floating_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
+      'show_word_counter', 'show_keyboard_indicators', 'show_floating_toolbar', 'show_image_toolbar', 'toolbar_hidden_ids', 'recent_cleared_at', 'opened_history', 'open_note_ids', 'last_note_id',
       'editor_font',
     ]);
 
@@ -608,6 +609,7 @@ export default function MainApp({
     setShowKeyboardIndicators(s.show_keyboard_indicators === 'true');
     if (s.show_floating_toolbar === null) setShowFloatingToolbar(true);
     else setShowFloatingToolbar(s.show_floating_toolbar === 'true');
+    setShowImageToolbar(s.show_image_toolbar !== 'false');
     if (s.toolbar_hidden_ids) {
       try {
         const parsed: unknown = JSON.parse(s.toolbar_hidden_ids);
@@ -1833,6 +1835,11 @@ export default function MainApp({
     await window.cyberNotesAPI.setSetting('toolbar_hidden_ids', JSON.stringify(ids));
   };
 
+  const handleShowImageToolbarChange = async (v: boolean) => {
+    setShowImageToolbar(v);
+    await window.cyberNotesAPI.setSetting('show_image_toolbar', v.toString());
+  };
+
   const handleAutosaveEnabledChange = async (val: boolean) => {
     setAutosaveEnabled(val);
     await window.cyberNotesAPI.setSetting('autosave_enabled', val.toString());
@@ -2183,6 +2190,7 @@ export default function MainApp({
           onShowWrapGuidesChange={handleShowWrapGuidesChange}
           showWordCounter={showWordCounter}
           showFloatingToolbar={showFloatingToolbar}
+          showImageToolbar={showImageToolbar}
           hiddenToolbarIds={hiddenToolbarIds}
           onHiddenToolbarIdsChange={handleHiddenToolbarIdsChange}
         />
@@ -2248,6 +2256,8 @@ export default function MainApp({
           onShowWordCounterChange={(v: boolean) => { setShowWordCounter(v); window.cyberNotesAPI.setSetting('show_word_counter', v.toString()); }}
           showFloatingToolbar={showFloatingToolbar}
           onShowFloatingToolbarChange={handleShowFloatingToolbarChange}
+          showImageToolbar={showImageToolbar}
+          onShowImageToolbarChange={handleShowImageToolbarChange}
           hiddenToolbarIds={hiddenToolbarIds}
           onHiddenToolbarIdsChange={handleHiddenToolbarIdsChange}
         />

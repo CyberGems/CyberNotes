@@ -5,13 +5,14 @@ import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen, Search } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { EnterGlyph, KeyHint, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import SettingsSearch, { normalizeSettingsSearch, SettingsSearchGroup, SettingsSearchItem } from './SettingsSearch';
 
 interface Props {
   language: Language;
@@ -64,6 +65,8 @@ interface Props {
   onShowKeyboardIndicatorsChange: (v: boolean) => void;
   showFloatingToolbar: boolean;
   onShowFloatingToolbarChange: (v: boolean) => void;
+  showImageToolbar: boolean;
+  onShowImageToolbarChange: (v: boolean) => void;
   hiddenToolbarIds: string[];
   onHiddenToolbarIdsChange: (ids: string[]) => void;
   initialTab?: Tab;
@@ -626,10 +629,18 @@ export default function SettingsModal({
   showWordCounter, onShowWordCounterChange,
   showKeyboardIndicators, onShowKeyboardIndicatorsChange,
   showFloatingToolbar, onShowFloatingToolbarChange,
+  showImageToolbar, onShowImageToolbarChange,
   hiddenToolbarIds, onHiddenToolbarIdsChange,
   initialTab = 'general',
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searching = normalizeSettingsSearch(searchQuery).length > 0;
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const settingsContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (settingsContentRef.current) settingsContentRef.current.scrollTop = 0;
+  }, [tab, searchQuery]);
   const [appVersion, setAppVersion] = useState('');
   const [hasPassword, setHasPassword] = useState(false);
   const [currentPwd, setCurrentPwd] = useState('');
@@ -989,7 +1000,7 @@ export default function SettingsModal({
         language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
         autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
         autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
+        capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar,
         closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk,
         stickyRestoreOnStartup: sStickyRestore !== 'false',
         stickySkipTaskbar: sStickySkip !== 'false',
@@ -1006,7 +1017,7 @@ export default function SettingsModal({
       language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
       autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
+      capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar,
       closeToTray, minimizeToTray, autoStart, toggleHotkey,
       stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
     });
@@ -1018,7 +1029,7 @@ export default function SettingsModal({
     language, currentTheme, colorIntensity, bgImage, glassBlur, bgOpacity,
     autoLockMinutes, rememberLastNote, showLineCounter, showLineGutter, showWrapGuides,
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
-    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators,
+    capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar,
     closeToTray, minimizeToTray, autoStart, toggleHotkey,
     stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
   ]);
@@ -1055,10 +1066,7 @@ export default function SettingsModal({
         );
         if (isTextInput) return;
 
-        // If focus is specifically on an explicit action button (.btn), let Enter trigger that button
-        if (target && target.tagName === 'BUTTON' && target.classList.contains('btn')) {
-          return;
-        }
+        if (target?.closest('button')) return;
 
         e.preventDefault();
         onClose();
@@ -1385,6 +1393,13 @@ export default function SettingsModal({
       <div
         className="panel settings-panel"
         onClick={e => e.stopPropagation()}
+        onKeyDown={event => {
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+            event.preventDefault();
+            event.stopPropagation();
+            searchInputRef.current?.focus();
+          }
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={language === 'es' ? 'Configuración' : 'Settings'}
@@ -1405,6 +1420,32 @@ export default function SettingsModal({
           </button>
           </Tooltip>
         </div>
+        <div className="settings-search">
+          <Search size={14} aria-hidden="true" />
+          <input
+            ref={searchInputRef}
+            type="search"
+            value={searchQuery}
+            placeholder={language === 'es' ? 'Buscar en todos los ajustes…' : 'Search all settings…'}
+            aria-label={language === 'es' ? 'Buscar en todos los ajustes' : 'Search all settings'}
+            onChange={event => setSearchQuery(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Escape' && searchQuery) {
+                event.preventDefault();
+                event.stopPropagation();
+                setSearchQuery('');
+              }
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="settings-header-close"
+              aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+              onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+            ><X size={13} /></button>
+          )}
+        </div>
         <div className="settings-layout">
           <aside className="settings-nav">
             <div className="settings-nav-items">
@@ -1415,8 +1456,8 @@ export default function SettingsModal({
                   )}
                   <button
                     type="button"
-                    className={`settings-nav-btn${tab === item.id ? ' active' : ''}`}
-                    onClick={() => setTab(item.id)}
+                    className={`settings-nav-btn${!searching && tab === item.id ? ' active' : ''}`}
+                    onClick={() => { setSearchQuery(''); setTab(item.id); }}
                   >
                     {item.icon}
                     {item.label}
@@ -1440,11 +1481,12 @@ export default function SettingsModal({
             </div>
           </aside>
 
-          <div className="settings-content">
+          <div className="settings-content" ref={settingsContentRef}>
+          <SettingsSearch query={searchQuery} optionContent={SettingsOptionCopy} emptyMessage={language === 'es' ? 'No se encontraron ajustes.' : 'No matching settings found.'}>
 
           {/* ── GENERAL ── */}
-          {tab === 'general' && (
-            <>
+          {(searching || tab === 'general') && (
+            <SettingsSearchGroup label={navItems[0].label}>
             <div className="settings-card settings-general-card">
                 <SettingsHeading icon={<SlidersHorizontal />}>
                   {language === 'es' ? 'Preferencias' : 'Preferences'}
@@ -1924,7 +1966,9 @@ export default function SettingsModal({
                   </div>
                 </div>
             </div>
-            <DictionaryWordsManager language={language} />
+            <SettingsSearchItem searchText={language === 'es' ? 'Diccionario personal corrector ortográfico palabras' : 'Personal dictionary spell checker words'}>
+              <DictionaryWordsManager language={language} />
+            </SettingsSearchItem>
             <div className="settings-card settings-floating-card">
               <SettingsHeading icon={<StickyNote />}>
                 {language === 'es' ? 'Notas flotantes' : 'Floating Notes'}
@@ -1976,12 +2020,12 @@ export default function SettingsModal({
                 </div>
               </div>
             </div>
-            </>
+            </SettingsSearchGroup>
           )}
 
           {/* ── APPEARANCE ── */}
-          {tab === 'appearance' && (
-            <>
+          {(searching || tab === 'appearance') && (
+            <SettingsSearchGroup label={navItems[1].label}>
             <div className="settings-card">
                 <SettingsHeading icon={<Palette />}>
                   {language === 'es' ? 'Tema visual' : 'Visual Theme'}
@@ -2251,17 +2295,28 @@ export default function SettingsModal({
                   <div className={`custom-switch ${showKeyboardIndicators ? 'active' : ''}`} />
                 </label>
 
-                <label className="settings-option-row" onClick={() => onShowFloatingToolbarChange(!showFloatingToolbar)}>
+                <button type="button" role="switch" aria-checked={showFloatingToolbar} className="settings-option-row settings-toolbar-switch" onClick={() => onShowFloatingToolbarChange(!showFloatingToolbar)}>
                   <SettingsOptionCopy icon={<Sparkles />}>
                     <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                      {language === 'es' ? 'Barra flotante de formato' : 'Floating format toolbar'}
+                      {language === 'es' ? 'Barra flotante de texto' : 'Floating text toolbar'}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {language === 'es' ? 'Muestra la mini barra al seleccionar texto en el editor' : 'Show the mini toolbar when selecting text in the editor'}
                     </span>
                   </SettingsOptionCopy>
                   <div className={`custom-switch ${showFloatingToolbar ? 'active' : ''}`} />
-                </label>
+                </button>
+                <button type="button" role="switch" aria-checked={showImageToolbar} className="settings-option-row settings-toolbar-switch" onClick={() => onShowImageToolbarChange(!showImageToolbar)}>
+                  <SettingsOptionCopy icon={<Image />}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {language === 'es' ? 'Barra de imagen' : 'Image toolbar'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {language === 'es' ? 'Muestra la barra de alineación y tamaño al seleccionar una imagen' : 'Show alignment and size controls when selecting an image'}
+                    </span>
+                  </SettingsOptionCopy>
+                  <div className={`custom-switch ${showImageToolbar ? 'active' : ''}`} />
+                </button>
               </div>
             </div>
 
@@ -2493,12 +2548,12 @@ export default function SettingsModal({
                 );
               })()}
             </div>
-            </>
+            </SettingsSearchGroup>
           )}
 
           {/* ── SECURITY ── */}
-          {tab === 'security' && (
-            <>
+          {(searching || tab === 'security') && (
+            <SettingsSearchGroup label={navItems[2].label}>
             <div className="settings-card">
               <SettingsHeading icon={<LockKeyhole />}>
                 {language === 'es' ? 'Contraseña' : 'Password'}
@@ -2722,7 +2777,9 @@ export default function SettingsModal({
               </div>
             </div>
 
-            <AccessLogCard language={language} />
+            <SettingsSearchItem searchText={language === 'es' ? 'Registro de accesos historial bloqueos desbloqueos seguridad' : 'Access log history locks unlocks security'}>
+              <AccessLogCard language={language} />
+            </SettingsSearchItem>
 
             <div className="settings-card">
                 <SettingsHeading icon={<ShieldCheck />}>
@@ -2757,12 +2814,12 @@ export default function SettingsModal({
                   </p>
                 </div>
             </div>
-            </>
+            </SettingsSearchGroup>
           )}
 
           {/* ── ESTADÍSTICAS / STATISTICS ── */}
-          {tab === 'stats' && (
-            <>
+          {(searching || tab === 'stats') && (
+            <SettingsSearchGroup label={navItems[4].label}>
             <div className="settings-card">
               <SettingsHeading icon={<BarChart3 />}>
                 {language === 'es' ? 'Estadísticas de uso' : 'Usage statistics'}
@@ -2857,11 +2914,12 @@ export default function SettingsModal({
                 </p>
               )}
             </div>
-            </>
+            </SettingsSearchGroup>
           )}
 
           {/* ── RESPALDO Y DATOS / BACKUP & DATA ── */}
-          {tab === 'maintenance' && (
+          {(searching || tab === 'maintenance') && (
+            <SettingsSearchGroup label={navItems[3].label}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>              {/* Card 1: Copias de seguridad (Exportar / Importar) */}
               <div className="settings-card">
                 <SettingsHeading icon={<Database />}>
@@ -3323,8 +3381,10 @@ export default function SettingsModal({
                 </div>
               </div>
             </div>
+            </SettingsSearchGroup>
           )}
 
+          </SettingsSearch>
           </div>
         </div>
         <Tooltip

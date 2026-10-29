@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEditor, useEditorState, EditorContent, Editor, BubbleMenu, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
-import { NodeSelection, TextSelection } from '@tiptap/pm/state';
+import { NodeSelection, TextSelection, type Selection } from '@tiptap/pm/state';
+import type { Instance as TippyInstance } from 'tippy.js';
 import { Node as TiptapNode } from '@tiptap/core';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
@@ -92,6 +93,7 @@ interface Props {
   showWordCounter?: boolean;
   /** Barra flotante ante selección de texto (default on). */
   showFloatingToolbar?: boolean;
+  showImageToolbar?: boolean;
   /** Ids de botones ocultos hacia el menú "Más" (persistido en Ajustes). */
   hiddenToolbarIds?: string[];
   onHiddenToolbarIdsChange?: (ids: string[]) => void;
@@ -2166,6 +2168,7 @@ export default function NoteEditor({
   onShowWrapGuidesChange,
   showWordCounter = false,
   showFloatingToolbar = true,
+  showImageToolbar = true,
   hiddenToolbarIds = [],
   onHiddenToolbarIdsChange,
   autosaveEnabled = true,
@@ -2300,6 +2303,9 @@ export default function NoteEditor({
   // menú sigue montado y simplemente deja de mostrarse).
   const showFloatingToolbarRef = useRef(showFloatingToolbar);
   showFloatingToolbarRef.current = showFloatingToolbar;
+  const textBubbleMenuRef = useRef<TippyInstance | null>(null);
+  const dismissedTextSelectionRef = useRef<Selection | null>(null);
+  const [imageToolbarDismissed, setImageToolbarDismissed] = useState(false);
   const readOnlyRef = useRef(readOnly);
   readOnlyRef.current = readOnly;
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
@@ -3538,6 +3544,8 @@ export default function NoteEditor({
       syncMinimapHtml();
     },
     onSelectionUpdate: () => {
+      dismissedTextSelectionRef.current = null;
+      setImageToolbarDismissed(false);
       scheduleMetrics();
     },
     onFocus: () => {
@@ -3603,13 +3611,9 @@ export default function NoteEditor({
     editor?.setEditable(!readOnly);
   }, [editor, readOnly]);
 
-  // Al desactivar la barra flotante se suelta el foco: el plugin la esconde
-  // en el blur del editor y no puede quedar visible tras el cambio.
   useEffect(() => {
-    if (!showFloatingToolbar && editor && editor.view.hasFocus()) {
-      editor.commands.blur();
-    }
-  }, [showFloatingToolbar, editor]);
+    if (!showFloatingToolbar) textBubbleMenuRef.current?.hide();
+  }, [showFloatingToolbar]);
 
   // Refresca el resaltado del buscador sin transacción (no ensucia la nota).
   useEffect(() => {
@@ -4258,6 +4262,8 @@ export default function NoteEditor({
     setSaveStatus(draft ? 'pending' : 'saved');
 
     hydratedNoteIdRef.current = null;
+    dismissedTextSelectionRef.current = null;
+    setImageToolbarDismissed(false);
     setVideoMenu(null);
     setVideoEdit(null);
     if (!editor || !note) return;
@@ -6049,7 +6055,13 @@ export default function NoteEditor({
         {editor && (
           <BubbleMenu
             editor={editor}
-            tippyOptions={{ placement: 'top', offset: [0, 8], arrow: false }}
+            tippyOptions={{
+              placement: 'top', offset: [0, 8], arrow: false,
+              onCreate: instance => { textBubbleMenuRef.current = instance; },
+              onDestroy: instance => {
+                if (textBubbleMenuRef.current === instance) textBubbleMenuRef.current = null;
+              },
+            }}
             shouldShow={({ editor: e, state }) => {
               if (readOnlyRef.current) return false;
               if (!showFloatingToolbarRef.current) return false;
@@ -6058,12 +6070,14 @@ export default function NoteEditor({
               // estorba: solo se muestra al soltar el botón.
               if (isDragSelectingRef.current) return false;
               const { selection } = state;
+              if (dismissedTextSelectionRef.current?.eq(selection)) return false;
               if (selection.empty) return false;
               if ('node' in selection && selection.node) return false;
               return true;
             }}
           >
             <div
+              data-editor-toolbar="text"
               onMouseDown={(e) => e.preventDefault()}
               style={{
                 display: 'flex', alignItems: 'center', gap: 2, padding: 5,
@@ -6077,14 +6091,29 @@ export default function NoteEditor({
               <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={14} /></ToolbarBtn>
               <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 3px' }} />
               <FloatingFontSizeSelect editor={editor} language={language} defaultSize={Math.round(15 * uiScale)} />
+              <Tooltip label={language === 'es' ? 'Volverá al hacer una nueva selección de texto' : 'Returns with a new text selection'} placement="top">
+                <button
+                  type="button"
+                  className="editor-context-bar-close"
+                  aria-label={language === 'es' ? 'Ocultar barra de texto' : 'Hide text toolbar'}
+                  onClick={event => {
+                    const restoreFocus = document.activeElement === event.currentTarget;
+                    dismissedTextSelectionRef.current = editor.state.selection;
+                    textBubbleMenuRef.current?.hide();
+                    if (restoreFocus) editor.view.focus();
+                  }}
+                ><X size={13} /></button>
+              </Tooltip>
             </div>
           </BubbleMenu>
         )}
 
         {/* Barra de imagen flotante: posicionada absolutamente para no desplazar el contenido */}
         <AnimatePresence>
-          {editor && ui.image && (
+          {editor && ui.image && showImageToolbar && !imageToolbarDismissed && !readOnly && (
             <motion.div
+              data-editor-toolbar="image"
+              onMouseDown={event => event.preventDefault()}
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -6132,6 +6161,17 @@ export default function NoteEditor({
                   </motion.button>
                 ))}
               </div>
+              <Tooltip label={language === 'es' ? 'Volverá al seleccionar otra vez una imagen' : 'Returns when you select an image again'} placement="bottom">
+                <button
+                  type="button"
+                  className="editor-context-bar-close"
+                  aria-label={language === 'es' ? 'Ocultar barra de imagen' : 'Hide image toolbar'}
+                  onClick={event => {
+                    setImageToolbarDismissed(true);
+                    if (document.activeElement === event.currentTarget) editor.view.focus();
+                  }}
+                ><X size={13} /></button>
+              </Tooltip>
             </motion.div>
           )}
         </AnimatePresence>
