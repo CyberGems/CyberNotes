@@ -27,6 +27,7 @@ import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } f
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import { loadEditorContent } from '../utils/editorContent';
 import Tooltip from './Tooltip';
+import EditorEdgeToggle from './EditorEdgeToggle';
 import WelcomeGreeting from './WelcomeGreeting';
 import VersionHistoryModal from './VersionHistoryModal';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
@@ -6365,151 +6366,47 @@ export default function NoteEditor({
 
       </div>
 
-      {/* Carril de toggle del gutter: permanece accesible en ambos estados. */}
-      <Tooltip
-        placement="right"
+      <EditorEdgeToggle
+        side="left"
+        expanded={showLineGutter}
+        offset={showLineGutter ? 50 : 0}
         label={showLineGutter
           ? (language === 'es' ? 'Ocultar números de línea' : 'Hide line numbers')
           : (language === 'es' ? 'Mostrar números de línea' : 'Show line numbers')}
-      >
-        <button
-          type="button"
-          className="editor-edge-rail-toggle"
-          aria-label={showLineGutter
-            ? (language === 'es' ? 'Ocultar números de línea' : 'Hide line numbers')
-            : (language === 'es' ? 'Mostrar números de línea' : 'Show line numbers')}
-          aria-pressed={showLineGutter}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onShowLineGutterChange?.(!showLineGutter)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openGutterMenu(e.clientX, e.clientY);
-          }}
-          style={{
-            position: 'absolute',
-            left: showLineGutter ? 50 : 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 10,
-            height: 56,
-            zIndex: 8,
-            padding: 0,
-            border: 'none',
-            borderRadius: '0 6px 6px 0',
-            cursor: 'pointer',
-            background: 'transparent',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'left 0.22s ease, background 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-            const line = e.currentTarget.querySelector('[data-gutter-rail]') as HTMLElement | null;
-            if (line) {
-              line.style.background = 'var(--accent)';
-              line.style.boxShadow = '0 0 8px var(--accent-glow)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            const line = e.currentTarget.querySelector('[data-gutter-rail]') as HTMLElement | null;
-            if (line) {
-              line.style.background = 'rgba(255,255,255,0.22)';
-              line.style.boxShadow = 'none';
-            }
-          }}
-        >
-          <span
-            data-gutter-rail
-            style={{
-              width: 2,
-              height: 36,
-              borderRadius: 2,
-              background: 'rgba(255,255,255,0.22)',
-              transition: 'background 0.15s ease, box-shadow 0.15s ease',
-            }}
-          />
-        </button>
-      </Tooltip>
+        onToggle={() => onShowLineGutterChange?.(!showLineGutter)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openGutterMenu(e.clientX, e.clientY);
+        }}
+      />
 
       {/* ─── Minimap (retraíble) ─────────────────────────────────── */}
-      {/* Carril de toggle: siempre visible a la derecha del editor */}
-      <Tooltip
-        placement="left"
+      <EditorEdgeToggle
+        side="right"
+        expanded={showMinimap}
+        offset={showMinimap ? MINIMAP_WIDTH : 0}
         label={showMinimap
           ? (language === 'es' ? 'Ocultar minimapa' : 'Hide minimap')
           : (language === 'es' ? 'Mostrar minimapa' : 'Show minimap')}
-      >
-        <button
-          type="button"
-          aria-label={showMinimap ? 'Hide minimap' : 'Show minimap'}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onShowMinimapChange?.(!showMinimap)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const MENU_WIDTH = 180;
-            const MENU_HEIGHT = 48;
-            const margin = 10;
-            let x = e.clientX;
-            let y = e.clientY;
-            if (x + MENU_WIDTH + margin > window.innerWidth) {
-              x = window.innerWidth - MENU_WIDTH - margin;
-            }
-            if (y + MENU_HEIGHT + margin > window.innerHeight) {
-              y = window.innerHeight - MENU_HEIGHT - margin;
-            }
-            setMinimapMenu({ x: Math.max(margin, x), y: Math.max(margin, y) });
-          }}
-          style={{
-            position: 'absolute',
-            right: showMinimap ? MINIMAP_WIDTH : 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 10,
-            height: 56,
-            zIndex: 8,
-            padding: 0,
-            border: 'none',
-            borderRadius: showMinimap ? '6px 0 0 6px' : '6px 0 0 6px',
-            cursor: 'pointer',
-            background: 'transparent',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'right 0.22s ease, background 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
-            const line = e.currentTarget.querySelector('[data-minimap-rail]') as HTMLElement | null;
-            if (line) {
-              line.style.background = 'var(--accent)';
-              line.style.boxShadow = '0 0 8px var(--accent-glow)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-            const line = e.currentTarget.querySelector('[data-minimap-rail]') as HTMLElement | null;
-            if (line) {
-              line.style.background = 'rgba(255,255,255,0.22)';
-              line.style.boxShadow = 'none';
-            }
-          }}
-        >
-          <span
-            data-minimap-rail
-            style={{
-              width: 2,
-              height: 36,
-              borderRadius: 2,
-              background: 'rgba(255,255,255,0.22)',
-              transition: 'background 0.15s ease, box-shadow 0.15s ease',
-            }}
-          />
-        </button>
-      </Tooltip>
+        onToggle={() => onShowMinimapChange?.(!showMinimap)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const MENU_WIDTH = 180;
+          const MENU_HEIGHT = 48;
+          const margin = 10;
+          let x = e.clientX;
+          let y = e.clientY;
+          if (x + MENU_WIDTH + margin > window.innerWidth) {
+            x = window.innerWidth - MENU_WIDTH - margin;
+          }
+          if (y + MENU_HEIGHT + margin > window.innerHeight) {
+            y = window.innerHeight - MENU_HEIGHT - margin;
+          }
+          setMinimapMenu({ x: Math.max(margin, x), y: Math.max(margin, y) });
+        }}
+      />
 
       <div
         ref={minimapRef}
