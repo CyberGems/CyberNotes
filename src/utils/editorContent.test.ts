@@ -171,16 +171,18 @@ describe('loading tab content', () => {
     expect(second.state.doc.type.schema).toBe(second.schema);
   });
 
-  it('evicts the least recently used document when eight notes are cached', () => {
+  it('keeps dozens of visited notes parsed and evicts the least recently used at the limit', () => {
     const editor = makeEditor();
     const parse = vi.spyOn(DOMParser.prototype, 'parse');
-    for (let i = 0; i < 8; i++) loadEditorContent(editor, `<p>Note ${i}</p>`);
+    for (let i = 0; i < 64; i++) loadEditorContent(editor, `<p>Note ${i}</p>`);
+    for (let i = 0; i < 64; i++) loadEditorContent(editor, `<p>Note ${i}</p>`);
+    expect(parse).toHaveBeenCalledTimes(64);
     loadEditorContent(editor, '<p>Note 0</p>');
-    loadEditorContent(editor, '<p>Note 8</p>');
+    loadEditorContent(editor, '<p>Note 64</p>');
     loadEditorContent(editor, '<p>Note 0</p>');
-    expect(parse).toHaveBeenCalledTimes(9);
+    expect(parse).toHaveBeenCalledTimes(65);
     loadEditorContent(editor, '<p>Note 1</p>');
-    expect(parse).toHaveBeenCalledTimes(10);
+    expect(parse).toHaveBeenCalledTimes(66);
   });
 
   it('bounds the total cached source size and does not retain oversized notes', () => {

@@ -4,7 +4,7 @@ import { EditorState, Selection } from '@tiptap/pm/state';
 
 // Keep recently visited documents parsed, without retaining an unbounded copy
 // of every note or large embedded images. Each editor has its own schema/cache.
-const MAX_DOCUMENTS = 8;
+const MAX_DOCUMENTS = 64;
 const MAX_SOURCE_LENGTH = 2_000_000;
 interface ContentCache {
   documents: Map<string, Node>;

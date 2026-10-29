@@ -2287,31 +2287,38 @@ export default function NoteEditor({
     indicator.style.height = `${indH}px`;
   }, []);
 
-  // Sincronizar HTML del minimap desde el DOM renderizado del editor (más fiel que getHTML())
+  // Sincronizar el minimapa desde el DOM renderizado del editor (más fiel que getHTML())
   const minimapSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const minimapSyncFrame = useRef(0);
+  const minimapSyncIdle = useRef<number | null>(null);
   useEffect(() => () => {
     if (minimapSyncTimer.current) clearTimeout(minimapSyncTimer.current);
     if (minimapSyncFrame.current) cancelAnimationFrame(minimapSyncFrame.current);
+    if (minimapSyncIdle.current !== null) cancelIdleCallback(minimapSyncIdle.current);
   }, []);
   const syncMinimapHtml = useCallback((immediate = false) => {
     if (!showMinimapRef.current) return;
     const run = () => {
       if (minimapSyncFrame.current) cancelAnimationFrame(minimapSyncFrame.current);
+      if (minimapSyncIdle.current !== null) cancelIdleCallback(minimapSyncIdle.current);
+      minimapSyncIdle.current = null;
       // Dar un frame al editor antes de copiar todo su DOM al minimapa.
       // Coalescer las solicitudes de hidratación, montaje y cambios rápidos.
       minimapSyncFrame.current = requestAnimationFrame(() => {
-        minimapSyncFrame.current = requestAnimationFrame(() => {
+        minimapSyncFrame.current = 0;
+        const copySnapshot = () => {
+          minimapSyncIdle.current = null;
           minimapSyncFrame.current = 0;
           const target = minimapContentRef.current;
           const ed = editorRef.current;
           if (!showMinimapRef.current || !target || !ed?.view?.dom) return;
 
-          // Clonar el DOM pintado: mismos nodos, estilos inline de imágenes, etc.
-          target.innerHTML = ed.view.dom.innerHTML;
+          // Copiar nodos directamente evita serializar y volver a parsear todo
+          // el documento. Preparar el snapshot separado evita montar iframes.
+          const snapshot = ed.view.dom.cloneNode(true) as HTMLElement;
 
           // Los iframes (videos en reproducción) no van al minimapa: marcador.
-          target.querySelectorAll('iframe').forEach((frame) => {
+          snapshot.querySelectorAll('iframe').forEach((frame) => {
             const ph = document.createElement('div');
             ph.className = 'minimap-media-ph';
             ph.textContent = '▶';
@@ -2319,16 +2326,27 @@ export default function NoteEditor({
           });
 
           // Quitar ruido visual de edición (placeholder, selección)
-          target.querySelectorAll('.ProseMirror-selectednode').forEach((n) => {
+          snapshot.querySelectorAll('.ProseMirror-selectednode').forEach((n) => {
             n.classList.remove('ProseMirror-selectednode');
           });
-          target.querySelectorAll('[data-placeholder]').forEach((n) => {
+          snapshot.querySelectorAll('[data-placeholder]').forEach((n) => {
             n.removeAttribute('data-placeholder');
             n.classList.remove('is-editor-empty', 'is-empty');
           });
 
+          const range = target.ownerDocument.createRange();
+          range.selectNodeContents(snapshot);
+          target.replaceChildren(range.extractContents());
           updateMinimapIndicator();
-        });
+        };
+        // El minimapa puede costar un layout completo. Dejar que el navegador
+        // pinte el editor antes de hacerlo, con un límite para no postergarlo
+        // indefinidamente mientras se escribe o se cambia de pestaña.
+        if (typeof requestIdleCallback === 'function') {
+          minimapSyncIdle.current = requestIdleCallback(copySnapshot, { timeout: 200 });
+        } else {
+          minimapSyncFrame.current = requestAnimationFrame(copySnapshot);
+        }
       });
     };
     if (immediate) {

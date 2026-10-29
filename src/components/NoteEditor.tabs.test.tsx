@@ -82,13 +82,9 @@ describe('NoteEditor tab hydration', () => {
     await act(async () => root!.render(<NoteEditor {...props} />));
     const minimap = container!.querySelector<HTMLElement>('.minimap-prose')!;
     const editor = container!.querySelector<HTMLElement>('.tiptap')!;
-    const html = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')!;
     const snapshots: string[] = [];
-    Object.defineProperty(minimap, 'innerHTML', {
-      configurable: true,
-      get: () => html.get!.call(minimap),
-      set: (value: string) => { snapshots.push(value); html.set!.call(minimap, value); },
-    });
+    const observer = new MutationObserver(() => snapshots.push(minimap.textContent || ''));
+    observer.observe(minimap, { childList: true });
     await act(async () => { vi.advanceTimersToNextFrame(); });
     expect(editor.textContent).toBe('First body');
     expect(snapshots).toEqual([]);
@@ -111,5 +107,96 @@ describe('NoteEditor tab hydration', () => {
     root = undefined;
     await act(async () => { vi.advanceTimersByTime(500); });
     expect(snapshots).toHaveLength(1);
+    observer.disconnect();
+  });
+
+  it('copies rich content to the minimap without moving editor nodes or embedding a second player', async () => {
+    const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note: { ...note, content: '<p><strong>Formatted</strong> <a href="https://example.com">link</a></p>'
+        + '<pre><code>  code\n\tline</code></pre><blockquote><p>Quote</p></blockquote>'
+        + `<img src="${image}" width="180" />`
+        + '<table><tbody><tr><td><p>Cell</p></td></tr></tbody></table>'
+        + '<div data-video-embed data-video-src="about:blank" data-provider="youtube"></div><p></p>' },
+      onSave: vi.fn(), onCreateNote: vi.fn(), layoutMode: 1, onToggleLayout: vi.fn(),
+      showMinimap: true, showLineCounter: false, showFloatingToolbar: false,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const dom = container!.querySelector<HTMLElement>('.tiptap')!;
+    const editor = (dom as HTMLElement & { editor: Editor }).editor;
+    const sourceImage = dom.querySelector<HTMLImageElement>('img')!;
+    let imagePos = 0;
+    editor.state.doc.descendants((node, pos) => { if (node.type.name === 'image') imagePos = pos; });
+    await act(async () => {
+      editor.commands.setNodeSelection(imagePos);
+      dom.querySelector<HTMLButtonElement>('.video-embed-preview')!.click();
+    });
+    expect(dom.querySelector('iframe')).not.toBeNull();
+    expect(sourceImage.classList.contains('ProseMirror-selectednode')).toBe(true);
+    const html = editor.getHTML();
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    const minimap = container!.querySelector<HTMLElement>('.minimap-prose')!;
+    expect(minimap.querySelector('strong')?.textContent).toBe('Formatted');
+    expect(minimap.querySelector('a')?.getAttribute('href')).toBe('https://example.com');
+    expect(minimap.querySelector('code')?.textContent).toBe('  code\n\tline');
+    expect(minimap.querySelector('.copyable-quote-content')?.textContent).toBe('Quote');
+    expect(minimap.querySelector('td')?.textContent).toBe('Cell');
+    expect(minimap.querySelector('img')?.getAttribute('src')).toBe(image);
+    expect(minimap.querySelector('img')?.style.cssText).toBe(sourceImage.style.cssText);
+    expect(minimap.querySelector('img')).not.toBe(sourceImage);
+    expect(minimap.querySelector('iframe')).toBeNull();
+    expect(minimap.querySelector('.minimap-media-ph')?.textContent).toBe('▶');
+    expect(minimap.querySelector('.ProseMirror-selectednode,[data-placeholder]')).toBeNull();
+    expect(dom.querySelector('img')).toBe(sourceImage);
+    expect(dom.querySelector('iframe')).not.toBeNull();
+    expect(editor.getHTML()).toBe(html);
+    expect(props.onSave).not.toHaveBeenCalled();
+  });
+
+  it('waits for idle time after the editor frame and cancels obsolete minimap work', async () => {
+    const callbacks = new Map<number, IdleRequestCallback>();
+    let id = 0;
+    const request = vi.fn((callback: IdleRequestCallback) => {
+      callbacks.set(++id, callback);
+      return id;
+    });
+    const cancel = vi.fn((handle: number) => { callbacks.delete(handle); });
+    vi.stubGlobal('requestIdleCallback', request);
+    vi.stubGlobal('cancelIdleCallback', cancel);
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'en', note, onSave: vi.fn(), onCreateNote: vi.fn(),
+      layoutMode: 1, onToggleLayout: vi.fn(), showLineCounter: false,
+      showFloatingToolbar: false, showMinimap: true,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const minimap = container!.querySelector<HTMLElement>('.minimap-prose')!;
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(minimap.textContent).toBe('');
+    expect(request).toHaveBeenLastCalledWith(expect.any(Function), { timeout: 200 });
+    expect(callbacks.size).toBe(1);
+    const oldHandle = [...callbacks.keys()][0];
+
+    await act(async () => root!.render(<NoteEditor {...props} note={{ ...note, id: 'latest', content: '<p>Latest body</p>' }} />));
+    expect(cancel).toHaveBeenCalledWith(oldHandle);
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(callbacks.size).toBe(1);
+    expect(container!.querySelector('.tiptap')?.textContent).toBe('Latest body');
+    expect(minimap.textContent).toBe('');
+    const runIdle = () => {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      pending.forEach(callback => callback({ didTimeout: false, timeRemaining: () => 50 }));
+    };
+    await act(async () => runIdle());
+    expect(minimap.textContent).toBe('Latest body');
+
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(callbacks.size).toBe(1);
+    await act(async () => root!.unmount());
+    root = undefined;
+    expect(callbacks.size).toBe(0);
+    expect(props.onSave).not.toHaveBeenCalled();
   });
 });
