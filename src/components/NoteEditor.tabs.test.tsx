@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import type { Editor } from '@tiptap/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import NoteEditor from './NoteEditor';
@@ -74,6 +75,109 @@ describe('NoteEditor tab hydration', () => {
     await act(async () => { vi.advanceTimersByTime(450); });
     expect(dom.getAttribute('spellcheck')).toBe('true');
     expect(props.onSave).not.toHaveBeenCalled();
+  });
+
+  it('hydrates React node views outside the React lifecycle when switching tabs', async () => {
+    const errors = vi.spyOn(console, 'error');
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),
+      layoutMode: 1, onToggleLayout: vi.fn(), showFloatingToolbar: false,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    await act(async () => { vi.advanceTimersByTime(0); });
+    const editor = (container!.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
+    expect(editor.isInitialized).toBe(true);
+    const content = '<pre><code>Second code</code></pre><blockquote><p>Second quote</p></blockquote>'
+      + '<div data-video-embed data-video-src="about:blank" data-provider="youtube"></div><p>Second body</p>';
+    await act(async () => root!.render(<NoteEditor {...props} note={{ ...note, id: 'second', content }} />));
+    expect(container!.querySelector('.copyable-code-block code')?.textContent).toBe('Second code');
+    expect(container!.querySelector('.copyable-quote-content')?.textContent).toBe('Second quote');
+    expect(container!.querySelector('.video-embed-preview')).not.toBeNull();
+    const editorDOM = editor.view.dom;
+    for (let i = 0; i < 2; i++) {
+      await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', altKey: true })); });
+    }
+    expect(container!.querySelector('.tiptap')).toBe(editorDOM);
+    expect(editor.can().undo()).toBe(false);
+    expect(errors.mock.calls.filter(args => args.some(value => String(value).includes('flushSync')))).toEqual([]);
+    expect(props.onSave).not.toHaveBeenCalled();
+  });
+
+  it('cancels obsolete hydration when switching again or unmounting before the microtask', async () => {
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),
+      layoutMode: 1, onToggleLayout: vi.fn(), showFloatingToolbar: false,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const editor = (container!.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
+    const loaded: string[] = [];
+    editor.on('transaction', () => { loaded.push(editor.getText()); });
+    const obsolete = { ...note, id: 'obsolete', content: '<p>Obsolete body</p>' };
+    const latest = { ...note, id: 'latest', content: '<p>Latest body</p>' };
+    await act(async () => {
+      flushSync(() => root!.render(<NoteEditor {...props} note={obsolete} />));
+      flushSync(() => root!.render(<NoteEditor {...props} note={latest} />));
+    });
+    expect(editor.getText()).toBe('Latest body');
+    expect(loaded).not.toContain('Obsolete body');
+    loaded.length = 0;
+    await act(async () => {
+      flushSync(() => root!.render(<NoteEditor {...props} note={obsolete} />));
+      root!.unmount();
+    });
+    root = undefined;
+    expect(loaded).toEqual([]);
+    expect(props.onSave).not.toHaveBeenCalled();
+  });
+
+  it.each(['es', 'en'] as const)('positions More and export menus within the viewport (%s)', async language => {
+    vi.stubGlobal('innerWidth', 320);
+    vi.stubGlobal('innerHeight', 240);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(18, 40, 28, 28));
+    await act(async () => root!.render(<NoteEditor language={language} note={note} hiddenToolbarIds={['h1', 'h2']}
+      onSave={vi.fn()} onCreateNote={vi.fn()} layoutMode={1} onToggleLayout={vi.fn()} showFloatingToolbar={false} />));
+    const more = () => container!.querySelector<HTMLButtonElement>(`[aria-label="${language === 'es' ? 'Más controles del editor' : 'More editor controls'}"]`)!;
+    const press = async (button: HTMLElement) => {
+      await act(async () => { button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); button.click(); });
+    };
+    await press(more());
+    let menu = document.querySelector<HTMLElement>('[data-more-menu]')!;
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu.style.position).toBe('fixed');
+    expect(menu.style.left).toBe('8px');
+    expect(menu.style.width).toBe('240px');
+    await press(more());
+    expect(document.querySelector('[data-more-menu]')).toBeNull();
+    await press(more());
+    vi.stubGlobal('innerWidth', 160);
+    await act(async () => { window.dispatchEvent(new Event('resize')); });
+    menu = document.querySelector<HTMLElement>('[data-more-menu]')!;
+    expect(menu.style.left).toBe('8px');
+    expect(menu.style.width).toBe('144px');
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(document.querySelector('[data-more-menu]')).toBeNull();
+    vi.stubGlobal('innerWidth', 320);
+    const exportButton = container!.querySelector<HTMLButtonElement>(`[aria-label="${language === 'es' ? 'Exportar nota' : 'Export note'}"]`)!;
+    await press(exportButton);
+    const exportMenu = document.querySelector<HTMLElement>('[role="menu"][data-export-menu]')!;
+    expect(exportMenu.parentElement).toBe(document.body);
+    expect(exportMenu.style.position).toBe('fixed');
+    expect(exportMenu.style.left).toBe('8px');
+    expect(exportMenu.style.width).toBe('300px');
+    await press(exportButton);
+    expect(exportButton.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps More open while using a nested font menu in its portal', async () => {
+    await act(async () => root!.render(<NoteEditor language="es" note={note} hiddenToolbarIds={['fontFamily']}
+      onSave={vi.fn()} onCreateNote={vi.fn()} layoutMode={1} onToggleLayout={vi.fn()} showFloatingToolbar={false} />));
+    await act(async () => container!.querySelector<HTMLButtonElement>('[aria-label="Más controles del editor"]')!.click());
+    const family = document.querySelector<HTMLButtonElement>('[data-more-menu] [data-word-combo="family"]')!;
+    await act(async () => family.click());
+    const option = document.querySelector<HTMLButtonElement>('[data-word-menu]:not([data-more-menu]) .word-menu-item')!;
+    await act(async () => { option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); option.click(); });
+    expect(document.querySelector('[data-more-menu]')).not.toBeNull();
+    expect(document.querySelector('[data-word-menu]:not([data-more-menu])')).toBeNull();
   });
 
   it('selects a tab on primary press once and keeps click activation, closing and dragging', async () => {

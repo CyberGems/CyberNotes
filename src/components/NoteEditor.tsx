@@ -952,10 +952,10 @@ const WORD_MENU_Z = 10001;
 function useWordMenuPosition(
   open: boolean,
   anchorRef: React.RefObject<HTMLElement | null>,
-  opts: { dropUp: boolean; minWidth: number; align?: 'left' | 'right'; width?: number },
+  opts: { dropUp: boolean; minWidth: number; align?: 'left' | 'right'; width?: number; maxHeight?: number },
 ): CSSProperties | null {
   const [style, setStyle] = useState<CSSProperties | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) {
       setStyle(null);
       return;
@@ -963,14 +963,14 @@ function useWordMenuPosition(
     const update = () => {
       const r = anchorRef.current?.getBoundingClientRect();
       if (!r) return;
-      const menuWidth = opts.width ?? Math.max(r.width, opts.minWidth);
+      const menuWidth = Math.min(opts.width ?? Math.max(r.width, opts.minWidth), Math.max(0, window.innerWidth - 16));
       const left = opts.align === 'right'
         ? Math.max(8, Math.min(r.right - menuWidth, window.innerWidth - menuWidth - 8))
         : Math.max(8, Math.min(r.left, window.innerWidth - menuWidth - 8));
       const below = window.innerHeight - r.bottom - 14;
       const above = r.top - 14;
-      const up = opts.dropUp || (below < 180 && above > below);
-      const maxH = Math.max(140, Math.min(260, up ? above : below));
+      const up = opts.dropUp ? above >= 180 || above > below : below < 180 && above > below;
+      const maxH = Math.max(0, Math.min(opts.maxHeight ?? 260, up ? above : below));
       setStyle({
         position: 'fixed',
         left,
@@ -987,7 +987,7 @@ function useWordMenuPosition(
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [open, anchorRef, opts.dropUp, opts.minWidth, opts.align, opts.width]);
+  }, [open, anchorRef, opts.dropUp, opts.minWidth, opts.align, opts.width, opts.maxHeight]);
   return style;
 }
 
@@ -2766,6 +2766,8 @@ export default function NoteEditor({
   }, [autosaveEnabled, hasUnsavedChanges]);
   const [showLeaveEditorWarning, setShowLeaveEditorWarning] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const exportMenuStyle = useWordMenuPosition(showExportMenu, exportMenuAnchorRef, { dropUp: false, minWidth: 300, align: 'right' });
   /** Menú dedicado del nodo video bajo el cursor derecho. */
   const [videoMenu, setVideoMenu] = useState<{ x: number; y: number; pos: number } | null>(null);
   const [videoEdit, setVideoEdit] = useState<{ pos: number; href: string } | null>(null);
@@ -2841,6 +2843,8 @@ export default function NoteEditor({
   }, []);
   /** Menú "Más" y menú contextual de la barra (ocultar selectivo). */
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const moreMenuStyle = useWordMenuPosition(showMoreMenu, moreMenuAnchorRef, { dropUp: false, minWidth: 240, align: 'right', maxHeight: 320 });
   const [toolbarMenu, setToolbarMenu] = useState<{ x: number; y: number; id: ToolbarItemId; inMore: boolean } | null>(null);
   const hiddenToolbarSet = useMemo(() => new Set(hiddenToolbarIds.filter(isToolbarItemId)), [hiddenToolbarIds]);
 
@@ -2927,7 +2931,8 @@ export default function NoteEditor({
     if (!toolbarMenu && !showMoreMenu) return;
     const onDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target?.closest?.('[data-toolbar-menu],[data-more-menu]')) return;
+      if (target && moreMenuAnchorRef.current?.contains(target)) return;
+      if (target?.closest?.('[data-toolbar-menu],[data-more-menu],[data-word-menu]')) return;
       setToolbarMenu(null);
       setShowMoreMenu(false);
     };
@@ -4288,58 +4293,69 @@ export default function NoteEditor({
     setVideoMenu(null);
     setVideoEdit(null);
     if (!editor || !note) return;
-    tabHydrationStart(note.id);
+    let cancelled = false;
+    // TipTap renders React node views with flushSync. Hydrate after React's
+    // commit, before the browser paints, rather than inside this lifecycle.
+    queueMicrotask(() => {
+      if (cancelled || editor.isDestroyed) return;
+      tabHydrationStart(note.id);
 
-    isDirtyRef.current = false;
+      isDirtyRef.current = false;
 
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
 
-    // Apagar el corrector ANTES de insertar el nuevo documento. Hacerlo
-    // después dejaba spellcheck=true durante la carga de la siguiente pestaña.
-    spellcheckOnRef.current = false;
-    editor.view.dom.setAttribute('spellcheck', 'false');
+      // Apagar el corrector ANTES de insertar el nuevo documento. Hacerlo
+      // después dejaba spellcheck=true durante la carga de la siguiente pestaña.
+      spellcheckOnRef.current = false;
+      editor.view.dom.setAttribute('spellcheck', 'false');
 
-    // Carga limpia: sin meter el cambio de nota en el historial de Undo
-    const content = draft ? draft.content : (note.content || '');
-    loadEditorContent(editor, content);
-    hydratedNoteIdRef.current = note.id;
+      // Carga limpia: sin meter el cambio de nota en el historial de Undo
+      const content = draft ? draft.content : (note.content || '');
+      loadEditorContent(editor, content);
+      hydratedNoteIdRef.current = note.id;
 
-    // Reactivar el corrector después de dar tiempo a pintar la nueva nota.
-    enableSpellcheckSoon();
+      // The gutter observer may already be mounted when this microtask runs.
+      syncGutterObserverRef.current?.();
+      scheduleWrapGuides();
 
-    // Métricas aquí mismo: la sonda mostró hidratación de ~2ms, así que no
-    // tiene sentido pagar un render pasivo extra por estos números.
-    updateTextMetrics(editor);
-    updateLineInfo(editor);
+      // Reactivar el corrector después de dar tiempo a pintar la nueva nota.
+      enableSpellcheckSoon();
 
-    // Sincronizar minimap con el nuevo contenido de la nota
-    syncMinimapHtml(true);
+      // Métricas aquí mismo: la sonda mostró hidratación de ~2ms, así que no
+      // tiene sentido pagar un render pasivo extra por estos números.
+      updateTextMetrics(editor);
+      updateLineInfo(editor);
+
+      // Sincronizar minimap con el nuevo contenido de la nota
+      syncMinimapHtml(true);
     
-    // Nunca robar el foco desde un campo de texto (p. ej. buscar filtra y
-    // cambia la selección: el foco debe quedarse escribiendo).
-    const focusedTag = (document.activeElement as HTMLElement | null)?.tagName;
-    const typingElsewhere = focusedTag === 'INPUT' || focusedTag === 'TEXTAREA' || focusedTag === 'SELECT';
-    if ((draft ? draft.title : note.title) === 'Nueva nota') {
-      setTimeout(() => {
-        const ae = document.activeElement as HTMLElement | null;
-        if (ae && ae !== titleInputRef.current && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
-        if (titleInputRef.current) {
-          titleInputRef.current.focus();
-          const len = titleInputRef.current.value.length;
-          titleInputRef.current.setSelectionRange(len, len);
-        }
-      }, 50);
-    } else if (!typingElsewhere) {
-      // Sin robo de scroll: el contenido es nuevo y el scroller se resetea
-      // síncrono pre-paint; view.focus() enfoca sin scrollIntoView.
-      scrollContainerRef.current?.scrollTo(0, 0);
-      editor.view.focus();
-    }
-    setIsRaw(false);
+      // Nunca robar el foco desde un campo de texto (p. ej. buscar filtra y
+      // cambia la selección: el foco debe quedarse escribiendo).
+      const focusedTag = (document.activeElement as HTMLElement | null)?.tagName;
+      const typingElsewhere = focusedTag === 'INPUT' || focusedTag === 'TEXTAREA' || focusedTag === 'SELECT';
+      if ((draft ? draft.title : note.title) === 'Nueva nota') {
+        setTimeout(() => {
+          const ae = document.activeElement as HTMLElement | null;
+          if (ae && ae !== titleInputRef.current && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+          if (titleInputRef.current) {
+            titleInputRef.current.focus();
+            const len = titleInputRef.current.value.length;
+            titleInputRef.current.setSelectionRange(len, len);
+          }
+        }, 50);
+      } else if (!typingElsewhere) {
+        // Sin robo de scroll: el contenido es nuevo y el scroller se resetea
+        // síncrono pre-paint; view.focus() enfoca sin scrollIntoView.
+        scrollContainerRef.current?.scrollTo(0, 0);
+        editor.view.focus();
+      }
+      setIsRaw(false);
 
-    tabHydrationEnd();
+      tabHydrationEnd();
+    });
 
     return () => {
+      cancelled = true;
       if (spellcheckTimer.current) {
         clearTimeout(spellcheckTimer.current);
         spellcheckTimer.current = null;
@@ -4625,7 +4641,9 @@ export default function NoteEditor({
     <div data-export-menu="true" style={{ position: 'relative', display: 'flex', zIndex: 40 }}>
       <Tooltip placement="bottom" label={language === 'es' ? 'Exportar nota' : 'Export note'}>
         <button
+          ref={exportMenuAnchorRef}
           type="button"
+          aria-label={language === 'es' ? 'Exportar nota' : 'Export note'}
           onMouseDown={e => e.preventDefault()}
           onClick={e => {
             e.stopPropagation();
@@ -4638,7 +4656,7 @@ export default function NoteEditor({
           <Upload size={15} />
         </button>
       </Tooltip>
-      <AnimatePresence>
+      {createPortal(<AnimatePresence>
         {showExportMenu && (
           <motion.div
             initial={{ opacity: 0, y: 8, scale: 0.95 }}
@@ -4647,14 +4665,11 @@ export default function NoteEditor({
             transition={{ duration: 0.15 }}
             className="glass-effect"
             role="menu"
+            data-export-menu="true"
+            data-word-menu="true"
             style={{
-              position: 'absolute',
-              top: '100%',
-              // Alineado al borde derecho del botón (vive al filo derecho de
-              // la barra): con left: 0 se salía de la ventana.
-              right: 0,
-              marginTop: 6,
-              minWidth: 205,
+              ...exportMenuStyle,
+              overflowY: 'auto',
               padding: 4,
               display: 'flex',
               flexDirection: 'column',
@@ -4663,7 +4678,6 @@ export default function NoteEditor({
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-              zIndex: 100,
             }}
           >
             {[
@@ -4702,7 +4716,7 @@ export default function NoteEditor({
             ))}
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   );
 
@@ -4726,8 +4740,15 @@ export default function NoteEditor({
       if ((e.target as HTMLElement | null)?.closest?.('[data-export-menu]')) return;
       setShowExportMenu(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowExportMenu(false);
+    };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [showExportMenu]);
 
   const handleSetLink = () => {
@@ -5826,12 +5847,14 @@ export default function NoteEditor({
                     const moreTipOff = !!toolbarMenu || showMoreMenu;
                     const moreTrigger = (
                       <button
+                        ref={moreMenuAnchorRef}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => { setToolbarMenu(null); setShowMoreMenu((v) => !v); }}
                         className={`btn-icon toolbar-btn${showMoreMenu ? ' is-active' : ''}`}
                         aria-haspopup="menu"
                         aria-expanded={showMoreMenu}
+                        aria-label={language === 'es' ? 'Más controles del editor' : 'More editor controls'}
                         style={{ position: 'relative' }}
                       >                      <MoreHorizontal size={15} />
                         <span style={{
@@ -5850,12 +5873,13 @@ export default function NoteEditor({
                       </Tooltip>
                     );
                   })()}
-                  {showMoreMenu && (
+                  {showMoreMenu && createPortal(
                       <div
                         data-more-menu="true"
+                        data-word-menu="true"
                         style={{
-                        position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: WORD_MENU_Z,
-                        minWidth: 200, maxHeight: 320, overflowY: 'auto', padding: 6,
+                        ...moreMenuStyle,
+                        overflowY: 'auto', padding: 6,
                         borderRadius: 10, background: 'rgba(10, 10, 18, 0.97)',
                         border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
                         display: 'flex', flexDirection: 'column', gap: 2,
@@ -5909,7 +5933,8 @@ export default function NoteEditor({
                         >
                           {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
                         </button>
-                      </div>
+                      </div>,
+                      document.body
                   )}
                 </div>
               )}
@@ -6379,9 +6404,8 @@ export default function NoteEditor({
                 border: 'none', outline: 'none', resize: 'none', flex: '1 0 auto',
               }}
             />
-          ) : (
-            editor && <EditorContent editor={editor} style={{ minHeight: '100%', width: '100%', flex: '1 0 auto' }} />
-          )}
+          ) : null}
+          {editor && <EditorContent editor={editor} style={{ display: isRaw ? 'none' : undefined, minHeight: '100%', width: '100%', flex: '1 0 auto' }} />}
         </div>
 
       </div>
