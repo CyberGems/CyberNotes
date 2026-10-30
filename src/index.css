@@ -3044,13 +3044,36 @@ body.sticky-is-dragging * {
   align-content: start;
 }
 .emoji-picker-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   font-size: calc(25px * var(--ui-scale));
-  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Noto Emoji", sans-serif;
+  font-family: var(--font-emoji);
   line-height: 1;
+}
+.emoji-picker-glyph {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.emoji-picker-compatibility {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: calc(12px * var(--ui-scale));
+  text-align: center;
 }
 .emoji-picker-preview {
   font-size: calc(30px * var(--ui-scale));
-  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Noto Emoji", sans-serif;
+  font-family: var(--font-emoji);
+  flex: 0 0 auto;
+  max-width: calc(70px * var(--ui-scale));
+  overflow: hidden;
+  white-space: nowrap;
 }
 .emoji-picker-loading {
   width: min(calc(380px * var(--ui-scale, 1)), calc(100vw - 40px));

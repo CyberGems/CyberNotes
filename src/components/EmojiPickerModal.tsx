@@ -9,6 +9,7 @@ import emojiCatalogJson from '../data/emoji-catalog.json';
 import emojiComponentsJson from '../data/emoji-components.json';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
+import { EMOJI_FONT_FAMILY, filterSupportedEmojis } from '../utils/emojiSupport';
 
 type EmojiGroup = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type EmojiFilter = 'all' | 'recent' | EmojiGroup;
@@ -36,6 +37,20 @@ const EMOJI_ENTRIES: EmojiEntry[] = EMOJI_CATALOG_ENTRIES.map(([value, es, en, g
   return { value, es, en, group: group as EmojiGroup, search, normalizedSearch: normalizeSearch(searchText) };
 });
 const EMOJI_BY_VALUE = new Map(EMOJI_ENTRIES.map(entry => [entry.value, entry]));
+let compatibleEntriesPromise: Promise<EmojiEntry[]> | null = null;
+let compatibleEntriesCache: EmojiEntry[] | null = null;
+
+function loadCompatibleEntries() {
+  if (!compatibleEntriesPromise) {
+    compatibleEntriesPromise = filterSupportedEmojis(EMOJI_ENTRIES.map(entry => entry.value))
+      .then(supported => {
+        compatibleEntriesCache = EMOJI_ENTRIES.filter(entry => supported.has(entry.value));
+        return compatibleEntriesCache;
+      })
+      .catch(error => { compatibleEntriesPromise = null; throw error; });
+  }
+  return compatibleEntriesPromise;
+}
 const RECENT_STORAGE_KEY = 'cybernotes-emoji-picker-recents-v1';
 const VIEW_SESSION_KEY = 'cybernotes-emoji-picker-view-v1';
 const EMOJI_FILTERS = new Set<EmojiFilter>(['all', 'recent', ...EMOJI_GROUPS.map(group => group.id)]);
@@ -84,6 +99,8 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   const [initialViewState] = useState(readViewState);
   const scrollTopRef = useRef(initialViewState.scrollTop);
   const [query, setQuery] = useState('');
+  const [compatibleEntries, setCompatibleEntries] = useState<EmojiEntry[] | null>(() => compatibleEntriesCache);
+  const [compatibilityError, setCompatibilityError] = useState(false);
   const [category, setCategory] = useState<EmojiFilter>(initialViewState.category);
   const [activeIndex, setActiveIndex] = useState(0);
   const [gridMetrics, setGridMetrics] = useState({ columns: 8, rowStep: 57, rowGap: 5, viewportHeight: 0, scrollTop: 0 });
@@ -108,14 +125,15 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   }, []);
 
   const filteredEntries = useMemo(() => {
+    const compatibleValues = new Set(compatibleEntries?.map(entry => entry.value));
     const source = category === 'recent'
-      ? recentEmojis.map(value => EMOJI_BY_VALUE.get(value)).filter((entry): entry is EmojiEntry => Boolean(entry))
-      : EMOJI_ENTRIES.filter(entry => category === 'all' || entry.group === category);
+      ? recentEmojis.filter(value => compatibleValues.has(value)).map(value => EMOJI_BY_VALUE.get(value)).filter((entry): entry is EmojiEntry => Boolean(entry))
+      : (compatibleEntries || []).filter(entry => category === 'all' || entry.group === category);
     const normalizedQuery = normalizeSearch(query.trim());
     return normalizedQuery
       ? source.filter(entry => entry.normalizedSearch.includes(normalizedQuery))
       : source;
-  }, [category, query, recentEmojis]);
+  }, [category, query, recentEmojis, compatibleEntries]);
 
   const rememberEmoji = useCallback((value: string) => {
     setRecentEmojis(current => {
@@ -177,6 +195,14 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   }, [batchEmojis]);
 
   useEffect(() => { searchRef.current?.focus(); }, []);
+  useEffect(() => {
+    let mounted = true;
+    loadCompatibleEntries().then(entries => { if (mounted) setCompatibleEntries(entries); }).catch(error => {
+      console.error('Could not check native emoji support:', error);
+      if (mounted) setCompatibilityError(true);
+    });
+    return () => { mounted = false; };
+  }, []);
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -263,7 +289,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
     <motion.div
       className="modal-overlay character-map-overlay emoji-picker-overlay"
       data-leave-guard="modal"
-      style={{ ...modalOverlayStyle, zIndex: 10020, '--ui-scale': uiScale.toString() } as CSSProperties}
+      style={{ ...modalOverlayStyle, zIndex: 10020, '--ui-scale': uiScale.toString(), '--font-emoji': EMOJI_FONT_FAMILY } as CSSProperties}
       initial={modalOverlayMotion.initial}
       animate={modalOverlayMotion.animate}
       exit={modalOverlayMotion.exit}
@@ -284,7 +310,9 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
           <span className="character-map-title-icon"><Smile size={19} aria-hidden="true" /></span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2>{isSpanish ? 'Selector de emojis' : 'Emoji picker'}</h2>
-            <p>{isSpanish ? '3.972 emojis y componentes estándar de Unicode 18.0.' : '3,972 standard Unicode 18.0 emojis and components.'}</p>
+            <p>{compatibleEntries
+              ? (isSpanish ? `${compatibleEntries.length.toLocaleString('es')} emojis compatibles con este equipo.` : `${compatibleEntries.length.toLocaleString('en')} emojis supported on this device.`)
+              : (isSpanish ? 'Emojis disponibles en este equipo.' : 'Emojis available on this device.')}</p>
           </div>
           <Tooltip label={isSpanish ? (multiSelect ? 'Desactivar selección múltiple' : 'Preparar varios emojis') : (multiSelect ? 'Turn off multiple selection' : 'Queue multiple emojis')} placement="top">
             <button
@@ -351,7 +379,13 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
                 setGridMetrics(current => current.scrollTop === scrollTop ? current : { ...current, scrollTop });
               }}
             >
-              {filteredEntries.length > 0 ? (
+              {compatibleEntries === null ? (
+                <div className="emoji-picker-compatibility" role={compatibilityError ? 'alert' : 'status'}>
+                  {compatibilityError
+                    ? (isSpanish ? 'No se pudo comprobar la compatibilidad de los emojis.' : 'Could not check emoji compatibility.')
+                    : (isSpanish ? 'Comprobando compatibilidad de emojis…' : 'Checking emoji compatibility…')}
+                </div>
+              ) : filteredEntries.length > 0 ? (
                 <div className="emoji-picker-grid-extent" style={{ height: totalRows * gridMetrics.rowStep }}>
                   <div
                     className="emoji-picker-grid-window"
@@ -382,7 +416,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
                             }
                           }}
                           onDoubleClick={() => { if (!multiSelect) close(); }}
-                        >{entry.value}</button>
+                        ><span className="emoji-picker-glyph" aria-hidden="true">{entry.value}</span></button>
                       );
                     })}
                   </div>
