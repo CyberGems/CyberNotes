@@ -39,7 +39,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Link as LinkIcon,
   Image as ImageIcon, Highlighter, Quote, Minus, Code,
-  Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
+  ChevronLeft, ChevronRight, Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
     FileX2, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
@@ -2246,15 +2246,29 @@ export default function NoteEditor({
     if (!el) return;
     setTabEdges(prev => {
       const next = {
-        left: el.scrollLeft > 4,
-        right: el.scrollLeft < el.scrollWidth - el.clientWidth - 4,
+        left: el.scrollLeft > 1,
+        right: el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
       };
       return (prev.left === next.left && prev.right === next.right) ? prev : next;
     });
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const strip = tabStripRef.current;
+    if (!strip) return;
     updateTabEdges();
-  }, [openNoteIds, note?.id, updateTabEdges]);
+    const observer = new ResizeObserver(updateTabEdges);
+    observer.observe(strip);
+    strip.querySelectorAll('.editor-tab').forEach(tab => observer.observe(tab));
+    return () => observer.disconnect();
+  }, [openNoteIds, tabsWidthMode, note?.id, updateTabEdges]);
+  const scrollTabs = useCallback((direction: -1 | 1) => {
+    const strip = tabStripRef.current;
+    if (!strip) return;
+    strip.scrollBy({
+      left: direction * Math.max(120, strip.clientWidth * 0.8),
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+  }, []);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const draggingTabIdRef = useRef<string | null>(null);
   const [tabDropHint, setTabDropHint] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
@@ -5027,7 +5041,15 @@ export default function NoteEditor({
     <>
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (
-        <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', overflow: 'hidden', position: 'relative' }}>
+        <div className="note-tabs-bar">
+          {(tabEdges.left || tabEdges.right) && (
+            <Tooltip label={language === 'es' ? 'Desplazar pestañas a la izquierda' : 'Scroll tabs left'} placement="bottom">
+              <button type="button" className="tab-scroll-btn is-left" disabled={!tabEdges.left}
+                aria-label={language === 'es' ? 'Desplazar pestañas a la izquierda' : 'Scroll tabs left'}
+                onClick={() => scrollTabs(-1)}><ChevronLeft size={15} /></button>
+            </Tooltip>
+          )}
+          <div className="tab-strip-viewport">
           {tabEdges.left && (
             <div
               aria-hidden="true"
@@ -5247,13 +5269,19 @@ export default function NoteEditor({
               );
             })}
 
-            <Tooltip label={language === 'es' ? 'Nueva pestaña' : 'New tab'} placement="bottom">
-              <button
-                className="tab-new-btn"
-                onClick={onCreateNote}
-              >
-                <Plus size={14} />
-              </button>
+          </div>
+          </div>
+          <div className="tab-bar-actions">
+            {(tabEdges.left || tabEdges.right) && (
+              <Tooltip label={language === 'es' ? 'Desplazar pestañas a la derecha' : 'Scroll tabs right'} placement="bottom">
+                <button type="button" className="tab-scroll-btn" disabled={!tabEdges.right}
+                  aria-label={language === 'es' ? 'Desplazar pestañas a la derecha' : 'Scroll tabs right'}
+                  onClick={() => scrollTabs(1)}><ChevronRight size={15} /></button>
+              </Tooltip>
+            )}
+            <Tooltip label={language === 'es' ? 'Nueva nota' : 'New note'} placement="bottom">
+              <button type="button" className="tab-new-btn" onClick={onCreateNote}
+                aria-label={language === 'es' ? 'Nueva nota' : 'New note'}><Plus size={14} /></button>
             </Tooltip>
           </div>
         </div>

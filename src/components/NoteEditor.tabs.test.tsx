@@ -51,6 +51,47 @@ describe('NoteEditor tab hydration', () => {
     else delete (Range.prototype as Partial<Range>).getClientRects;
   });
 
+  it.each(['es', 'en'] as const)('scrolls overflowing tabs and keeps New note outside the scrolling strip (%s)', async language => {
+    const onCreateNote = vi.fn();
+    const onSelectNote = vi.fn();
+    const props: ComponentProps<typeof NoteEditor> = {
+      language, note, notes: [note, { ...note, id: 'second', title: 'Second' }],
+      openNoteIds: ['first', 'second'], onSave: vi.fn(), onCreateNote, onSelectNote,
+      layoutMode: 1, onToggleLayout: vi.fn(), showFloatingToolbar: false,
+    };
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const strip = container!.querySelector<HTMLElement>('.tab-strip')!;
+    let width = 200;
+    Object.defineProperties(strip, { clientWidth: { get: () => width }, scrollWidth: { value: 600 }, scrollLeft: { value: 0, writable: true } });
+    const scrollBy = vi.fn();
+    strip.scrollBy = scrollBy;
+    await act(async () => strip.dispatchEvent(new Event('scroll')));
+    let buttons = container!.querySelectorAll<HTMLButtonElement>('.tab-scroll-btn');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].disabled).toBe(true);
+    expect(buttons[1].disabled).toBe(false);
+    expect(buttons[1].getAttribute('aria-label')).toBe(language === 'es' ? 'Desplazar pestañas a la derecha' : 'Scroll tabs right');
+    await act(async () => buttons[1].click());
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: 160, behavior: 'auto' });
+    strip.scrollLeft = 400;
+    await act(async () => strip.dispatchEvent(new Event('scroll')));
+    buttons = container!.querySelectorAll<HTMLButtonElement>('.tab-scroll-btn');
+    expect(buttons[0].disabled).toBe(false);
+    expect(buttons[1].disabled).toBe(true);
+    await act(async () => buttons[0].click());
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: -160, behavior: 'auto' });
+    expect(onSelectNote).not.toHaveBeenCalled();
+    const create = container!.querySelector<HTMLButtonElement>('.tab-new-btn')!;
+    expect(strip.contains(create)).toBe(false);
+    await act(async () => create.click());
+    expect(onCreateNote).toHaveBeenCalledTimes(1);
+    width = 800; strip.scrollLeft = 0;
+    await act(async () => strip.dispatchEvent(new Event('scroll')));
+    expect(container!.querySelector('.tab-scroll-btn')).toBeNull();
+    expect(container!.querySelector('.tab-new-btn')).toBe(create);
+  });
+
   it('disables spellcheck before replacing a tab and enables it after the delay', async () => {
     const props: ComponentProps<typeof NoteEditor> = {
       language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),

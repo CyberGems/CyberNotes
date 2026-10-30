@@ -1591,6 +1591,57 @@ select option {
 
 /* ─── Premium Tabs Support ────────────────────────────────── */
 
+.note-tabs-bar {
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 0;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.tab-strip-viewport {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tab-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 8px 0 4px;
+}
+
+.tab-scroll-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-sidebar);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.tab-scroll-btn.is-left { margin-left: 8px; }
+.tab-scroll-btn:hover:not(:disabled) {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+.tab-scroll-btn:disabled { opacity: 0.35; cursor: default; }
+.tab-scroll-btn:focus-visible,
+.tab-new-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .tab-strip {
   display: flex;
   align-items: center;
