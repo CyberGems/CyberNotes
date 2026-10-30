@@ -32,7 +32,7 @@ import { removeSelectedImage } from '../utils/editorImages';
 import { createMinimapMirror, getMinimapGeometry } from '../utils/minimap';
 import Tooltip from './Tooltip';
 import EditorEdgeToggle from './EditorEdgeToggle';
-import WelcomeGreeting from './WelcomeGreeting';
+import EditorEmptyState from './EditorEmptyState';
 import VersionHistoryModal from './VersionHistoryModal';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import {
@@ -42,7 +42,7 @@ import {
   Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
-    NotebookText, Keyboard, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
+    FileX2, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
     Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info, Sigma, Smile,
     type LucideIcon,
   } from 'lucide-react';
@@ -112,6 +112,7 @@ interface Props {
   notes?: Note[];
   folders?: Folder[];
   onSelectNote?: (id: string) => void;
+  onDeselectNote?: () => void;
   showBackButton?: boolean;
   onBack?: () => void;
   onCloseTab?: (id: string) => void;
@@ -2197,6 +2198,7 @@ export default function NoteEditor({
   notes = [],
   folders = [],
   onSelectNote,
+  onDeselectNote,
   showBackButton = false,
   onBack,
   onCloseTab,
@@ -2227,7 +2229,6 @@ export default function NoteEditor({
   const hydratedNoteIdRef = useRef<string | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const editorRootRef = useRef<HTMLDivElement | null>(null);
-  const isSelectionChangingRef = useRef(false);
   const lastContextMenuTargetRef = useRef<'title' | 'editor'>('editor');
   const lastContextMenuElementRef = useRef<HTMLElement | null>(null);
   const lastContextMenuTimeRef = useRef(0);
@@ -3547,10 +3548,11 @@ export default function NoteEditor({
     // undo/redo, atributos de imagen) viven en useEditorState, que re-renderiza
     // solo cuando cambian; los contadores van coalescidos en scheduleMetrics.
     shouldRerenderOnTransaction: false,
-    onUpdate: () => {
+    onUpdate: ({ transaction }) => {
       const current = currentNoteRef.current;
       const isHydrated = !!current && hydratedNoteIdRef.current === current.id;
-      if (!isSelectionChangingRef.current && isHydrated) {
+      // Editable/focus updates also emit this event. Only document edits are dirty.
+      if (transaction.docChanged && isHydrated) {
         isDirtyRef.current = true;
         scheduleAutoSave();
       }
@@ -4218,7 +4220,6 @@ export default function NoteEditor({
       clearTimeout(draftSyncTimer.current);
       draftSyncTimer.current = null;
     }
-    isSelectionChangingRef.current = true;
     isDirtyRef.current = false;
     loadEditorContent(editor, content);
     hydratedNoteIdRef.current = note.id;
@@ -4230,7 +4231,6 @@ export default function NoteEditor({
     hasUnsavedChangesRef.current = false;
     setHasUnsavedChanges(false);
     void persistNote(restored);
-    setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
   }, [editor, note, persistNote, scheduleWrapGuides, syncMinimapHtml, updateLineInfo]);
 
   // Descarta el borrador y restaura el editor al último estado guardado en disco.
@@ -4241,7 +4241,6 @@ export default function NoteEditor({
       clearTimeout(draftSyncTimer.current);
       draftSyncTimer.current = null;
     }
-    isSelectionChangingRef.current = true;
     hydratedNoteIdRef.current = null;
     loadEditorContent(editor, note.content || '');
     syncGutterObserverRef.current?.();
@@ -4255,7 +4254,6 @@ export default function NoteEditor({
     onDiscardDraft?.(note.id);
     hydratedNoteIdRef.current = note.id;
     syncMinimapHtml(true);
-    setTimeout(() => { isSelectionChangingRef.current = false; }, 100);
   }, [editor, note, onDiscardDraft, scheduleWrapGuides, syncMinimapHtml, updateLineInfo]);
 
   useModalKeys({
@@ -4292,8 +4290,6 @@ export default function NoteEditor({
     if (!editor || !note) return;
     tabHydrationStart(note.id);
 
-    // Set selection changing flag to true to ignore programmatic updates
-    isSelectionChangingRef.current = true;
     isDirtyRef.current = false;
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -4343,13 +4339,7 @@ export default function NoteEditor({
 
     tabHydrationEnd();
 
-    // Reset selection changing flag after all synchronous & immediate asynchronous updates
-    const timeoutId = setTimeout(() => {
-      isSelectionChangingRef.current = false;
-    }, 100);
-
     return () => {
-      clearTimeout(timeoutId);
       if (spellcheckTimer.current) {
         clearTimeout(spellcheckTimer.current);
         spellcheckTimer.current = null;
@@ -5010,157 +5000,8 @@ export default function NoteEditor({
     </div>
   );
 
-  if (!note) {
-    if (isNoteLoading) {
-      return (
-        <div className="glass-effect editor-glass" style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          background: 'var(--bg-editor)', position: 'relative', overflow: 'hidden',
-        }}>
-          {noteLoader}
-        </div>
-      );
-    }
-    const totalNotes = notes.length;
-    const favoriteCount = notes.filter(n => n.pinned === 1).length;
-    const numberLocale = language === 'es' ? 'es-ES' : 'en-US';
-    const fmtCount = (n: number) => new Intl.NumberFormat(numberLocale).format(n);
-    const kbdChip: CSSProperties = {
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      minWidth: 26, padding: '3px 8px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
-      color: 'var(--text-primary)', background: 'rgba(255, 255, 255, 0.06)',
-      border: '1px solid var(--border)',
-    };
-    const cardStyle: CSSProperties = {
-      width: '100%', borderRadius: 14, padding: '18px 20px',
-      background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', gap: 12,
-    };
-    const cardLabelStyle: CSSProperties = {
-      display: 'flex', alignItems: 'center', gap: 10,
-      fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-muted)',
-    };
-    const cardIconTile: CSSProperties = {
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: 34, height: 34, borderRadius: 9, color: 'var(--text-secondary)',
-      background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
-    };
-    const shortcuts: { keys: string[]; label: string }[] = [
-      { keys: ['Ctrl', 'N'], label: language === 'es' ? 'Nueva nota' : 'New note' },
-      { keys: ['Ctrl', 'F'], label: language === 'es' ? 'Buscar notas' : 'Search notes' },
-      { keys: ['Ctrl', 'S'], label: language === 'es' ? 'Guardar nota' : 'Save note' },
-      { keys: ['Alt', language === 'es' ? 'Supr' : 'Del'], label: language === 'es' ? 'Eliminar nota seleccionada' : 'Delete selected note' },
-    ];
-    return (
-      <div className="glass-effect editor-glass" style={{
-        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-        background: 'var(--bg-editor)', overflowY: 'auto', color: 'var(--text-muted)',
-      }}>
-        <div style={{
-          margin: 'auto', width: '100%', maxWidth: 600, display: 'flex',
-          flexDirection: 'column', alignItems: 'center', gap: 14, padding: '40px 28px',
-        }}>
-          <WelcomeGreeting language={language} showName={false} />
-          <h1 style={{
-            margin: 0, fontSize: 30, fontWeight: 700, letterSpacing: '-0.01em',
-            color: 'var(--text-primary)', textAlign: 'center',
-          }}>
-            {language === 'es' ? 'Tu espacio de notas' : 'Your notes space'}
-          </h1>
-          <p style={{ margin: 0, fontSize: 14, textAlign: 'center', color: 'var(--text-secondary)', maxWidth: 460 }}>
-            {language === 'es'
-              ? 'Selecciona una nota de la lista para empezar a escribir, o crea una nueva y organiza tus ideas.'
-              : 'Select a note from the list to start writing, or create a new one and organize your ideas.'}
-          </p>
-          <div style={cardStyle}>
-            <div style={cardLabelStyle}>
-              <span style={cardIconTile}><NotebookText size={17} /></span>
-              {language === 'es' ? 'NOTAS' : 'NOTES'}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 34, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-                {fmtCount(totalNotes)}
-              </span>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                {language === 'es' ? 'notas en total' : 'total notes'}
-                {favoriteCount > 0 && (language === 'es'
-                  ? ` · ${fmtCount(favoriteCount)} favoritas`
-                  : ` · ${fmtCount(favoriteCount)} favorites`)}
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-primary" onClick={onCreateNote} style={{ gap: 6 }}>
-                <Plus size={15} /> {language === 'es' ? 'Nueva nota' : 'New note'} <ArrowRight size={14} />
-              </button>
-              {canReopenClosedTab && (
-                <button className="btn btn-ghost" onClick={onReopenClosedTab} style={{ gap: 6 }}>
-                  <RotateCcw size={15} /> {language === 'es' ? 'Reabrir pestaña cerrada' : 'Reopen closed tab'}
-                </button>
-              )}
-            </div>
-          </div>
-          <div style={cardStyle}>
-            <div style={cardLabelStyle}>
-              <span style={cardIconTile}><Keyboard size={17} /></span>
-              {language === 'es' ? 'ATAJOS DE TECLADO' : 'KEYBOARD SHORTCUTS'}
-            </div>
-            {shortcuts.map((s) => (
-              <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  {s.keys.map((k, i) => (
-                    <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      {i > 0 && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>+</span>}
-                      <kbd style={kbdChip}>{k}</kbd>
-                    </span>
-                  ))}
-                </span>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
-              </div>
-            ))}
-          </div>
-          <button className="btn btn-ghost" onClick={onToggleLayout} style={{ gap: 6 }}>
-            <PanelLeft size={15} /> {language === 'es' ? 'Cambiar vista' : 'Switch view'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={editorRootRef}
-      className={`glass-effect editor-glass ${isFocused ? 'focused-immersive' : ''}`}
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-editor)', overflow: 'hidden', position: 'relative' }}
-    >
-      {showSlowLoader && noteLoader}
-      {showHistory && note && (
-        <VersionHistoryModal
-          note={note}
-          language={language}
-          onClose={() => setShowHistory(false)}
-          onRestore={handleRestoreRevision}
-        />
-      )}
-      {characterMapOpen && editor && (
-        <CharacterMapModal
-          editor={editor}
-          language={language}
-          uiScale={uiScale}
-          onClose={() => setCharacterMapOpen(false)}
-        />
-      )}
-      {emojiPickerOpen && editor && (
-        <Suspense fallback={(
-          <div className="modal-overlay character-map-overlay emoji-picker-overlay" style={{ ...modalOverlayStyle, zIndex: 10020, '--ui-scale': uiScale.toString() } as CSSProperties} role="status">
-            <div className="modal emoji-picker-loading">
-              <span className="character-map-title-icon"><Smile size={19} aria-hidden="true" /></span>
-              <span>{language === 'es' ? 'Cargando emojis…' : 'Loading emojis…'}</span>
-            </div>
-          </div>
-        )}>
-          <EmojiPickerModal editor={editor} language={language} uiScale={uiScale} onClose={() => setEmojiPickerOpen(false)} />
-        </Suspense>
-      )}
+  const noteTabs = (
+    <>
       {/* Pestañas (Tabs) Premium */}
       {openNoteIds.length > 0 && (
         <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', overflow: 'hidden', position: 'relative' }}>
@@ -5201,7 +5042,7 @@ export default function NoteEditor({
               const tabNote = notes.find(n => n.id === tabId);
               if (!tabNote) return null;
 
-              const isActive = note.id === tabId;
+              const isActive = note?.id === tabId;
               const draft = draftCache[tabId];
               const displayTitle = draft ? draft.title : tabNote.title;
               const isDirty = draft !== undefined && !autosaveEnabled;
@@ -5508,6 +5349,58 @@ export default function NoteEditor({
         })(),
         document.body
       )}
+
+    </>
+  );
+
+  if (!note) {
+    return (
+      <div ref={editorRootRef} className="glass-effect editor-glass" style={{
+        flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0,
+        background: 'var(--bg-editor)', position: 'relative', overflow: 'hidden',
+      }}>
+        {noteTabs}
+        {isNoteLoading ? noteLoader : <EditorEmptyState language={language} onCreateNote={onCreateNote} onShowNotes={layoutMode === 1 ? onToggleLayout : undefined} />}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={editorRootRef}
+      className={`glass-effect editor-glass ${isFocused ? 'focused-immersive' : ''}`}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-editor)', overflow: 'hidden', position: 'relative' }}
+    >
+      {showSlowLoader && noteLoader}
+      {showHistory && note && (
+        <VersionHistoryModal
+          note={note}
+          language={language}
+          onClose={() => setShowHistory(false)}
+          onRestore={handleRestoreRevision}
+        />
+      )}
+      {characterMapOpen && editor && (
+        <CharacterMapModal
+          editor={editor}
+          language={language}
+          uiScale={uiScale}
+          onClose={() => setCharacterMapOpen(false)}
+        />
+      )}
+      {emojiPickerOpen && editor && (
+        <Suspense fallback={(
+          <div className="modal-overlay character-map-overlay emoji-picker-overlay" style={{ ...modalOverlayStyle, zIndex: 10020, '--ui-scale': uiScale.toString() } as CSSProperties} role="status">
+            <div className="modal emoji-picker-loading">
+              <span className="character-map-title-icon"><Smile size={19} aria-hidden="true" /></span>
+              <span>{language === 'es' ? 'Cargando emojis…' : 'Loading emojis…'}</span>
+            </div>
+          </div>
+        )}>
+          <EmojiPickerModal editor={editor} language={language} uiScale={uiScale} onClose={() => setEmojiPickerOpen(false)} />
+        </Suspense>
+      )}
+      {noteTabs}
 
       {/* Title Container (Moved from below) */}
       <div style={{
@@ -5820,6 +5713,15 @@ export default function NoteEditor({
             )}
 
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
+
+            {onDeselectNote && (
+              <Tooltip placement="bottom" label={language === 'es' ? 'Deseleccionar nota' : 'Deselect note'}>
+                <button type="button" className="btn-icon" style={noteActionBtnStyle(false)}
+                  aria-label={language === 'es' ? 'Deseleccionar nota' : 'Deselect note'} onClick={onDeselectNote}>
+                  <FileX2 size={15} />
+                </button>
+              </Tooltip>
+            )}
 
             {/* Grupo 2: Vistas y Edición (HTML, Columnas) */}
             <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Alt+H)' : 'HTML view (Alt+H)'}>

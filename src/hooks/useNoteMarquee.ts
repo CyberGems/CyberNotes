@@ -15,13 +15,15 @@ interface Gesture {
   items: NoteSelectionRect[];
 }
 
-export function useNoteMarquee(containerRef: RefObject<HTMLDivElement | null>, measure: () => NoteSelectionRect[]) {
+export function useNoteMarquee(containerRef: RefObject<HTMLDivElement | null>, measure: () => NoteSelectionRect[], onEmptyClick?: () => void) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const boxRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef(selectedIds);
   selectedRef.current = selectedIds;
   const measureRef = useRef(measure);
   measureRef.current = measure;
+  const emptyClickRef = useRef(onEmptyClick);
+  emptyClickRef.current = onEmptyClick;
   const gestureRef = useRef<Gesture | null>(null);
   const frameRef = useRef<number | null>(null);
   const ignoreClickRef = useRef(false);
@@ -101,7 +103,10 @@ export function useNoteMarquee(containerRef: RefObject<HTMLDivElement | null>, m
         update();
         ignoreClickRef.current = true;
         clickTimerRef.current = window.setTimeout(() => { ignoreClickRef.current = false; clickTimerRef.current = null; }, 0);
-      } else if (!gesture.additive) setSelectedIds(new Set());
+      } else if (!gesture.additive) {
+        setSelectedIds(new Set());
+        emptyClickRef.current?.();
+      }
       stop(false);
     };
     const cancel = () => stop(true);

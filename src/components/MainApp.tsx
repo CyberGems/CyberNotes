@@ -148,7 +148,7 @@ export default function MainApp({
   const [draftRecoveryNonce, setDraftRecoveryNonce] = useState(0);
   const [noteToCloseWithDraft, setNoteToCloseWithDraft] = useState<Note | null>(null);
   const [pendingBatchCloseIds, setPendingBatchCloseIds] = useState<string[] | null>(null);
-  const [pendingNavNoteId, setPendingNavNoteId] = useState<string | null>(null);
+  const [pendingNavNoteId, setPendingNavNoteId] = useState<{ id: string | null } | null>(null);
   const [confirmLeaveDismissed, setConfirmLeaveDismissed] = useState(false);
   const [dontAskChecked, setDontAskChecked] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -511,8 +511,8 @@ export default function MainApp({
 
   // Guardar última nota y sesión de pestañas si la opción está activa
   useEffect(() => {
-    if (isLoadedRef.current && rememberLastNote && selectedNoteId) {
-      window.cyberNotesAPI.setSetting('last_note_id', selectedNoteId);
+    if (isLoadedRef.current && rememberLastNote) {
+      window.cyberNotesAPI.setSetting('last_note_id', selectedNoteId ?? '');
     }
   }, [selectedNoteId, rememberLastNote]);
 
@@ -636,11 +636,13 @@ export default function MainApp({
           const lastId = s.last_note_id;
           if (lastId && savedIds.includes(lastId)) {
             setSelectedNoteId(lastId);
+          } else if (lastId === '') {
+            setSelectedNoteId(null);
           } else {
             setSelectedNoteId(savedIds[0]);
           }
           // loadFullNote pondrá noteLoading=false al terminar
-          setNoteLoading(true);
+          setNoteLoading(lastId !== '');
         } else {
           setNoteLoading(false);
         }
@@ -717,10 +719,6 @@ export default function MainApp({
       n = await window.cyberNotesAPI.getNotesByFolder(folderId);
     }
     setNotes(n.map(toNoteMeta));
-    // Si no hay nota seleccionada y hay notas, selecciona la primera
-    if (n.length > 0 && !selectedNoteIdRef.current) {
-      setSelectedNoteId(n[0].id);
-    }
   };
 
   // La vista de adhesivas depende de ventanas abiertas, no de la carpeta de la nota.
@@ -728,9 +726,6 @@ export default function MainApp({
     if (selectedFolderId !== 'sticky' || searchQuery) return;
     const stickyNotes = allNotes.filter(note => openStickyIds.includes(note.id));
     setNotes(stickyNotes);
-    if (stickyNotes.length > 0 && !selectedNoteIdRef.current) {
-      setSelectedNoteId(stickyNotes[0].id);
-    }
   }, [selectedFolderId, searchQuery, allNotes, openStickyIds]);
 
   /** Carga content completo de una nota (cache en memoria para pestañas abiertas). */
@@ -769,6 +764,7 @@ export default function MainApp({
       // Si la nota ya no existe, limpiar la selección: quedarse con el loader
       // infinito sería peor que volver a la bienvenida.
       if (selectedNoteIdRef.current === id) {
+        setSelectedNoteId(null);
         setSelectedNote(null);
         setNoteLoading(false);
       }
@@ -925,15 +921,13 @@ export default function MainApp({
     if (folderId === 'sticky') {
       const stickyNotes = allNotesRef.current.filter(note => openStickyIdsRef.current.includes(note.id));
       setNotes(stickyNotes);
-      if (stickyNotes.length > 0 && !selectedNoteIdRef.current) {
-        setSelectedNoteId(stickyNotes[0].id);
-      }
       return;
     }
     if (folderId === 'trash') {
       const trash = await window.cyberNotesAPI.getTrashNotes();
       setNotes(trash.map(toNoteMeta));
-      setSelectedNoteId(trash.length > 0 ? trash[0].id : null);
+      setSelectedNoteId(null);
+      setSelectedNote(null);
       return;
     }
     const n = await window.cyberNotesAPI.getNotesByFolder(folderId);
@@ -995,7 +989,6 @@ export default function MainApp({
         ? n.filter(note => openStickyIdsRef.current.includes(note.id))
         : n;
       setNotes(visible.map(toNoteMeta));
-      setSelectedNoteId(visible.length > 0 ? visible[0].id : null);
     }, 250);
   }, [selectedFolderId]);
 
@@ -1211,22 +1204,23 @@ export default function MainApp({
 
   // Guard de navegación (Caso A): si dejamos una nota con borrador en modo manual,
   // pedimos confirmación antes de cambiar de nota/pestaña.
-  const handleAttemptSelectNote = useCallback((targetId: string) => {
+  const handleAttemptSelectNote = useCallback((targetId: string | null) => {
     // Re-elegir la actual saliendo del "atrás": vuelve al editor sin cambiar nada.
-    if (targetId === selectedNoteId) {
+    if (targetId === selectedNoteIdRef.current) {
       if (singleBackToList) setSingleBackToList(false);
       return;
     }
-    if (!autosaveEnabled && selectedNoteId && draftCache[selectedNoteId] && !confirmLeaveDismissed) {
+    const currentId = selectedNoteIdRef.current;
+    if (!autosaveEnabled && currentId && draftCacheRef.current[currentId] && !confirmLeaveDismissed) {
       setDontAskChecked(false);
-      setPendingNavNoteId(targetId);
+      setPendingNavNoteId({ id: targetId });
       return;
     }
     // Fast path: contenido en cache (pestañas abiertas) se resuelve en el mismo
     // batch del click, un solo render sin overlay de loading intermedio.
     // El historial de recientes también entra al batch para no pagar otro render.
     const applied = applyCachedNote(targetId);
-    if (isLoadedRef.current && selectedFolderId !== 'trash') {
+    if (targetId && isLoadedRef.current && selectedFolderId !== 'trash') {
       setOpenedHistory(prev => ({ ...prev, [targetId]: Date.now() }));
       justRecordedHistoryRef.current = targetId;
       if (openedHistoryPersistTimer.current) clearTimeout(openedHistoryPersistTimer.current);
@@ -1237,9 +1231,21 @@ export default function MainApp({
           .catch(() => {});
       }, 1500);
     }
-    tabSwitchStart(targetId, applied ?? 'pending');
+    if (targetId) tabSwitchStart(targetId, applied ?? 'pending');
+    selectedNoteIdRef.current = targetId;
     setSelectedNoteId(targetId);
   }, [selectedNoteId, selectedFolderId, autosaveEnabled, draftCache, confirmLeaveDismissed, applyCachedNote, singleBackToList]);
+
+  const handleDeselectNote = useCallback(async () => {
+    const sourceId = selectedNoteIdRef.current;
+    try {
+      // Include the editor's latest keystrokes before checking its draft guard.
+      await draftFlushRef.current?.();
+      if (selectedNoteIdRef.current === sourceId) handleAttemptSelectNote(null);
+    } catch (error) {
+      console.error('[MainApp] Could not prepare the note for deselection:', error);
+    }
+  }, [handleAttemptSelectNote]);
 
   const dismissLeaveNav = useCallback(() => setPendingNavNoteId(null), []);
 
@@ -1254,7 +1260,7 @@ export default function MainApp({
     }
     const target = pendingNavNoteId;
     setPendingNavNoteId(null);
-    if (target) setSelectedNoteId(target);
+    if (target) { applyCachedNote(target.id); setSelectedNoteId(target.id); }
   }, [selectedNoteId, draftCache, selectedNote, handleSaveNote, dontAskChecked, pendingNavNoteId]);
 
   const discardAndLeaveNav = useCallback(async () => {
@@ -1265,7 +1271,7 @@ export default function MainApp({
     }
     const target = pendingNavNoteId;
     setPendingNavNoteId(null);
-    if (target) setSelectedNoteId(target);
+    if (target) { applyCachedNote(target.id); setSelectedNoteId(target.id); }
   }, [selectedNoteId, handleDiscardDraft, dontAskChecked, pendingNavNoteId]);
 
   useModalKeys({
@@ -1463,24 +1469,15 @@ export default function MainApp({
       clearDraftState(id);
     }
     setClosedTabHistory(prev => prev.filter(id => !deleted.has(id)));
-    const remaining = notes.filter(note => !deleted.has(note.id));
     setNotes(prev => prev.filter(note => !deleted.has(note.id)));
     setAllNotes(prev => prev.filter(note => !deleted.has(note.id)));
     setOpenNoteIds(prev => prev.filter(id => !deleted.has(id)));
 
-    if (selectedNoteId && deleted.has(selectedNoteId)) {
-      const remainingTabs = openNoteIds.filter(id => !deleted.has(id));
-      if (permanent) {
-        setSelectedNote(null);
-        setSelectedNoteId(null);
-      } else if (remainingTabs.length > 0) {
-        setSelectedNoteId(remainingTabs[0]);
-      } else if (remaining.length > 0) {
-        setSelectedNoteId(remaining[0].id);
-      } else {
-        setSelectedNote(null);
-        setSelectedNoteId(null);
-      }
+    if (selectedNoteIdRef.current && deleted.has(selectedNoteIdRef.current)) {
+      selectedNoteIdRef.current = null;
+      setSelectedNote(null);
+      setSelectedNoteId(null);
+      setNoteLoading(false);
     }
     return failed;
   };
@@ -2100,6 +2097,7 @@ export default function MainApp({
               folders={folders}
               selectedNoteId={selectedNoteId}
               onSelectNote={handleAttemptSelectNote}
+              onDeselectNote={() => { void handleDeselectNote(); }}
               onCreateNote={handleCreateNote}
               onRequestCreateFolder={() => {
                 if (layoutMode !== 3) setLayoutMode(3);
@@ -2182,6 +2180,7 @@ export default function MainApp({
           folders={folders}
           openStickyIds={openStickyIds}
           onSelectNote={handleAttemptSelectNote}
+          onDeselectNote={() => { void handleDeselectNote(); }}
           onCloseTab={handleCloseTab}
           onDuplicateNote={handleDuplicateNote}
           onRequestDeleteNote={handleRequestDeleteNote}

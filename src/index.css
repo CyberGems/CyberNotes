@@ -3352,6 +3352,41 @@ body.sticky-is-dragging * {
 }
 
 /* ─── Drag and Drop Note Styling ───────────────────────────── */
+.editor-empty-state {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 36px 24px;
+  background: radial-gradient(ellipse at 50% 44%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 64%);
+}
+.editor-empty-content { width: 100%; max-width: 420px; margin: auto; text-align: center; }
+.editor-empty-art { position: relative; width: 92px; height: 100px; margin: 0 auto 28px; }
+.editor-empty-sheet {
+  position: absolute;
+  inset: 8px 10px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 14px;
+  background: var(--bg-editor);
+}
+.editor-empty-sheet.is-back { transform: translate(-7px, 1px) rotate(-12deg); opacity: 0.55; }
+.editor-empty-sheet.is-front {
+  transform: translate(6px, -3px) rotate(7deg);
+  color: var(--accent-light);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 10%, var(--bg-editor)), var(--bg-editor));
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.editor-empty-eyebrow { display: block; margin-bottom: 12px; color: var(--text-muted); font-size: 10px; letter-spacing: 0.16em; font-weight: 600; }
+.editor-empty-content h1 { color: var(--text-primary); font-size: clamp(20px, 2.2vw, 27px); font-weight: 600; letter-spacing: -0.025em; line-height: 1.3; }
+.editor-empty-content p { margin: 14px auto 24px; max-width: 350px; color: var(--text-secondary); font-size: 13px; line-height: 1.8; }
+.editor-empty-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+.editor-empty-create { gap: 8px; }
+.editor-empty-create kbd { margin-left: 8px; padding-left: 10px; border-left: 1px solid currentColor; opacity: 0.65; font: 10px var(--font-ui); }
+
 .note-drag-preview {
   position: fixed;
   top: 0;

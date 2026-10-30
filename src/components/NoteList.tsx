@@ -19,6 +19,7 @@ interface Props {
   folders: Folder[];
   selectedNoteId: string | null;
   onSelectNote: (id: string) => void;
+  onDeselectNote?: () => void;
   onCreateNote: (kind?: 'note' | 'floating' | 'favorite') => void;
   onRequestCreateFolder: () => void;
   onDeleteNote: (id: string) => void;
@@ -462,7 +463,7 @@ function NewNoteSplitButton({
 }
 
 export default function NoteList({
-  language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onCreateNote,
+  language, notes: initialNotes, folders, selectedNoteId, onSelectNote, onDeselectNote, onCreateNote,
   onRequestCreateFolder,
   onDeleteNote, onDeleteNotes, onRestoreNote, onRestoreAllTrash, onPurgeNote, onEmptyTrash, trashCount,
   onTogglePin, onMoveNote, onRenameNote, onDuplicateNote, onRegisterDeleteSelected,
@@ -890,11 +891,12 @@ export default function NoteList({
     [virtualNotes, startIndex, endIndex]
   );
 
+  const selectionAnchorRef = useRef<string | null>(null);
   const marquee = useNoteMarquee(listRef, () => listRef.current ? measureNoteSelectionRects(
     listRef.current,
     !isGroupingActive && viewMode !== 'grid' ? virtualNotes.map(note => note.id) : [],
     rowHeight,
-  ) : []);
+  ) : [], () => { selectionAnchorRef.current = null; onDeselectNote?.(); });
   const { selectedIds, setSelectedIds, clear: clearSelection } = marquee;
   const [draggedIds, setDraggedIds] = useState<Set<string>>(new Set());
   const dragPreviewRef = useRef<HTMLDivElement | null>(null);
@@ -949,7 +951,6 @@ export default function NoteList({
   useEffect(() => {
     if (!selectedIds.size) setSelectionError(false);
   }, [selectedIds.size]);
-  const selectionAnchorRef = useRef<string | null>(null);
   useEffect(() => {
     clearSelection();
     selectionAnchorRef.current = null;
@@ -970,12 +971,11 @@ export default function NoteList({
       const ids = navigableNotes.slice(Math.min(start < 0 ? end : start, end), Math.max(start, end) + 1).map(item => item.id);
       setSelectedIds(previous => new Set(event.ctrlKey || event.metaKey ? [...previous, ...ids] : ids));
     } else if (event.ctrlKey || event.metaKey) {
-      setSelectedIds(previous => {
-        const next = new Set(previous.size ? previous : (navigableNotes.some(item => item.id === selectedNoteId) ? [selectedNoteId!] : []));
-        if (next.has(note.id)) next.delete(note.id);
-        else next.add(note.id);
-        return next;
-      });
+      const next = new Set(selectedIds.size ? selectedIds : (navigableNotes.some(item => item.id === selectedNoteId) ? [selectedNoteId!] : []));
+      if (next.has(note.id)) next.delete(note.id);
+      else next.add(note.id);
+      setSelectedIds(next);
+      if (!next.size) onDeselectNote?.();
       selectionAnchorRef.current = note.id;
     } else {
       clearSelection();
@@ -1180,6 +1180,7 @@ export default function NoteList({
       e.preventDefault();
       e.stopPropagation();
       clearSelection();
+      onDeselectNote?.();
       return;
     }
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) clearSelection();
@@ -1245,6 +1246,9 @@ export default function NoteList({
       if (searchQuery) {
         e.preventDefault();
         onSearch?.('');
+      } else if (selectedNoteId) {
+        e.preventDefault();
+        onDeselectNote?.();
       }
     }
   };
@@ -1800,7 +1804,7 @@ export default function NoteList({
                 <button type="button" className="btn-icon" disabled={selectionBusy} aria-label={language === 'es' ? 'Eliminar notas seleccionadas' : 'Delete selected notes'} onClick={() => requestDeleteSelection()}><Trash2 size={14} /></button>
               </Tooltip>
               <Tooltip label={language === 'es' ? 'Limpiar selección (Esc)' : 'Clear selection (Esc)'} placement="top">
-                <button type="button" className="btn-icon" disabled={selectionBusy} aria-label={language === 'es' ? 'Limpiar selección' : 'Clear selection'} onClick={() => { clearSelection(); listRef.current?.focus({ preventScroll: true }); }}><X size={14} /></button>
+                <button type="button" className="btn-icon" disabled={selectionBusy} aria-label={language === 'es' ? 'Limpiar selección' : 'Clear selection'} onClick={() => { clearSelection(); onDeselectNote?.(); listRef.current?.focus({ preventScroll: true }); }}><X size={14} /></button>
               </Tooltip>
             </div>
           </div>
