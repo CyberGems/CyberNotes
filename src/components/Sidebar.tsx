@@ -9,11 +9,13 @@ import {
   PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
+import { useNoteDragAutoScroll } from '../hooks/useNoteDragAutoScroll';
 import { playSynthSound } from '../utils/audio';
 import FolderIcon, { FILTER_COLORS } from './FolderIcon';
 import Tooltip from './Tooltip';
+import ConfirmDialog from './ConfirmDialog';
 import { EnterGlyph, KeyHint, modalCardMotion } from './ModalActions';
-import { NOTE_DRAG_MIME, NOTE_IDS_DRAG_MIME, NOTE_DROP_RESULT_EVENT, readNoteDragIds, type NoteDropResult } from '../utils/noteDrag';
+import { NOTE_DROP_RESULT_EVENT, isNoteDrag, readNoteDragIds, type NoteDropResult } from '../utils/noteDrag';
 
 interface Props {
   language: Language;
@@ -36,11 +38,16 @@ interface Props {
   searchQuery: string;
   onSearch: (q: string) => void;
   onMoveNote: (noteId: string, folderId: string | null) => void | Promise<void>;
+  onTogglePin: (note: Note) => void | Promise<void>;
+  onDeleteNotes: (ids: string[], permanent?: boolean) => Promise<string[]>;
   rail?: boolean;
   onToggleRail: () => void;
   getAvailableColors: (currentFolderId?: string) => { all: string[]; available: string[]; usedColors: Set<string> };
   triggerNewFolderSignal?: number;
 }
+
+type ViewDropTarget = 'all' | 'favorites' | 'sticky' | 'floating' | 'trash';
+type NoteDropDestination = { folderId: string | null } | 'favorites' | 'sticky' | 'trash';
 
 const FOLDER_ICONS = [
   'folder', 'file-text', 'briefcase', 'home',
@@ -160,7 +167,7 @@ function RailIconBtn({
 export default function Sidebar({
   language, folders, selectedFolderId, noteCount, trashCount, allNotes, stickyNoteIds, onSelectNote,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
-  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, rail = false, onToggleRail, getAvailableColors,
+  onOpenSettings, onLock, searchQuery, onSearch, onMoveNote, onTogglePin, onDeleteNotes, rail = false, onToggleRail, getAvailableColors,
   openedHistory = {}, recentClearedAt = 0, onClearRecent,
   triggerNewFolderSignal,
 }: Props) {
@@ -209,11 +216,49 @@ export default function Sidebar({
   const recentBtnRef = useRef<HTMLButtonElement>(null);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
   const inputMenu = useInputContextMenu(language);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useNoteDragAutoScroll(scrollRef);
 
   const [isNoteDragging, setIsNoteDragging] = useState(false);
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null | 'all'>(null);
+  const [notesToTrash, setNotesToTrash] = useState<string[] | null>(null);
+  const trashRequestRef = useRef<string[] | null>(null);
 
-  const handleNoteDrop = async (event: ReactDragEvent, folderId: string | null) => {
+  const applyNoteDrop = async (ids: string[], destination: NoteDropDestination) => {
+    let movedIds: string[] = [];
+    let failedIds: string[] = [];
+    if (destination === 'trash') {
+      try {
+        const failed = new Set(await onDeleteNotes(ids));
+        movedIds = ids.filter(id => !failed.has(id));
+        failedIds = ids.filter(id => failed.has(id));
+      } catch (error) {
+        console.error('[CyberNotes] Could not trash dropped notes:', error);
+        failedIds = ids;
+      }
+    } else {
+      for (const id of ids) {
+        try {
+          if (destination === 'favorites') {
+            const note = allNotes.find(note => note.id === id)!;
+            if (note.pinned !== 1) await onTogglePin(note);
+          } else if (destination === 'sticky') {
+            if (!stickyNoteIds.includes(id) && !await window.cyberNotesAPI.openStickyNote(id)) throw new Error('Could not open the floating note.');
+          } else {
+            await onMoveNote(id, destination.folderId);
+          }
+          movedIds.push(id);
+        } catch (error) {
+          console.error('[CyberNotes] Could not apply note drop:', id, error);
+          failedIds.push(id);
+        }
+      }
+    }
+    if (movedIds.length) playSynthSound('mechanical-click');
+    window.dispatchEvent(new CustomEvent<NoteDropResult>(NOTE_DROP_RESULT_EVENT, { detail: { movedIds, failedIds } }));
+  };
+
+  const handleNoteDrop = async (event: ReactDragEvent, destination: NoteDropDestination) => {
     event.preventDefault();
     event.stopPropagation();
     const known = new Set(allNotes.map(note => note.id));
@@ -222,20 +267,43 @@ export default function Sidebar({
     setIsNoteDragging(false);
     window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
     if (!ids.length) return;
-    const movedIds: string[] = [];
-    const failedIds: string[] = [];
-    for (const id of ids) {
+    if (destination === 'trash') {
+      // Match the list: groups always confirm; a single note respects the saved preference.
+      let skipConfirmation = false;
       try {
-        await onMoveNote(id, folderId);
-        movedIds.push(id);
+        skipConfirmation = ids.length === 1 && await window.cyberNotesAPI.getSetting('confirm_move_note_to_trash_dismissed') === 'true';
       } catch (error) {
-        console.error('[CyberNotes] Could not move dropped note:', id, error);
-        failedIds.push(id);
+        console.error('[CyberNotes] Could not read trash confirmation preference:', error);
+      }
+      if (!skipConfirmation) {
+        trashRequestRef.current = ids;
+        setNotesToTrash(ids);
+        return;
       }
     }
-    if (movedIds.length) playSynthSound('mechanical-click');
-    window.dispatchEvent(new CustomEvent<NoteDropResult>(NOTE_DROP_RESULT_EVENT, { detail: { movedIds, failedIds } }));
+    await applyNoteDrop(ids, destination);
   };
+
+  const resolveTrashDrop = (accepted: boolean) => {
+    const ids = trashRequestRef.current;
+    trashRequestRef.current = null;
+    setNotesToTrash(null);
+    if (accepted && ids) void applyNoteDrop(ids, 'trash');
+  };
+
+  const viewDropProps = (id: ViewDropTarget) => ({
+    onDragOver: (event: ReactDragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = 'move';
+      setActiveDropTargetId(id);
+    },
+    onDragLeave: (event: ReactDragEvent) => {
+      if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+      setActiveDropTargetId(previous => previous === id ? null : previous);
+    },
+    onDrop: (event: ReactDragEvent) => { void handleNoteDrop(event, id === 'all' || id === 'floating' ? { folderId: null } : id); },
+  });
 
   // Secciones colapsables (Vistas y Carpetas), como los grupos de la lista.
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
@@ -315,8 +383,7 @@ export default function Sidebar({
   // Global drag listeners to activate target drop indicators
   useEffect(() => {
     const handleDragStart = (event: DragEvent) => {
-      const types = Array.from(event.dataTransfer?.types ?? []);
-      if (types.includes(NOTE_DRAG_MIME) || types.includes(NOTE_IDS_DRAG_MIME)) setIsNoteDragging(true);
+      if (isNoteDrag(event.dataTransfer)) setIsNoteDragging(true);
     };
     const handleDragEnd = () => {
       setIsNoteDragging(false);
@@ -567,7 +634,7 @@ export default function Sidebar({
       <div className="divider" />
 
       {rail ? (
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+      <div ref={scrollRef} data-sidebar-scroll style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
         <Tooltip placement="right" label={searchQuery
           ? (language === 'es' ? 'Limpiar búsqueda' : 'Clear search')
           : (language === 'es' ? 'Buscar notas (Ctrl+F)' : 'Search notes (Ctrl+F)')}>
@@ -641,24 +708,15 @@ export default function Sidebar({
           { key: 'sticky', icon: <AppWindow size={17} />, label: t.sidebar.stickyNotes, count: stickyNoteIds.length, active: selectedFolderId === 'sticky' && !searchQuery, onClick: () => onSelectFolder('sticky'), dropId: null as string | null },
           { key: 'floating', icon: <Inbox size={17} />, label: t.sidebar.floatingNotes, count: allNotes.filter(n => !n.folder_id).length, active: selectedFolderId === 'floating' && !searchQuery, onClick: () => onSelectFolder('floating'), dropId: null as string | null },
           { key: 'trash', icon: <Trash2 size={17} />, label: t.sidebar.trash, count: trashCount, active: selectedFolderId === 'trash' && !searchQuery, onClick: () => onSelectFolder('trash'), dropId: null as string | null },
-        ]).map((item) => (
+        ] as const).map((item) => (
           <RailIconBtn
             key={item.key}
             label={`${item.label} (${item.count})`}
             active={item.active}
-            dropState={isNoteDragging && (item.key === 'all' || item.key === 'floating') ? (activeDropTargetId === item.key ? 'active' : 'ready') : undefined}
+            dropState={isNoteDragging ? (activeDropTargetId === item.key ? 'active' : 'ready') : undefined}
+            dropColor={item.key === 'favorites' ? FILTER_COLORS.favorites : item.key === 'sticky' ? FILTER_COLORS.sticky : item.key === 'trash' ? FILTER_COLORS.trash : undefined}
             onClick={item.onClick}
-            onDragOver={item.key === 'all' || item.key === 'floating' ? (e => {
-              e.preventDefault();
-              e.stopPropagation();
-              e.dataTransfer.dropEffect = 'move';
-              setActiveDropTargetId(prev => (prev === item.key ? prev : item.key));
-            }) : undefined}
-            onDragLeave={item.key === 'all' || item.key === 'floating' ? (e => {
-              if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-              setActiveDropTargetId(prev => (prev === item.key ? null : prev));
-            }) : undefined}
-            onDrop={item.key === 'all' || item.key === 'floating' ? (event => { void handleNoteDrop(event, null); }) : undefined}
+            {...viewDropProps(item.key)}
           >
             {item.icon}
           </RailIconBtn>
@@ -688,7 +746,7 @@ export default function Sidebar({
                 if (e.currentTarget.contains(e.relatedTarget as Node)) return;
                 setActiveDropTargetId(prev => (prev === folder.id ? null : prev));
               }}
-              onDrop={event => { void handleNoteDrop(event, folder.id); }}
+              onDrop={event => { void handleNoteDrop(event, { folderId: folder.id }); }}
             >
               <FolderIcon name={folder.icon} color={folder.color} size={17} />
             </RailIconBtn>
@@ -717,6 +775,8 @@ export default function Sidebar({
       <>
       {/* Nav */}
       <div
+        ref={scrollRef}
+        data-sidebar-scroll
         onDragOver={e => {
           e.preventDefault();
         }}
@@ -725,7 +785,7 @@ export default function Sidebar({
             setActiveDropTargetId(null);
           }
         }}
-        style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 8px' }}
       >
         {renderSectionHeader('views', t.sidebar.views)}
         {!viewsCollapsed && (
@@ -735,17 +795,7 @@ export default function Sidebar({
           className="note-drop-target"
           data-note-drop-state={isNoteDragging ? (activeDropTargetId === 'all' ? 'active' : 'ready') : undefined}
           onClick={() => onSelectFolder(null)}
-          onDragOver={e => {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'move';
-            setActiveDropTargetId(prev => (prev === 'all' ? prev : 'all'));
-          }}
-          onDragLeave={e => {
-            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-            setActiveDropTargetId(prev => (prev === 'all' ? null : prev));
-          }}
-          onDrop={event => { void handleNoteDrop(event, null); }}
+          {...viewDropProps('all')}
           whileHover={isNoteDragging ? undefined : 'hover'}
           whileTap={isNoteDragging ? undefined : 'tap'}
           style={{
@@ -799,10 +849,14 @@ export default function Sidebar({
 
         {/* Favoritos / Favorites */}
         <motion.button
+          className="note-drop-target"
+          data-note-drop-state={isNoteDragging ? (activeDropTargetId === 'favorites' ? 'active' : 'ready') : undefined}
           onClick={() => onSelectFolder('favorites')}
-          whileHover="hover"
-          whileTap="tap"
+          {...viewDropProps('favorites')}
+          whileHover={isNoteDragging ? undefined : 'hover'}
+          whileTap={isNoteDragging ? undefined : 'tap'}
           style={{
+            '--note-drop-color': FILTER_COLORS.favorites,
             width: '100%',
             display: 'flex',
             alignItems: 'center',
@@ -826,7 +880,7 @@ export default function Sidebar({
             boxShadow: selectedFolderId === 'favorites' && !searchQuery
               ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
               : 'none',
-          }}
+          } as CSSProperties}
           variants={{
             hover: {
               x: 3,
@@ -863,10 +917,14 @@ export default function Sidebar({
 
         {/* Notas adhesivas / Sticky notes */}
         <motion.button
+          className="note-drop-target"
+          data-note-drop-state={isNoteDragging ? (activeDropTargetId === 'sticky' ? 'active' : 'ready') : undefined}
           onClick={() => onSelectFolder('sticky')}
-          whileHover="hover"
-          whileTap="tap"
+          {...viewDropProps('sticky')}
+          whileHover={isNoteDragging ? undefined : 'hover'}
+          whileTap={isNoteDragging ? undefined : 'tap'}
           style={{
+            '--note-drop-color': FILTER_COLORS.sticky,
             width: '100%',
             display: 'flex',
             alignItems: 'center',
@@ -890,7 +948,7 @@ export default function Sidebar({
             boxShadow: selectedFolderId === 'sticky' && !searchQuery
               ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
               : 'none',
-          }}
+          } as CSSProperties}
           variants={{
             hover: {
               x: 3,
@@ -922,17 +980,7 @@ export default function Sidebar({
           className="note-drop-target"
           data-note-drop-state={isNoteDragging ? (activeDropTargetId === 'floating' ? 'active' : 'ready') : undefined}
           onClick={() => onSelectFolder('floating')}
-          onDragOver={e => {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'move';
-            setActiveDropTargetId(prev => (prev === 'floating' ? prev : 'floating'));
-          }}
-          onDragLeave={e => {
-            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-            setActiveDropTargetId(prev => (prev === 'floating' ? null : prev));
-          }}
-          onDrop={event => { void handleNoteDrop(event, null); }}
+          {...viewDropProps('floating')}
           whileHover={isNoteDragging ? undefined : 'hover'}
           whileTap={isNoteDragging ? undefined : 'tap'}
           style={{
@@ -986,10 +1034,14 @@ export default function Sidebar({
 
         {/* Papelera / Trash */}
         <motion.button
+          className="note-drop-target"
+          data-note-drop-state={isNoteDragging ? (activeDropTargetId === 'trash' ? 'active' : 'ready') : undefined}
           onClick={() => onSelectFolder('trash')}
-          whileHover="hover"
-          whileTap="tap"
+          {...viewDropProps('trash')}
+          whileHover={isNoteDragging ? undefined : 'hover'}
+          whileTap={isNoteDragging ? undefined : 'tap'}
           style={{
+            '--note-drop-color': FILTER_COLORS.trash,
             width: '100%',
             display: 'flex',
             alignItems: 'center',
@@ -1013,7 +1065,7 @@ export default function Sidebar({
             boxShadow: selectedFolderId === 'trash' && !searchQuery
               ? '0 0 12px var(--accent-glow), inset 0 0 4px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.02)'
               : 'none',
-          }}
+          } as CSSProperties}
           variants={{
             hover: {
               x: 3,
@@ -1067,7 +1119,7 @@ export default function Sidebar({
                 if (e.currentTarget.contains(e.relatedTarget as Node)) return;
                 setActiveDropTargetId(prev => (prev === folder.id ? null : prev));
               }}
-              onDrop={event => { void handleNoteDrop(event, folder.id); }}
+              onDrop={event => { void handleNoteDrop(event, { folderId: folder.id }); }}
               whileHover={isNoteDragging ? undefined : 'hover'}
               whileTap={isNoteDragging ? undefined : 'tap'}
               style={{
@@ -1864,6 +1916,16 @@ export default function Sidebar({
         document.body
       )}
 
+      {notesToTrash && <ConfirmDialog
+        language={language}
+        title={notesToTrash.length === 1
+          ? (language === 'es' ? '¿Enviar esta nota a la papelera?' : 'Move this note to the trash?')
+          : (language === 'es' ? `¿Enviar ${notesToTrash.length} notas a la papelera?` : `Move ${notesToTrash.length} notes to the trash?`)}
+        message={language === 'es' ? 'Podrás restaurar las notas desde la papelera.' : 'You can restore the notes from the trash.'}
+        confirm
+        confirmLabel={t.noteList.moveToTrash}
+        onResolve={resolveTrashDrop}
+      />}
       {inputMenu.menu}
     </div>
   );

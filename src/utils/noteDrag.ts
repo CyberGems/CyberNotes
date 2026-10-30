@@ -7,6 +7,10 @@ export interface NoteDropResult {
   failedIds: string[];
 }
 
+export function isNoteDrag(data: Pick<DataTransfer, 'types'> | null): boolean {
+  return Array.from(data?.types ?? []).some(type => type === NOTE_DRAG_MIME || type === NOTE_IDS_DRAG_MIME);
+}
+
 export function writeNoteDragData(data: DataTransfer, draggedId: string, selectedIds: string[]): void {
   data.setData('text/plain', draggedId);
   data.setData(NOTE_DRAG_MIME, draggedId);

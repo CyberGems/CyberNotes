@@ -1778,7 +1778,7 @@ export default function NoteList({
         )}
         {selectedIds.size > 0 && (
           <div className="note-selection-actions" aria-label={language === 'es' ? 'Acciones de selección' : 'Selection actions'}>
-            {selectionError && <span role="alert" className="note-selection-error">{language === 'es' ? 'No se pudieron mover todas las notas. Puedes reintentar las restantes.' : 'Some notes could not be moved. You can retry the remaining notes.'}</span>}
+            {selectionError && <span role="alert" className="note-selection-error">{language === 'es' ? 'No se pudo aplicar la acción a todas las notas. Puedes reintentar las restantes.' : 'Some notes could not be updated. You can retry the remaining notes.'}</span>}
             <div className="note-selection-actions-row">
               <span className="note-selection-count" role="status">
                 {selectedIds.size} {language === 'es' ? (selectedIds.size === 1 ? 'seleccionada' : 'seleccionadas') : 'selected'}

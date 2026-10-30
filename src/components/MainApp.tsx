@@ -2072,6 +2072,8 @@ export default function MainApp({
               onSearch={handleSearch}
               getAvailableColors={getAvailableColors}
               onMoveNote={handleMoveNote}
+              onTogglePin={handleTogglePin}
+              onDeleteNotes={handleDeleteNotes}
               triggerNewFolderSignal={triggerNewFolderSignal}
             />
             {!isSidebarRail && (

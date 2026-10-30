@@ -16,15 +16,20 @@ describe('dragging note selections into the sidebar', () => {
   let sidebarProps: ComponentProps<typeof Sidebar>;
   let view: string;
   const move = vi.fn();
+  const pin = vi.fn();
+  const trash = vi.fn();
 
   beforeEach(() => {
     vi.useFakeTimers();
     view = 'normal';
     localStorage.clear();
     move.mockReset().mockResolvedValue(undefined);
+    pin.mockReset().mockResolvedValue(undefined);
+    trash.mockReset().mockResolvedValue([]);
     vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
     vi.stubGlobal('cyberNotesAPI', {
       getOpenStickyNotes: vi.fn().mockResolvedValue([]), onStickyListChanged: () => () => {},
+      openStickyNote: vi.fn().mockResolvedValue(true),
       getSetting: vi.fn().mockResolvedValue('false'), onSettingChanged: () => () => {},
       setSetting: vi.fn().mockResolvedValue(true),
       getSettings: vi.fn().mockImplementation(async () => ({ note_list_view_mode: view, note_list_group_by_date: 'false', note_list_collapsed_groups: '[]', note_list_floating_group_ready: 'true' })),
@@ -37,7 +42,7 @@ describe('dragging note selections into the sidebar', () => {
       onEmptyTrash: noop, trashCount: 0, onTogglePin: noop, onMoveNote: move, onRenameNote: noop, onDuplicateNote: noop, selectedFolder: null, searchQuery: '' };
     sidebarProps = { language: 'es', folders, selectedFolderId: null, noteCount: notes.length, trashCount: 0, allNotes: notes, stickyNoteIds: [],
       onSelectNote: noop, onSelectFolder: noop, onCreateFolder: noop, onUpdateFolder: noop, onDeleteFolder: noop, onOpenSettings: noop, onLock: noop,
-      searchQuery: '', onSearch: noop, onMoveNote: move, onToggleRail: noop,
+      searchQuery: '', onSearch: noop, onMoveNote: move, onTogglePin: pin, onDeleteNotes: trash, onToggleRail: noop,
       getAvailableColors: () => ({ all: ['#6c63e6'], available: ['#6c63e6'], usedColors: new Set() }) };
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -106,7 +111,7 @@ describe('dragging note selections into the sidebar', () => {
     const preview = document.querySelector('.note-drag-preview');
     expect(preview?.textContent).toBe('3 notas');
     expect(data.setDragImage).toHaveBeenCalledExactlyOnceWith(preview, -12, -12);
-    expect(container.querySelectorAll('[data-note-drop-state="ready"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-note-drop-state="ready"]')).toHaveLength(6);
     await drop(data);
     expect(move.mock.calls).toEqual([['n0', 'folder'], ['n1', 'folder'], ['n2', 'folder']]);
     expect(container.querySelector('.note-selection-actions')).toBeNull();
@@ -153,8 +158,8 @@ describe('dragging note selections into the sidebar', () => {
     await render();
     const data = dataTransfer();
     await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
-    expect(container.querySelectorAll('[data-note-drop-state="ready"]')).toHaveLength(5);
-    for (const label of ['Destination', 'Cyan', 'Green', 'Todas las notas', 'Sin carpeta']) {
+    expect(container.querySelectorAll('[data-note-drop-state="ready"]')).toHaveLength(8);
+    for (const label of ['Destination', 'Cyan', 'Green', 'Todas las notas', 'Sin carpeta', 'Favoritos', 'Notas flotantes', 'Papelera']) {
       const button = target(label);
       await act(async () => button.dispatchEvent(dragEvent('dragover', data)));
       expect(target(label)).toBe(button);
@@ -176,6 +181,94 @@ describe('dragging note selections into the sidebar', () => {
     expect(document.querySelector('.note-drag-preview')?.textContent).toBe('3 notes');
     await act(async () => root.render(<Sidebar {...sidebarProps} />));
     expect(document.querySelector('.note-drag-preview')).toBeNull();
+  });
+
+  it.each([false, true])('adds the full group to Favorites without toggling existing favorites off, compact sidebar: %s', async rail => {
+    sidebarProps.rail = rail;
+    sidebarProps.allNotes[0].pinned = 1;
+    sidebarProps.allNotes.forEach(note => { note.folder_id = 'source'; });
+    await render(); await selectThree();
+    const data = dataTransfer();
+    await act(async () => card('n1').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Favoritos');
+    expect(pin.mock.calls.map(([note]) => note.id)).toEqual(['n1', 'n2']);
+    expect(pin.mock.calls.every(([note]) => note.folder_id === 'source')).toBe(true);
+    expect(sidebarProps.allNotes[0].pinned).toBe(1);
+    expect(move).not.toHaveBeenCalled(); expect(trash).not.toHaveBeenCalled();
+    expect(container.querySelector('.note-selection-actions')).toBeNull();
+  });
+
+  it.each([false, true])('opens floating notes without reopening existing windows, compact sidebar: %s', async rail => {
+    sidebarProps.rail = rail;
+    sidebarProps.stickyNoteIds = ['n0'];
+    await render(); await selectThree();
+    const data = dataTransfer();
+    await act(async () => card('n1').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Notas flotantes');
+    expect(vi.mocked(window.cyberNotesAPI.openStickyNote).mock.calls).toEqual([['n1'], ['n2']]);
+    expect(move).not.toHaveBeenCalled(); expect(pin).not.toHaveBeenCalled();
+    expect(container.querySelector('.note-selection-actions')).toBeNull();
+  });
+
+  it('retains notes whose floating windows could not be opened', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(window.cyberNotesAPI.openStickyNote).mockImplementation(async id => id !== 'n1');
+    await render(); await selectThree();
+    const data = dataTransfer();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Notas flotantes');
+    expect([...list().querySelectorAll<HTMLElement>('.note-item[aria-selected="true"]')].map(item => item.dataset.noteId)).toEqual(['n1']);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('restantes');
+  });
+
+  it.each([false, true])('confirms a group trash drop once and preserves selection when cancelled, compact sidebar: %s', async rail => {
+    sidebarProps.rail = rail;
+    await render(); await selectThree();
+    const data = dataTransfer();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Papelera');
+    expect(trash).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('¿Enviar 3 notas a la papelera?');
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(list().querySelectorAll('.note-item[aria-selected="true"]')).toHaveLength(3);
+    expect(trash).not.toHaveBeenCalled();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Papelera');
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })));
+    expect(trash).toHaveBeenCalledExactlyOnceWith(['n0', 'n1', 'n2']);
+    expect(move).not.toHaveBeenCalled();
+    expect(container.querySelector('.note-selection-actions')).toBeNull();
+  });
+
+  it('respects the dismissed confirmation preference for single trash drops but still confirms groups', async () => {
+    vi.mocked(window.cyberNotesAPI.getSetting).mockResolvedValue('true');
+    await render(); await selectThree();
+    const data = dataTransfer();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Papelera');
+    expect(trash).not.toHaveBeenCalled();
+    await act(async () => (document.querySelector('.modal-action-btn.is-cancel') as HTMLElement).click());
+    await act(async () => card('n3').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Papelera');
+    expect(trash).toHaveBeenCalledExactlyOnceWith(['n3']);
+    expect(document.querySelector('.modal-actions')).toBeNull();
+  });
+
+  it('shows the trash confirmation in English and retains failed notes for retry', async () => {
+    sidebarProps.language = 'en'; listProps.language = 'en';
+    trash.mockResolvedValueOnce(['n1']);
+    await render(); await selectThree();
+    const data = dataTransfer();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Trash');
+    expect(document.body.textContent).toContain('Move 3 notes to the trash?');
+    await act(async () => (document.querySelector('.modal-action-btn.is-save') as HTMLElement).click());
+    expect([...list().querySelectorAll<HTMLElement>('.note-item[aria-selected="true"]')].map(item => item.dataset.noteId)).toEqual(['n1']);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('remaining notes');
+    await act(async () => card('n1').dispatchEvent(dragEvent('dragstart', data)));
+    await drop(data, 'Trash');
+    await act(async () => (document.querySelector('.modal-action-btn.is-save') as HTMLElement).click());
+    expect(trash.mock.calls).toEqual([[['n0', 'n1', 'n2']], [['n1']]]);
   });
 
   it('keeps failed moves selected and reports the error', async () => {
