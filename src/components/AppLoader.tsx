@@ -77,7 +77,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
               position: 'absolute',
               inset: 0,
               borderRadius: '50%',
-              border: '2px solid var(--loader-track, rgba(255, 255, 255, 0.06))',
+              border: '2px solid var(--loader-ring-track, rgba(255, 255, 255, 0.06))',
               borderTopColor: 'var(--accent, #6c63e6)',
               borderRightColor: 'color-mix(in srgb, var(--accent, #6c63e6) 35%, transparent)',
               animation: 'cyberSpin 1.8s linear infinite',

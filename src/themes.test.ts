@@ -70,4 +70,13 @@ describe('suite themes', () => {
       }
     }
   });
+
+  it.each([0, 50, 100])('keeps the original fixed CyberNotes control colors at intensity %s', intensity => {
+    const vars = getThemeVars('cyber-dark', intensity);
+    expect(vars['--switch-off-bg']).toBe('#5e6672');
+    expect(vars['--switch-off-thumb']).toBe('#12161e');
+    expect(vars['--danger']).toBe('#ef4444');
+    expect(vars['--loader-edge']).toBe('#08090e');
+    expect(vars['--loader-ring-track']).toBe('rgba(255,255,255,0.06)');
+  });
 });

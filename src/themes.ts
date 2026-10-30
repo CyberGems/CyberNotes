@@ -65,8 +65,8 @@ export const THEMES: ThemeColors[] = [
       '--switch-off-thumb': '#12161e',
       '--switch-off-border': 'transparent',
       '--minimap-rgb': '8,8,16',
-      '--minimap-viewport-bg': 'var(--accent)',
-      '--minimap-viewport-opacity': '0.15',
+      '--minimap-viewport-bg': 'color-mix(in srgb, var(--accent) 15%, transparent)',
+      '--minimap-viewport-opacity': '1',
       '--minimap-viewport-border': 'var(--accent)',
       '--status-color-share': '100%',
       '--danger': '#ef4444',
@@ -84,6 +84,18 @@ export const THEMES: ThemeColors[] = [
       '--loader-title-start': '#ffffff',
       '--loader-track': 'rgba(255,255,255,0.08)',
       '--loader-icon-filter': 'grayscale(0)',
+      '--loader-ring-track': 'rgba(255,255,255,0.06)',
+      '--preloader-accent': 'initial',
+      '--preloader-accent-light': 'initial',
+      '--preloader-title-end': 'initial',
+      '--preloader-glow-low': 'initial',
+      '--preloader-glow-high': 'initial',
+      '--preloader-runner-glow': 'initial',
+      '--primary-fill': 'initial',
+      '--primary-fill-hover': 'initial',
+      '--modal-key-bg': 'rgba(255,255,255,0.08)',
+      '--modal-key-border': 'rgba(255,255,255,0.16)',
+      '--danger-hover-bg': 'rgba(239,68,68,0.14)',
       '--pulse-1': '#6477d9',
       '--pulse-2': '#8c70d8',
       '--pulse-3': '#7064d8',
@@ -159,6 +171,18 @@ export const THEMES: ThemeColors[] = [
       '--loader-title-start': '#f2f2f2',
       '--loader-track': 'rgba(255,255,255,0.12)',
       '--loader-icon-filter': 'grayscale(1)',
+      '--loader-ring-track': 'rgba(255,255,255,0.12)',
+      '--preloader-accent': 'var(--accent)',
+      '--preloader-accent-light': 'var(--accent-light)',
+      '--preloader-title-end': 'var(--accent-light)',
+      '--preloader-glow-low': 'var(--accent-glow)',
+      '--preloader-glow-high': 'var(--accent-glow)',
+      '--preloader-runner-glow': 'var(--accent-glow)',
+      '--primary-fill': 'initial',
+      '--primary-fill-hover': 'initial',
+      '--modal-key-bg': 'color-mix(in srgb, currentColor 8%, transparent)',
+      '--modal-key-border': 'color-mix(in srgb, currentColor 16%, transparent)',
+      '--danger-hover-bg': 'var(--danger-dim)',
       '--pulse-1': '#8a8a8a',
       '--pulse-2': '#a0a0a0',
       '--pulse-3': '#909090',
@@ -234,6 +258,18 @@ export const THEMES: ThemeColors[] = [
       '--loader-title-start': '#1a1a2e',
       '--loader-track': 'rgba(106,96,160,0.15)',
       '--loader-icon-filter': 'grayscale(0)',
+      '--loader-ring-track': 'rgba(106,96,160,0.15)',
+      '--preloader-accent': 'var(--accent)',
+      '--preloader-accent-light': 'var(--accent-light)',
+      '--preloader-title-end': 'var(--accent-light)',
+      '--preloader-glow-low': 'var(--accent-glow)',
+      '--preloader-glow-high': 'var(--accent-glow)',
+      '--preloader-runner-glow': 'var(--accent-glow)',
+      '--primary-fill': 'initial',
+      '--primary-fill-hover': 'initial',
+      '--modal-key-bg': 'color-mix(in srgb, currentColor 8%, transparent)',
+      '--modal-key-border': 'color-mix(in srgb, currentColor 16%, transparent)',
+      '--danger-hover-bg': 'var(--danger-dim)',
       '--pulse-1': '#5a8a8a',
       '--pulse-2': '#8a6a8a',
       '--pulse-3': '#7a5a9a',
@@ -315,13 +351,36 @@ export function getPreviewColor(themeId: string, intensity: number = 50): string
   return isColorfulTheme(theme.id) ? scaleColor(theme.preview, 0.35 + (intensity / 100) * 1.3) : theme.preview;
 }
 
+/** Keep the violet hue, darkening only as far as white button labels require. */
+function withReadableWhiteText(hex: string): string {
+  const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
+  for (let step = 100; step >= 0; step--) {
+    const rgb = channels.map(channel => Math.round(channel * step / 100));
+    const linear = rgb.map(channel => {
+      const value = channel / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+    if (1.05 / (luminance + 0.05) >= 4.5) {
+      return '#' + rgb.map(channel => channel.toString(16).padStart(2, '0')).join('');
+    }
+  }
+  return '#000000';
+}
+
 /** Shared palette for renderer surfaces and the independent tray window. */
 export function getThemeVars(themeId: string, intensity: number = 50): Record<string, string> {
   const theme = THEMES.find(t => t.id === normalizeThemeId(themeId))!;
   const mult = 0.35 + (intensity / 100) * 1.3;
-  return Object.fromEntries(Object.entries(theme.vars).map(([key, value]) => [
-    key, isColorfulTheme(theme.id) ? scaleColor(value, mult) : value,
+  const vars = Object.fromEntries(Object.entries(theme.vars).map(([key, value]) => [
+    // These controls used fixed colors before themes were consolidated.
+    key, isColorfulTheme(theme.id) && !/^--(?:switch-|danger|loader-|preloader-)/.test(key) ? scaleColor(value, mult) : value,
   ]));
+  if (isColorfulTheme(theme.id)) {
+    vars['--primary-fill'] = withReadableWhiteText(vars['--accent']);
+    vars['--primary-fill-hover'] = withReadableWhiteText(vars['--accent-light']);
+  }
+  return vars;
 }
 
 export function applyThemeVars(themeId: string, intensity: number = 50) {

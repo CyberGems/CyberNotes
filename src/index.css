@@ -210,11 +210,11 @@ body:has(.sticky-note-window),
 }
 
 .btn-primary {
-  background: var(--accent);
+  background: var(--primary-fill, var(--accent));
   color: var(--text-on-accent);
 }
 .btn-primary:hover {
-  background: var(--accent-light);
+  background: var(--primary-fill-hover, var(--accent-light));
   box-shadow: 0 0 16px var(--accent-glow);
 }
 
@@ -487,12 +487,12 @@ body:has(.sticky-note-window),
 }
 .modal-action-btn.is-save {
   color: var(--text-on-accent);
-  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  background: linear-gradient(135deg, var(--primary-fill, var(--accent)), var(--primary-fill-hover, var(--accent-light)));
   border: 1px solid color-mix(in srgb, var(--accent-light) 70%, transparent);
   box-shadow: 0 0 10px var(--accent-glow);
 }
 .modal-action-btn.is-save:hover {
-  background: linear-gradient(135deg, var(--accent-light), var(--accent));
+  background: linear-gradient(135deg, var(--primary-fill-hover, var(--accent-light)), var(--primary-fill, var(--accent)));
   border-color: var(--accent-light);
   box-shadow: 0 0 16px var(--accent-glow);
 }
@@ -501,7 +501,7 @@ body:has(.sticky-note-window),
   border: 1px solid color-mix(in srgb, var(--danger) 50%, transparent);
 }
 .modal-action-btn.is-danger:hover {
-  background: var(--danger-dim);
+  background: var(--danger-hover-bg, var(--danger-dim));
   border-color: var(--danger);
   color: var(--danger-hover-text, #fff);
 }
@@ -524,8 +524,8 @@ body:has(.sticky-note-window),
   line-height: 1;
   padding: 3px 6px;
   border-radius: 4px;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  background: var(--modal-key-bg, color-mix(in srgb, currentColor 8%, transparent));
+  border: 1px solid var(--modal-key-border, color-mix(in srgb, currentColor 16%, transparent));
   color: inherit;
   opacity: 0.9;
   margin-left: 5px;

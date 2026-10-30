@@ -33,8 +33,8 @@
         100% { transform: rotate(360deg); }
       }
       @keyframes initPulse {
-        0%, 100% { transform: scale(1); filter: var(--loader-icon-filter, grayscale(0)) drop-shadow(0 0 14px var(--accent-glow, rgba(99, 102, 241, 0.4))); }
-        50% { transform: scale(1.04); filter: var(--loader-icon-filter, grayscale(0)) drop-shadow(0 0 24px var(--accent-glow, rgba(99, 102, 241, 0.7))); }
+        0%, 100% { transform: scale(1); filter: var(--loader-icon-filter, grayscale(0)) drop-shadow(0 0 14px var(--preloader-glow-low, rgba(99, 102, 241, 0.4))); }
+        50% { transform: scale(1.04); filter: var(--loader-icon-filter, grayscale(0)) drop-shadow(0 0 24px var(--preloader-glow-high, rgba(99, 102, 241, 0.7))); }
       }
       @keyframes initRunner {
         0% { left: -40%; width: 30%; }
@@ -55,9 +55,9 @@
         position: absolute;
         inset: 0;
         border-radius: 50%;
-        border: 2px solid var(--loader-track, rgba(255, 255, 255, 0.06));
-        border-top-color: var(--accent, #6366f1);
-        border-right-color: color-mix(in srgb, var(--accent, #6366f1) 35%, transparent);
+        border: 2px solid var(--loader-ring-track, rgba(255, 255, 255, 0.06));
+        border-top-color: var(--preloader-accent, #6366f1);
+        border-right-color: color-mix(in srgb, var(--preloader-accent, #6366f1) 35%, transparent);
         animation: initSpin 1.8s linear infinite;
       }
       .pre-loader-icon {
@@ -69,7 +69,7 @@
         font-size: 22px;
         font-weight: 700;
         letter-spacing: -0.02em;
-        background: linear-gradient(135deg, var(--loader-title-start, #ffffff) 40%, var(--accent-light, #c7d2fe) 100%);
+        background: linear-gradient(135deg, var(--loader-title-start, #ffffff) 40%, var(--preloader-title-end, #c7d2fe) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-top: 20px;
@@ -87,8 +87,8 @@
         position: absolute;
         top: 0;
         bottom: 0;
-        background: linear-gradient(90deg, transparent, var(--accent, #6366f1), var(--accent-light, #818cf8), transparent);
-        box-shadow: 0 0 10px var(--accent-glow, rgba(99, 102, 241, 0.6));
+        background: linear-gradient(90deg, transparent, var(--preloader-accent, #6366f1), var(--preloader-accent-light, #818cf8), transparent);
+        box-shadow: 0 0 10px var(--preloader-runner-glow, rgba(99, 102, 241, 0.6));
         border-radius: 999px;
         animation: initRunner 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
       }
