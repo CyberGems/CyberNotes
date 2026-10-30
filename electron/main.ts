@@ -2363,22 +2363,26 @@ function createWindow() {
   });
   
 
+  const showOnReady = !process.argv.includes('--hidden');
+  if (showOnReady && isMaximizedVal?.value === 'true') {
+    // maximize() also shows the native window. Keep it transparent until its
+    // first frame is painted at the final size, preserving the normal bounds.
+    mainWindow.setOpacity(0);
+    mainWindow.maximize();
+  }
+
+  mainWindow.once('ready-to-show', () => {
+    if (!showOnReady) return;
+    mainWindow!.setOpacity(1);
+    mainWindow!.show();
+    mainWindow!.focus();
+  });
+
   if (isDev) {
     mainWindow.loadURL(getDevRendererUrl());
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
-
-  mainWindow.once('ready-to-show', () => {
-    // Si se inicia con auto-start, no mostrar la ventana
-    if (process.argv.includes('--hidden')) return;
-
-    if (isMaximizedVal?.value === 'true') {
-      mainWindow?.maximize();
-    }
-    mainWindow!.show();
-    mainWindow!.focus();
-  });
 }
 
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
