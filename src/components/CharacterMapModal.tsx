@@ -9,6 +9,7 @@ import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayS
 import Tooltip from './Tooltip';
 import NativeGlyph from './NativeGlyph';
 import { loadGlyphSupport, SYMBOL_FONT_FAMILY } from '../utils/glyphSupport';
+import { splitPickerText } from '../utils/pickerText';
 
 type CharacterCategory = 'latin' | 'punctuation' | 'brackets' | 'math' | 'currency' | 'arrows' | 'greek' | 'super' | 'shapes' | 'emoji';
 type CharacterFilter = 'all' | 'recent' | CharacterCategory;
@@ -447,11 +448,9 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
 
   const insertBatch = useCallback(() => {
     if (!batchSymbols || !insertText(batchSymbols)) return;
-    if (batchEntries.map(entry => entry.value).join('') === batchSymbols) {
-      rememberCharacters(batchEntries.map(entry => entry.value));
-    }
+    rememberCharacters(splitPickerText(batchSymbols).filter(value => isSupported?.(value)));
     close();
-  }, [batchEntries, batchSymbols, close, insertText, rememberCharacters]);
+  }, [batchSymbols, close, insertText, rememberCharacters, isSupported]);
 
   const copyBatch = useCallback(async () => {
     if (!batchSymbols) return;
@@ -545,6 +544,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
               value={query}
               onChange={event => { setQuery(event.target.value); setActiveIndex(0); }}
               onKeyDown={event => {
+                if (event.nativeEvent.isComposing) return;
                 if (event.key === 'ArrowDown' && filteredEntries.length > 0) {
                   event.preventDefault();
                   setActiveIndex(index => (index + 1) % filteredEntries.length);
@@ -656,6 +656,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
                   setBatchCopyState('idle');
                 }}
                 onKeyDown={event => {
+                  if (event.nativeEvent.isComposing) return;
                   if (event.key === 'Enter') {
                     event.preventDefault();
                     event.stopPropagation();

@@ -11,6 +11,7 @@ import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayS
 import Tooltip from './Tooltip';
 import { EMOJI_FONT_FAMILY, filterSupportedEmojis } from '../utils/emojiSupport';
 import NativeGlyph from './NativeGlyph';
+import { splitPickerText } from '../utils/pickerText';
 
 type EmojiGroup = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type EmojiFilter = 'all' | 'recent' | EmojiGroup;
@@ -38,6 +39,7 @@ const EMOJI_ENTRIES: EmojiEntry[] = EMOJI_CATALOG_ENTRIES.map(([value, es, en, g
   return { value, es, en, group: group as EmojiGroup, search, normalizedSearch: normalizeSearch(searchText) };
 });
 const EMOJI_BY_VALUE = new Map(EMOJI_ENTRIES.map(entry => [entry.value, entry]));
+const EMOJI_BY_BASE_VALUE = new Map(EMOJI_ENTRIES.map(entry => [entry.value.replace(/\ufe0f/g, ''), entry]));
 let compatibleEntriesPromise: Promise<EmojiEntry[]> | null = null;
 let compatibleEntriesCache: EmojiEntry[] | null = null;
 
@@ -125,8 +127,8 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
     try { sessionStorage.setItem(VIEW_SESSION_KEY, JSON.stringify({ category: nextCategory, scrollTop: nextScrollTop })); } catch { /* session storage opcional */ }
   }, []);
 
+  const compatibleValues = useMemo(() => new Set(compatibleEntries?.map(entry => entry.value)), [compatibleEntries]);
   const filteredEntries = useMemo(() => {
-    const compatibleValues = new Set(compatibleEntries?.map(entry => entry.value));
     const source = category === 'recent'
       ? recentEmojis.filter(value => compatibleValues.has(value)).map(value => EMOJI_BY_VALUE.get(value)).filter((entry): entry is EmojiEntry => Boolean(entry))
       : (compatibleEntries || []).filter(entry => category === 'all' || entry.group === category);
@@ -134,7 +136,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
     return normalizedQuery
       ? source.filter(entry => entry.normalizedSearch.includes(normalizedQuery))
       : source;
-  }, [category, query, recentEmojis, compatibleEntries]);
+  }, [category, query, recentEmojis, compatibleEntries, compatibleValues]);
 
   const rememberEmoji = useCallback((value: string) => {
     setRecentEmojis(current => {
@@ -179,11 +181,12 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
 
   const insertBatch = useCallback(() => {
     if (!batchEmojis || !insertText(batchEmojis)) return;
-    if (batchEntries.map(entry => entry.value).join('') === batchEmojis) {
-      batchEntries.forEach(entry => rememberEmoji(entry.value));
+    for (const value of splitPickerText(batchEmojis)) {
+      const entry = EMOJI_BY_VALUE.get(value) || EMOJI_BY_BASE_VALUE.get(value.replace(/\ufe0f/g, ''));
+      if (entry && compatibleValues.has(entry.value)) rememberEmoji(entry.value);
     }
     close();
-  }, [batchEmojis, batchEntries, close, insertText, rememberEmoji]);
+  }, [batchEmojis, close, insertText, rememberEmoji, compatibleValues]);
 
   const copyBatch = useCallback(async () => {
     if (!batchEmojis) return;
@@ -271,6 +274,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
       : EMOJI_GROUPS.find(group => group.id === filter)?.[isSpanish ? 'es' : 'en'];
 
   const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) return;
     if (event.key === 'ArrowDown' && filteredEntries.length > 0) {
       event.preventDefault();
       ensureActiveVisibleRef.current = filteredEntries.length > 1;
@@ -424,7 +428,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
                 </div>
               ) : (
                 <div className="character-map-empty">
-                  {category === 'recent'
+                  {category === 'recent' && !query.trim()
                     ? (isSpanish ? 'Los emojis que insertes aparecerán aquí.' : 'Emojis you insert will appear here.')
                     : (isSpanish ? 'No se encontraron emojis.' : 'No emojis found.')}
                 </div>
@@ -438,7 +442,14 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
                 ref={batchInputRef}
                 value={batchEmojis}
                 onChange={event => { setBatchEmojis(event.target.value); setBatchEntries([]); setCopyState('idle'); }}
-                onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); insertBatch(); } }}
+                onKeyDown={event => {
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    insertBatch();
+                  }
+                }}
                 placeholder={isSpanish ? 'Doble clic en emojis o usa Agregar' : 'Double-click emojis or use Add'}
                 aria-label={isSpanish ? 'Emojis preparados para insertar' : 'Emojis queued for insertion'}
                 autoComplete="off"
