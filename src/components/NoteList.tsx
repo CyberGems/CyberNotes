@@ -11,6 +11,7 @@ import Tooltip from './Tooltip';
 import { EnterGlyph, KeyHint, useModalKeys } from './ModalActions';
 import { useNoteMarquee } from '../hooks/useNoteMarquee';
 import { measureNoteSelectionRects } from '../utils/noteSelection';
+import { NOTE_DROP_RESULT_EVENT, writeNoteDragData, type NoteDropResult } from '../utils/noteDrag';
 
 interface Props {
   language: Language;
@@ -895,6 +896,38 @@ export default function NoteList({
     rowHeight,
   ) : []);
   const { selectedIds, setSelectedIds, clear: clearSelection } = marquee;
+  const [draggedIds, setDraggedIds] = useState<Set<string>>(new Set());
+  const availableNoteIdsRef = useRef(new Set<string>());
+  availableNoteIdsRef.current = new Set(initialNotes.map(note => note.id));
+  useEffect(() => {
+    const finishDrag = () => setDraggedIds(new Set());
+    const dropped = (event: Event) => {
+      const { movedIds, failedIds } = (event as CustomEvent<NoteDropResult>).detail;
+      const moved = new Set(movedIds);
+      setSelectedIds(previous => new Set([
+        ...[...previous].filter(id => !moved.has(id)),
+        ...failedIds.filter(id => availableNoteIdsRef.current.has(id)),
+      ]));
+      setSelectionError(failedIds.length > 0);
+    };
+    window.addEventListener('cybernotes:dragend', finishDrag);
+    window.addEventListener(NOTE_DROP_RESULT_EVENT, dropped);
+    return () => {
+      window.removeEventListener('cybernotes:dragend', finishDrag);
+      window.removeEventListener(NOTE_DROP_RESULT_EVENT, dropped);
+    };
+  }, [setSelectedIds]);
+  const startNoteDrag = (event: React.DragEvent, note: Note) => {
+    if (isTrashFolder) { event.preventDefault(); return; }
+    const ids = selectedIds.has(note.id) ? navigableNotes.filter(item => selectedIds.has(item.id)).map(item => item.id) : [note.id];
+    if (selectedIds.size && !selectedIds.has(note.id)) setSelectedIds(new Set([note.id]));
+    setDraggedIds(new Set(ids));
+    writeNoteDragData(event.dataTransfer, note.id, ids);
+  };
+  const endNoteDrag = () => {
+    setDraggedIds(new Set());
+    window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
+  };
   useEffect(() => {
     if (!selectedIds.size) setSelectionError(false);
   }, [selectedIds.size]);
@@ -1018,6 +1051,9 @@ export default function NoteList({
             note={note}
             folder={folder}
             isSelected={isNoteSelected(note.id)}
+            isDragging={draggedIds.has(note.id)}
+            onDragStart={event => startNoteDrag(event, note)}
+            onDragEnd={endNoteDrag}
             isContextActive={contextMenu?.note.id === note.id}
             isStickyOpen={openStickyIds.includes(note.id)}
             isTrash={isTrashFolder}
@@ -1582,6 +1618,9 @@ export default function NoteList({
                                     folder={folder}
                                     viewMode={viewMode}
                                     isSelected={isNoteSelected(note.id)}
+                                    isDragging={draggedIds.has(note.id)}
+                                    onDragStart={event => startNoteDrag(event, note)}
+                                    onDragEnd={endNoteDrag}
                                     isContextActive={contextMenu?.note.id === note.id}
                                     isStickyOpen={openStickyIds.includes(note.id)}
                                     isTrash={isTrashFolder}
@@ -1618,6 +1657,9 @@ export default function NoteList({
                                 folder={folder}
                                 viewMode={viewMode}
                                 isSelected={isNoteSelected(note.id)}
+                                isDragging={draggedIds.has(note.id)}
+                                onDragStart={event => startNoteDrag(event, note)}
+                                onDragEnd={endNoteDrag}
                                 isContextActive={contextMenu?.note.id === note.id}
                                 isStickyOpen={openStickyIds.includes(note.id)}
                                 isTrash={isTrashFolder}
@@ -1653,6 +1695,9 @@ export default function NoteList({
                             folder={folder}
                             viewMode={viewMode}
                             isSelected={isNoteSelected(note.id)}
+                            isDragging={draggedIds.has(note.id)}
+                            onDragStart={event => startNoteDrag(event, note)}
+                            onDragEnd={endNoteDrag}
                             isContextActive={contextMenu?.note.id === note.id}
                             isStickyOpen={openStickyIds.includes(note.id)}
                             isTrash={isTrashFolder}
@@ -2105,6 +2150,9 @@ interface NoteItemProps {
   folder?: Folder | null;
   viewMode: 'normal' | 'compact' | 'dense';
   isSelected: boolean;
+  isDragging: boolean;
+  onDragStart: (event: React.DragEvent) => void;
+  onDragEnd: () => void;
   isContextActive?: boolean;
   isStickyOpen?: boolean;
   isTrash?: boolean;
@@ -2113,8 +2161,7 @@ interface NoteItemProps {
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isContextActive, isStickyOpen, isTrash = false, onClick, onDelete, onContextMenu }: NoteItemProps) {
-  const [isDragging, setIsDragging] = useState(false);
+const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSelected, isDragging, onDragStart, onDragEnd, isContextActive, isStickyOpen, isTrash = false, onClick, onDelete, onContextMenu }: NoteItemProps) {
   const firstImage = viewMode === 'normal' ? (note.thumb || null) : null;
   const isDense = viewMode === 'dense';
   const t = TRANSLATIONS[language];
@@ -2145,17 +2192,8 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       onClick={onClick}
       onContextMenu={onContextMenu}
       draggable={!isTrash}
-      onDragStart={e => {
-        if (isTrash) return;
-        setIsDragging(true);
-        (e as any).dataTransfer.setData('text/plain', note.id);
-        (e as any).dataTransfer.setData('application/cybernotes-note', note.id);
-        (e as any).dataTransfer.effectAllowed = 'move';
-      }}
-      onDragEnd={() => {
-        setIsDragging(false);
-        window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
-      }}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       style={{
         height: '100%',
         boxSizing: 'border-box',
@@ -2391,6 +2429,9 @@ interface NoteCardProps {
   note: Note;
   folder?: Folder | null;
   isSelected: boolean;
+  isDragging: boolean;
+  onDragStart: (event: React.DragEvent) => void;
+  onDragEnd: () => void;
   isContextActive?: boolean;
   isStickyOpen?: boolean;
   isTrash?: boolean;
@@ -2399,8 +2440,7 @@ interface NoteCardProps {
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, isContextActive, isStickyOpen, isTrash = false, onClick, onDelete, onContextMenu }: NoteCardProps) {
-  const [isDragging, setIsDragging] = useState(false);
+const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, isDragging, onDragStart, onDragEnd, isContextActive, isStickyOpen, isTrash = false, onClick, onDelete, onContextMenu }: NoteCardProps) {
   const t = TRANSLATIONS[language];
   const thumb = note.thumb || null;
   // Papelera: mismo tinte sutil que las filas.
@@ -2414,18 +2454,9 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
       onClick={onClick}
       onContextMenu={onContextMenu}
       draggable={!isTrash}
-      onDragStart={e => {
-        if (isTrash) return;
-        setIsDragging(true);
-        (e as any).dataTransfer.setData('text/plain', note.id);
-        (e as any).dataTransfer.setData('application/cybernotes-note', note.id);
-        (e as any).dataTransfer.effectAllowed = 'move';
-      }}
-      onDragEnd={() => {
-        setIsDragging(false);
-        window.dispatchEvent(new CustomEvent('cybernotes:dragend'));
-      }}
-      className="note-item"
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`note-item${isDragging ? ' is-dragging' : ''}`}
       style={{
         aspectRatio: '1 / 1',
         boxSizing: 'border-box',
