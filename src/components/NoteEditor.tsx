@@ -888,7 +888,7 @@ export function SpellCheckSelect({ language }: { language: Language }) {
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       border: on ? '1px solid var(--accent)' : '1px solid var(--border)',
                       background: on ? 'var(--accent)' : 'transparent',
-                      color: '#fff', fontSize: 10, fontWeight: 800,
+                      color: 'var(--text-on-accent)', fontSize: 10, fontWeight: 800,
                     }}
                   >
                     {on ? '✓' : ''}
@@ -997,7 +997,7 @@ const wordMenuBoxStyle: CSSProperties = {
   borderRadius: 9,
   background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
   border: '1px solid var(--border)',
-  boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+  boxShadow: 'var(--shadow-elevated, 0 10px 28px rgba(0, 0, 0, 0.5))',
   display: 'flex',
   flexDirection: 'column',
   gap: 1,
@@ -1711,7 +1711,7 @@ export function VideoInsertModal({
           />
           <div
             style={{
-              borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0, 0, 0, 0.25)',
+              borderRadius: 8, border: '1px solid var(--border)', background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))',
               aspectRatio: '16 / 9', overflow: 'hidden', display: 'flex',
               alignItems: 'center', justifyContent: 'center', position: 'relative',
             }}
@@ -1732,7 +1732,7 @@ export function VideoInsertModal({
                 {loadedUrl !== parsed.embedUrl && (
                   <div style={{
                     position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center', gap: 10, background: 'rgba(0, 0, 0, 0.45)',
+                    alignItems: 'center', justifyContent: 'center', gap: 10, background: 'var(--inset-bg, rgba(0, 0, 0, 0.45))',
                   }}>
                     <span className="spin" style={{
                       width: 26, height: 26, borderRadius: '50%',
@@ -4993,7 +4993,7 @@ export default function NoteEditor({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 14,
-        background: 'rgba(8, 8, 14, 0.55)',
+        background: 'var(--overlay-bg, rgba(8, 8, 14, 0.55))',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         pointerEvents: 'all',
@@ -5301,7 +5301,7 @@ export default function NoteEditor({
                   background: 'var(--bg-modal)',
                   border: '1px solid var(--border)',
                   borderRadius: 7,
-                  boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+                  boxShadow: 'var(--shadow-elevated, 0 12px 32px rgba(0,0,0,0.45))',
                 }}
                 onMouseDown={event => event.stopPropagation()}
               >
@@ -5338,7 +5338,7 @@ export default function NoteEditor({
                 </button>
                 <button
                   type="button"
-                  style={{ ...itemStyle(), color: '#f87171' }}
+                  style={{ ...itemStyle(), color: 'var(--danger)' }}
                   onClick={() => runAction(() => onRequestDeleteNote?.(tabContextMenu.tabId))}
                   onMouseEnter={event => { event.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'; }}
                   onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
@@ -5465,7 +5465,7 @@ export default function NoteEditor({
               background: 'rgba(239, 68, 68, 0.08)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               fontSize: 'calc(12px * var(--ui-scale))',
-              color: '#fca5a5',
+              color: 'var(--danger-text)',
             }}
           >
             <Trash2 size={13} style={{ flexShrink: 0 }} />
@@ -5859,7 +5859,7 @@ export default function NoteEditor({
                       >                      <MoreHorizontal size={15} />
                         <span style={{
                           position: 'absolute', top: 1, right: 1, minWidth: 13, height: 13,
-                          borderRadius: 7, background: 'var(--accent)', color: '#fff',
+                          borderRadius: 7, background: 'var(--accent)', color: 'var(--text-on-accent)',
                           fontSize: 8.5, fontWeight: 800, lineHeight: '13px', textAlign: 'center',
                           padding: '0 2px',
                         }}>
@@ -5881,7 +5881,7 @@ export default function NoteEditor({
                         ...moreMenuStyle,
                         overflowY: 'auto', padding: 6,
                         borderRadius: 10, background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
-                        border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+                        border: '1px solid var(--border)', boxShadow: 'var(--shadow-elevated, 0 10px 28px rgba(0, 0, 0, 0.5))',
                         display: 'flex', flexDirection: 'column', gap: 2,
                         userSelect: 'none', WebkitUserSelect: 'none',
                       }}>
@@ -5949,7 +5949,7 @@ export default function NoteEditor({
             style={{
               position: 'fixed', left: toolbarMenu.x, top: toolbarMenu.y, zIndex: WORD_MENU_Z,
               minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
-              border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+              border: '1px solid var(--border)', boxShadow: 'var(--shadow-elevated, 0 10px 28px rgba(0, 0, 0, 0.5))',
               display: 'flex', flexDirection: 'column', gap: 1,
               userSelect: 'none', WebkitUserSelect: 'none',
             }}>
@@ -6046,9 +6046,9 @@ export default function NoteEditor({
               onMouseDown={(e) => e.preventDefault()}
               style={{
                 display: 'flex', alignItems: 'center', gap: 2, padding: 5,
-                borderRadius: 10, background: 'rgba(10, 10, 18, 0.96)',
+                borderRadius: 10, background: 'rgba(var(--editor-menu-rgb, 10, 10, 18), 0.96)',
                 border: '1px solid var(--border)',
-                boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+                boxShadow: 'var(--shadow-elevated, 0 10px 28px rgba(0, 0, 0, 0.5))',
               }}
             >
               <ToolbarBtn tooltipSide="top" onClick={() => editor.chain().focus().toggleBold().run()} active={ui.bold} title={language === 'es' ? 'Negrita (Ctrl+B)' : 'Bold (Ctrl+B)'}><Bold size={14} /></ToolbarBtn>
@@ -6089,7 +6089,7 @@ export default function NoteEditor({
                 left: 0,
                 right: 0,
                 zIndex: 20,
-                background: 'rgba(10, 10, 18, 0.92)',
+                background: 'rgba(var(--editor-menu-rgb, 10, 10, 18), 0.92)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
                 borderTop: '1px solid var(--border)',
@@ -6098,7 +6098,7 @@ export default function NoteEditor({
                 alignItems: 'center',
                 gap: 12,
                 padding: '8px 16px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                boxShadow: 'var(--shadow-elevated, 0 4px 20px rgba(0,0,0,0.5))',
               }}
             >
               <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>{language === 'es' ? 'Imagen:' : 'Image:'}</span>
@@ -6119,7 +6119,7 @@ export default function NoteEditor({
                       padding: '4px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4,
                       border: '1px solid var(--border)', cursor: 'pointer',
                       background: ui.imageWidth === size ? 'var(--accent)' : 'transparent',
-                      color: ui.imageWidth === size ? '#fff' : 'var(--text-muted)',
+                      color: ui.imageWidth === size ? 'var(--text-on-accent)' : 'var(--text-muted)',
                     }}
                   >
                     {size}
@@ -6157,7 +6157,7 @@ export default function NoteEditor({
                 left: 0,
                 right: 0,
                 zIndex: 20,
-                background: 'rgba(10, 10, 18, 0.92)',
+                background: 'rgba(var(--editor-menu-rgb, 10, 10, 18), 0.92)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
                 borderTop: '1px solid var(--border)',
@@ -6166,7 +6166,7 @@ export default function NoteEditor({
                 alignItems: 'center',
                 gap: 12,
                 padding: '8px 16px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                boxShadow: 'var(--shadow-elevated, 0 4px 20px rgba(0,0,0,0.5))',
               }}
             >
               <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>{language === 'es' ? 'Tabla:' : 'Table:'}</span>
@@ -6231,9 +6231,9 @@ export default function NoteEditor({
               gap: 4,
               padding: 6,
               borderRadius: 10,
-              background: 'rgba(10, 10, 18, 0.96)',
+              background: 'rgba(var(--editor-menu-rgb, 10, 10, 18), 0.96)',
               border: '1px solid var(--border)',
-              boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+              boxShadow: 'var(--shadow-elevated, 0 10px 28px rgba(0, 0, 0, 0.5))',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -6479,7 +6479,7 @@ export default function NoteEditor({
           top: 0,
           bottom: 0,
           width: showMinimap ? MINIMAP_WIDTH : 0,
-          background: 'rgba(8, 8, 16, 0.85)',
+          background: 'rgba(var(--minimap-rgb, 8, 8, 16), 0.85)',
           borderLeft: showMinimap ? '1px solid var(--border)' : '1px solid transparent',
           overflow: 'hidden',
           cursor: showMinimap ? 'pointer' : 'default',
@@ -6519,10 +6519,10 @@ export default function NoteEditor({
             left: 0,
             right: 0,
             display: 'none', // se muestra vía updateMinimapIndicator()
-            background: 'var(--accent)',
-            opacity: 0.15,
-            borderTop: '1px solid var(--accent)',
-            borderBottom: '1px solid var(--accent)',
+            background: 'var(--minimap-viewport-bg, var(--accent))',
+            opacity: 'var(--minimap-viewport-opacity, 0.15)',
+            borderTop: '1px solid var(--minimap-viewport-border, var(--accent))',
+            borderBottom: '1px solid var(--minimap-viewport-border, var(--accent))',
             cursor: isDragging ? 'grabbing' : 'grab',
             pointerEvents: 'auto',
             transition: 'none',
@@ -6547,7 +6547,7 @@ export default function NoteEditor({
               borderRadius: 'var(--radius-sm)',
               padding: 6,
               zIndex: 100001,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-elevated, 0 8px 32px rgba(0,0,0,0.5))',
               minWidth: 160,
               display: 'flex',
               flexDirection: 'column',
@@ -6597,7 +6597,7 @@ export default function NoteEditor({
               borderRadius: 'var(--radius-sm)',
               padding: 6,
               zIndex: 100001,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-elevated, 0 8px 32px rgba(0,0,0,0.5))',
               minWidth: 170,
               display: 'flex',
               flexDirection: 'column',
@@ -6980,7 +6980,7 @@ export default function NoteEditor({
             style={{
               position: 'fixed', left: videoMenu.x, top: videoMenu.y, zIndex: WORD_MENU_Z,
               minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
-              border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
+              border: '1px solid var(--border)', boxShadow: 'var(--shadow-elevated, 0 10px 28px rgba(0, 0, 0, 0.5))',
               display: 'flex', flexDirection: 'column', gap: 1,
               userSelect: 'none', WebkitUserSelect: 'none',
             }}
@@ -7055,7 +7055,7 @@ export default function NoteEditor({
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
                 fontSize: 12, borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
-                color: '#f87171',
+                color: 'var(--danger)',
               }}
             >
               <Trash2 size={13} style={{ flexShrink: 0 }} />
@@ -7095,7 +7095,7 @@ export default function NoteEditor({
               borderRadius: 'var(--radius-sm)',
               padding: 6,
               zIndex: 100000,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-elevated, 0 8px 32px rgba(0,0,0,0.5))',
               minWidth: 160,
               display: 'flex',
               flexDirection: 'column',
@@ -7444,7 +7444,7 @@ export default function NoteEditor({
           <div style={{
             background: 'var(--bg-modal)', padding: 24, borderRadius: 'var(--radius-lg)',
             width: 400, display: 'flex', flexDirection: 'column', gap: 16, border: '1px solid var(--border)',
-            boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+            boxShadow: 'var(--shadow-elevated, 0 16px 40px rgba(0,0,0,0.4))',
           }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 600 }}>{language === 'es' ? 'Editar enlace' : 'Edit link'}</h3>
             <input
@@ -7530,7 +7530,7 @@ export default function NoteEditor({
                   borderRadius: 12,
                   fontSize: 13,
                   fontWeight: 600,
-                  boxShadow: '0 12px 32px rgba(0,0,0,0.42), 0 0 18px color-mix(in srgb, var(--accent-glow) 55%, transparent)',
+                  boxShadow: 'var(--shadow-elevated, 0 12px 32px rgba(0,0,0,0.42), 0 0 18px color-mix(in srgb, var(--accent-glow) 55%, transparent))',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
@@ -7591,11 +7591,11 @@ export default function NoteEditor({
                 className="glass-effect"
                 style={{
                   width: 'calc(420px * var(--ui-scale))',
-                  background: 'rgba(15, 15, 22, 0.95)',
+                  background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
                   border: '1px solid rgba(234, 88, 12, 0.3)',
                   borderRadius: 'var(--radius-lg)',
                   padding: '24px 28px',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05)',
+                  boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05))',
                   display: 'flex', flexDirection: 'column', gap: 20,
                 }}
                 onClick={e => e.stopPropagation()}

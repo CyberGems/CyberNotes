@@ -11,6 +11,7 @@ import { initLogger, writeLog, logRendererError } from './logger';
 import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish } from '../shared/lang';
+import { getThemeVars, normalizeThemeId } from '../src/themes';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, isBackupFile, selectBackupsToPrune } from '../shared/backup';
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
@@ -1663,6 +1664,9 @@ const SUITE_SHORT: Record<string, { es: string; en: string }> = {
 };
 
 function buildTrayMenuState() {
+  const theme = normalizeThemeId(queryGet('SELECT value FROM settings WHERE key = ?', ['theme'])?.value);
+  const savedIntensity = Number(queryGet('SELECT value FROM settings WHERE key = ?', ['colorIntensity'])?.value ?? 50);
+  const intensity = Number.isFinite(savedIntensity) ? Math.max(0, Math.min(100, savedIntensity)) : 50;
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
   const lang = langVal?.value || 'en';
   const isEs = isSpanish(lang);
@@ -1680,6 +1684,8 @@ function buildTrayMenuState() {
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
+    theme,
+    themeVars: getThemeVars(theme, intensity),
     lang: isEs ? 'es' : 'en',
     visible,
     canLock,
@@ -3083,7 +3089,7 @@ ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
       win.webContents.send('setting-changed', { key, value: normalizedValue });
     }
   });
-  if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled') {
+  if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled' || key === 'theme' || key === 'colorIntensity') {
     if (key === 'toggle_hotkey_enabled') {
       registerToggleHotkey();
     }

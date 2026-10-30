@@ -34,9 +34,13 @@ const ACCENTS: Record<DialogVariant, string> = {
   success: '#10b981',
 };
 
+function dialogAccent(variant: DialogVariant) {
+  return `color-mix(in srgb, ${ACCENTS[variant]} var(--status-color-share, 100%), var(--text-primary))`;
+}
+
 function VariantIcon({ variant }: { variant: DialogVariant }) {
-  const color = ACCENTS[variant];
-  const common = { size: 22, color, style: { filter: `drop-shadow(0 0 6px ${color}99)` } };
+  const color = dialogAccent(variant);
+  const common = { size: 22, color, style: { filter: `drop-shadow(0 0 6px color-mix(in srgb, ${color} 60%, transparent))` } };
   if (variant === 'warning') return <AlertTriangle {...common} />;
   if (variant === 'success') return <CheckCircle2 {...common} />;
   return <Info {...common} />;
@@ -46,7 +50,7 @@ export default function ConfirmDialog({
   language, message, title, confirm = false, variant = 'info',
   confirmLabel, cancelLabel, onResolve,
 }: Props) {
-  const accent = ACCENTS[variant];
+  const accent = dialogAccent(variant);
   const okText = confirmLabel ?? (confirm
     ? (language === 'es' ? 'Continuar' : 'Continue')
     : (language === 'es' ? 'Aceptar' : 'OK'));
@@ -69,11 +73,11 @@ export default function ConfirmDialog({
         className="glass-effect"
         style={{
           width: 'calc(400px * var(--ui-scale))',
-          background: 'rgba(15, 15, 22, 0.95)',
-          border: `1px solid ${accent}4d`,
+          background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
+          border: `1px solid color-mix(in srgb, ${accent} 30%, transparent)`,
           borderRadius: 'var(--radius-lg)',
           padding: '24px 28px',
-          boxShadow: `0 20px 50px rgba(0,0,0,0.6), 0 0 30px ${accent}0d`,
+          boxShadow: `var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px color-mix(in srgb, ${accent} 5%, transparent))`,
           display: 'flex', flexDirection: 'column', gap: 20,
         }}
         onClick={e => e.stopPropagation()}
@@ -81,7 +85,7 @@ export default function ConfirmDialog({
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
           <div style={{
             width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-            background: `${accent}1a`, border: `1px solid ${accent}4d`,
+            background: `color-mix(in srgb, ${accent} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 30%, transparent)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <VariantIcon variant={variant} />

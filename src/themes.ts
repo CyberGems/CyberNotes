@@ -56,6 +56,24 @@ export const THEMES: ThemeColors[] = [
       '--folder-count-text': '#ffffff',
       '--badge-glow-size': '6px',
       '--badge-color-share': '100%',
+      '--dialog-rgb': '15,15,22',
+      // CSS-wide initial keeps each surface's original dark fallback.
+      '--overlay-bg': 'initial',
+      '--inset-bg': 'initial',
+      '--shadow-elevated': 'initial',
+      '--switch-off-bg': '#5e6672',
+      '--switch-off-thumb': '#12161e',
+      '--switch-off-border': 'transparent',
+      '--minimap-rgb': '8,8,16',
+      '--minimap-viewport-bg': 'var(--accent)',
+      '--minimap-viewport-opacity': '0.15',
+      '--minimap-viewport-border': 'var(--accent)',
+      '--status-color-share': '100%',
+      '--danger': '#ef4444',
+      '--danger-dim': 'rgba(239,68,68,0.15)',
+      '--danger-text': '#fca5a5',
+      '--danger-hover-text': '#ffffff',
+      '--danger-fill-text': '#ffffff',
       '--pulse-1': '#6477d9',
       '--pulse-2': '#8c70d8',
       '--pulse-3': '#7064d8',
@@ -104,6 +122,24 @@ export const THEMES: ThemeColors[] = [
       '--folder-count-text': '#e5e5e5',
       '--badge-glow-size': '0px',
       '--badge-color-share': '0%',
+      '--dialog-rgb': '30,30,30',
+      // CSS-wide initial keeps each surface's original dark fallback.
+      '--overlay-bg': 'initial',
+      '--inset-bg': 'initial',
+      '--shadow-elevated': 'initial',
+      '--switch-off-bg': '#666666',
+      '--switch-off-thumb': '#161616',
+      '--switch-off-border': 'transparent',
+      '--minimap-rgb': '24,24,24',
+      '--minimap-viewport-bg': 'var(--accent)',
+      '--minimap-viewport-opacity': '0.15',
+      '--minimap-viewport-border': 'var(--accent)',
+      '--status-color-share': '100%',
+      '--danger': '#b3b3b3',
+      '--danger-dim': 'rgba(179,179,179,0.15)',
+      '--danger-text': '#ededed',
+      '--danger-hover-text': '#ffffff',
+      '--danger-fill-text': '#111111',
       '--pulse-1': '#8a8a8a',
       '--pulse-2': '#a0a0a0',
       '--pulse-3': '#909090',
@@ -152,6 +188,23 @@ export const THEMES: ThemeColors[] = [
       '--folder-count-text': '#24243a',
       '--badge-glow-size': '0px',
       '--badge-color-share': '55%',
+      '--dialog-rgb': '255,255,255',
+      '--overlay-bg': 'rgba(32,36,48,0.28)',
+      '--inset-bg': '#f3f4f8',
+      '--shadow-elevated': '0 16px 40px rgba(30,34,48,0.16)',
+      '--switch-off-bg': '#d1d5de',
+      '--switch-off-thumb': '#5a6270',
+      '--switch-off-border': '#939ba8',
+      '--minimap-rgb': '241,243,248',
+      '--minimap-viewport-bg': 'rgba(106,96,160,0.12)',
+      '--minimap-viewport-opacity': '1',
+      '--minimap-viewport-border': '#6a60a0',
+      '--status-color-share': '75%',
+      '--danger': '#b42318',
+      '--danger-dim': 'rgba(180,35,24,0.10)',
+      '--danger-text': '#a91f27',
+      '--danger-hover-text': '#a91f27',
+      '--danger-fill-text': '#ffffff',
       '--pulse-1': '#5a8a8a',
       '--pulse-2': '#8a6a8a',
       '--pulse-3': '#7a5a9a',
@@ -233,15 +286,21 @@ export function getPreviewColor(themeId: string, intensity: number = 50): string
   return isColorfulTheme(theme.id) ? scaleColor(theme.preview, 0.35 + (intensity / 100) * 1.3) : theme.preview;
 }
 
+/** Shared palette for renderer surfaces and the independent tray window. */
+export function getThemeVars(themeId: string, intensity: number = 50): Record<string, string> {
+  const theme = THEMES.find(t => t.id === normalizeThemeId(themeId))!;
+  const mult = 0.35 + (intensity / 100) * 1.3;
+  return Object.fromEntries(Object.entries(theme.vars).map(([key, value]) => [
+    key, isColorfulTheme(theme.id) ? scaleColor(value, mult) : value,
+  ]));
+}
+
 export function applyThemeVars(themeId: string, intensity: number = 50) {
   const theme = THEMES.find(t => t.id === normalizeThemeId(themeId))!;
-  let root = document.documentElement;
-  let mult = 0.35 + (intensity / 100) * 1.3;
-  for (let [key, value] of Object.entries(theme.vars)) {
-    root.style.setProperty(key, isColorfulTheme(theme.id) ? scaleColor(value, mult) : value);
+  const root = document.documentElement;
+  for (const [key, value] of Object.entries(getThemeVars(theme.id, intensity))) {
+    root.style.setProperty(key, value);
   }
   root.dataset.theme = theme.id;
-  // Esquema nativo de controles: sin esto, los popups de <select> se pintan
-  // sin fondo en ventanas transparentes y se ve la página a traves del menu.
   root.style.colorScheme = theme.colorScheme;
 }

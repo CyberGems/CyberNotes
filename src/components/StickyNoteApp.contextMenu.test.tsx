@@ -93,4 +93,42 @@ describe('floating note title context menu', () => {
       container.remove();
     }
   });
+
+  it.each(['es', 'en'])('uses shared delete actions with working Esc and Enter in %s', async language => {
+    const deleteNote = vi.fn().mockResolvedValue(true);
+    Object.defineProperty(window, 'cyberNotesAPI', {
+      configurable: true,
+      value: {
+        getSettings: vi.fn().mockResolvedValue({ theme: 'light', language }),
+        isSessionLocked: vi.fn().mockResolvedValue(false),
+        getStickyConfig: vi.fn().mockResolvedValue({ opacity: 1 }),
+        getNoteById: vi.fn().mockResolvedValue(note),
+        setStickyWindowChrome: vi.fn(), deleteNote,
+        onNoteUpdated: () => () => {}, onNoteDeleted: () => () => {},
+        onForceLock: () => () => {}, onContextMenuData: () => () => {},
+      },
+    });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      await act(async () => root.render(<StickyNoteApp noteId={note.id} />));
+      const buttons = container.querySelectorAll<HTMLButtonElement>('.sticky-note-footer button');
+      const openDelete = () => act(async () => buttons[buttons.length - 1].click());
+      await openDelete();
+      expect(container.querySelector('.modal-actions .is-cancel kbd')?.textContent).toBe('Esc');
+      expect(container.querySelector('.modal-actions .is-danger .modal-key-glyph')).not.toBeNull();
+      await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+      expect(container.querySelector('.modal-actions')).toBeNull();
+      expect(deleteNote).not.toHaveBeenCalled();
+      await openDelete();
+      await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })));
+      expect(deleteNote).toHaveBeenCalledExactlyOnceWith(note.id);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      document.documentElement.removeAttribute('style');
+      delete document.documentElement.dataset.theme;
+    }
+  });
 });

@@ -1826,7 +1826,7 @@ export default function NoteList({
             borderRadius: 'var(--radius-sm)',
             padding: 4,
             zIndex: 100000,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            boxShadow: 'var(--shadow-elevated, 0 8px 24px rgba(0,0,0,0.5))',
             minWidth: 140,
             display: 'flex',
             flexDirection: 'column',
@@ -1969,7 +1969,7 @@ export default function NoteList({
           <div style={{
             background: 'var(--bg-modal)', padding: 24, borderRadius: 'var(--radius-lg)',
             width: 400, display: 'flex', flexDirection: 'column', gap: 16, border: '1px solid var(--border)',
-            boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+            boxShadow: 'var(--shadow-elevated, 0 16px 40px rgba(0,0,0,0.4))',
           }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 600 }}>{language === 'es' ? 'Renombrar nota' : 'Rename note'}</h3>
             <input
@@ -2010,14 +2010,14 @@ export default function NoteList({
       {/* Modal Confirmar Eliminar Nota */}
       {noteToDelete && createPortal(
         <div data-leave-guard="modal" style={{
-          position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.72)',
+          position: 'fixed', inset: 0, background: 'var(--overlay-bg, rgba(5, 5, 8, 0.72))',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
         }} onClick={() => { if (!deleteBusy) setNoteToDelete(null); }}>
           <div style={{
             background: 'var(--bg-modal)', padding: '24px 32px', borderRadius: 'var(--radius-lg)',
             width: 380, display: 'flex', flexDirection: 'column', gap: 20, border: '1px solid var(--border)',
-            boxShadow: '0 24px 48px rgba(0,0,0,0.6), 0 0 24px var(--accent-glow)',
+            boxShadow: 'var(--shadow-elevated, 0 24px 48px rgba(0,0,0,0.6), 0 0 24px var(--accent-glow))',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
@@ -2117,14 +2117,14 @@ export default function NoteList({
 
       {showEmptyTrashConfirm && createPortal(
         <div data-leave-guard="modal" style={{
-          position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.72)',
+          position: 'fixed', inset: 0, background: 'var(--overlay-bg, rgba(5, 5, 8, 0.72))',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000000,
         }} onClick={() => setShowEmptyTrashConfirm(false)}>
           <div style={{
             background: 'var(--bg-modal)', padding: '24px 32px', borderRadius: 'var(--radius-lg)',
             width: 380, display: 'flex', flexDirection: 'column', gap: 20, border: '1px solid var(--border)',
-            boxShadow: '0 24px 48px rgba(0,0,0,0.6), 0 0 24px var(--danger-dim)',
+            boxShadow: 'var(--shadow-elevated, 0 24px 48px rgba(0,0,0,0.6), 0 0 24px var(--danger-dim))',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
@@ -2250,7 +2250,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 0, flex: viewMode === 'normal' ? 1 : undefined }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isDense ? 4 : 6, marginBottom: viewMode === 'normal' ? 4 : 2, flexShrink: 0, paddingRight: isDense && folder ? 56 : 28 }}>
-            {isTrash && <Trash2 size={13} color="#f87171" style={{ flexShrink: 0 }} />}
+            {isTrash && <Trash2 size={13} color="var(--danger)" style={{ flexShrink: 0 }} />}
             {note.pinned === 1 && <Star size={13} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" style={{ flexShrink: 0 }} />}
             {isStickyOpen && (
               <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
@@ -2420,7 +2420,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
             width: isDense ? 18 : viewMode === 'compact' ? 22 : 26,
             height: isDense ? 18 : viewMode === 'compact' ? 22 : 26,
             borderRadius: '50%',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            boxShadow: 'var(--shadow-elevated, 0 4px 12px rgba(0, 0, 0, 0.4))',
             padding: 0,
           }}
         >
@@ -2544,7 +2544,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
           fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600,
           color: 'var(--text-primary)', lineHeight: 1.25, minWidth: 0,
         }}>
-          {isTrash && <Trash2 size={13} color="#f87171" style={{ flexShrink: 0 }} />}
+          {isTrash && <Trash2 size={13} color="var(--danger)" style={{ flexShrink: 0 }} />}
           {note.pinned === 1 && <Star size={13} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" style={{ flexShrink: 0 }} />}
           {isStickyOpen && (
             <Tooltip placement="bottom" delay={450} label={t.noteList.stickyActive}>
@@ -2605,7 +2605,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
             width: 24,
             height: 24,
             borderRadius: '50%',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            boxShadow: 'var(--shadow-elevated, 0 4px 12px rgba(0, 0, 0, 0.4))',
             padding: 0,
           }}
         >

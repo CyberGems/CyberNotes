@@ -405,7 +405,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
         maxWidth: 'calc(100vw - 48px)',
         background: 'linear-gradient(145deg, var(--bg-modal), var(--bg-surface))',
         border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-        boxShadow: '0 14px 36px rgba(0, 0, 0, 0.55), 0 0 16px var(--accent-glow)',
+        boxShadow: 'var(--shadow-elevated, 0 14px 36px rgba(0, 0, 0, 0.55), 0 0 16px var(--accent-glow))',
         borderRadius: 12,
         padding: '14px 16px',
         display: 'flex',
@@ -635,7 +635,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
               style={{
                 padding: '6px 10px',
                 borderRadius: 6,
-                background: 'rgba(0, 0, 0, 0.25)',
+                background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))',
                 border: '1px solid var(--border)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: 10.5,

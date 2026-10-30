@@ -349,3 +349,46 @@ html, body {
   height: 18px;
   border-radius: 4px;
 }
+
+/* The independent tray window receives the same palette as the editor. */
+:root:is([data-theme="light"], [data-theme="graphite"]) {
+  .card {
+    background: var(--bg-modal);
+    border-color: var(--border);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-elevated, 0 10px 32px rgba(0, 0, 0, 0.55));
+  }
+  .head, .head-back, .head-suite-back, .shortcut, .sub-desc, .trailing-icon {
+    color: var(--text-secondary);
+  }
+  .head-title, .label, .item:hover .label, .head:hover,
+  .head-back:hover, .head-suite-back:hover, .head-brand:hover,
+  .item:hover .shortcut, .item:hover .sub-desc, .item:hover .trailing-icon {
+    color: var(--text-primary);
+  }
+  .icon, .head-brand, .item.pill-action, .item.pill-action .icon,
+  .item:not(.danger):not(.donate):hover .icon {
+    color: var(--accent-light);
+  }
+  .item.danger .icon, .item.danger:hover .icon { color: var(--danger); }
+  .item.donate .icon, .item.donate:hover .icon {
+    color: color-mix(in srgb, var(--danger) 75%, var(--accent-light));
+  }
+  .divider, .submenu-divider { background: var(--border); }
+  .head-suite-back, .shortcut {
+    background: var(--bg-input);
+    border-color: var(--border);
+  }
+  .item:hover, .head-back:hover, .head-suite-back:hover {
+    background: var(--bg-hover);
+  }
+  .item:active { background: var(--bg-active); }
+  .head-suite-back:hover, .item:hover .shortcut { border-color: var(--accent); }
+  .item.pill-action {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+  }
+  .item.pill-action:hover { background: var(--bg-active); }
+  .icon svg, .icon img.app-icon, .brand-logo, .head-brand:hover .brand-logo,
+  .head-icon, .head:hover .head-icon { filter: none; }
+}

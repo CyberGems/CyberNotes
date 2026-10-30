@@ -24,6 +24,7 @@ import { CustomTextStyle, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed }
 import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 import Tooltip from './Tooltip';
 import GlobalErrorToast from './GlobalErrorToast';
+import { EnterGlyph, KeyHint, useModalKeys } from './ModalActions';
 import {
   Pin,
   Palette,
@@ -861,6 +862,12 @@ export default function StickyNoteApp({ noteId }: Props) {
     await window.cyberNotesAPI.deleteNote(noteId);
   };
 
+  useModalKeys({
+    enabled: showDeleteConfirm && !isSessionLocked,
+    onEsc: () => setShowDeleteConfirm(false),
+    onEnter: () => { void handleDeleteNote(); },
+  });
+
   const endStickyWindowDrag = useCallback(() => {
     dragCleanupRef.current?.();
     dragCleanupRef.current = null;
@@ -1299,13 +1306,13 @@ export default function StickyNoteApp({ noteId }: Props) {
                   right: 0,
                   marginTop: 6,
                   zIndex: 100,
-                  background: '#12121a',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  background: 'var(--bg-modal)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: 6,
                   display: 'flex',
                   gap: 6,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  boxShadow: 'var(--shadow-elevated, 0 8px 24px rgba(0,0,0,0.6))',
                   transition: 'background 0.2s ease, border-color 0.2s ease',
                 }}
                 onMouseLeave={() => setHoveredColor(null)}
@@ -1328,7 +1335,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                         height: 20,
                         borderRadius: '50%',
                         background: meta.accent,
-                        border: isSelected ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.2)',
+                        border: isSelected ? '2px solid var(--text-primary)' : '1px solid var(--border)',
                         boxShadow: isSelected || isHovered ? `0 0 10px ${meta.accent}` : 'none',
                         cursor: 'pointer',
                         padding: 0,
@@ -1381,14 +1388,14 @@ export default function StickyNoteApp({ noteId }: Props) {
                   right: 0,
                   marginTop: 6,
                   zIndex: 100,
-                  background: '#12121a',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  background: 'var(--bg-modal)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: 4,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 2,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  boxShadow: 'var(--shadow-elevated, 0 8px 24px rgba(0,0,0,0.6))',
                   minWidth: 80,
                 }}
                 onMouseLeave={() => setHoveredOpacity(null)}
@@ -1400,8 +1407,8 @@ export default function StickyNoteApp({ noteId }: Props) {
                     onClick={() => handleSelectOpacity(op)}
                     onMouseEnter={() => setHoveredOpacity(op)}
                     style={{
-                      background: opacity === op ? colorMeta.accentGlow : 'transparent',
-                      color: opacity === op ? colorMeta.accent : 'rgba(255,255,255,0.7)',
+                      background: opacity === op ? 'var(--accent-dim)' : 'transparent',
+                      color: opacity === op ? 'var(--accent-light)' : 'var(--text-secondary)',
                       border: 'none',
                       borderRadius: 4,
                       padding: '4px 8px',
@@ -1560,7 +1567,7 @@ export default function StickyNoteApp({ noteId }: Props) {
             role="menuitem"
             onMouseDown={() => { setContextMenu(null); setShowDeleteConfirm(true); }}
           >
-            <Trash2 size={13} style={{ color: '#f87171' }} />
+            <Trash2 size={13} style={{ color: 'var(--danger)' }} />
             <span>{t.general.delete}</span>
           </button>
         </div>
@@ -1605,7 +1612,7 @@ export default function StickyNoteApp({ noteId }: Props) {
                   (window.cyberNotesAPI as any)?.addToDictionary?.(titleMenu.misspelledWord!);
                   setTitleMenu(null);
                 }}
-                style={{ color: '#4ade80' }}
+                style={{ color: 'var(--success)' }}
               >
                 <BookPlus size={13} />
                 <span>{language === 'es' ? `Agregar "${titleMenu.misspelledWord}" al diccionario` : `Add "${titleMenu.misspelledWord}" to dictionary`}</span>
@@ -1727,7 +1734,7 @@ export default function StickyNoteApp({ noteId }: Props) {
               setTitleMenu(null);
             }}
           >
-            <Trash2 size={13} style={{ color: '#f87171' }} />
+            <Trash2 size={13} style={{ color: 'var(--danger)' }} />
             <span>{t.general.delete}</span>
           </button>
         </div>
@@ -1960,7 +1967,8 @@ export default function StickyNoteApp({ noteId }: Props) {
             position: 'absolute',
             inset: 0,
             zIndex: 110,
-            background: 'rgba(8, 8, 14, 0.85)',
+            background: 'var(--bg-modal)',
+            color: 'var(--text-primary)',
             backdropFilter: 'blur(6px)',
             display: 'flex',
             flexDirection: 'column',
@@ -1972,20 +1980,22 @@ export default function StickyNoteApp({ noteId }: Props) {
           }}
         >
           <span style={{ fontSize: 13, fontWeight: 600 }}>{t.noteList.deleteConfirm}</span>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="modal-actions" style={{ flexWrap: 'wrap' }}>
             <button
-              className="btn btn-ghost sticky-note-button"
+              type="button"
+              className="modal-action-btn is-cancel"
               onClick={() => setShowDeleteConfirm(false)}
-              style={{ fontSize: 12, padding: '4px 10px' }}
             >
               {t.general.cancel}
+              <KeyHint>Esc</KeyHint>
             </button>
             <button
-              className="btn btn-danger sticky-note-button"
+              type="button"
+              className="modal-action-btn is-danger"
               onClick={handleDeleteNote}
-              style={{ fontSize: 12, padding: '4px 10px' }}
             >
               {t.general.delete}
+              <EnterGlyph />
             </button>
           </div>
         </div>

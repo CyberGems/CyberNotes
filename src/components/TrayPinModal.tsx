@@ -90,7 +90,7 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
           background: 'var(--bg-modal)',
           border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
           borderRadius: 'var(--radius-lg, 12px)',
-          boxShadow: '0 20px 48px rgba(0, 0, 0, 0.55)',
+          boxShadow: 'var(--shadow-elevated, 0 20px 48px rgba(0, 0, 0, 0.55))',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -297,10 +297,10 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
             <div
               style={{
                 fontSize: 11.5,
-                color: '#ef4444',
+                color: 'var(--danger)',
                 padding: '8px 12px',
                 borderRadius: '6px',
-                background: 'rgba(239, 68, 68, 0.1)',
+                background: 'var(--danger-dim)',
                 border: '1px solid rgba(239, 68, 68, 0.25)',
               }}
             >

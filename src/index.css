@@ -52,6 +52,15 @@
   --warning:       #f59e0b;
 }
 
+:root[data-theme="light"] {
+  --success: #147d43;
+  --warning: #936000;
+}
+:root[data-theme="graphite"] {
+  --success: #b3b3b3;
+  --warning: #b3b3b3;
+}
+
 /* ── Theme colors now applied via JS (src/themes.ts → App.tsx) ── */
 
 /* ─── Base ─────────────────────────────────────────────────── */
@@ -234,7 +243,7 @@ body:has(.sticky-note-window),
 }
 .btn-danger:hover {
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-fill-text, #fff);
 }
 
 .btn-icon {
@@ -488,20 +497,20 @@ body:has(.sticky-note-window),
   box-shadow: 0 0 16px var(--accent-glow);
 }
 .modal-action-btn.is-danger {
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: var(--danger-text, #fca5a5);
+  border: 1px solid color-mix(in srgb, var(--danger) 50%, transparent);
 }
 .modal-action-btn.is-danger:hover {
-  background: rgba(239, 68, 68, 0.14);
-  border-color: #ef4444;
-  color: #fff;
+  background: var(--danger-dim);
+  border-color: var(--danger);
+  color: var(--danger-hover-text, #fff);
 }
 .modal-action-btn:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 75%, transparent);
   outline-offset: 2px;
 }
 .modal-action-btn.is-danger:focus-visible {
-  outline-color: rgba(239, 68, 68, 0.75);
+  outline-color: color-mix(in srgb, var(--danger) 75%, transparent);
 }
 /* Hint de tecla unificado estilo suite: chip kbd translúcido que hereda el
    color del botón (texto o glifo Enter). */
@@ -515,8 +524,8 @@ body:has(.sticky-note-window),
   line-height: 1;
   padding: 3px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
   color: inherit;
   opacity: 0.9;
   margin-left: 5px;
@@ -676,7 +685,7 @@ select option {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(5, 6, 12, 0.7);
+  background: var(--overlay-bg, rgba(5, 6, 12, 0.7));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   animation: welcomeNameOverlayIn 0.25s ease-out both;
@@ -693,7 +702,7 @@ select option {
   background: var(--bg-modal);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 28px var(--accent-glow);
+  box-shadow: var(--shadow-elevated, 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 28px var(--accent-glow));
   animation: welcomeNameCardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -1226,7 +1235,7 @@ select option {
 /* Minimapa: los iframes se reemplazan por marcador (ver syncMinimapHtml). */
 .minimap-media-ph {
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--inset-bg, rgba(0, 0, 0, 0.4));
   border: 1px solid var(--border);
   color: var(--text-muted);
   display: flex;
@@ -1341,12 +1350,12 @@ select option {
   min-width: 44px;
   flex-shrink: 0;
   height: 24px;
-  background: #5e6672;
+  background: var(--switch-off-bg, #5e6672);
   border: none;
   border-radius: 20px;
   cursor: pointer;
   transition: background-color 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 0 0 1px var(--switch-off-border, transparent), inset 0 1px 3px rgba(0, 0, 0, 0.25);
   user-select: none;
 }
 
@@ -1359,7 +1368,7 @@ select option {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #12161e;
+  background: var(--switch-off-thumb, #12161e);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   transition: left 0.2s ease, background-color 0.2s ease;
 }
@@ -1797,7 +1806,7 @@ html.tab-dragging * {
 .panel-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.55));
   z-index: 9998;
   display: flex;
   justify-content: flex-end;
@@ -1811,7 +1820,7 @@ html.tab-dragging * {
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-elevated, -16px 0 48px rgba(0, 0, 0, 0.45));
   animation: settingsSlideIn 0.22s ease;
 }
 @keyframes settingsSlideIn {
@@ -2069,7 +2078,7 @@ html.tab-dragging * {
   padding: 7px 28px;
   box-sizing: border-box;
   border-top: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--inset-bg, rgba(0, 0, 0, 0.16));
   color: var(--text-muted);
   font-family: inherit;
   font-size: 11px;
@@ -2467,6 +2476,26 @@ body.sticky-is-dragging * {
   margin: 3px 2px;
   background: rgba(255, 255, 255, 0.1);
 }
+:root:is([data-theme="light"], [data-theme="graphite"]) {
+  .sticky-note-window .ProseMirror,
+  .sticky-note-window .ProseMirror :is(h1, h2, h3) { color: inherit; }
+  .sticky-note-window .ProseMirror a {
+    color: color-mix(in srgb, var(--accent) 40%, white);
+  }
+  .sticky-context-menu {
+    background: var(--bg-modal);
+    border-color: var(--border);
+    box-shadow: var(--shadow-elevated, 0 10px 28px rgba(0, 0, 0, 0.55));
+  }
+  .sticky-context-menu button { color: var(--text-primary); }
+  .sticky-context-menu button:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .sticky-context-menu button svg { color: var(--text-secondary); }
+  .sticky-context-menu button:disabled, .sticky-context-menu button kbd { color: var(--text-muted); }
+  .sticky-context-separator { background: var(--border); }
+}
 @keyframes stickyContextMenuPop {
   from { opacity: 0; transform: scale(0.96) translateY(-2px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
@@ -2581,7 +2610,7 @@ body.sticky-is-dragging * {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.6));
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -2597,7 +2626,7 @@ body.sticky-is-dragging * {
   display: flex;
   flex-direction: column;
   animation: fadeScale 0.18s ease;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-elevated, 0 24px 64px rgba(0, 0, 0, 0.5));
 }
 @keyframes fadeScale {
   from { opacity: 0; transform: scale(0.95); }
@@ -3181,7 +3210,7 @@ body.sticky-is-dragging * {
   font-size: 10px;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--inset-bg, rgba(0, 0, 0, 0.12));
 }
 .about-footer-brand {
   border: none;

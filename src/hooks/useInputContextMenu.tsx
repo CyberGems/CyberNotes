@@ -109,7 +109,7 @@ export function useInputContextMenu(language: Language) {
           position: 'fixed', left: menu.x, top: menu.y,
           background: 'var(--bg-modal)', border: '1px solid var(--border)',
           borderRadius: 'var(--radius-sm)', padding: 6, zIndex: 100001,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', minWidth: 180,
+          boxShadow: 'var(--shadow-elevated, 0 8px 32px rgba(0,0,0,0.5))', minWidth: 180,
           display: 'flex', flexDirection: 'column', gap: 2,
         }}
         onMouseDown={e => e.preventDefault()}  // mantiene el campo enfocado

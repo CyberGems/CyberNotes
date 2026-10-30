@@ -2545,7 +2545,7 @@ export default function SettingsModal({
                       padding: '10px 12px',
                       borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--border)',
-                      background: 'rgba(0, 0, 0, 0.25)',
+                      background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))',
                     }}>
                       <div style={{
                         fontFamily: activeFont.family,
@@ -3437,7 +3437,7 @@ export default function SettingsModal({
           style={{
             position: 'fixed', inset: 0, zIndex: 50000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(4, 4, 10, 0.72)', padding: 20,
+            background: 'var(--overlay-bg, rgba(4, 4, 10, 0.72))', padding: 20,
           }}
         >
           <div
@@ -3446,7 +3446,7 @@ export default function SettingsModal({
               width: '100%', maxWidth: 420, borderRadius: 14, padding: 24,
               background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
               border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
+              boxShadow: 'var(--shadow-elevated, 0 24px 64px rgba(0, 0, 0, 0.6))',
               display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
             }}
           >
@@ -3537,7 +3537,7 @@ export default function SettingsModal({
           style={{
             position: 'fixed', inset: 0, zIndex: 50000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(4, 4, 10, 0.72)', padding: 20,
+            background: 'var(--overlay-bg, rgba(4, 4, 10, 0.72))', padding: 20,
           }}
         >
           <div
@@ -3548,7 +3548,7 @@ export default function SettingsModal({
               width: '100%', maxWidth: 460, borderRadius: 14, padding: 24,
               background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
               border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
+              boxShadow: 'var(--shadow-elevated, 0 24px 64px rgba(0, 0, 0, 0.6))',
               display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
               outline: 'none',
             }}

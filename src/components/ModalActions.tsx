@@ -15,7 +15,7 @@ export const modalCardMotion = {
 export const modalOverlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: 'rgba(5, 5, 8, 0.72)',
+  background: 'var(--overlay-bg, rgba(5, 5, 8, 0.72))',
   backdropFilter: 'blur(8px)',
   WebkitBackdropFilter: 'blur(8px)',
   display: 'flex',

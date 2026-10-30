@@ -290,6 +290,14 @@ function renderView() {
 
 function applyState(state) {
   currentState = state;
+  const theme = state?.theme || 'cyber-dark';
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
+  for (const [key, value] of Object.entries(state?.themeVars || {})) {
+    if (key.startsWith('--') && typeof value === 'string') {
+      document.documentElement.style.setProperty(key, value);
+    }
+  }
   if (state && state.resetView) currentView = 'main';
   renderView();
 }

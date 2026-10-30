@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyThemeVars, DEFAULT_THEME, getPreviewColor, normalizeThemeId, THEMES } from './themes';
+import { applyThemeVars, DEFAULT_THEME, getPreviewColor, getThemeVars, normalizeThemeId, THEMES } from './themes';
 
 describe('suite themes', () => {
   afterEach(() => {
@@ -54,5 +54,20 @@ describe('suite themes', () => {
     applyThemeVars('forest');
     expect(document.documentElement.dataset.theme).toBe(DEFAULT_THEME);
     expect(document.documentElement.style.colorScheme).toBe('dark');
+  });
+
+  it('provides the same palette to independent windows without changing the renderer theme', () => {
+    applyThemeVars('light');
+    for (const theme of THEMES) {
+      for (const intensity of [0, 50, 100]) {
+        const vars = getThemeVars(theme.id, intensity);
+        expect(document.documentElement.dataset.theme).toBe('light');
+        applyThemeVars(theme.id, intensity);
+        for (const [key, value] of Object.entries(vars)) {
+          expect(document.documentElement.style.getPropertyValue(key), key).toBe(value);
+        }
+        applyThemeVars('light');
+      }
+    }
   });
 });

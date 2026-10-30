@@ -732,7 +732,7 @@ export default function Sidebar({
               width: 240, zIndex: 100000,
               background: 'var(--bg-modal)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius-sm)', padding: 8,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-elevated, 0 8px 24px rgba(0,0,0,0.5))',
             }}
           >
             <div style={{ position: 'relative' }}>
@@ -1391,7 +1391,7 @@ export default function Sidebar({
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
             padding: 8,
-            boxShadow: '0 -8px 24px rgba(0,0,0,0.4)',
+            boxShadow: 'var(--shadow-elevated, 0 -8px 24px rgba(0,0,0,0.4))',
             zIndex: 100000,
             display: 'flex',
             flexDirection: 'column',
@@ -1548,12 +1548,12 @@ export default function Sidebar({
                 </button>
                 <button
                   onClick={() => { onClearRecent?.(); setClearConfirm(false); setShowRecent(false); }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#ef4444'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--danger)'; (e.currentTarget as HTMLElement).style.color = 'var(--danger-fill-text)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--danger)'; }}
                   style={{
                     flex: 1, padding: '6px 10px', fontSize: 13, fontWeight: 600,
-                    background: 'transparent', color: '#ef4444',
-                    border: '1px solid #ef4444', borderRadius: 6, cursor: 'pointer',
+                    background: 'transparent', color: 'var(--danger)',
+                    border: '1px solid var(--danger)', borderRadius: 6, cursor: 'pointer',
                   }}
                 >
                   {language === 'es' ? 'Borrar' : 'Clear'}
@@ -1563,7 +1563,7 @@ export default function Sidebar({
           ) : (
             <button
               onClick={() => setClearConfirm(true)}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--danger)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
               style={{
                 display: 'flex',
@@ -1604,7 +1604,7 @@ export default function Sidebar({
             padding: 6,
             zIndex: 99999,
             minWidth: 160,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            boxShadow: 'var(--shadow-elevated, 0 8px 32px rgba(0,0,0,0.5))',
           }}
         >
           <button
@@ -1636,7 +1636,7 @@ export default function Sidebar({
       {/* Modal Nueva carpeta */}
       {showNewFolder && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.7)',
+          position: 'fixed', inset: 0, background: 'var(--overlay-bg, rgba(5, 5, 8, 0.7))',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999,
         }} onClick={() => setShowNewFolder(false)}>
@@ -1652,7 +1652,7 @@ export default function Sidebar({
               display: 'flex',
               flexDirection: 'column',
               gap: 16,
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow)',
+              boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow))',
             }}
           >
             <h3 style={{ fontSize: 'calc(16px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
@@ -1693,7 +1693,7 @@ export default function Sidebar({
                       aspectRatio: '1',
                     }}
                   >
-                    <FolderIcon name={icon} color={isSelected ? 'var(--accent)' : '#ffffff'} size={16} />
+                    <FolderIcon name={icon} color={isSelected ? 'var(--accent)' : 'var(--text-secondary)'} size={16} />
                   </button>
                 );
               })}
@@ -1768,7 +1768,7 @@ export default function Sidebar({
       {/* Modal Editar carpeta */}
       {editingFolder && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.7)',
+          position: 'fixed', inset: 0, background: 'var(--overlay-bg, rgba(5, 5, 8, 0.7))',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999,
         }} onClick={() => setEditingFolder(null)}>
@@ -1783,7 +1783,7 @@ export default function Sidebar({
             display: 'flex',
             flexDirection: 'column',
             gap: 16,
-            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow)',
+            boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow))',
           }}>
             <h3 style={{ fontSize: 'calc(16px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>{t.sidebar.context.edit}</h3>
 
@@ -1821,7 +1821,7 @@ export default function Sidebar({
                       aspectRatio: '1',
                     }}
                   >
-                    <FolderIcon name={icon} color={isSelected ? 'var(--accent)' : '#ffffff'} size={16} />
+                    <FolderIcon name={icon} color={isSelected ? 'var(--accent)' : 'var(--text-secondary)'} size={16} />
                   </button>
                 );
               })}
@@ -1898,7 +1898,7 @@ export default function Sidebar({
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(5, 5, 8, 0.72)',
+          background: 'var(--overlay-bg, rgba(5, 5, 8, 0.72))',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
@@ -1910,11 +1910,11 @@ export default function Sidebar({
             className="glass-effect"
             style={{
               width: 'calc(400px * var(--ui-scale))',
-              background: 'rgba(15, 15, 22, 0.95)',
+              background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               borderRadius: 'var(--radius-lg)',
               padding: '24px 28px',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(239, 68, 68, 0.05)',
+              boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(239, 68, 68, 0.05))',
               display: 'flex',
               flexDirection: 'column',
               gap: 20,
@@ -1932,7 +1932,7 @@ export default function Sidebar({
                 justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <Trash2 size={24} style={{ color: '#ef4444', filter: 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.6))' }} />
+                <Trash2 size={24} style={{ color: 'var(--danger)', filter: 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.6))' }} />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h3 style={{

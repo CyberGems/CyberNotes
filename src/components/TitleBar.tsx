@@ -640,7 +640,7 @@ export default function TitleBar({
                     style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+Delete"
                   >
-                    <Trash2 size={13} style={{ color: '#f87171', opacity: 0.9 }} />
+                    <Trash2 size={13} style={{ color: 'var(--danger)', opacity: 0.9 }} />
                     <span style={{ flex: 1 }}>{t('Eliminar nota', 'Delete note')}</span>
                     <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
                   </button>
@@ -933,7 +933,7 @@ export default function TitleBar({
                     <button
                       className="menu-item"
                       onClick={() => { setMenuOpen(false); setExitConfirm(false); window.cyberNotesAPI.windowForceClose(); }}
-                      style={{ padding: '4px 10px', fontSize: 11, width: 'auto', color: '#ef4444', fontWeight: 600 }}
+                      style={{ padding: '4px 10px', fontSize: 11, width: 'auto', color: 'var(--danger)', fontWeight: 600 }}
                     >
                       {t('Cerrar', 'Close')}
                     </button>
@@ -944,7 +944,7 @@ export default function TitleBar({
                   className="menu-item"
                   onClick={() => setExitConfirm(true)}
                 >
-                  <Power size={14} style={{ color: '#ef4444' }} />
+                  <Power size={14} style={{ color: 'var(--danger)' }} />
                   <span>{t('Salir', 'Exit')}</span>
                 </button>
               )}

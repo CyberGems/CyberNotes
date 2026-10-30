@@ -157,7 +157,7 @@ export default function VersionHistoryModal({ note, language, onClose, onRestore
               </div>
               <div style={{
                 flex: 1, minWidth: 0, border: '1px solid var(--border)', borderRadius: 8,
-                background: 'rgba(0, 0, 0, 0.25)', padding: '10px 12px',
+                background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))', padding: '10px 12px',
                 display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: 320,
               }}>
                 {previewLoading && (

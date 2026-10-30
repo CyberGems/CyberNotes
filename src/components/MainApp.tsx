@@ -2445,11 +2445,11 @@ export default function MainApp({
               style={{
                 width: 'calc(560px * var(--ui-scale))',
                 maxWidth: 'calc(100vw - 32px)',
-                background: 'rgba(15, 15, 22, 0.97)',
+                background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.97)',
                 border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '24px 28px',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.65), 0 0 30px var(--accent-glow)',
+                boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.65), 0 0 30px var(--accent-glow))',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 18,
@@ -2524,7 +2524,7 @@ export default function MainApp({
                       minWidth: 0,
                       border: side.highlight ? '1px solid var(--warning)' : '1px solid var(--border)',
                       borderRadius: 8,
-                      background: 'rgba(0, 0, 0, 0.25)',
+                      background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))',
                       padding: '9px 11px',
                       display: 'flex', flexDirection: 'column', gap: 5,
                     }}
@@ -2614,11 +2614,11 @@ export default function MainApp({
               className="glass-effect"
               style={{
                 width: 'calc(420px * var(--ui-scale))',
-                background: 'rgba(15, 15, 22, 0.95)',
+                background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
                 border: '1px solid rgba(234, 88, 12, 0.3)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '24px 28px',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05)',
+                boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05))',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 20,
@@ -2696,11 +2696,11 @@ export default function MainApp({
               className="glass-effect"
               style={{
                 width: 'calc(420px * var(--ui-scale))',
-                background: 'rgba(15, 15, 22, 0.95)',
+                background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
                 border: '1px solid rgba(234, 88, 12, 0.3)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '24px 28px',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05)',
+                boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05))',
                 display: 'flex', flexDirection: 'column', gap: 20,
               }}
             >
@@ -2783,7 +2783,7 @@ export default function MainApp({
               whiteSpace: 'nowrap',
               zIndex: 10001,
               pointerEvents: 'none',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-elevated, 0 4px 12px rgba(0,0,0,0.5))',
             }}
             className="glass-effect"
           >

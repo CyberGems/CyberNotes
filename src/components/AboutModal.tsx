@@ -510,7 +510,7 @@ function UpdateStatusLine({
                 marginTop: 6,
                 padding: '6px 8px',
                 borderRadius: 6,
-                background: 'rgba(0, 0, 0, 0.25)',
+                background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))',
                 border: '1px solid var(--border)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: 10,
