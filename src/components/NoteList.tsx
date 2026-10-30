@@ -897,10 +897,15 @@ export default function NoteList({
   ) : []);
   const { selectedIds, setSelectedIds, clear: clearSelection } = marquee;
   const [draggedIds, setDraggedIds] = useState<Set<string>>(new Set());
+  const dragPreviewRef = useRef<HTMLDivElement | null>(null);
+  const clearDragPreview = useCallback(() => {
+    dragPreviewRef.current?.remove();
+    dragPreviewRef.current = null;
+  }, []);
   const availableNoteIdsRef = useRef(new Set<string>());
   availableNoteIdsRef.current = new Set(initialNotes.map(note => note.id));
   useEffect(() => {
-    const finishDrag = () => setDraggedIds(new Set());
+    const finishDrag = () => { setDraggedIds(new Set()); clearDragPreview(); };
     const dropped = (event: Event) => {
       const { movedIds, failedIds } = (event as CustomEvent<NoteDropResult>).detail;
       const moved = new Set(movedIds);
@@ -911,18 +916,31 @@ export default function NoteList({
       setSelectionError(failedIds.length > 0);
     };
     window.addEventListener('cybernotes:dragend', finishDrag);
+    window.addEventListener('dragend', finishDrag);
     window.addEventListener(NOTE_DROP_RESULT_EVENT, dropped);
     return () => {
       window.removeEventListener('cybernotes:dragend', finishDrag);
+      window.removeEventListener('dragend', finishDrag);
       window.removeEventListener(NOTE_DROP_RESULT_EVENT, dropped);
+      clearDragPreview();
     };
-  }, [setSelectedIds]);
+  }, [setSelectedIds, clearDragPreview]);
   const startNoteDrag = (event: React.DragEvent, note: Note) => {
     if (isTrashFolder) { event.preventDefault(); return; }
     const ids = selectedIds.has(note.id) ? navigableNotes.filter(item => selectedIds.has(item.id)).map(item => item.id) : [note.id];
     if (selectedIds.size && !selectedIds.has(note.id)) setSelectedIds(new Set([note.id]));
     setDraggedIds(new Set(ids));
     writeNoteDragData(event.dataTransfer, note.id, ids);
+    clearDragPreview();
+    if (ids.length > 1) {
+      const preview = document.createElement('div');
+      preview.className = 'note-drag-preview';
+      preview.setAttribute('aria-hidden', 'true');
+      preview.textContent = language === 'es' ? `${ids.length} notas` : `${ids.length} notes`;
+      document.body.appendChild(preview);
+      dragPreviewRef.current = preview;
+      event.dataTransfer.setDragImage(preview, -12, -12);
+    }
   };
   const endNoteDrag = () => {
     setDraggedIds(new Set());

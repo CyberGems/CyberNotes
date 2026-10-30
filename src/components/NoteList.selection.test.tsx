@@ -118,7 +118,7 @@ describe('note list multiple selection', () => {
     await act(async () => pointer(card('n3'), 'pointerdown', 150, 550));
     await act(async () => pointer(window, 'pointermove', 390, 600));
     expect(selected()).toEqual(['n2', 'n3', 'n4']);
-    const data = { setData: vi.fn(), effectAllowed: '' };
+    const data = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: '' };
     const event = new Event('dragstart', { bubbles: true });
     Object.defineProperty(event, 'dataTransfer', { value: data });
     await act(async () => card('n3').dispatchEvent(event));

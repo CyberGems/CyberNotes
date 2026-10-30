@@ -69,7 +69,7 @@ describe('dragging note selections into the sidebar', () => {
       effectAllowed: 'none', dropEffect: 'none',
       files: Object.assign([], { item: () => null }),
       items: Object.assign([], { add: () => null, clear: () => {}, remove: () => {} }),
-      setDragImage: () => {},
+      setDragImage: vi.fn(),
     };
     return data;
   }
@@ -103,10 +103,16 @@ describe('dragging note selections into the sidebar', () => {
     expect(JSON.parse(data.getData(NOTE_IDS_DRAG_MIME))).toEqual(['n0', 'n1', 'n2']);
     expect(data.getData(NOTE_DRAG_MIME)).toBe('n1');
     expect(list().querySelectorAll('.is-dragging')).toHaveLength(3);
+    const preview = document.querySelector('.note-drag-preview');
+    expect(preview?.textContent).toBe('3 notas');
+    expect(data.setDragImage).toHaveBeenCalledExactlyOnceWith(preview, -12, -12);
+    expect(container.querySelectorAll('[data-note-drop-state="ready"]')).toHaveLength(3);
     await drop(data);
     expect(move.mock.calls).toEqual([['n0', 'folder'], ['n1', 'folder'], ['n2', 'folder']]);
     expect(container.querySelector('.note-selection-actions')).toBeNull();
     expect(list().querySelector('.is-dragging')).toBeNull();
+    expect(document.querySelector('.note-drag-preview')).toBeNull();
+    expect(container.querySelector('[data-note-drop-state]')).toBeNull();
   });
 
   it('preserves selection on cancellation and moves only the dragged note when it is outside the selection', async () => {
@@ -118,13 +124,16 @@ describe('dragging note selections into the sidebar', () => {
     expect(move).not.toHaveBeenCalled();
     expect(list().querySelectorAll('[aria-selected="true"]')).toHaveLength(3);
     expect(list().querySelector('.is-dragging')).toBeNull();
+    expect(document.querySelector('.note-drag-preview')).toBeNull();
     await act(async () => card('n3').dispatchEvent(dragEvent('dragstart', data)));
     expect(JSON.parse(data.getData(NOTE_IDS_DRAG_MIME))).toEqual(['n3']);
+    expect(document.querySelector('.note-drag-preview')).toBeNull();
+    expect(data.setDragImage).toHaveBeenCalledTimes(1);
     await drop(data);
     expect(move).toHaveBeenCalledExactlyOnceWith('n3', 'folder');
   });
 
-  it.each([[false, 'Todas las notas'], [false, 'Sin carpeta'], [true, 'Todas las notas']] as const)('accepts the full group on the unfiled target, compact sidebar: %s, target: %s', async (rail, label) => {
+  it.each([[false, 'Todas las notas'], [false, 'Sin carpeta'], [true, 'Todas las notas'], [true, 'Sin carpeta']] as const)('accepts the full group on the unfiled target, compact sidebar: %s, target: %s', async (rail, label) => {
     sidebarProps.rail = rail;
     await render();
     await selectThree();
@@ -132,6 +141,41 @@ describe('dragging note selections into the sidebar', () => {
     await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
     await drop(data, label);
     expect(move.mock.calls).toEqual([['n0', null], ['n1', null], ['n2', null]]);
+  });
+
+  it.each([false, true])('highlights every folder and switches the active reception state, compact sidebar: %s', async rail => {
+    sidebarProps.rail = rail;
+    sidebarProps.folders = [
+      ...sidebarProps.folders,
+      { ...sidebarProps.folders[0], id: 'cyan', name: 'Cyan', color: '#06b6d4' },
+      { ...sidebarProps.folders[0], id: 'green', name: 'Green', color: '#10b981' },
+    ];
+    await render();
+    const data = dataTransfer();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    expect(container.querySelectorAll('[data-note-drop-state="ready"]')).toHaveLength(5);
+    for (const label of ['Destination', 'Cyan', 'Green', 'Todas las notas', 'Sin carpeta']) {
+      const button = target(label);
+      await act(async () => button.dispatchEvent(dragEvent('dragover', data)));
+      expect(target(label)).toBe(button);
+      expect(button.dataset.noteDropState).toBe('active');
+      expect(container.querySelectorAll('[data-note-drop-state="active"]')).toHaveLength(1);
+      await act(async () => button.dispatchEvent(dragEvent('dragleave', data)));
+      expect(button.dataset.noteDropState).toBe('ready');
+    }
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragend', data)));
+    expect(container.querySelector('[data-note-drop-state]')).toBeNull();
+  });
+
+  it('uses an English counter and removes its native preview when the list unmounts', async () => {
+    listProps.language = 'en';
+    await render();
+    await selectThree();
+    const data = dataTransfer();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    expect(document.querySelector('.note-drag-preview')?.textContent).toBe('3 notes');
+    await act(async () => root.render(<Sidebar {...sidebarProps} />));
+    expect(document.querySelector('.note-drag-preview')).toBeNull();
   });
 
   it('keeps failed moves selected and reports the error', async () => {

@@ -3352,6 +3352,36 @@ body.sticky-is-dragging * {
 }
 
 /* ─── Drag and Drop Note Styling ───────────────────────────── */
+.note-drag-preview {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: max-content;
+  padding: 7px 12px;
+  border: 1px solid var(--accent-light);
+  border-radius: 999px;
+  background: var(--bg-modal);
+  color: var(--text-primary);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+  font: 600 12px var(--font-ui);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Motion retains hover border colors inline. Reception must take precedence. */
+.note-drop-target[data-note-drop-state] {
+  border: 1px dashed color-mix(in srgb, var(--note-drop-color, var(--accent)) 50%, transparent) !important;
+  transform: none !important;
+}
+.note-drop-target[data-note-drop-state="active"] {
+  border-style: solid !important;
+  border-color: var(--note-drop-color, var(--accent)) !important;
+  background: color-mix(in srgb, var(--note-drop-color, var(--accent)) 16%, var(--bg-sidebar)) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--note-drop-color, var(--accent)) 35%, transparent),
+    inset 0 0 6px color-mix(in srgb, var(--note-drop-color, var(--accent)) 12%, transparent) !important;
+}
+
 .note-item[draggable="true"] {
   user-select: none;
   -webkit-user-drag: element;

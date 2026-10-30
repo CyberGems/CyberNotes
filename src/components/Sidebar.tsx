@@ -108,11 +108,13 @@ const railBtnStyle = (active: boolean, tint?: string): CSSProperties => ({
 });
 
 function RailIconBtn({
-  label, active, tint, onClick, onContextMenu, onDragOver, onDragLeave, onDrop, children,
+  label, active, tint, dropState, dropColor, onClick, onContextMenu, onDragOver, onDragLeave, onDrop, children,
 }: {
   label: string;
   active: boolean;
   tint?: string;
+  dropState?: 'ready' | 'active';
+  dropColor?: string;
   onClick?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onDragOver?: (e: ReactDragEvent) => void;
@@ -126,6 +128,8 @@ function RailIconBtn({
       <button
         type="button"
         aria-label={label}
+        className="note-drop-target"
+        data-note-drop-state={dropState}
         onClick={onClick}
         onContextMenu={onContextMenu}
         onDragOver={onDragOver}
@@ -134,6 +138,7 @@ function RailIconBtn({
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         style={{
+          '--note-drop-color': dropColor,
           ...railBtnStyle(active, tint),
           ...(hover && !active
             ? {
@@ -144,7 +149,7 @@ function RailIconBtn({
             }
             : null),
           ...(hover && active ? { filter: 'brightness(1.18)' } : null),
-        }}
+        } as CSSProperties}
       >
         {children}
       </button>
@@ -641,19 +646,19 @@ export default function Sidebar({
             key={item.key}
             label={`${item.label} (${item.count})`}
             active={item.active}
-            tint={isNoteDragging && activeDropTargetId === 'all' && item.key === 'all' ? 'var(--accent)' : undefined}
+            dropState={isNoteDragging && (item.key === 'all' || item.key === 'floating') ? (activeDropTargetId === item.key ? 'active' : 'ready') : undefined}
             onClick={item.onClick}
-            onDragOver={item.key === 'all' ? (e => {
+            onDragOver={item.key === 'all' || item.key === 'floating' ? (e => {
               e.preventDefault();
               e.stopPropagation();
               e.dataTransfer.dropEffect = 'move';
-              setActiveDropTargetId(prev => (prev === 'all' ? prev : 'all'));
+              setActiveDropTargetId(prev => (prev === item.key ? prev : item.key));
             }) : undefined}
-            onDragLeave={item.key === 'all' ? (e => {
+            onDragLeave={item.key === 'all' || item.key === 'floating' ? (e => {
               if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-              setActiveDropTargetId(prev => (prev === 'all' ? null : prev));
+              setActiveDropTargetId(prev => (prev === item.key ? null : prev));
             }) : undefined}
-            onDrop={item.key === 'all' ? (event => { void handleNoteDrop(event, null); }) : undefined}
+            onDrop={item.key === 'all' || item.key === 'floating' ? (event => { void handleNoteDrop(event, null); }) : undefined}
           >
             {item.icon}
           </RailIconBtn>
@@ -668,7 +673,9 @@ export default function Sidebar({
               key={folder.id}
               label={`${folder.name} (${count})`}
               active={isSelected}
-              tint={isTarget ? folder.color : (isSelected ? `${folder.color}66` : undefined)}
+              tint={isSelected ? `${folder.color}66` : undefined}
+              dropState={isNoteDragging ? (isTarget ? 'active' : 'ready') : undefined}
+              dropColor={folder.color}
               onClick={() => onSelectFolder(folder.id)}
               onContextMenu={e => handleContextMenu(e, folder)}
               onDragOver={e => {
@@ -725,6 +732,8 @@ export default function Sidebar({
           <>
         {/* Todas las notas */}
         <motion.button
+          className="note-drop-target"
+          data-note-drop-state={isNoteDragging ? (activeDropTargetId === 'all' ? 'active' : 'ready') : undefined}
           onClick={() => onSelectFolder(null)}
           onDragOver={e => {
             e.preventDefault();
@@ -737,8 +746,8 @@ export default function Sidebar({
             setActiveDropTargetId(prev => (prev === 'all' ? null : prev));
           }}
           onDrop={event => { void handleNoteDrop(event, null); }}
-          whileHover="hover"
-          whileTap="tap"
+          whileHover={isNoteDragging ? undefined : 'hover'}
+          whileTap={isNoteDragging ? undefined : 'tap'}
           style={{
             width: '100%',
             display: 'flex',
@@ -746,19 +755,11 @@ export default function Sidebar({
             gap: 9,
             padding: '10px 12px',
             borderRadius: 'var(--radius-md)',
-            border: isNoteDragging
-              ? activeDropTargetId === 'all'
-                ? '1px solid var(--accent)'
-                : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
-              : '1px solid transparent',
-            background: isNoteDragging && activeDropTargetId === 'all'
-              ? 'var(--accent-dim)'
-              : selectedFolderId === null && !searchQuery
+            border: '1px solid transparent',
+            background: selectedFolderId === null && !searchQuery
                 ? 'var(--bg-active)'
                 : 'transparent',
-            color: isNoteDragging && activeDropTargetId === 'all'
-              ? 'var(--accent-light)'
-              : selectedFolderId === null && !searchQuery
+            color: selectedFolderId === null && !searchQuery
                 ? 'var(--accent-light)'
                 : 'var(--text-secondary)',
             cursor: 'pointer',
@@ -768,10 +769,7 @@ export default function Sidebar({
             transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
             marginBottom: 4,
             position: 'relative',
-            boxShadow: isNoteDragging && activeDropTargetId === 'all'
-              ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
-              : 'none',
-            transform: isNoteDragging && activeDropTargetId === 'all' ? 'translateX(4px) scale(1.01)' : 'none',
+            boxShadow: 'none',
           }}
           variants={{
             hover: {
@@ -921,6 +919,8 @@ export default function Sidebar({
 
         {/* Sin carpeta / Unfiled */}
         <motion.button
+          className="note-drop-target"
+          data-note-drop-state={isNoteDragging ? (activeDropTargetId === 'floating' ? 'active' : 'ready') : undefined}
           onClick={() => onSelectFolder('floating')}
           onDragOver={e => {
             e.preventDefault();
@@ -933,8 +933,8 @@ export default function Sidebar({
             setActiveDropTargetId(prev => (prev === 'floating' ? null : prev));
           }}
           onDrop={event => { void handleNoteDrop(event, null); }}
-          whileHover="hover"
-          whileTap="tap"
+          whileHover={isNoteDragging ? undefined : 'hover'}
+          whileTap={isNoteDragging ? undefined : 'tap'}
           style={{
             width: '100%',
             display: 'flex',
@@ -942,19 +942,11 @@ export default function Sidebar({
             gap: 9,
             padding: '10px 12px',
             borderRadius: 'var(--radius-md)',
-            border: isNoteDragging
-              ? activeDropTargetId === 'floating'
-                ? '1px solid var(--accent)'
-                : '1px dashed color-mix(in srgb, var(--accent) 45%, transparent)'
-              : '1px solid transparent',
-            background: isNoteDragging && activeDropTargetId === 'floating'
-              ? 'var(--accent-dim)'
-              : selectedFolderId === 'floating' && !searchQuery
+            border: '1px solid transparent',
+            background: selectedFolderId === 'floating' && !searchQuery
                 ? 'var(--bg-active)'
                 : 'transparent',
-            color: isNoteDragging && activeDropTargetId === 'floating'
-              ? 'var(--accent-light)'
-              : selectedFolderId === 'floating' && !searchQuery
+            color: selectedFolderId === 'floating' && !searchQuery
                 ? 'var(--accent-light)'
                 : 'var(--text-secondary)',
             cursor: 'pointer',
@@ -964,10 +956,7 @@ export default function Sidebar({
             transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
             marginBottom: 4,
             position: 'relative',
-            boxShadow: isNoteDragging && activeDropTargetId === 'floating'
-              ? '0 0 16px var(--accent-glow), inset 0 0 6px var(--accent-dim)'
-              : 'none',
-            transform: isNoteDragging && activeDropTargetId === 'floating' ? 'translateX(4px) scale(1.01)' : 'none',
+            boxShadow: 'none',
           }}
           variants={{
             hover: {
@@ -1064,6 +1053,8 @@ export default function Sidebar({
           return (
             <motion.button
               key={folder.id}
+              className="note-drop-target"
+              data-note-drop-state={isNoteDragging ? (isTarget ? 'active' : 'ready') : undefined}
               onClick={() => onSelectFolder(folder.id)}
               onContextMenu={e => handleContextMenu(e, folder)}
               onDragOver={e => {
@@ -1077,30 +1068,23 @@ export default function Sidebar({
                 setActiveDropTargetId(prev => (prev === folder.id ? null : prev));
               }}
               onDrop={event => { void handleNoteDrop(event, folder.id); }}
-              whileHover="hover"
-              whileTap="tap"
+              whileHover={isNoteDragging ? undefined : 'hover'}
+              whileTap={isNoteDragging ? undefined : 'tap'}
               style={{
+                '--note-drop-color': folder.color,
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 9,
                 padding: '10px 12px',
                 borderRadius: 'var(--radius-md)',
-                border: isNoteDragging
-                  ? isTarget
-                    ? `1.5px solid ${folder.color}`
-                    : `1px dashed ${folder.color}55`
-                  : isContextActive
+                border: isContextActive
                     ? `1px solid ${folder.color}66`
                     : '1px solid transparent',
-                background: isTarget
-                  ? `${folder.color}28`
-                  : isSelected || isContextActive
+                background: isSelected || isContextActive
                     ? 'var(--bg-active)'
                     : 'transparent',
-                color: isTarget
-                  ? '#fff'
-                  : isSelected || isContextActive
+                color: isSelected || isContextActive
                     ? 'var(--text-primary)'
                     : 'var(--text-secondary)',
                 cursor: 'pointer',
@@ -1110,15 +1094,12 @@ export default function Sidebar({
                 transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
                 marginBottom: 4,
                 position: 'relative',
-                boxShadow: isTarget
-                  ? `0 0 18px ${folder.color}55, inset 0 0 8px ${folder.color}25`
-                  : isContextActive
+                boxShadow: isContextActive
                     ? `0 0 16px ${folder.color}33, inset 0 0 4px ${folder.color}15, inset 0 1px 0 rgba(255,255,255,0.04)`
                     : isSelected
                       ? `0 0 14px ${folder.color}18, inset 0 0 4px ${folder.color}0a, inset 0 1px 0 rgba(255,255,255,0.01)`
                       : 'none',
-                transform: isTarget ? 'translateX(5px) scale(1.02)' : 'none',
-              }}
+              } as CSSProperties}
               variants={{
                 hover: {
                   x: 3,
@@ -1164,7 +1145,6 @@ export default function Sidebar({
               <span className="truncate" style={{ 
                 flex: 1,
                 textShadow: isTarget ? `0 0 4px ${folder.color}aa` : 'none',
-                color: isTarget ? '#fff' : undefined,
                 pointerEvents: 'none',
               }}>{folder.name}</span>
               <span style={{
