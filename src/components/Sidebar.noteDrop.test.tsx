@@ -213,9 +213,28 @@ describe('dragging note selections into the sidebar', () => {
     await act(async () => header.dispatchEvent(dragEvent('dragover', data)));
     await act(async () => vi.advanceTimersByTime(250));
     expect(header.getAttribute('aria-expanded')).toBe('true');
-    expect(JSON.parse(localStorage.getItem('cybernotes_sidebar_collapsed_sections')!)).not.toContain(key);
+    expect(JSON.parse(localStorage.getItem('cybernotes_sidebar_collapsed_sections')!)).toContain(key);
     await drop(data, key === 'views' ? 'Favoritos' : 'Destination');
     expect(key === 'views' ? pin : move).toHaveBeenCalledTimes(1);
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector(`[data-sidebar-section="${key === 'views' ? 'folders' : 'views'}"]`)?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it.each(['dragend', 'drop', 'cybernotes:dragend', 'Escape', 'blur'])('restores both temporarily expanded sections on %s without changing their saved state', async event => {
+    await render();
+    const headers = ['views', 'folders'].map(key => container.querySelector<HTMLButtonElement>(`[data-sidebar-section="${key}"]`)!);
+    await act(async () => headers.forEach(header => header.click()));
+    headers.forEach(header => vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 100, 180, 30)));
+    const data = dataTransfer(); data.setData(NOTE_DRAG_MIME, 'n0');
+    const savedState = localStorage.getItem('cybernotes_sidebar_collapsed_sections');
+    for (const header of headers) {
+      await act(async () => header.dispatchEvent(dragEvent('dragover', data)));
+      await act(async () => vi.advanceTimersByTime(550));
+      expect(header.getAttribute('aria-expanded')).toBe('true');
+    }
+    await act(async () => window.dispatchEvent(event === 'Escape' ? new KeyboardEvent('keydown', { key: 'Escape' }) : new Event(event)));
+    headers.forEach(header => expect(header.getAttribute('aria-expanded')).toBe('false'));
+    expect(localStorage.getItem('cybernotes_sidebar_collapsed_sections')).toBe(savedState);
   });
 
   it.each(['dragleave', 'dragend', 'drop', 'Escape', 'blur', 'other target', 'unmount'])('cancels delayed section expansion on %s', async event => {

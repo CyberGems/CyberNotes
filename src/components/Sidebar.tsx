@@ -321,6 +321,7 @@ export default function Sidebar({
     return new Set<string>();
   });
   const [hoveredSection, setHoveredSection] = useState<'views' | 'folders' | null>(null);
+  const [dragExpandedSections, setDragExpandedSections] = useState<Set<string>>(new Set());
   const sectionExpandRef = useRef<{ key: 'views' | 'folders'; timer: number; x: number; y: number } | null>(null);
   const cancelSectionExpand = useCallback(() => {
     if (sectionExpandRef.current) window.clearTimeout(sectionExpandRef.current.timer);
@@ -331,9 +332,12 @@ export default function Sidebar({
     if (sectionExpandRef.current) window.clearTimeout(sectionExpandRef.current.timer);
   }, []);
   const toggleSidebarSection = (key: string) => {
+    const temporary = dragExpandedSections.has(key);
+    if (temporary) setDragExpandedSections(previous => new Set([...previous].filter(item => item !== key)));
     setCollapsedSections(prev => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
+      if (temporary) next.add(key);
+      else if (next.has(key)) next.delete(key);
       else next.add(key);
       try {
         localStorage.setItem('cybernotes_sidebar_collapsed_sections', JSON.stringify([...next]));
@@ -357,11 +361,11 @@ export default function Sidebar({
     });
   }, [selectedFolderId]);
 
-  const viewsCollapsed = collapsedSections.has('views');
-  const foldersCollapsed = collapsedSections.has('folders');
+  const viewsCollapsed = collapsedSections.has('views') && !dragExpandedSections.has('views');
+  const foldersCollapsed = collapsedSections.has('folders') && !dragExpandedSections.has('folders');
 
   const renderSectionHeader = (key: 'views' | 'folders', label: string) => {
-    const collapsed = collapsedSections.has(key);
+    const collapsed = collapsedSections.has(key) && !dragExpandedSections.has(key);
     return (
       <Tooltip
         placement="bottom"
@@ -394,13 +398,7 @@ export default function Sidebar({
               setHoveredSection(null);
               const rect = button.getBoundingClientRect();
               if (!pointer || !button.isConnected || pointer.x < rect.left || pointer.x > rect.right || pointer.y < rect.top || pointer.y > rect.bottom) return;
-              setCollapsedSections(previous => {
-                if (!previous.has(key)) return previous;
-                const next = new Set(previous);
-                next.delete(key);
-                try { localStorage.setItem('cybernotes_sidebar_collapsed_sections', JSON.stringify([...next])); } catch {}
-                return next;
-              });
+              setDragExpandedSections(previous => new Set([...previous, key]));
             }, 550);
             sectionExpandRef.current = { key, timer, x: event.clientX, y: event.clientY };
           }}
@@ -433,12 +431,16 @@ export default function Sidebar({
   // Global drag listeners to activate target drop indicators
   useEffect(() => {
     const handleDragStart = (event: DragEvent) => {
-      if (isNoteDrag(event.dataTransfer)) setIsNoteDragging(true);
+      if (isNoteDrag(event.dataTransfer)) {
+        setDragExpandedSections(new Set());
+        setIsNoteDragging(true);
+      }
     };
     const handleDragEnd = () => {
       setIsNoteDragging(false);
       setActiveDropTargetId(null);
       cancelSectionExpand();
+      setDragExpandedSections(new Set());
     };
     const handleDragOver = (event: DragEvent) => {
       const key = sectionExpandRef.current?.key;
