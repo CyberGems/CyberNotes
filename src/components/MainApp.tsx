@@ -24,6 +24,14 @@ const SIDEBAR_RAIL_BREAKPOINT = 1100;
 // editor) en lugar de comprimir las tres.
 const SINGLE_COLUMN_BREAKPOINT = 850;
 
+function neighborAfterClosing(ids: string[], activeId: string, closing: ReadonlySet<string>): string | null {
+  const index = ids.indexOf(activeId);
+  if (index < 0) return null;
+  return ids.slice(0, index).reverse().find(id => !closing.has(id))
+    ?? ids.slice(index + 1).find(id => !closing.has(id))
+    ?? null;
+}
+
 function insertTabAfter(ids: string[], newId: string, afterId: string | null | undefined): string[] {
   if (ids.includes(newId)) return ids;
   if (!afterId) return [...ids, newId];
@@ -1308,7 +1316,7 @@ export default function MainApp({
     setOpenNoteIds(prev => {
       const filtered = prev.filter(noteId => !closingIds.has(noteId));
       if (selectedNoteIdRef.current && closingIds.has(selectedNoteIdRef.current)) {
-        setSelectedNoteId(filtered[0] || null);
+        setSelectedNoteId(neighborAfterClosing(prev, selectedNoteIdRef.current, closingIds));
       }
       return filtered;
     });
@@ -1319,15 +1327,9 @@ export default function MainApp({
     setOpenNoteIds(prev => {
       const filtered = prev.filter(noteId => noteId !== id);
       
-      // Si cerramos la pestaña activa, cambiamos el foco a una pestaña vecina
-      if (selectedNoteId === id) {
-        if (filtered.length > 0) {
-          const closedIndex = prev.indexOf(id);
-          const newSelectedIndex = Math.min(closedIndex, filtered.length - 1);
-          setSelectedNoteId(filtered[newSelectedIndex]);
-        } else {
-          setSelectedNoteId(null);
-        }
+      // Prefer the immediate left neighbor, then the right when none remains on the left.
+      if (selectedNoteIdRef.current === id) {
+        setSelectedNoteId(neighborAfterClosing(prev, id, new Set([id])));
       }
       return filtered;
     });
@@ -1339,7 +1341,7 @@ export default function MainApp({
       delete next[id];
       return next;
     });
-  }, [selectedNoteId, handleDiscardDraft]);
+  }, [handleDiscardDraft]);
 
   const requestCloseTabs = useCallback((ids: string[]) => {
     const targets = Array.from(new Set(ids)).filter(id => openNoteIds.includes(id));

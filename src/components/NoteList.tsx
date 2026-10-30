@@ -980,7 +980,8 @@ export default function NoteList({
     } else {
       clearSelection();
       selectionAnchorRef.current = note.id;
-      onSelectNote(note.id);
+      if (isNoteSelected(note.id) && onDeselectNote) onDeselectNote();
+      else onSelectNote(note.id);
     }
     listRef.current?.focus({ preventScroll: true });
   };

@@ -109,9 +109,14 @@ describe('choosing an empty editor', () => {
     expect(editor().getText()).toBe('second body');
   });
 
-  it.each(['button', 'Escape', 'Ctrl click', 'blank click', 'clear group'])('deselects with %s while retaining the open tab and stored note', async action => {
+  it.each(['button', 'Escape', 'Ctrl click', 'blank click', 'clear group', 'click selected', 'selected group'])('deselects with %s while retaining the open tab and stored note', async action => {
     await render(); await select();
     if (action === 'button') await deselect();
+    else if (action === 'click selected') await act(async () => card('first').click());
+    else if (action === 'selected group') {
+      await act(async () => list().dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })));
+      await act(async () => card('second').click());
+    }
     else if (action === 'clear group') {
       await act(async () => list().dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })));
       await act(async () => (host.querySelector('[aria-label="Limpiar selección"]') as HTMLElement).click());
@@ -172,5 +177,82 @@ describe('choosing an empty editor', () => {
     await deselect();
     expect(settings.last_note_id).toBe('');
     expect(settings.open_note_ids).toContain('first');
+  });
+
+  async function openFourTabs() {
+    for (const id of ['third', 'fourth']) saved.set(id, { ...saved.get('first')!, id, title: id, content: `<p>${id} body</p>` });
+    settings.remember_last_note = 'true';
+    settings.open_note_ids = 'first,second,third,fourth';
+    settings.last_note_id = 'fourth';
+    await render();
+    editor().view.setProps({ handleScrollToSelection: () => true });
+  }
+  const tab = (id: string) => host.querySelector<HTMLElement>(`.tab-strip [data-note-id="${id}"]`)!;
+  const activeTab = () => host.querySelector<HTMLElement>('.editor-tab.active')?.dataset.noteId ?? null;
+  async function closeTab(id: string) { await act(async () => tab(id).querySelector<HTMLButtonElement>('.tab-close-btn')!.click()); }
+
+  it('selects the immediate left tab on closing the active middle tab', async () => {
+    await openFourTabs();
+    await act(async () => tab('third').click());
+    await closeTab('third');
+    expect(activeTab()).toBe('second');
+    expect(editor().getText()).toBe('second body');
+    expect(saved.size).toBe(4);
+  });
+
+  it('uses the right neighbor when closing the first tab', async () => {
+    await openFourTabs();
+    await act(async () => tab('first').click());
+    await closeTab('first');
+    expect(activeTab()).toBe('second');
+    expect(saved.size).toBe(4);
+  });
+
+  it('returns to the empty view when closing the only open tab', async () => {
+    await render(); await select(); await closeTab('first');
+    expect(activeTab()).toBeNull();
+    expect(empty()).not.toBeNull();
+    expect(saved.size).toBe(2);
+  });
+
+  it('keeps the active tab when closing an inactive one, and preserves the empty view if none is selected', async () => {
+    await openFourTabs();
+    await closeTab('second');
+    expect(activeTab()).toBe('fourth');
+    await deselect();
+    await closeTab('third');
+    expect(activeTab()).toBeNull();
+    expect(empty()).not.toBeNull();
+  });
+
+  it('uses the closest remaining left tab when closing tabs to the right from the tab menu', async () => {
+    await openFourTabs();
+    await act(async () => tab('third').click());
+    await act(async () => tab('second').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Cerrar a la derecha')!.click());
+    expect(activeTab()).toBe('second');
+    expect([...host.querySelectorAll<HTMLElement>('.editor-tab')].map(item => item.dataset.noteId)).toEqual(['first', 'second']);
+  });
+
+  it('chooses the left neighbor in the current tab order after reordering', async () => {
+    await openFourTabs();
+    const data = { getData: () => 'fourth', dropEffect: 'move' };
+    const event = new MouseEvent('drop', { bubbles: true, cancelable: true, clientX: 1 });
+    Object.defineProperty(event, 'dataTransfer', { value: data });
+    await act(async () => tab('second').dispatchEvent(event));
+    expect([...host.querySelectorAll<HTMLElement>('.editor-tab')].map(item => item.dataset.noteId)).toEqual(['first', 'second', 'fourth', 'third']);
+    await act(async () => tab('third').click());
+    await closeTab('third');
+    expect(activeTab()).toBe('fourth');
+  });
+
+  it('still protects unsaved changes when clicking the selected note again', async () => {
+    await render(); await select();
+    await act(async () => { editor().commands.insertContent(' unsaved'); });
+    await act(async () => card('first').click());
+    expect(document.body.textContent).toContain('¿Salir sin guardar?');
+    expect(empty()).toBeNull();
+    await act(async () => document.querySelector<HTMLButtonElement>('.modal-actions.is-stack .is-cancel')!.click());
+    expect(editor().getText()).toContain('unsaved');
   });
 });
