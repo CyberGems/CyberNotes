@@ -2033,7 +2033,7 @@ export default function SettingsModal({
                 <SettingsHeading icon={<Palette />}>
                   {language === 'es' ? 'Tema visual' : 'Visual Theme'}
                 </SettingsHeading>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
                   {THEMES.map(theme => {
                     const isCurrent = currentTheme === theme.id;
                     const ledColor = getPreviewColor(theme.id, isCurrent ? colorIntensity : 65);
@@ -2129,7 +2129,7 @@ export default function SettingsModal({
                 </div>
                 {!isColorfulTheme(currentTheme) && (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>
-                    {language === 'es' ? `No aplica para ${currentTheme === 'graphite' ? 'Graphite' : 'Light'}` : `Not applicable for ${currentTheme === 'graphite' ? 'Graphite' : 'Light'}`}
+                    {language === 'es' ? `No aplica para ${currentTheme === 'graphite' ? 'Gris' : 'Claro'}` : `Not applicable for ${currentTheme === 'graphite' ? 'Gray' : 'Light'}`}
                   </div>
                 )}
               </div>

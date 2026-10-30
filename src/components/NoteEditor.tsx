@@ -995,7 +995,7 @@ const wordMenuBoxStyle: CSSProperties = {
   overflowY: 'auto',
   padding: 5,
   borderRadius: 9,
-  background: 'rgba(10, 10, 18, 0.97)',
+  background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
   border: '1px solid var(--border)',
   boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
   display: 'flex',
@@ -5880,7 +5880,7 @@ export default function NoteEditor({
                         style={{
                         ...moreMenuStyle,
                         overflowY: 'auto', padding: 6,
-                        borderRadius: 10, background: 'rgba(10, 10, 18, 0.97)',
+                        borderRadius: 10, background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
                         border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
                         display: 'flex', flexDirection: 'column', gap: 2,
                         userSelect: 'none', WebkitUserSelect: 'none',
@@ -5948,7 +5948,7 @@ export default function NoteEditor({
             data-toolbar-menu="true"
             style={{
               position: 'fixed', left: toolbarMenu.x, top: toolbarMenu.y, zIndex: WORD_MENU_Z,
-              minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(10, 10, 18, 0.97)',
+              minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
               border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
               display: 'flex', flexDirection: 'column', gap: 1,
               userSelect: 'none', WebkitUserSelect: 'none',
@@ -6979,7 +6979,7 @@ export default function NoteEditor({
             role="menu"
             style={{
               position: 'fixed', left: videoMenu.x, top: videoMenu.y, zIndex: WORD_MENU_Z,
-              minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(10, 10, 18, 0.97)',
+              minWidth: 200, padding: 5, borderRadius: 9, background: 'rgba(var(--editor-menu-rgb, 10,10,18), 0.97)',
               border: '1px solid var(--border)', boxShadow: '0 10px 28px rgba(0, 0, 0, 0.5)',
               display: 'flex', flexDirection: 'column', gap: 1,
               userSelect: 'none', WebkitUserSelect: 'none',

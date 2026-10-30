@@ -64,7 +64,7 @@ export interface NoteDraft {
   updated_at: string;
 }
 
-export type ThemeId = 'cyber-dark' | 'midnight' | 'forest' | 'light' | 'graphite' | 'neon';
+export type ThemeId = 'cyber-dark' | 'graphite' | 'light';
 
 export interface Theme {
   id: ThemeId;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeId } from './types';
-import { applyThemeVars } from './themes';
+import { applyThemeVars, normalizeThemeId } from './themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT } from './fonts';
 import { Language } from './languages';
 import LockScreen from './components/LockScreen';
@@ -94,7 +94,7 @@ export default function App() {
           window.cyberNotesAPI.getUserName().catch(() => null),
         ]);
         
-        let t = s.theme ? (s.theme as ThemeId) : 'cyber-dark';
+        const t = normalizeThemeId(s.theme);
         let i = s.colorIntensity ? parseInt(s.colorIntensity) : 50;
         let l = s.language ? (s.language as Language) : 'en';
         let autoLock = s.auto_lock_minutes ? parseInt(s.auto_lock_minutes) : 0;
@@ -107,6 +107,11 @@ export default function App() {
         setShowWelcomeNameSetup(!hasCustomName && s.welcome_name_prompt_dismissed !== 'true');
         setAutoLockMinutes(Number.isFinite(autoLock) ? autoLock : 0);
         applyThemeVars(t, i);
+        if (s.theme && s.theme !== t) {
+          void window.cyberNotesAPI.setSetting('theme', t).catch(error => {
+            console.warn('Could not save the migrated theme:', error);
+          });
+        }
         applyEditorFont(s.editor_font || DEFAULT_EDITOR_FONT);
         if (s.bg_image) setBgImage(s.bg_image);
         if (s.glass_blur) setGlassBlur(parseFloat(s.glass_blur));

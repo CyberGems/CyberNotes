@@ -41,7 +41,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 | Stay organized | Folders with icons & colors, multi-tabs, floating notes, drag & drop |
 | Protect sensitive notes | Master password (bcrypt-hashed access lock, notes stored unencrypted) with auto-lock and privacy shield |
 | Work efficiently | Autosave, session restore, global hotkey, system tray |
-| Make it yours | 6 themes, custom backgrounds, glass effects, UI scaling |
+| Make it yours | 3 themes (CyberNotes, Gray, Light), custom backgrounds, glass effects, UI scaling |
 
 ---
 

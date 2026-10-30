@@ -402,8 +402,8 @@ body:has(.sticky-note-window),
   transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.14s ease, color 0.14s ease, filter 0.14s ease;
 }
 .word-menu-item:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
+  background: var(--menu-hover-bg, rgba(255, 255, 255, 0.07));
+  color: var(--menu-hover-text, #fff);
   transform: translateX(2px);
 }
 .word-menu-item:active {
@@ -414,7 +414,7 @@ body:has(.sticky-note-window),
   color: var(--text-secondary);
 }
 .word-menu-item.is-muted:hover {
-  color: #fff;
+  color: var(--menu-hover-text, #fff);
 }
 /* Etiqueta de las filas del menú Más: hereda el hover de la fila. */
 .word-menu-item .more-label {
@@ -422,7 +422,7 @@ body:has(.sticky-note-window),
   transition: color 0.14s ease;
 }
 .word-menu-item:hover .more-label {
-  color: #fff;
+  color: var(--menu-hover-text, #fff);
 }
 .word-menu-item.is-active {
   background: var(--accent-dim);
@@ -1451,25 +1451,25 @@ select option {
   flex-shrink: 0;
   padding: 0;
   border-radius: 8px;
-  border: 1px solid rgba(0, 255, 255, 0.5);
-  background: rgba(0, 255, 255, 0.1);
-  color: #00ffff;
-  box-shadow: 0 0 8px rgba(0, 255, 255, 0.25);
+  border: 1px solid rgba(var(--update-rgb, 0,255,255), 0.5);
+  background: rgba(var(--update-rgb, 0,255,255), 0.1);
+  color: rgb(var(--update-rgb, 0,255,255));
+  box-shadow: 0 0 8px rgba(var(--update-rgb, 0,255,255), 0.25);
   cursor: pointer;
   -webkit-app-region: no-drag;
   transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s, transform 0.3s;
 }
 .titlebar-update-button:hover {
-  border-color: #00ffff;
-  background: rgba(0, 255, 255, 0.25);
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.45);
+  border-color: rgb(var(--update-rgb, 0,255,255));
+  background: rgba(var(--update-rgb, 0,255,255), 0.25);
+  box-shadow: 0 0 12px rgba(var(--update-rgb, 0,255,255), 0.45);
 }
 .titlebar-update-button:active {
   transform: scale(0.95);
-  background: rgba(0, 255, 255, 0.3);
+  background: rgba(var(--update-rgb, 0,255,255), 0.3);
 }
 .titlebar-update-button:focus-visible {
-  outline: 1px solid #00ffff;
+  outline: 1px solid rgb(var(--update-rgb, 0,255,255));
   outline-offset: 2px;
 }
 .titlebar-update-button > svg {
@@ -1480,7 +1480,7 @@ select option {
 }
 @keyframes titlebar-update-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: var(--update-pulse-min-opacity, 0.5); }
 }
 @media (prefers-reduced-motion: no-preference) {
   .titlebar-update-button {

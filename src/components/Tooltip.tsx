@@ -179,7 +179,7 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, maxW
             className="glass-effect"
             style={{
               position: 'relative',
-              background: 'rgba(15, 15, 20, 0.97)',
+              background: 'rgba(var(--tooltip-rgb, 15,15,20), 0.97)',
               backdropFilter: 'blur(10px)',
               border: '1px solid var(--border)',
               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 8px color-mix(in srgb, var(--accent-glow) 80%, transparent)',
@@ -203,7 +203,7 @@ export default function Tooltip({ label, placement = 'bottom', delay = 250, maxW
               position: 'absolute',
               width: 8,
               height: 8,
-              background: 'rgba(15, 15, 20, 0.97)',
+              background: 'rgba(var(--tooltip-rgb, 15,15,20), 0.97)',
               transform: 'rotate(45deg)',
               ...(pos?.arrow || {}),
             }} />

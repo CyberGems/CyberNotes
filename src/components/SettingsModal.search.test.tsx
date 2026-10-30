@@ -54,6 +54,19 @@ describe('settings search', () => {
     await act(async () => root.render(<SettingsModal {...props} />));
   }
 
+  it.each(['es', 'en'] as const)('lists only the three suite themes in appearance (%s)', async language => {
+    props.language = language;
+    props.initialTab = 'appearance';
+    await render();
+    const themeNames = language === 'es' ? ['CyberNotes', 'Gris', 'Claro'] : ['CyberNotes', 'Gray', 'Light'];
+    for (const name of themeNames) {
+      expect([...container.querySelectorAll('button')].filter(button => button.textContent?.includes(name)).length).toBeGreaterThan(0);
+    }
+    for (const retired of ['Cian Medianoche', 'Midnight Cyan', 'Verde Bosque', 'Forest Green', 'Magenta Neón', 'Neon Magenta', 'Gris Grafito', 'Pure Light']) {
+      expect(container.textContent).not.toContain(retired);
+    }
+  });
+
   const input = () => container.querySelector<HTMLInputElement>('.settings-search input')!;
   const content = () => container.querySelector<HTMLElement>('.settings-content')!;
 

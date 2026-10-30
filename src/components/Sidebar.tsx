@@ -68,17 +68,17 @@ function specialFilterBadgeStyle(isSelected: boolean, tint?: string): CSSPropert
   return {
     fontSize: 'calc(11px * var(--ui-scale))',
     background: isSelected
-      ? (tint ? `${tint}33` : 'color-mix(in srgb, var(--accent) 28%, transparent)')
+      ? (tint ? `color-mix(in srgb, ${tint}33 var(--badge-color-share, 100%), var(--bg-surface))` : 'color-mix(in srgb, var(--accent) 28%, transparent)')
       : 'var(--bg-surface)',
-    color: isSelected ? (tint || 'var(--accent-light)') : 'var(--text-muted)',
+    color: isSelected ? `color-mix(in srgb, ${tint || 'var(--accent-light)'} var(--badge-color-share, 100%), var(--text-primary))` : 'var(--text-muted)',
     padding: '1px 6px',
     borderRadius: 10,
     pointerEvents: 'none',
     fontWeight: isSelected ? 600 : 400,
     boxShadow: isSelected
       ? tint
-        ? `0 0 6px ${tint}66, inset 0 1px 0 rgba(255,255,255,0.12)`
-        : '0 0 6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12)'
+        ? `0 0 var(--badge-glow-size, 6px) ${tint}66, inset 0 1px 0 rgba(255,255,255,0.12)`
+        : '0 0 var(--badge-glow-size, 6px) var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12)'
       : 'none',
   };
 }
@@ -1264,16 +1264,16 @@ export default function Sidebar({
                 fontSize: 'calc(11px * var(--ui-scale))',
                 background: isSelected
                   ? 'color-mix(in srgb, var(--accent) 28%, transparent)'
-                  : `${folder.color}22`,
-                color: isSelected ? 'var(--accent-light)' : '#fff',
+                  : `color-mix(in srgb, ${folder.color}22 var(--badge-color-share, 100%), var(--bg-surface))`,
+                color: isSelected ? 'var(--accent-light)' : 'var(--folder-count-text, #fff)',
                 padding: '1px 6px',
                 borderRadius: 10,
                 marginRight: 6,
                 fontWeight: isSelected ? 600 : 400,
                 pointerEvents: 'none',
                 boxShadow: isSelected
-                  ? '0 0 6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12)'
-                  : `0 0 6px ${folder.color}44, inset 0 1px 0 rgba(255,255,255,0.1)`,
+                  ? '0 0 var(--badge-glow-size, 6px) var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12)'
+                  : `0 0 var(--badge-glow-size, 6px) ${folder.color}44, inset 0 1px 0 rgba(255,255,255,0.1)`,
               }}>{allNotes.filter(n => n.folder_id === folder.id).length}</span>
               <ChevronRight size={12} style={{ opacity: isTarget ? 0.8 : 0.4, color: isTarget ? folder.color : undefined, pointerEvents: 'none' }} />
             </motion.button>
