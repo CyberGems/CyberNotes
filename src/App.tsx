@@ -21,9 +21,9 @@ export default function App() {
   }
 
   const [view, setView] = useState<AppView>('loading');
-  const [theme, setTheme] = useState<ThemeId>('cyber-dark');
+  const [theme, setTheme] = useState<ThemeId>(() => normalizeThemeId(document.documentElement.dataset.theme));
   const [colorIntensity, setColorIntensity] = useState(50);
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>(() => document.documentElement.lang === 'es' ? 'es' : 'en');
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [glassBlur, setGlassBlur] = useState(0);
   const [bgOpacity, setBgOpacity] = useState(0.5);

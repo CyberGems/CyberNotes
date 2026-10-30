@@ -212,7 +212,7 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
           }} />
           <div style={{
             position: 'absolute', top: -50, right: -80, width: 180, height: 180,
-            borderRadius: '50%', background: '#7c3aed', opacity: 0.11, filter: 'blur(60px)',
+            borderRadius: '50%', background: 'color-mix(in srgb, #7c3aed var(--status-color-share, 100%), var(--accent))', opacity: 0.11, filter: 'blur(60px)',
           }} />
           <div style={{
             position: 'absolute', top: 0, left: '8%', right: '8%', height: 1,

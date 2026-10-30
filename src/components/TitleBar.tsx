@@ -434,8 +434,8 @@ export default function TitleBar({
                       width: 6,
                       height: 6,
                       borderRadius: '50%',
-                      background: capsOn ? '#22c55e' : 'rgba(255,255,255,0.25)',
-                      boxShadow: capsOn ? '0 0 6px #22c55e' : 'none',
+                      background: capsOn ? 'color-mix(in srgb, #22c55e var(--status-color-share, 100%), var(--accent-light))' : 'rgba(255,255,255,0.25)',
+                      boxShadow: capsOn ? '0 0 6px color-mix(in srgb, #22c55e var(--status-color-share, 100%), var(--accent-light))' : 'none',
                       flexShrink: 0,
                     }}
                   />
@@ -549,7 +549,7 @@ export default function TitleBar({
                 onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes#%EF%B8%8F-donate'); }}
                 style={{ padding: '4px 10px', fontSize: 11 }}
               >
-                <Heart size={13} style={{ color: '#F43F5E', opacity: 1 }} fill="#F43F5E" stroke="none" />
+                <Heart size={13} style={{ color: 'color-mix(in srgb, #F43F5E var(--status-color-share, 100%), var(--accent-light))', opacity: 1 }} fill="currentColor" stroke="none" />
                 <span>{t('Donar', 'Donate')}</span>
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />

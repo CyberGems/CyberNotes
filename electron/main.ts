@@ -1663,13 +1663,17 @@ const SUITE_SHORT: Record<string, { es: string; en: string }> = {
   cyberwall: { es: 'Firewall', en: 'Firewall' },
 };
 
-function buildTrayMenuState() {
+function readAppearanceSettings() {
   const theme = normalizeThemeId(queryGet('SELECT value FROM settings WHERE key = ?', ['theme'])?.value);
   const savedIntensity = Number(queryGet('SELECT value FROM settings WHERE key = ?', ['colorIntensity'])?.value ?? 50);
   const intensity = Number.isFinite(savedIntensity) ? Math.max(0, Math.min(100, savedIntensity)) : 50;
-  const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
-  const lang = langVal?.value || 'en';
-  const isEs = isSpanish(lang);
+  const language = isSpanish(queryGet('SELECT value FROM settings WHERE key = ?', ['language'])?.value || 'en') ? 'es' : 'en';
+  return { theme, vars: getThemeVars(theme, intensity), colorScheme: theme === 'light' ? 'light' as const : 'dark' as const, language };
+}
+
+function buildTrayMenuState() {
+  const appearance = readAppearanceSettings();
+  const isEs = appearance.language === 'es';
   const visible = isWindowShown();
   const activeHotkey = getActiveToggleHotkey();
   const hasPwd = hasPasswordHash();
@@ -1684,8 +1688,8 @@ function buildTrayMenuState() {
   return {
     version: app.getVersion(),
     head: 'CyberNotes v' + app.getVersion(),
-    theme,
-    themeVars: getThemeVars(theme, intensity),
+    theme: appearance.theme,
+    themeVars: appearance.vars,
     lang: isEs ? 'es' : 'en',
     visible,
     canLock,
@@ -2110,6 +2114,7 @@ function createWindow() {
 
   const { bounds: winBounds, minimum: winMinimum } = getValidWindowBounds(boundsJson?.value);
 
+  const appearance = readAppearanceSettings();
   mainWindow = new BrowserWindow({
     width: winBounds.width,
     height: winBounds.height,
@@ -2120,7 +2125,7 @@ function createWindow() {
     minHeight: winMinimum.height,
     frame: false,
     titleBarStyle: 'hidden',
-    backgroundColor: '#0d0d14',
+    backgroundColor: appearance.vars['--loader-edge'],
     icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
@@ -2970,6 +2975,11 @@ const SETTINGS_RESERVED_KEYS: ReadonlySet<string> = new Set([
 
 /** Max value size accepted from the renderer (opened_history JSON can be large). */
 const SETTINGS_MAX_VALUE_LENGTH = 100_000;
+
+// Only the small saved appearance is read synchronously, before the HTML loader paints.
+ipcMain.on('appearance:get-startup', (event) => {
+  event.returnValue = readAppearanceSettings();
+});
 
 ipcMain.handle('settings:get', (_e: any, key: string) => {
   if (typeof key !== 'string' || SETTINGS_RESERVED_KEYS.has(key)) return null;

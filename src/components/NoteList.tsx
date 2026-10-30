@@ -2021,7 +2021,7 @@ export default function NoteList({
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                background: isTrashFolder ? 'rgba(239, 68, 68, 0.15)' : 'var(--accent-dim)',
+                background: isTrashFolder ? 'rgba(var(--danger-rgb, 239, 68, 68), 0.15)' : 'var(--accent-dim)',
                 color: isTrashFolder ? 'var(--danger)' : 'var(--accent-light)',
                 width: 42,
                 height: 42,
@@ -2030,8 +2030,8 @@ export default function NoteList({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                border: isTrashFolder ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--accent)',
-                boxShadow: isTrashFolder ? '0 0 12px rgba(239, 68, 68, 0.2)' : '0 0 12px var(--accent-glow)',
+                border: isTrashFolder ? '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.3)' : '1px solid var(--accent)',
+                boxShadow: isTrashFolder ? '0 0 12px rgba(var(--danger-rgb, 239, 68, 68), 0.2)' : '0 0 12px var(--accent-glow)',
               }}>
                 <Trash2 size={20} />
               </div>
@@ -2128,9 +2128,9 @@ export default function NoteList({
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', width: 42, height: 42,
+                background: 'rgba(var(--danger-rgb, 239, 68, 68), 0.15)', color: 'var(--danger)', width: 42, height: 42,
                 borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0, border: '1px solid rgba(239, 68, 68, 0.3)',
+                flexShrink: 0, border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.3)',
               }}>
                 <Trash2 size={20} />
               </div>
@@ -2204,7 +2204,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
   }, [note.folder_id]);
 
   // Papelera: tinte rojizo sutil para distinguirlas sin cambiar el layout.
-  const trashBaseBg = 'rgba(239, 68, 68, 0.05)';
+  const trashBaseBg = 'rgba(var(--danger-rgb, 239, 68, 68), 0.05)';
   const baseBg = isSelected || isContextActive ? 'var(--bg-active)' : isTrash ? trashBaseBg : 'rgba(255,255,255,0.01)';
 
   return (
@@ -2231,7 +2231,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         cursor: isDragging ? 'grabbing' : 'pointer',
         position: 'relative',
         transition: 'all var(--transition)',
-        border: isSelected || isContextActive ? '1px solid var(--accent)' : isTrash ? '1px solid rgba(239, 68, 68, 0.22)' : '1px solid var(--border)',
+        border: isSelected || isContextActive ? '1px solid var(--accent)' : isTrash ? '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.22)' : '1px solid var(--border)',
         boxShadow: isSelected || isContextActive ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
         display: 'flex',
         flexDirection: 'column',
@@ -2431,9 +2431,9 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       <style>{`
         .note-item:hover .delete-note-btn { opacity: 1 !important; }
         .note-item:hover .delete-note-btn:hover {
-          color: #fff !important;
-          background: #ef4444 !important;
-          border-color: #ef4444 !important;
+          color: var(--danger-fill-text) !important;
+          background: var(--danger) !important;
+          border-color: var(--danger) !important;
           box-shadow: none !important;
           transform: scale(1.08) !important;
         }
@@ -2467,7 +2467,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
   const t = TRANSLATIONS[language];
   const thumb = note.thumb || null;
   // Papelera: mismo tinte sutil que las filas.
-  const cardBaseBg = isSelected || isContextActive ? 'var(--bg-active)' : isTrash ? 'rgba(239, 68, 68, 0.05)' : 'rgba(255,255,255,0.01)';
+  const cardBaseBg = isSelected || isContextActive ? 'var(--bg-active)' : isTrash ? 'rgba(var(--danger-rgb, 239, 68, 68), 0.05)' : 'rgba(255,255,255,0.01)';
 
   return (
     <div
@@ -2488,7 +2488,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
         cursor: isDragging ? 'grabbing' : 'pointer',
         position: 'relative',
         transition: 'all var(--transition)',
-        border: isSelected || isContextActive ? '1px solid var(--accent)' : isTrash ? '1px solid rgba(239, 68, 68, 0.22)' : '1px solid var(--border)',
+        border: isSelected || isContextActive ? '1px solid var(--accent)' : isTrash ? '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.22)' : '1px solid var(--border)',
         boxShadow: isSelected || isContextActive ? '0 4px 14px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.02)' : 'inset 0 1px 0 rgba(255,255,255,0.01)',
         display: 'flex',
         flexDirection: 'column',
@@ -2500,7 +2500,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
         if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
       }}
       onMouseLeave={e => {
-        if (!isSelected) (e.currentTarget as HTMLElement).style.background = isTrash ? 'rgba(239, 68, 68, 0.05)' : 'rgba(255,255,255,0.01)';
+        if (!isSelected) (e.currentTarget as HTMLElement).style.background = isTrash ? 'rgba(var(--danger-rgb, 239, 68, 68), 0.05)' : 'rgba(255,255,255,0.01)';
       }}
     >
       <div style={{

@@ -1827,12 +1827,12 @@ export function VideoSelect({
 
 /** Misma huella táctil que ToolbarBtn (barra de formato del editor). */
 const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProperties => ({
-  background: active ? (opts?.warn ? 'rgba(239, 68, 68, 0.12)' : 'var(--accent-dim)') : 'transparent',
+  background: active ? (opts?.warn ? 'rgba(var(--danger-rgb, 239, 68, 68), 0.12)' : 'var(--accent-dim)') : 'transparent',
   color: active
-    ? (opts?.warn ? '#fca5a5' : 'var(--accent-light)')
+    ? (opts?.warn ? 'var(--danger-text)' : 'var(--accent-light)')
     : 'var(--text-muted)',
   border: active
-    ? (opts?.warn ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--accent)')
+    ? (opts?.warn ? '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.45)' : '1px solid var(--accent)')
     : '1px solid transparent',
   borderRadius: 6,
   padding: '6px 8px',
@@ -2654,19 +2654,21 @@ export default function NoteEditor({
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
   const isFloatingNote = !!(note?.id && openStickyIds.includes(note.id));
+  const pinColor = `color-mix(in srgb, ${FILTER_COLORS.favorites} var(--status-color-share, 100%), var(--accent-light))`;
+  const floatingColor = `color-mix(in srgb, ${FILTER_COLORS.sticky} var(--status-color-share, 100%), var(--accent-light))`;
   const identityBorder = pinned && isFloatingNote
-    ? '1px solid color-mix(in srgb, #f59e0b 55%, #22d3ee)'
+    ? '1px solid color-mix(in srgb, rgb(var(--pin-rgb, 245, 158, 11)) 55%, rgb(var(--floating-rgb, 34, 211, 238)))'
     : pinned
-      ? '1px solid rgba(245, 158, 11, 0.45)'
+      ? '1px solid rgba(var(--pin-rgb, 245, 158, 11), 0.45)'
       : isFloatingNote
-        ? '1px solid rgba(34, 211, 238, 0.45)'
+        ? '1px solid rgba(var(--floating-rgb, 34, 211, 238), 0.45)'
         : '1px solid rgba(255, 255, 255, 0.05)';
   const identityGlow = pinned && isFloatingNote
-    ? '0 0 12px rgba(245, 158, 11, 0.18), 0 0 10px rgba(34, 211, 238, 0.14), inset 0 1px 3px rgba(0,0,0,0.2)'
+    ? '0 0 12px rgba(var(--pin-rgb, 245, 158, 11), 0.18), 0 0 10px rgba(var(--floating-rgb, 34, 211, 238), 0.14), inset 0 1px 3px rgba(0,0,0,0.2)'
     : pinned
-      ? '0 0 12px rgba(245, 158, 11, 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
+      ? '0 0 12px rgba(var(--pin-rgb, 245, 158, 11), 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
       : isFloatingNote
-        ? '0 0 12px rgba(34, 211, 238, 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
+        ? '0 0 12px rgba(var(--floating-rgb, 34, 211, 238), 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
         : 'inset 0 1px 3px rgba(0,0,0,0.2)';
   const [isRaw, setIsRaw] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -5211,10 +5213,10 @@ export default function NoteEditor({
                     />
                   )}
                   {tabNote.pinned === 1 && (
-                    <Star size={10} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" style={{ flexShrink: 0 }} />
+                    <Star size={10} color={pinColor} fill={pinColor} stroke="none" style={{ flexShrink: 0 }} />
                   )}
                   {openStickyIds.includes(tabId) && (
-                    <AppWindow size={10} color={FILTER_COLORS.sticky} style={{ flexShrink: 0 }} />
+                    <AppWindow size={10} color={floatingColor} style={{ flexShrink: 0 }} />
                   )}
 
                   <span className="editor-tab-title" style={{ fontStyle: isDirty ? 'italic' : 'normal' }}>
@@ -5340,7 +5342,7 @@ export default function NoteEditor({
                   type="button"
                   style={{ ...itemStyle(), color: 'var(--danger)' }}
                   onClick={() => runAction(() => onRequestDeleteNote?.(tabContextMenu.tabId))}
-                  onMouseEnter={event => { event.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'; }}
+                  onMouseEnter={event => { event.currentTarget.style.background = 'rgba(var(--danger-rgb, 239, 68, 68), 0.12)'; }}
                   onMouseLeave={event => { event.currentTarget.style.background = 'transparent'; }}
                 >
                   <Trash2 size={14} />
@@ -5462,8 +5464,8 @@ export default function NoteEditor({
               padding: '7px 12px',
               marginBottom: 10,
               borderRadius: 8,
-              background: 'rgba(239, 68, 68, 0.08)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
+              background: 'rgba(var(--danger-rgb, 239, 68, 68), 0.08)',
+              border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.3)',
               fontSize: 'calc(12px * var(--ui-scale))',
               color: 'var(--danger-text)',
             }}
@@ -5500,14 +5502,14 @@ export default function NoteEditor({
                     label={language === 'es' ? 'Nota favorita' : 'Favorite note'}
                   >
                     <span style={{ display: 'inline-flex' }}>
-                      <Star size={16} color={FILTER_COLORS.favorites} fill={FILTER_COLORS.favorites} stroke="none" />
+                      <Star size={16} color={pinColor} fill={pinColor} stroke="none" />
                     </span>
                   </Tooltip>
                 )}
                 {isFloatingNote && (
                   <Tooltip placement="bottom" delay={400} label={t.noteList.stickyActive}>
                     <span style={{ display: 'inline-flex' }}>
-                      <AppWindow size={16} color={FILTER_COLORS.sticky} />
+                      <AppWindow size={16} color={floatingColor} />
                     </span>
                   </Tooltip>
                 )}
@@ -5681,9 +5683,9 @@ export default function NoteEditor({
               style={{
                 ...noteActionBtnStyle(pinned),
                 ...(pinned ? {
-                  color: FILTER_COLORS.favorites,
-                  background: 'rgba(245, 158, 11, 0.14)',
-                  border: '1px solid rgba(245, 158, 11, 0.45)',
+                  color: pinColor,
+                  background: 'rgba(var(--pin-rgb, 245, 158, 11), 0.14)',
+                  border: '1px solid rgba(var(--pin-rgb, 245, 158, 11), 0.45)',
                 } : {}),
               }}
               onMouseEnter={e => {
@@ -5691,12 +5693,12 @@ export default function NoteEditor({
                 e.currentTarget.style.color = 'var(--text-primary)';
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = pinned ? 'rgba(245, 158, 11, 0.14)' : 'transparent';
-                e.currentTarget.style.color = pinned ? FILTER_COLORS.favorites : 'var(--text-muted)';
-                e.currentTarget.style.border = pinned ? '1px solid rgba(245, 158, 11, 0.45)' : '1px solid transparent';
+                e.currentTarget.style.background = pinned ? 'rgba(var(--pin-rgb, 245, 158, 11), 0.14)' : 'transparent';
+                e.currentTarget.style.color = pinned ? pinColor : 'var(--text-muted)';
+                e.currentTarget.style.border = pinned ? '1px solid rgba(var(--pin-rgb, 245, 158, 11), 0.45)' : '1px solid transparent';
               }}
             >
-              <Star size={15} fill={pinned ? FILTER_COLORS.favorites : 'none'} color={pinned ? FILTER_COLORS.favorites : 'currentColor'} stroke={pinned ? 'none' : 'currentColor'} strokeWidth={pinned ? 0 : 2} />
+              <Star size={15} fill={pinned ? pinColor : 'none'} color={pinned ? pinColor : 'currentColor'} stroke={pinned ? 'none' : 'currentColor'} strokeWidth={pinned ? 0 : 2} />
             </button>
             </Tooltip>
 
@@ -5708,9 +5710,9 @@ export default function NoteEditor({
                 style={{
                   ...noteActionBtnStyle(isFloatingNote),
                   ...(isFloatingNote ? {
-                    color: FILTER_COLORS.sticky,
-                    background: 'rgba(34, 211, 238, 0.14)',
-                    border: '1px solid rgba(34, 211, 238, 0.45)',
+                    color: floatingColor,
+                    background: 'rgba(var(--floating-rgb, 34, 211, 238), 0.14)',
+                    border: '1px solid rgba(var(--floating-rgb, 34, 211, 238), 0.45)',
                   } : {}),
                 }}
                 onMouseEnter={e => {
@@ -5718,12 +5720,12 @@ export default function NoteEditor({
                   e.currentTarget.style.color = 'var(--text-primary)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = isFloatingNote ? 'rgba(34, 211, 238, 0.14)' : 'transparent';
-                  e.currentTarget.style.color = isFloatingNote ? FILTER_COLORS.sticky : 'var(--text-muted)';
-                  e.currentTarget.style.border = isFloatingNote ? '1px solid rgba(34, 211, 238, 0.45)' : '1px solid transparent';
+                  e.currentTarget.style.background = isFloatingNote ? 'rgba(var(--floating-rgb, 34, 211, 238), 0.14)' : 'transparent';
+                  e.currentTarget.style.color = isFloatingNote ? floatingColor : 'var(--text-muted)';
+                  e.currentTarget.style.border = isFloatingNote ? '1px solid rgba(var(--floating-rgb, 34, 211, 238), 0.45)' : '1px solid transparent';
                 }}
               >
-                <AppWindow size={15} color={isFloatingNote ? FILTER_COLORS.sticky : 'currentColor'} />
+                <AppWindow size={15} color={isFloatingNote ? floatingColor : 'currentColor'} />
               </button>
             </Tooltip>
 
@@ -5735,8 +5737,8 @@ export default function NoteEditor({
                 onClick={() => onRequestDeleteNote?.(note.id)}
                 style={noteActionBtnStyle(false)}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
-                  e.currentTarget.style.color = '#f87171';
+                  e.currentTarget.style.background = 'rgba(var(--danger-rgb, 239, 68, 68), 0.12)';
+                  e.currentTarget.style.color = 'var(--danger)';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.background = 'transparent';
@@ -6925,7 +6927,7 @@ export default function NoteEditor({
                 flexShrink: 0,
                 userSelect: 'none',
                 color: saveStatus === 'error'
-                  ? '#fca5a5'
+                  ? 'var(--danger-text)'
                   : saveStatus === 'saving' || saveStatus === 'pending'
                     ? 'var(--text-secondary)'
                     : 'var(--text-muted)',
@@ -6941,9 +6943,9 @@ export default function NoteEditor({
                       ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
                       : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
                   boxShadow: saveStatus === 'error'
-                    ? '0 0 7px rgba(239, 68, 68, 0.65)'
+                    ? '0 0 7px rgba(var(--danger-rgb, 239, 68, 68), 0.65)'
                     : saveStatus === 'saving' || saveStatus === 'pending'
-                      ? '0 0 7px rgba(245, 158, 11, 0.55)'
+                      ? '0 0 7px rgba(var(--pin-rgb, 245, 158, 11), 0.55)'
                       : '0 0 7px rgba(52, 211, 153, 0.45)',
                 }}
               />
@@ -7592,10 +7594,10 @@ export default function NoteEditor({
                 style={{
                   width: 'calc(420px * var(--ui-scale))',
                   background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
-                  border: '1px solid rgba(234, 88, 12, 0.3)',
+                  border: '1px solid rgba(var(--warning-rgb, 234, 88, 12), 0.3)',
                   borderRadius: 'var(--radius-lg)',
                   padding: '24px 28px',
-                  boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05))',
+                  boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(var(--warning-rgb, 234, 88, 12), 0.05))',
                   display: 'flex', flexDirection: 'column', gap: 20,
                 }}
                 onClick={e => e.stopPropagation()}
@@ -7603,11 +7605,11 @@ export default function NoteEditor({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div style={{
                     width: 48, height: 48, borderRadius: 12,
-                    background: 'rgba(234, 88, 12, 0.1)',
-                    border: '1px solid rgba(234, 88, 12, 0.3)',
+                    background: 'rgba(var(--warning-rgb, 234, 88, 12), 0.1)',
+                    border: '1px solid rgba(var(--warning-rgb, 234, 88, 12), 0.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.6))' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warning-rgb, 234, 88, 12))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(var(--warning-rgb, 234, 88, 12), 0.6))' }}>
                       <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
                       <line x1="12" y1="9" x2="12" y2="13" />
                       <line x1="12" y1="17" x2="12.01" y2="17" />

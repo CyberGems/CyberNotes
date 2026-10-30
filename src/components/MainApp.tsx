@@ -2400,8 +2400,8 @@ export default function MainApp({
                 <span style={{
                   width: 40, height: 40, borderRadius: 10, flexShrink: 0,
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  background: 'rgba(var(--danger-rgb, 239, 68, 68), 0.15)',
+                  border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.3)',
                   color: 'var(--danger)',
                 }}>
                   <Power size={17} />
@@ -2615,10 +2615,10 @@ export default function MainApp({
               style={{
                 width: 'calc(420px * var(--ui-scale))',
                 background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
-                border: '1px solid rgba(234, 88, 12, 0.3)',
+                border: '1px solid rgba(var(--warning-rgb, 234, 88, 12), 0.3)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '24px 28px',
-                boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05))',
+                boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(var(--warning-rgb, 234, 88, 12), 0.05))',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 20,
@@ -2629,14 +2629,14 @@ export default function MainApp({
                   width: 48,
                   height: 48,
                   borderRadius: 12,
-                  background: 'rgba(234, 88, 12, 0.1)',
-                  border: '1px solid rgba(234, 88, 12, 0.3)',
+                  background: 'rgba(var(--warning-rgb, 234, 88, 12), 0.1)',
+                  border: '1px solid rgba(var(--warning-rgb, 234, 88, 12), 0.3)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.6))' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warning-rgb, 234, 88, 12))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(var(--warning-rgb, 234, 88, 12), 0.6))' }}>
                     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
                     <line x1="12" y1="9" x2="12" y2="13"/>
                     <line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -2697,21 +2697,21 @@ export default function MainApp({
               style={{
                 width: 'calc(420px * var(--ui-scale))',
                 background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
-                border: '1px solid rgba(234, 88, 12, 0.3)',
+                border: '1px solid rgba(var(--warning-rgb, 234, 88, 12), 0.3)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '24px 28px',
-                boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(234, 88, 12, 0.05))',
+                boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(var(--warning-rgb, 234, 88, 12), 0.05))',
                 display: 'flex', flexDirection: 'column', gap: 20,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 12,
-                  background: 'rgba(234, 88, 12, 0.1)',
-                  border: '1px solid rgba(234, 88, 12, 0.3)',
+                  background: 'rgba(var(--warning-rgb, 234, 88, 12), 0.1)',
+                  border: '1px solid rgba(var(--warning-rgb, 234, 88, 12), 0.3)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.6))' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warning-rgb, 234, 88, 12))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 6px rgba(var(--warning-rgb, 234, 88, 12), 0.6))' }}>
                     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
                     <line x1="12" y1="9" x2="12" y2="13" />
                     <line x1="12" y1="17" x2="12.01" y2="17" />

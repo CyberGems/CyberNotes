@@ -392,3 +392,8 @@ html, body {
   .icon svg, .icon img.app-icon, .brand-logo, .head-brand:hover .brand-logo,
   .head-icon, .head:hover .head-icon { filter: none; }
 }
+
+:root[data-theme="graphite"] {
+  .head-icon, .head:hover .head-icon, .brand-logo, .head-brand:hover .brand-logo,
+  .icon img.app-icon { filter: grayscale(1); }
+}

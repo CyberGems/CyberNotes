@@ -2650,7 +2650,7 @@ export default function SettingsModal({
                   <div style={{
                     padding: '8px 12px',
                     borderRadius: 'var(--radius-sm)',
-                    background: pwdError ? 'var(--danger-dim)' : 'rgba(34,197,94,0.12)',
+                    background: pwdError ? 'var(--danger-dim)' : 'rgba(var(--success-rgb, 34, 197, 94), 0.12)',
                     color: pwdError ? 'var(--danger)' : 'var(--success)',
                     fontSize: 12,
                   }}>
@@ -2781,7 +2781,7 @@ export default function SettingsModal({
                   <div style={{
                     padding: '8px 12px',
                     borderRadius: 'var(--radius-sm)',
-                    background: recError ? 'var(--danger-dim)' : 'rgba(34,197,94,0.12)',
+                    background: recError ? 'var(--danger-dim)' : 'rgba(var(--success-rgb, 34, 197, 94), 0.12)',
                     color: recError ? 'var(--danger)' : 'var(--success)',
                     fontSize: 12,
                   }}>
@@ -3348,7 +3348,7 @@ export default function SettingsModal({
                   padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
                   background: 'var(--bg-surface)',
-                  border: '1px solid color-mix(in srgb, #ef4444 35%, var(--border))',
+                  border: '1px solid color-mix(in srgb, var(--danger) 35%, var(--border))',
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                     <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>

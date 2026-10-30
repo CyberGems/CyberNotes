@@ -19,7 +19,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
         position: 'fixed',
         inset: 0,
         zIndex: 999999,
-        background: 'radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--accent, #6c63e6) 16%, transparent) 0%, color-mix(in srgb, var(--bg-app, #0d0e18) 96%, transparent) 55%, #08090e 100%)',
+        background: 'var(--loader-bg, radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--accent, #6c63e6) 16%, transparent) 0%, color-mix(in srgb, var(--bg-app, #0d0e18) 96%, transparent) 55%, var(--loader-edge, #08090e) 100%))',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -35,8 +35,8 @@ export default function AppLoader({ language = 'en', isShield = false, message }
           100% { transform: rotate(360deg); }
         }
         @keyframes cyberPulse {
-          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px var(--accent-glow, rgba(108, 99, 230, 0.4))); }
-          50% { transform: scale(1.04); filter: drop-shadow(0 0 24px var(--accent-glow, rgba(108, 99, 230, 0.7))); }
+          0%, 100% { transform: scale(1); filter: var(--loader-icon-filter, grayscale(0)) drop-shadow(0 0 14px var(--accent-glow, rgba(108, 99, 230, 0.4))); }
+          50% { transform: scale(1.04); filter: var(--loader-icon-filter, grayscale(0)) drop-shadow(0 0 24px var(--accent-glow, rgba(108, 99, 230, 0.7))); }
         }
         @keyframes cyberRunner {
           0% { left: -40%; width: 30%; }
@@ -77,7 +77,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
               position: 'absolute',
               inset: 0,
               borderRadius: '50%',
-              border: '2px solid rgba(255, 255, 255, 0.06)',
+              border: '2px solid var(--loader-track, rgba(255, 255, 255, 0.06))',
               borderTopColor: 'var(--accent, #6c63e6)',
               borderRightColor: 'color-mix(in srgb, var(--accent, #6c63e6) 35%, transparent)',
               animation: 'cyberSpin 1.8s linear infinite',
@@ -106,6 +106,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
               animation: 'cyberPulse 2.6s ease-in-out infinite',
               userSelect: 'none',
               pointerEvents: 'none',
+              filter: 'var(--loader-icon-filter, grayscale(0))',
             }}
           />
         </div>
@@ -116,7 +117,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
             fontSize: 22,
             fontWeight: 700,
             letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #ffffff 40%, var(--accent-light, #968fff) 100%)',
+            background: 'linear-gradient(135deg, var(--loader-title-start, #ffffff) 40%, var(--accent-light, #968fff) 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             marginBottom: 6,
@@ -145,7 +146,7 @@ export default function AppLoader({ language = 'en', isShield = false, message }
             width: 140,
             height: 3,
             borderRadius: 999,
-            background: 'rgba(255, 255, 255, 0.08)',
+            background: 'var(--loader-track, rgba(255, 255, 255, 0.08))',
             overflow: 'hidden',
             position: 'relative',
           }}

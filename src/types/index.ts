@@ -90,6 +90,12 @@ declare global {
     /** Console-only, persistent update UI preview. Omit the argument to toggle. */
     __CYBERNOTES_TOGGLE_UPDATE_PREVIEW__?: (enabled?: boolean) => boolean;
     cyberNotesAPI: {
+      getStartupAppearance?: () => {
+        theme: ThemeId;
+        colorScheme: 'dark' | 'light';
+        language: 'es' | 'en';
+        vars: Record<string, string>;
+      };
       // Ventana
       windowMinimize: () => Promise<void>;
       windowMaximizeToggle: () => Promise<void>;

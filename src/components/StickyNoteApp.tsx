@@ -76,9 +76,9 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     id: 'cyber-yellow',
     nameKey: 'yellow',
     accent: '#f59e0b',
-    accentGlow: 'rgba(245, 158, 11, 0.4)',
+    accentGlow: 'rgba(var(--pin-rgb, 245, 158, 11), 0.4)',
     bgDark: STICKY_BACKGROUNDS['cyber-yellow'],
-    border: 'rgba(245, 158, 11, 0.35)',
+    border: 'rgba(var(--pin-rgb, 245, 158, 11), 0.35)',
     headerBg: '#261e0e',
   },
   'neon-cyan': {
@@ -1936,9 +1936,9 @@ export default function StickyNoteApp({ noteId }: Props) {
                         ? 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f59e0b 46%, rgba(0, 0, 0, 0.55) 100%)'
                         : 'radial-gradient(circle at 35% 35%, #ffffff 0%, #34d399 46%, rgba(0, 0, 0, 0.55) 100%)',
                     boxShadow: saveStatus === 'error'
-                      ? '0 0 7px rgba(239, 68, 68, 0.65)'
+                      ? '0 0 7px rgba(var(--danger-rgb, 239, 68, 68), 0.65)'
                       : saveStatus === 'saving' || saveStatus === 'pending'
-                        ? '0 0 7px rgba(245, 158, 11, 0.55)'
+                        ? '0 0 7px rgba(var(--pin-rgb, 245, 158, 11), 0.55)'
                         : '0 0 7px rgba(52, 211, 153, 0.45)',
                   }}
                 />

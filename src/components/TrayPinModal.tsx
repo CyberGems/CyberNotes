@@ -301,7 +301,7 @@ export default function TrayPinModal({ language, onClose, isAutomatic = false }:
                 padding: '8px 12px',
                 borderRadius: '6px',
                 background: 'var(--danger-dim)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
+                border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.25)',
               }}
             >
               {errorMsg}

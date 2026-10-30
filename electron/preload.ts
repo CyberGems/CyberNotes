@@ -4,6 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 // Expone funciones seguras al renderer (React)
 
 contextBridge.exposeInMainWorld('cyberNotesAPI', {
+  // Small, synchronous preference read so the HTML loader has no theme flash.
+  getStartupAppearance: () => ipcRenderer.sendSync('appearance:get-startup'),
   // -- Ventana --
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximizeToggle: () => ipcRenderer.invoke('window-maximize-toggle'),

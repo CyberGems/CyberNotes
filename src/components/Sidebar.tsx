@@ -1736,13 +1736,13 @@ export default function Sidebar({
                         right: -5,
                         width: 12,
                         height: 12,
-                        background: '#ef4444',
+                        background: 'var(--danger)',
                         borderRadius: '50%',
                         fontSize: '8px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: 'white',
+                        color: 'var(--danger-fill-text)',
                       }}>✓</span>
                     )}
                   </button>
@@ -1864,13 +1864,13 @@ export default function Sidebar({
                         right: -5,
                         width: 12,
                         height: 12,
-                        background: '#ef4444',
+                        background: 'var(--danger)',
                         borderRadius: '50%',
                         fontSize: '8px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: 'white',
+                        color: 'var(--danger-fill-text)',
                       }}>✓</span>
                     )}
                   </button>
@@ -1911,10 +1911,10 @@ export default function Sidebar({
             style={{
               width: 'calc(400px * var(--ui-scale))',
               background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
+              border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.3)',
               borderRadius: 'var(--radius-lg)',
               padding: '24px 28px',
-              boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(239, 68, 68, 0.05))',
+              boxShadow: 'var(--shadow-elevated, 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(var(--danger-rgb, 239, 68, 68), 0.05))',
               display: 'flex',
               flexDirection: 'column',
               gap: 20,
@@ -1925,14 +1925,14 @@ export default function Sidebar({
                 width: 48,
                 height: 48,
                 borderRadius: 12,
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: 'rgba(var(--danger-rgb, 239, 68, 68), 0.1)',
+                border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <Trash2 size={24} style={{ color: 'var(--danger)', filter: 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.6))' }} />
+                <Trash2 size={24} style={{ color: 'var(--danger)', filter: 'drop-shadow(0 0 6px rgba(var(--danger-rgb, 239, 68, 68), 0.6))' }} />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h3 style={{
