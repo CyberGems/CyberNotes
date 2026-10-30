@@ -139,6 +139,64 @@ describe('NoteEditor tab hydration', () => {
     expect(strip.scrollLeft).toBe(stoppedAt);
   });
 
+  it('reveals the active tab after selection, creation, closing and resizing while allowing manual browsing', async () => {
+    const observers: { callback: ResizeObserverCallback; targets: Element[] }[] = [];
+    vi.stubGlobal('ResizeObserver', class {
+      entry: typeof observers[number];
+      constructor(callback: ResizeObserverCallback) { this.entry = { callback, targets: [] }; observers.push(this.entry); }
+      observe(target: Element) { this.entry.targets.push(target); }
+      unobserve() {}
+      disconnect() { this.entry.targets = []; }
+    });
+    let ids = Array.from({ length: 12 }, (_,index) => `note-${index}`);
+    const notes = ids.map(id => ({ ...note, id, title: id }));
+    let active = notes[0];
+    let width = 350;
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note: active, notes, openNoteIds: ids, onSave: vi.fn(), onCreateNote: vi.fn(),
+      layoutMode: 1, onToggleLayout: vi.fn(), showFloatingToolbar: false,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const strip = container!.querySelector<HTMLElement>('.tab-strip')!;
+    let scroll = 0;
+    const maximum = () => Math.max(0, ids.length * 140 - width);
+    Object.defineProperties(strip, {
+      clientWidth: { get: () => width }, scrollWidth: { get: () => ids.length * 140 },
+      scrollLeft: { get: () => Math.min(scroll, maximum()), set: value => { scroll = Math.max(0, Math.min(value, maximum())); } },
+    });
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+      if (this === strip) return new DOMRect(100, 0, width, 42);
+      if (this.dataset.noteId) return new DOMRect(100 + ids.indexOf(this.dataset.noteId) * 140 - strip.scrollLeft, 0, 140, 36);
+      return originalBounds.call(this);
+    });
+    const render = async () => act(async () => root!.render(<NoteEditor {...props} note={active} notes={notes} openNoteIds={ids} />));
+    const visible = () => {
+      const tab = strip.querySelector<HTMLElement>(`[data-note-id="${active.id}"]`)!.getBoundingClientRect();
+      const viewport = strip.getBoundingClientRect();
+      return tab.left >= viewport.left && tab.right <= viewport.right;
+    };
+    active = notes[11]; await render(); expect(visible()).toBe(true);
+    active = notes[2]; await render(); expect(visible()).toBe(true);
+    const newNote = { ...note, id: 'created' }; notes.push(newNote);
+    ids = [...ids.slice(0, 3), newNote.id, ...ids.slice(3)]; active = newNote;
+    await render(); expect(visible()).toBe(true);
+    ids = ids.filter(id => id !== newNote.id); active = notes[2];
+    await render(); expect(visible()).toBe(true);
+    strip.scrollLeft = maximum();
+    await act(async () => strip.dispatchEvent(new Event('scroll')));
+    expect(visible()).toBe(false);
+    ids = ids.filter(id => id !== 'note-0');
+    await render(); expect(visible()).toBe(true);
+    width = 220;
+    await act(async () => observers.filter(observer => observer.targets.includes(strip))
+      .forEach(observer => observer.callback([], {} as ResizeObserver)));
+    expect(visible()).toBe(true);
+    const before = strip.scrollLeft;
+    await render(); expect(strip.scrollLeft).toBe(before);
+    expect(props.onSave).not.toHaveBeenCalled();
+  });
+
   it('disables spellcheck before replacing a tab and enables it after the delay', async () => {
     const props: ComponentProps<typeof NoteEditor> = {
       language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),

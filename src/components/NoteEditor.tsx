@@ -2252,15 +2252,36 @@ export default function NoteEditor({
       return (prev.left === next.left && prev.right === next.right) ? prev : next;
     });
   }, []);
+  const revealActiveTab = useCallback(() => {
+    const strip = tabStripRef.current;
+    if (!strip || !note?.id || strip.clientWidth === 0) return;
+    const maximum = Math.max(0, strip.scrollWidth - strip.clientWidth);
+    if (maximum <= 1) return;
+    const tab = Array.from(strip.querySelectorAll<HTMLElement>('[data-note-id]'))
+      .find(element => element.dataset.noteId === note.id);
+    if (!tab) return;
+    const stripRect = strip.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    const margin = 8;
+    const left = stripRect.left + margin;
+    const right = stripRect.right - margin;
+    let delta = 0;
+    if (tabRect.width > right - left || tabRect.left < left) delta = tabRect.left - left;
+    else if (tabRect.right > right) delta = tabRect.right - right;
+    // Move only this strip. Native scrollIntoView can also scroll the editor
+    // and its ancestors, and smooth scrolling competes with note hydration.
+    if (delta !== 0) strip.scrollLeft = Math.max(0, Math.min(maximum, strip.scrollLeft + delta));
+  }, [note?.id]);
   useLayoutEffect(() => {
     const strip = tabStripRef.current;
     if (!strip) return;
-    updateTabEdges();
-    const observer = new ResizeObserver(updateTabEdges);
+    const syncTabs = () => { revealActiveTab(); updateTabEdges(); };
+    syncTabs();
+    const observer = new ResizeObserver(syncTabs);
     observer.observe(strip);
     strip.querySelectorAll('.editor-tab').forEach(tab => observer.observe(tab));
     return () => observer.disconnect();
-  }, [openNoteIds, tabsWidthMode, note?.id, updateTabEdges]);
+  }, [openNoteIds, tabsWidthMode, revealActiveTab, updateTabEdges]);
   const scrollTabs = useCallback((direction: -1 | 1) => {
     const strip = tabStripRef.current;
     if (!strip) return;
@@ -2679,27 +2700,6 @@ export default function NoteEditor({
       el.removeEventListener('wheel', handleWheel);
     };
   }, [openNoteIds]);
-
-  // Llevar la pestaña activa a la vista solo cuando está fuera de vista.
-  // Centrado manual e instantáneo: sin animación smooth que compita con la
-  // hidratación del editor, y sin mover contenedores ancestros (scrollIntoView
-  // los arrastra). Si la pestaña ya se ve completa, no se toca el scroll.
-  useEffect(() => {
-    if (!note?.id) return;
-    const strip = tabStripRef.current;
-    if (!strip) return;
-    if (strip.scrollWidth <= strip.clientWidth + 1) return;
-    const tab = strip.querySelector(`[data-note-id="${note.id}"]`) as HTMLElement | null;
-    if (!tab) return;
-    const stripRect = strip.getBoundingClientRect();
-    const tabRect = tab.getBoundingClientRect();
-    const MARGIN = 8;
-    const fullyVisible =
-      tabRect.left >= stripRect.left - MARGIN && tabRect.right <= stripRect.right + MARGIN;
-    if (fullyVisible) return;
-    const delta = tabRect.left + tabRect.width / 2 - (stripRect.left + stripRect.width / 2);
-    strip.scrollLeft += delta;
-  }, [note?.id]);
 
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
