@@ -34,6 +34,8 @@ export function useNoteDragAutoScroll(containerRef: RefObject<HTMLDivElement | n
     const over = (event: DragEvent) => {
       const container = containerRef.current;
       if (!container || !(event.target instanceof Node) || !container.contains(event.target) || !isNoteDrag(event.dataTransfer)) { stop(); return; }
+      // Keep a collapsed header still while its delayed expansion is pending.
+      if (event.target instanceof Element && event.target.closest('[data-sidebar-section][aria-expanded="false"]')) { stop(); return; }
       event.preventDefault();
       pointer = { x: event.clientX, y: event.clientY };
       if (frame === null) frame = requestAnimationFrame(tick);

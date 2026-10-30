@@ -30,6 +30,7 @@ describe('dragging note selections into the sidebar', () => {
     vi.stubGlobal('cyberNotesAPI', {
       getOpenStickyNotes: vi.fn().mockResolvedValue([]), onStickyListChanged: () => () => {},
       openStickyNote: vi.fn().mockResolvedValue(true),
+      reportRendererError: vi.fn().mockResolvedValue(true),
       getSetting: vi.fn().mockResolvedValue('false'), onSettingChanged: () => () => {},
       setSetting: vi.fn().mockResolvedValue(true),
       getSettings: vi.fn().mockImplementation(async () => ({ note_list_view_mode: view, note_list_group_by_date: 'false', note_list_collapsed_groups: '[]', note_list_floating_group_ready: 'true' })),
@@ -80,7 +81,7 @@ describe('dragging note selections into the sidebar', () => {
   }
   function dragEvent(type: string, data: DataTransfer) {
     const event = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'dataTransfer', { value: data });
+    Object.defineProperties(event, { dataTransfer: { value: data }, clientX: { value: 30 }, clientY: { value: 110 } });
     return event;
   }
   async function selectThree() {
@@ -198,6 +199,63 @@ describe('dragging note selections into the sidebar', () => {
     expect(container.querySelector('.note-selection-actions')).toBeNull();
   });
 
+  it.each(['views', 'folders'] as const)('expands %s after holding a note over the header, without restarting the delay on every dragover', async key => {
+    await render();
+    const header = container.querySelector<HTMLButtonElement>(`[data-sidebar-section="${key}"]`)!;
+    await act(async () => header.click());
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 100, 180, 30));
+    const data = dataTransfer();
+    await act(async () => card('n0').dispatchEvent(dragEvent('dragstart', data)));
+    await act(async () => header.dispatchEvent(dragEvent('dragover', data)));
+    await act(async () => vi.advanceTimersByTime(300));
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    await act(async () => header.dispatchEvent(dragEvent('dragover', data)));
+    await act(async () => vi.advanceTimersByTime(250));
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+    expect(JSON.parse(localStorage.getItem('cybernotes_sidebar_collapsed_sections')!)).not.toContain(key);
+    await drop(data, key === 'views' ? 'Favoritos' : 'Destination');
+    expect(key === 'views' ? pin : move).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['dragleave', 'dragend', 'drop', 'Escape', 'blur', 'other target', 'unmount'])('cancels delayed section expansion on %s', async event => {
+    await render();
+    const header = container.querySelector<HTMLButtonElement>('[data-sidebar-section="folders"]')!;
+    await act(async () => header.click());
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 100, 180, 30));
+    const data = dataTransfer();
+    data.setData(NOTE_DRAG_MIME, 'n0');
+    await act(async () => header.dispatchEvent(dragEvent('dragover', data)));
+    await act(async () => vi.advanceTimersByTime(300));
+    await act(async () => {
+      if (event === 'unmount') root.render(null);
+      else if (event === 'other target') target('Favoritos').dispatchEvent(dragEvent('dragover', data));
+      else if (event === 'Escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      else if (event === 'dragleave') header.dispatchEvent(dragEvent('dragleave', data));
+      else window.dispatchEvent(new Event(event));
+    });
+    await act(async () => vi.advanceTimersByTime(600));
+    if (event !== 'unmount') expect(header.getAttribute('aria-expanded')).toBe('false');
+    expect(JSON.parse(localStorage.getItem('cybernotes_sidebar_collapsed_sections')!)).toContain('folders');
+  });
+
+  it('ignores non-note drags over section headers and verifies the header has not scrolled out from under the cursor', async () => {
+    await render();
+    const header = container.querySelector<HTMLButtonElement>('[data-sidebar-section="folders"]')!;
+    await act(async () => header.click());
+    const rect = vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 100, 180, 30));
+    const data = dataTransfer();
+    data.setData('text/plain', 'n0');
+    await act(async () => header.dispatchEvent(dragEvent('dragover', data)));
+    await act(async () => vi.advanceTimersByTime(700));
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    data.setData(NOTE_DRAG_MIME, 'n0');
+    await act(async () => header.dispatchEvent(dragEvent('dragover', data)));
+    rect.mockReturnValue(new DOMRect(10, 200, 180, 30));
+    await act(async () => vi.advanceTimersByTime(700));
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it.each([false, true])('opens floating notes without reopening existing windows, compact sidebar: %s', async rail => {
     sidebarProps.rail = rail;
     sidebarProps.stickyNoteIds = ['n0'];
@@ -283,6 +341,7 @@ describe('dragging note selections into the sidebar', () => {
     expect(selected).toEqual(['n1']);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('restantes');
     expect(console.error).toHaveBeenCalled();
+    expect(window.cyberNotesAPI.reportRendererError).toHaveBeenCalled();
   });
 
   it('rejects malformed groups and unknown notes, and still accepts a legacy single-note drag', async () => {

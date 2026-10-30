@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useMemo, type CSSProperties, type ReactNode, type DragEvent as ReactDragEvent } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, type CSSProperties, type ReactNode, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Folder, Note } from '../types';
@@ -250,6 +250,10 @@ export default function Sidebar({
           movedIds.push(id);
         } catch (error) {
           console.error('[CyberNotes] Could not apply note drop:', id, error);
+          const detail = error instanceof Error ? error.stack || error.message : String(error);
+          void window.cyberNotesAPI.reportRendererError?.(`Sidebar drop (${typeof destination === 'string' ? destination : 'folder'}): ${detail}`).catch(reportError => {
+            console.error('[CyberNotes] Could not record note drop failure:', reportError);
+          });
           failedIds.push(id);
         }
       }
@@ -316,6 +320,16 @@ export default function Sidebar({
     } catch {}
     return new Set<string>();
   });
+  const [hoveredSection, setHoveredSection] = useState<'views' | 'folders' | null>(null);
+  const sectionExpandRef = useRef<{ key: 'views' | 'folders'; timer: number; x: number; y: number } | null>(null);
+  const cancelSectionExpand = useCallback(() => {
+    if (sectionExpandRef.current) window.clearTimeout(sectionExpandRef.current.timer);
+    sectionExpandRef.current = null;
+    setHoveredSection(null);
+  }, []);
+  useEffect(() => () => {
+    if (sectionExpandRef.current) window.clearTimeout(sectionExpandRef.current.timer);
+  }, []);
   const toggleSidebarSection = (key: string) => {
     setCollapsedSections(prev => {
       const next = new Set(prev);
@@ -358,12 +372,48 @@ export default function Sidebar({
         <button
           type="button"
           onClick={() => toggleSidebarSection(key)}
+          data-sidebar-section={key}
           aria-expanded={!collapsed}
+          onDragOver={event => {
+            if (!isNoteDrag(event.dataTransfer)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setActiveDropTargetId(null);
+            if (!collapsed) return;
+            if (sectionExpandRef.current?.key === key) {
+              sectionExpandRef.current.x = event.clientX;
+              sectionExpandRef.current.y = event.clientY;
+              return;
+            }
+            cancelSectionExpand();
+            setHoveredSection(key);
+            const button = event.currentTarget;
+            const timer = window.setTimeout(() => {
+              const pointer = sectionExpandRef.current;
+              sectionExpandRef.current = null;
+              setHoveredSection(null);
+              const rect = button.getBoundingClientRect();
+              if (!pointer || !button.isConnected || pointer.x < rect.left || pointer.x > rect.right || pointer.y < rect.top || pointer.y > rect.bottom) return;
+              setCollapsedSections(previous => {
+                if (!previous.has(key)) return previous;
+                const next = new Set(previous);
+                next.delete(key);
+                try { localStorage.setItem('cybernotes_sidebar_collapsed_sections', JSON.stringify([...next])); } catch {}
+                return next;
+              });
+            }, 550);
+            sectionExpandRef.current = { key, timer, x: event.clientX, y: event.clientY };
+          }}
+          onDragLeave={event => {
+            if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+            if (sectionExpandRef.current?.key === key) cancelSectionExpand();
+          }}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-            background: 'transparent', border: 'none', cursor: 'pointer',
+            background: hoveredSection === key ? 'var(--accent-dim)' : 'transparent', border: 'none', cursor: 'pointer',
+            borderRadius: 'var(--radius-sm)',
             fontSize: 'calc(10px * var(--ui-scale))', fontWeight: 700,
-            color: 'var(--text-muted)', textTransform: 'uppercase',
+            color: hoveredSection === key ? 'var(--accent-light)' : 'var(--text-muted)', textTransform: 'uppercase',
             letterSpacing: 1, padding: '12px 10px 6px', textAlign: 'left',
           }}
         >
@@ -388,27 +438,36 @@ export default function Sidebar({
     const handleDragEnd = () => {
       setIsNoteDragging(false);
       setActiveDropTargetId(null);
+      cancelSectionExpand();
+    };
+    const handleDragOver = (event: DragEvent) => {
+      const key = sectionExpandRef.current?.key;
+      if (key && (!(event.target instanceof Element) || event.target.closest('[data-sidebar-section]')?.getAttribute('data-sidebar-section') !== key)) cancelSectionExpand();
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleDragEnd();
     };
 
     window.addEventListener('dragstart', handleDragStart);
+    window.addEventListener('dragover', handleDragOver, true);
     window.addEventListener('dragend', handleDragEnd);
     window.addEventListener('drop', handleDragEnd);
     window.addEventListener('cybernotes:dragend', handleDragEnd);
     window.addEventListener('mouseup', handleDragEnd);
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('blur', handleDragEnd);
 
     return () => {
       window.removeEventListener('dragstart', handleDragStart);
+      window.removeEventListener('dragover', handleDragOver, true);
       window.removeEventListener('dragend', handleDragEnd);
       window.removeEventListener('drop', handleDragEnd);
       window.removeEventListener('cybernotes:dragend', handleDragEnd);
       window.removeEventListener('mouseup', handleDragEnd);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('blur', handleDragEnd);
     };
-  }, []);
+  }, [cancelSectionExpand]);
 
   useEffect(() => {
     if (showNewFolder) setTimeout(() => newFolderInputRef.current?.focus(), 50);

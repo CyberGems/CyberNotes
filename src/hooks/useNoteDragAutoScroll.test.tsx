@@ -10,7 +10,7 @@ import { NOTE_DRAG_MIME } from '../utils/noteDrag';
 function Harness() {
   const ref = useRef<HTMLDivElement>(null);
   useNoteDragAutoScroll(ref);
-  return <div ref={ref}><button onDragOver={event => event.stopPropagation()}>Folder</button></div>;
+  return <div ref={ref}><button onDragOver={event => event.stopPropagation()}>Folder</button><button data-sidebar-section="folders" aria-expanded="false">Folders</button></div>;
 }
 
 describe('sidebar auto-scroll during a note drag', () => {
@@ -84,6 +84,18 @@ describe('sidebar auto-scroll during a note drag', () => {
       frames(10);
       expect(container.scrollTop).toBe(0);
     }
+  });
+
+  it('pauses over a collapsed header so it can expand without scrolling away from the cursor', () => {
+    over(399); frames(3);
+    const previous = container.scrollTop;
+    const header = container.lastElementChild!;
+    over(399, [NOTE_DRAG_MIME], header); frames(40);
+    expect(container.scrollTop).toBe(previous);
+    expect(callbacks.size).toBe(0);
+    header.setAttribute('aria-expanded', 'true');
+    over(399, [NOTE_DRAG_MIME], header); frames(3);
+    expect(container.scrollTop).toBeGreaterThan(previous);
   });
 
   it.each(['drop', 'dragend', 'mouseup', 'cybernotes:dragend', 'blur', 'Escape', 'dragleave', 'unmount'])('stops pending animation on %s', event => {
