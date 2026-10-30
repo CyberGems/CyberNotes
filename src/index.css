@@ -345,8 +345,7 @@ body:has(.sticky-note-window),
 .toolbar-strip > * {
   flex-shrink: 0;
 }
-/* Mantiene juntos escala/teclado y métricas/guardado. Cada pareja ocupa
-   el ancho disponible cuando pasa a su propia fila. */
+/* Mantiene juntos escala/teclado y métricas/guardado al cambiar de fila. */
 .toolbar-strip > .editor-status-group {
   display: flex;
   flex: 1 1 auto;
@@ -355,6 +354,12 @@ body:has(.sticky-note-window),
   justify-content: space-between;
   gap: 4px 12px;
   min-width: 0;
+}
+/* La escala y el teclado conservan una separación fija, incluso cuando
+   la fila tiene espacio de sobra. El guardado sigue alineado a la derecha. */
+.toolbar-strip > .editor-status-group:first-child {
+  flex-grow: 0;
+  justify-content: flex-start;
 }
 
 /* Controles Word (fuente/tamaño) + menús de la barra: hover y microanimaciones
