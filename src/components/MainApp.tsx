@@ -1433,23 +1433,29 @@ export default function MainApp({
     onEnter: () => { void saveAndCloseDraftTab(); },
   });
 
-  const handleCloseTab = useCallback((id: string) => {
-    const isDirty = draftCache[id] !== undefined && !autosaveEnabled;
-    if (isDirty) {
-      const meta = allNotes.find(n => n.id === id);
+  const handleCloseTab = useCallback(async (id: string) => {
+    try {
+      // Middle clicks keep editor focus, so include edits that have not synced yet.
+      if (selectedNoteIdRef.current === id) await draftFlushRef.current?.();
+    } catch (error) {
+      console.error('[MainApp] Could not prepare the note for closing:', error);
+      return;
+    }
+    const draft = draftCacheRef.current[id];
+    if (draft && !autosaveEnabled) {
+      const meta = allNotesRef.current.find(n => n.id === id);
       if (meta) {
-        const draft = draftCache[id];
         setNoteToCloseWithDraft({
           ...meta,
-          content: draft?.content ?? contentCacheRef.current[id] ?? '',
-          title: draft?.title ?? meta.title,
+          content: draft.content,
+          title: draft.title,
         });
         return;
       }
     }
     setPendingBatchCloseIds(null);
     executeCloseTab(id);
-  }, [draftCache, autosaveEnabled, allNotes, executeCloseTab]);
+  }, [autosaveEnabled, executeCloseTab]);
 
   const handleDeleteNotes = async (ids: string[], permanent = false): Promise<string[]> => {
     const deleted = new Set<string>();

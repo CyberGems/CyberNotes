@@ -191,6 +191,55 @@ describe('choosing an empty editor', () => {
   const activeTab = () => host.querySelector<HTMLElement>('.editor-tab.active')?.dataset.noteId ?? null;
   async function closeTab(id: string) { await act(async () => tab(id).querySelector<HTMLButtonElement>('.tab-close-btn')!.click()); }
 
+  async function middleClose(id: string) {
+    await act(async () => {
+      const target = tab(id).querySelector<HTMLElement>('.editor-tab-title')!;
+      for (const type of ['mousedown', 'mouseup', 'auxclick']) {
+        target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 1 }));
+      }
+    });
+  }
+
+  it('closes inactive and active tabs with the middle button, preserving selection and the empty view', async () => {
+    await openFourTabs();
+    await middleClose('second');
+    expect(tab('second')).toBeNull();
+    expect(activeTab()).toBe('fourth');
+    await middleClose('fourth');
+    expect(activeTab()).toBe('third');
+    expect(editor().getText()).toBe('third body');
+    await deselect();
+    await middleClose('third');
+    expect(empty()).not.toBeNull();
+    expect(activeTab()).toBeNull();
+    expect(tab('third')).toBeNull();
+    expect(saved.size).toBe(4);
+  });
+
+  it.each(['save', 'discard', 'cancel'])('protects the latest edits on middle close, action: %s', async action => {
+    await render(); await select();
+    await act(async () => { editor().commands.insertContent(' unsaved'); });
+    await middleClose('first');
+    expect(document.querySelector('.modal-actions.is-stack')).not.toBeNull();
+    expect(tab('first')).not.toBeNull();
+    const buttonClass = action === 'save' ? 'is-save' : action === 'discard' ? 'is-danger' : 'is-cancel';
+    await act(async () => document.querySelector<HTMLButtonElement>(`.modal-actions.is-stack .${buttonClass}`)!.click());
+    expect(tab('first') !== null).toBe(action === 'cancel');
+    expect(empty() !== null).toBe(action !== 'cancel');
+    expect(saved.get('first')!.content.includes('unsaved')).toBe(action === 'save');
+    if (action === 'cancel') expect(editor().getText()).toContain('unsaved');
+  });
+
+  it('finishes pending autosave before closing with the middle button', async () => {
+    settings.autosave_enabled = 'true';
+    await render(); await select();
+    await act(async () => { editor().commands.insertContent(' autosaved'); });
+    await middleClose('first');
+    expect(empty()).not.toBeNull();
+    expect(saved.get('first')?.content).toContain('autosaved');
+    expect(document.querySelector('.modal-actions.is-stack')).toBeNull();
+  });
+
   it('selects the immediate left tab on closing the active middle tab', async () => {
     await openFourTabs();
     await act(async () => tab('third').click());

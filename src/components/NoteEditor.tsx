@@ -5075,6 +5075,10 @@ export default function NoteEditor({
                   draggable
                   className={`editor-tab ${isActive ? 'active' : ''} ${draggingTabId === tabId ? 'is-dragging' : ''} ${dropClass}`}
                   onMouseDown={(event) => {
+                    if (event.button === 1) {
+                      event.preventDefault();
+                      return;
+                    }
                     if (event.button !== 0) return;
                     pressedTabRef.current = tabId;
                     if (tabPressTimerRef.current !== null) clearTimeout(tabPressTimerRef.current);
@@ -5086,6 +5090,7 @@ export default function NoteEditor({
                     }, 0);
                   }}
                   onClick={(event) => {
+                    if (event.button !== 0) return;
                     const selectedOnPress = event.detail > 0 && pressedTabRef.current === tabId;
                     pressedTabRef.current = null;
                     // Mantener click para activaciones por teclado o código.
@@ -5094,6 +5099,15 @@ export default function NoteEditor({
                       tabPressTimerRef.current = null;
                       onSelectNote?.(tabId);
                     }
+                  }}
+                  onAuxClick={(event) => {
+                    if (event.button !== 1) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (tabPressTimerRef.current !== null) clearTimeout(tabPressTimerRef.current);
+                    tabPressTimerRef.current = null;
+                    pressedTabRef.current = null;
+                    onCloseTab?.(tabId);
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -5192,6 +5206,7 @@ export default function NoteEditor({
                       draggable={false}
                       onMouseDown={(e) => {
                         e.stopPropagation();
+                        if (e.button === 1) e.preventDefault();
                         if (tabPressTimerRef.current !== null) clearTimeout(tabPressTimerRef.current);
                         tabPressTimerRef.current = null;
                         pressedTabRef.current = null;

@@ -133,6 +133,37 @@ describe('NoteEditor tab hydration', () => {
     expect(select).not.toHaveBeenCalled();
   });
 
+  it('closes on middle release over the title or close button without activating the tab or autoscroll', async () => {
+    const second = { ...note, id: 'second', title: 'Second' };
+    const select = vi.fn();
+    const close = vi.fn();
+    await act(async () => root!.render(<NoteEditor
+      language="es" note={note} notes={[note, second]} openNoteIds={[note.id, second.id]}
+      onSave={vi.fn()} onCreateNote={vi.fn()} layoutMode={1} onToggleLayout={vi.fn()}
+      onSelectNote={select} onCloseTab={close} showFloatingToolbar={false}
+    />));
+    const tab = container!.querySelector<HTMLElement>('[data-note-id="second"]')!;
+    for (const selector of ['.editor-tab-title', '.tab-close-btn']) {
+      close.mockClear();
+      const target = tab.querySelector<HTMLElement>(selector)!;
+      const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 1 });
+      const release = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 });
+      await act(async () => { target.dispatchEvent(press); vi.advanceTimersByTime(0); });
+      expect(press.defaultPrevented).toBe(true);
+      expect(close).not.toHaveBeenCalled();
+      await act(async () => {
+        target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 1 }));
+        target.dispatchEvent(release);
+      });
+      expect(release.defaultPrevented).toBe(true);
+      expect(close).toHaveBeenCalledExactlyOnceWith('second');
+      expect(select).not.toHaveBeenCalled();
+    }
+    close.mockClear();
+    await act(async () => tab.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 2 })));
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it('waits for initial visible lines instead of measuring the entire document before painting', async () => {
     const callbacks: IntersectionObserverCallback[] = [];
     vi.stubGlobal('IntersectionObserver', class {
