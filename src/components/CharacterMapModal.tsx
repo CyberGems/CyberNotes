@@ -7,6 +7,8 @@ import { Check, Copy, Pin, Plus, Search, Sigma, X } from 'lucide-react';
 import type { Language } from '../languages';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
+import NativeGlyph from './NativeGlyph';
+import { loadGlyphSupport, SYMBOL_FONT_FAMILY } from '../utils/glyphSupport';
 
 type CharacterCategory = 'latin' | 'punctuation' | 'brackets' | 'math' | 'currency' | 'arrows' | 'greek' | 'super' | 'shapes' | 'emoji';
 type CharacterFilter = 'all' | 'recent' | CharacterCategory;
@@ -260,6 +262,8 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
   const resizeHeightRef = useRef<number | null>(initialViewState.modalHeight);
   const insertionRangeRef = useRef({ from: editor.state.selection.from, to: editor.state.selection.to });
   const [query, setQuery] = useState('');
+  const [isSupported, setIsSupported] = useState<((value: string) => boolean) | null>(null);
+  const [compatibilityError, setCompatibilityError] = useState(false);
   const [category, setCategory] = useState<CharacterFilter>(initialViewState.category);
   const [modalHeight, setModalHeight] = useState<number | null>(initialViewState.modalHeight);
   const [multiSelect, setMultiSelect] = useState(false);
@@ -301,11 +305,12 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
         })
       : CHARACTER_ENTRIES.filter(entry => category === 'all' || entry.category === category);
     const matches = source.filter(entry => {
+      if (!isSupported?.(entry.value)) return false;
       if (!normalizedQuery) return true;
       return normalizeSearch(`${entry.value} ${entry.es} ${entry.en} ${codePointLabel(entry.value)}`).includes(normalizedQuery);
     });
     const typedCharacter = parseCodePoint(query);
-    if (typedCharacter && !matches.some(entry => entry.value === typedCharacter)) {
+    if (typedCharacter && isSupported?.(typedCharacter) && !matches.some(entry => entry.value === typedCharacter)) {
       matches.unshift({
         value: typedCharacter,
         es: 'Carácter Unicode',
@@ -314,7 +319,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
       });
     }
     return matches;
-  }, [category, query, recentCharacters]);
+  }, [category, query, recentCharacters, isSupported]);
 
   const close = useCallback(() => {
     if (scrollPersistTimerRef.current !== null) window.clearTimeout(scrollPersistTimerRef.current);
@@ -331,6 +336,17 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
 
   useEffect(() => {
     searchRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    loadGlyphSupport(SYMBOL_FONT_FAMILY).then(check => {
+      if (mounted) setIsSupported(() => check);
+    }).catch(error => {
+      console.error('Could not check native character support:', error);
+      if (mounted) setCompatibilityError(true);
+    });
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -610,14 +626,20 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
                 }}
                 onDoubleClick={() => { if (!multiSelect) close(); }}
               >
-                {entry.value}
+                <NativeGlyph value={entry.value} fontFamily={SYMBOL_FONT_FAMILY} />
               </button>
             ))}
-            {filteredEntries.length === 0 && (
+            {isSupported === null ? (
+              <div className="character-map-compatibility" role={compatibilityError ? 'alert' : 'status'}>
+                {compatibilityError
+                  ? (isSpanish ? 'No se pudo comprobar la compatibilidad de los caracteres.' : 'Could not check character compatibility.')
+                  : (isSpanish ? 'Comprobando compatibilidad de caracteres…' : 'Checking character compatibility…')}
+              </div>
+            ) : filteredEntries.length === 0 && (
               <div className="character-map-empty">
-                {category === 'recent'
+                {category === 'recent' && !query.trim()
                   ? (isSpanish ? 'Los caracteres que insertes aparecerán aquí.' : 'Characters you insert will appear here.')
-                  : (isSpanish ? 'No se encontraron caracteres.' : 'No characters found.')}
+                  : (isSpanish ? 'No se encontraron caracteres compatibles.' : 'No supported characters found.')}
               </div>
             )}
           </div>
@@ -662,7 +684,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
           <div className="character-map-details" aria-live="polite">
             {activeEntry ? (
               <>
-                <span className="character-map-preview">{activeEntry.value}</span>
+                <span className="character-map-preview"><NativeGlyph value={activeEntry.value} fontFamily={SYMBOL_FONT_FAMILY} /></span>
                 <span className="character-map-detail-copy">
                   <strong>{isSpanish ? activeEntry.es : activeEntry.en}</strong>
                   <code>{codePointLabel(activeEntry.value)}</code>

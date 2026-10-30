@@ -11,6 +11,7 @@ vi.mock('../utils/emojiSupport', () => ({
   filterSupportedEmojis: vi.fn().mockResolvedValue(new Set(['😀', '👩‍💻', '❤️'])),
 }));
 vi.mock('./Tooltip', () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock('./NativeGlyph', () => ({ default: ({ value, className }: { value: string; className?: string }) => <svg className={className}><text>{value}</text></svg> }));
 vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
 
 afterEach(() => { localStorage.clear(); sessionStorage.clear(); vi.restoreAllMocks(); });

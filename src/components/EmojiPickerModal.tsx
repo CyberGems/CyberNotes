@@ -10,6 +10,7 @@ import emojiComponentsJson from '../data/emoji-components.json';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
 import { EMOJI_FONT_FAMILY, filterSupportedEmojis } from '../utils/emojiSupport';
+import NativeGlyph from './NativeGlyph';
 
 type EmojiGroup = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type EmojiFilter = 'all' | 'recent' | EmojiGroup;
@@ -416,7 +417,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
                             }
                           }}
                           onDoubleClick={() => { if (!multiSelect) close(); }}
-                        ><span className="emoji-picker-glyph" aria-hidden="true">{entry.value}</span></button>
+                        ><NativeGlyph value={entry.value} fontFamily={EMOJI_FONT_FAMILY} className="emoji-picker-glyph" /></button>
                       );
                     })}
                   </div>
@@ -452,7 +453,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
 
           <div className="character-map-details" aria-live="polite">
             {activeEntry ? <>
-              <span className="character-map-preview emoji-picker-preview">{activeEntry.value}</span>
+              <span className="character-map-preview emoji-picker-preview"><NativeGlyph value={activeEntry.value} fontFamily={EMOJI_FONT_FAMILY} /></span>
               <span className="character-map-detail-copy">
                 <strong>{isSpanish ? activeEntry.es : activeEntry.en}</strong>
                 <code>{codePointLabel(activeEntry.value)}</code>

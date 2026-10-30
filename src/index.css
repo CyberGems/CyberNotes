@@ -2838,6 +2838,10 @@ body.sticky-is-dragging * {
   height: 0;
 }
 .character-map-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   min-width: 0;
   padding: 2px;
   user-select: none;
@@ -2952,6 +2956,11 @@ body.sticky-is-dragging * {
   border-radius: 10px;
 }
 .character-map-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  max-width: calc(70px * var(--ui-scale));
   min-width: calc(36px * var(--ui-scale));
   user-select: none;
   -webkit-user-select: none;
@@ -3044,20 +3053,20 @@ body.sticky-is-dragging * {
   align-content: start;
 }
 .emoji-picker-grid button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
   font-size: calc(25px * var(--ui-scale));
   font-family: var(--font-emoji);
-  line-height: 1;
 }
-.emoji-picker-glyph {
+.picker-glyph {
   display: block;
   max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
+  max-height: 100%;
+  flex: 0 0 auto;
+  overflow: visible;
+  fill: currentColor;
+  stroke: none;
+  pointer-events: none;
 }
+.character-map-compatibility,
 .emoji-picker-compatibility {
   display: grid;
   place-items: center;
@@ -3072,8 +3081,6 @@ body.sticky-is-dragging * {
   font-family: var(--font-emoji);
   flex: 0 0 auto;
   max-width: calc(70px * var(--ui-scale));
-  overflow: hidden;
-  white-space: nowrap;
 }
 .emoji-picker-loading {
   width: min(calc(380px * var(--ui-scale, 1)), calc(100vw - 40px));
