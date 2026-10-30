@@ -1466,18 +1466,18 @@ select option {
   flex-shrink: 0;
   padding: 0;
   border-radius: 8px;
-  border: 1px solid rgba(var(--update-rgb, 0,255,255), 0.5);
+  border: none;
   background: rgba(var(--update-rgb, 0,255,255), 0.1);
   color: rgb(var(--update-rgb, 0,255,255));
-  box-shadow: 0 0 8px rgba(var(--update-rgb, 0,255,255), 0.25);
+  box-shadow: 0 0 6px rgba(var(--update-rgb, 0,255,255), 0.12);
   cursor: pointer;
   -webkit-app-region: no-drag;
-  transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s, transform 0.3s;
+  transition: background-color 0.3s, box-shadow 0.3s, transform 0.3s;
 }
-.titlebar-update-button:hover {
-  border-color: rgb(var(--update-rgb, 0,255,255));
-  background: rgba(var(--update-rgb, 0,255,255), 0.25);
-  box-shadow: 0 0 12px rgba(var(--update-rgb, 0,255,255), 0.45);
+.titlebar-update-button:is(:hover, :focus-visible) {
+  animation: none;
+  background: rgba(var(--update-rgb, 0,255,255), 0.20);
+  box-shadow: 0 0 10px rgba(var(--update-rgb, 0,255,255), 0.25);
 }
 .titlebar-update-button:active {
   transform: scale(0.95);
@@ -1493,13 +1493,19 @@ select option {
 .titlebar-update-button:hover > svg {
   transform: translateY(2px);
 }
-@keyframes titlebar-update-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: var(--update-pulse-min-opacity, 0.5); }
+@keyframes titlebar-update-breathe {
+  0%, 100% {
+    background-color: rgba(var(--update-rgb, 0,255,255), 0.07);
+    box-shadow: 0 0 5px rgba(var(--update-rgb, 0,255,255), 0.08);
+  }
+  50% {
+    background-color: rgba(var(--update-rgb, 0,255,255), 0.15);
+    box-shadow: 0 0 10px rgba(var(--update-rgb, 0,255,255), 0.20);
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   .titlebar-update-button {
-    animation: titlebar-update-pulse 3.5s ease-in-out infinite;
+    animation: titlebar-update-breathe 3.5s ease-in-out infinite;
   }
 }
 

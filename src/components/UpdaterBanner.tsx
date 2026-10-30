@@ -486,9 +486,9 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
       </div>
 
       {(status.state === 'available' || status.state === 'downloading') && (
-        <div
+        <div className="update-release-notes"
           style={{
-            background: 'color-mix(in srgb, var(--bg-surface) 80%, black)',
+            background: 'var(--update-notes-bg, color-mix(in srgb, var(--bg-surface) 80%, black))',
             border: '1px solid var(--border)',
             borderRadius: 8,
             padding: '9px 12px',
