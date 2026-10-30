@@ -92,6 +92,53 @@ describe('NoteEditor tab hydration', () => {
     expect(container!.querySelector('.tab-new-btn')).toBe(create);
   });
 
+  it('continues scrolling while held, avoids a duplicate click and stops on release, cancellation, blur or unmount', async () => {
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note, notes: [note, { ...note, id: 'second' }], openNoteIds: ['first', 'second'],
+      onSave: vi.fn(), onCreateNote: vi.fn(), layoutMode: 1, onToggleLayout: vi.fn(), showFloatingToolbar: false,
+    };
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const strip = container!.querySelector<HTMLElement>('.tab-strip')!;
+    Object.defineProperties(strip, { clientWidth: { value: 200 }, scrollWidth: { value: 1600 }, scrollLeft: { value: 100, writable: true } });
+    strip.scrollBy = vi.fn();
+    await act(async () => strip.dispatchEvent(new Event('scroll')));
+    const buttons = container!.querySelectorAll<HTMLButtonElement>('.tab-scroll-btn');
+    const right = buttons[1];
+    for (const button of buttons) button.setPointerCapture = vi.fn();
+    const pointer = async (button: HTMLButtonElement, type: string) => act(async () => {
+      button.dispatchEvent(new MouseEvent(type, { button: 0, bubbles: true }));
+    });
+    const advance = async () => act(async () => { vi.advanceTimersByTime(400); });
+    for (const cancellation of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur']) {
+      strip.scrollLeft = 100;
+      vi.mocked(strip.scrollBy).mockClear();
+      await pointer(right, 'pointerdown');
+      expect(strip.scrollBy).toHaveBeenCalledTimes(1);
+      await advance();
+      expect(strip.scrollLeft).toBeGreaterThan(100);
+      const stoppedAt = strip.scrollLeft;
+      if (cancellation === 'blur') await act(async () => { window.dispatchEvent(new Event('blur')); });
+      else await pointer(right, cancellation);
+      await act(async () => { right.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })); });
+      expect(strip.scrollBy).toHaveBeenCalledTimes(1);
+      await advance();
+      expect(strip.scrollLeft).toBe(stoppedAt);
+    }
+    strip.scrollLeft = 1399;
+    await pointer(right, 'pointerdown'); await advance();
+    expect(strip.scrollLeft).toBe(1400);
+    strip.scrollLeft = 100;
+    await advance();
+    expect(strip.scrollLeft).toBe(100);
+    await pointer(buttons[0], 'pointerdown'); await advance();
+    expect(strip.scrollLeft).toBeLessThan(100);
+    await act(async () => root!.unmount()); root = undefined;
+    const stoppedAt = strip.scrollLeft;
+    await advance();
+    expect(strip.scrollLeft).toBe(stoppedAt);
+  });
+
   it('disables spellcheck before replacing a tab and enables it after the delay', async () => {
     const props: ComponentProps<typeof NoteEditor> = {
       language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),

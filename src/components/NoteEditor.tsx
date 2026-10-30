@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, useId, Fragment, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo, useId, Fragment, type CSSProperties, type PointerEvent as ReactPointerEvent, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import { motion, AnimatePresence } from 'motion/react';
@@ -2269,6 +2269,42 @@ export default function NoteEditor({
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
     });
   }, []);
+  const tabScrollHoldRef = useRef<{ timer: ReturnType<typeof setTimeout> | null; frame: number | null }>({ timer: null, frame: null });
+  const stopTabScroll = useCallback(() => {
+    const hold = tabScrollHoldRef.current;
+    if (hold.timer !== null) clearTimeout(hold.timer);
+    if (hold.frame !== null) cancelAnimationFrame(hold.frame);
+    hold.timer = null;
+    hold.frame = null;
+  }, []);
+  const startTabScroll = useCallback((event: ReactPointerEvent<HTMLButtonElement>, direction: -1 | 1) => {
+    if (event.button !== 0) return;
+    stopTabScroll();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    scrollTabs(direction);
+    tabScrollHoldRef.current.timer = setTimeout(() => {
+      tabScrollHoldRef.current.timer = null;
+      let previous = performance.now();
+      const advance = (now: number) => {
+        const strip = tabStripRef.current;
+        if (!strip) { stopTabScroll(); return; }
+        const maximum = Math.max(0, strip.scrollWidth - strip.clientWidth);
+        const distance = 600 * Math.min(40, now - previous) / 1000;
+        previous = now;
+        strip.scrollLeft = Math.max(0, Math.min(maximum, strip.scrollLeft + direction * distance));
+        if ((direction < 0 && strip.scrollLeft <= 0) || (direction > 0 && strip.scrollLeft >= maximum)) {
+          stopTabScroll();
+          return;
+        }
+        tabScrollHoldRef.current.frame = requestAnimationFrame(advance);
+      };
+      tabScrollHoldRef.current.frame = requestAnimationFrame(advance);
+    }, 300);
+  }, [scrollTabs, stopTabScroll]);
+  useEffect(() => {
+    window.addEventListener('blur', stopTabScroll);
+    return () => { window.removeEventListener('blur', stopTabScroll); stopTabScroll(); };
+  }, [stopTabScroll]);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const draggingTabIdRef = useRef<string | null>(null);
   const [tabDropHint, setTabDropHint] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
@@ -5043,10 +5079,14 @@ export default function NoteEditor({
       {openNoteIds.length > 0 && (
         <div className="note-tabs-bar">
           {(tabEdges.left || tabEdges.right) && (
-            <Tooltip label={language === 'es' ? 'Desplazar pestañas a la izquierda' : 'Scroll tabs left'} placement="bottom">
+            <Tooltip label={language === 'es' ? 'Mantén pulsado para desplazar las pestañas a la izquierda' : 'Hold to scroll tabs left'} placement="bottom">
               <button type="button" className="tab-scroll-btn is-left" disabled={!tabEdges.left}
                 aria-label={language === 'es' ? 'Desplazar pestañas a la izquierda' : 'Scroll tabs left'}
-                onClick={() => scrollTabs(-1)}><ChevronLeft size={15} /></button>
+                onPointerDown={event => startTabScroll(event, -1)}
+                onPointerUp={stopTabScroll}
+                onPointerCancel={stopTabScroll}
+                onLostPointerCapture={stopTabScroll}
+                onClick={event => { if (event.detail === 0) scrollTabs(-1); }}><ChevronLeft size={15} /></button>
             </Tooltip>
           )}
           <div className="tab-strip-viewport">
@@ -5273,10 +5313,14 @@ export default function NoteEditor({
           </div>
           <div className="tab-bar-actions">
             {(tabEdges.left || tabEdges.right) && (
-              <Tooltip label={language === 'es' ? 'Desplazar pestañas a la derecha' : 'Scroll tabs right'} placement="bottom">
+              <Tooltip label={language === 'es' ? 'Mantén pulsado para desplazar las pestañas a la derecha' : 'Hold to scroll tabs right'} placement="bottom">
                 <button type="button" className="tab-scroll-btn" disabled={!tabEdges.right}
                   aria-label={language === 'es' ? 'Desplazar pestañas a la derecha' : 'Scroll tabs right'}
-                  onClick={() => scrollTabs(1)}><ChevronRight size={15} /></button>
+                  onPointerDown={event => startTabScroll(event, 1)}
+                  onPointerUp={stopTabScroll}
+                  onPointerCancel={stopTabScroll}
+                  onLostPointerCapture={stopTabScroll}
+                  onClick={event => { if (event.detail === 0) scrollTabs(1); }}><ChevronRight size={15} /></button>
               </Tooltip>
             )}
             <Tooltip label={language === 'es' ? 'Nueva nota' : 'New note'} placement="bottom">
