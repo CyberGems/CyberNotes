@@ -235,6 +235,8 @@ export default function MainApp({
   const [glassBlur, setGlassBlur] = useState(0);
   const [bgOpacity, setBgOpacity] = useState(0.5);
   const [statusBarUrl, setStatusBarUrl] = useState<string | null>(null);
+  const [updateNoticeVersion, setUpdateNoticeVersion] = useState<string | null>(null);
+  const [updateNoticeNonce, setUpdateNoticeNonce] = useState(0);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -1993,6 +1995,8 @@ export default function MainApp({
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
         onOpenAbout={() => setShowAbout(true)}
+        updateVersion={updateNoticeVersion}
+        onShowUpdate={() => setUpdateNoticeNonce(value => value + 1)}
         onOpenTrayPin={() => {
           setIsTrayPinAutomatic(false);
           setShowTrayPin(true);
@@ -2754,7 +2758,7 @@ export default function MainApp({
         )}
       </AnimatePresence>
 
-      <UpdaterBanner language={language} />
+      <UpdaterBanner language={language} onNoticeChange={setUpdateNoticeVersion} openNonce={updateNoticeNonce} />
 
       {/* Status Bar (Hover Link) */}
       <AnimatePresence>

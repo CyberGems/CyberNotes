@@ -1441,6 +1441,52 @@ select option {
   animation: spin 1s linear infinite;
 }
 
+.titlebar-update-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 255, 0.5);
+  background: rgba(0, 255, 255, 0.1);
+  color: #00ffff;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.25);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s, transform 0.3s;
+}
+.titlebar-update-button:hover {
+  border-color: #00ffff;
+  background: rgba(0, 255, 255, 0.25);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.45);
+}
+.titlebar-update-button:active {
+  transform: scale(0.95);
+  background: rgba(0, 255, 255, 0.3);
+}
+.titlebar-update-button:focus-visible {
+  outline: 1px solid #00ffff;
+  outline-offset: 2px;
+}
+.titlebar-update-button > svg {
+  transition: transform 0.2s;
+}
+.titlebar-update-button:hover > svg {
+  transform: translateY(2px);
+}
+@keyframes titlebar-update-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .titlebar-update-button {
+    animation: titlebar-update-pulse 3.5s ease-in-out infinite;
+  }
+}
+
 /* ─── TitleBar Burger Menu ──────────────────────────────── */
 .more-menu-section-toggle {
   display: flex;

@@ -152,18 +152,51 @@ export function parseChangelogPeek(markdown?: string, language: Language = 'en')
   };
 }
 
-export default function UpdaterBanner({ language }: { language: Language }) {
+export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 }: {
+  language: Language;
+  onNoticeChange?: (version: string | null) => void;
+  openNonce?: number;
+}) {
   const t = TRANSLATIONS[language].updater;
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const [dismissed, setDismissed] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [releaseNotes, setReleaseNotes] = useState<string | undefined>();
   const [releaseUrl, setReleaseUrl] = useState<string>('');
+  const [autoCheckUpdates, setAutoCheckUpdates] = useState<boolean | null>(null);
+  const [skippedVersion, setSkippedVersion] = useState(readSkippedVersion);
   const lastVersionRef = useRef('');
 
   const currentVersion = status.state === 'available' || status.state === 'downloaded' || status.state === 'installing' || status.state === 'downloading'
     ? (status.version || '')
     : '';
+
+  const noticeVersion = autoCheckUpdates && currentVersion && skippedVersion !== currentVersion
+    ? currentVersion : null;
+
+  useEffect(() => {
+    onNoticeChange?.(noticeVersion);
+  }, [noticeVersion, onNoticeChange]);
+
+  useEffect(() => {
+    if (openNonce > 0) setDismissed(false);
+  }, [openNonce]);
+
+  useEffect(() => {
+    let active = true;
+    let receivedEvent = false;
+    const off = window.cyberNotesAPI.onSettingChanged(({ key, value }) => {
+      if (key !== 'auto_check_updates') return;
+      receivedEvent = true;
+      setAutoCheckUpdates(value !== 'false');
+    });
+    void window.cyberNotesAPI.getSetting('auto_check_updates').then(value => {
+      if (active && !receivedEvent) setAutoCheckUpdates(value !== 'false');
+    }).catch(() => {
+      // Keep the title-bar notice hidden until its setting can be confirmed.
+    });
+    return () => { active = false; off(); };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -250,6 +283,7 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     try {
       localStorage.setItem(SKIP_KEY, version);
     } catch { /* ignore */ }
+    setSkippedVersion(version);
     setDismissed(true);
     window.cyberNotesAPI.cancelAutoInstall?.();
   }, []);
@@ -258,6 +292,7 @@ export default function UpdaterBanner({ language }: { language: Language }) {
     try {
       localStorage.removeItem(SKIP_KEY);
     } catch { /* ignore */ }
+    setSkippedVersion(null);
     const version = currentVersion;
     setStatus({ state: 'downloading', percent: 0, version });
     void window.cyberNotesAPI.downloadUpdate();

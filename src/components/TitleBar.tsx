@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History, Keyboard, ChevronDown } from 'lucide-react';
 import Tooltip, { TooltipShortcut } from './Tooltip';
 import WelcomeGreeting from './WelcomeGreeting';
+import TitleBarUpdateButton from './TitleBarUpdateButton';
 
 interface Props {
   language?: 'es' | 'en';
@@ -11,6 +12,8 @@ interface Props {
   onLock?: () => void;
   onOpenSettings?: () => void;
   onOpenAbout?: () => void;
+  updateVersion?: string | null;
+  onShowUpdate?: () => void;
   onOpenTrayPin?: () => void;
   onExportMarkdown?: () => void;
   onExportHtml?: () => void;
@@ -72,6 +75,8 @@ export default function TitleBar({
   onLock,
   onOpenSettings,
   onOpenAbout,
+  updateVersion,
+  onShowUpdate,
   onOpenTrayPin,
   onExportMarkdown,
   onExportHtml,
@@ -484,6 +489,7 @@ export default function TitleBar({
         data-no-drag
         style={{ display: 'flex', alignItems: 'center', gap: 2, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
+        <TitleBarUpdateButton language={language} version={updateVersion} onClick={onShowUpdate} />
         {/* Settings Button */}
         <Tooltip placement="bottom" label={t('Configuración general (Ctrl+,)', 'General settings (Ctrl+,)')}>
           <button
