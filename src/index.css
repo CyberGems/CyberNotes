@@ -345,6 +345,17 @@ body:has(.sticky-note-window),
 .toolbar-strip > * {
   flex-shrink: 0;
 }
+/* Mantiene juntos escala/teclado y métricas/guardado. Cada pareja ocupa
+   el ancho disponible cuando pasa a su propia fila. */
+.toolbar-strip > .editor-status-group {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-width: 0;
+}
 
 /* Controles Word (fuente/tamaño) + menús de la barra: hover y microanimaciones
    al nivel del resto de la suite. Los colores de estado van por clase para que

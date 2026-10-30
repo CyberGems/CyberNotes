@@ -259,7 +259,7 @@ export default function MainApp({
   const [editorFont, setEditorFont] = useState<EditorFontId>(DEFAULT_EDITOR_FONT);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showWordCounter, setShowWordCounter] = useState(false);
-  const [showKeyboardIndicators, setShowKeyboardIndicators] = useState(false);
+  const [showKeyboardIndicators, setShowKeyboardIndicators] = useState(true);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
   const [showImageToolbar, setShowImageToolbar] = useState(true);
   const [showTableToolbar, setShowTableToolbar] = useState(true);
@@ -615,7 +615,7 @@ export default function MainApp({
     }
     if (s.show_minimap) setShowMinimap(s.show_minimap === 'true');
     setShowWordCounter(s.show_word_counter === 'true');
-    setShowKeyboardIndicators(s.show_keyboard_indicators === 'true');
+    setShowKeyboardIndicators(s.show_keyboard_indicators !== 'false');
     if (s.show_floating_toolbar === null) setShowFloatingToolbar(true);
     else setShowFloatingToolbar(s.show_floating_toolbar === 'true');
     setShowImageToolbar(s.show_image_toolbar !== 'false');

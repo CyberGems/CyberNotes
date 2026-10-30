@@ -2174,7 +2174,7 @@ export default function NoteEditor({
   layoutMode, 
   onToggleLayout, 
   showLineCounter, 
-  showKeyboardIndicators = false,
+  showKeyboardIndicators = true,
   showLineGutter = false,
   onShowLineGutterChange,
   showWrapGuides = true,
@@ -6641,6 +6641,7 @@ export default function NoteEditor({
         flexShrink: 0,
         minHeight: 28,
       }}>
+        <div className="editor-status-group">
         {/* Escala UI — sin etiqueta textual; tooltips descriptivos */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <Tooltip placement="top" label={language === 'es' ? 'Reducir escala de interfaz' : 'Decrease UI scale'}>
@@ -6803,7 +6804,10 @@ export default function NoteEditor({
           </>}
           <SpellCheckSelect language={language} />
         </div>
+        </div>
 
+        {(note || showLineCounter || showWordCounter) && (
+        <div className="editor-status-group">
         {/* Métricas compactas: números + tooltips */}
         {(showLineCounter || showWordCounter) && (
           <div style={{
@@ -6813,7 +6817,6 @@ export default function NoteEditor({
             flexShrink: 0,
             minWidth: 0,
             overflow: 'hidden',
-            marginLeft: 'auto',
           }}>
             {showLineCounter && (
               <>
@@ -6896,7 +6899,6 @@ export default function NoteEditor({
                 gap: 6,
                 minWidth: 'max-content',
                 flexShrink: 0,
-                marginLeft: 8,
                 userSelect: 'none',
                 color: saveStatus === 'error'
                   ? '#fca5a5'
@@ -6934,6 +6936,8 @@ export default function NoteEditor({
               </span>
             </span>
           </Tooltip>
+        )}
+        </div>
         )}
       </div>
 
