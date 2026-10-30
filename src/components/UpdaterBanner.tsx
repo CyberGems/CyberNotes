@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Download, Rocket, X, RefreshCw, Info, ChevronDown, ChevronUp, Sparkles, ExternalLink, SkipForward } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import type { UpdateStatus } from '../types';
+import Tooltip from './Tooltip';
 
 type Status = { state: 'idle' } | UpdateStatus;
 
@@ -471,16 +472,17 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
           </div>
         </div>
 
+        <Tooltip label={t.dismiss} placement="top">
         <button
           type="button"
           className="btn-icon"
           style={{ width: 24, height: 24, borderRadius: 6 }}
           onClick={handleDismiss}
-          title={t.dismiss}
           aria-label={t.dismiss}
         >
           <X size={13} />
         </button>
+        </Tooltip>
       </div>
 
       {(status.state === 'available' || status.state === 'downloading') && (
@@ -674,7 +676,6 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
                   gap: 4,
                 }}
                 onClick={() => { if (!previewEnabled) void window.cyberNotesAPI.openExternal(cardUrl); }}
-                title={t.viewReleaseNotes}
               >
                 <ExternalLink size={12} />
                 <span>{t.viewRelease}</span>
@@ -693,7 +694,6 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
                   color: 'var(--text-muted)',
                 }}
                 onClick={() => handleSkip(currentVersion)}
-                title={t.skipUpdate}
               >
                 <SkipForward size={12} />
                 <span>{t.skipUpdate}</span>

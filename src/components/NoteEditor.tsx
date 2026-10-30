@@ -970,14 +970,14 @@ function useWordMenuPosition(
       const below = window.innerHeight - r.bottom - 14;
       const above = r.top - 14;
       const up = opts.dropUp ? above >= 180 || above > below : below < 180 && above > below;
-      const maxH = Math.max(0, Math.min(opts.maxHeight ?? 260, up ? above : below));
+      const maxH = Math.max(0, Math.min(opts.maxHeight ?? 260, window.innerHeight - 16, up ? above : below));
       setStyle({
         position: 'fixed',
         left,
         width: menuWidth,
         maxHeight: maxH,
         zIndex: WORD_MENU_Z,
-        ...(up ? { bottom: Math.max(8, window.innerHeight - r.top + 6) } : { top: r.bottom + 6 }),
+        ...(up ? { bottom: Math.max(8, window.innerHeight - r.top + 6) } : { top: Math.max(8, r.bottom + 6) }),
       });
     };
     update();
