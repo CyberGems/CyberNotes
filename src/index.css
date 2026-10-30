@@ -3652,3 +3652,37 @@ body.sticky-is-dragging * {
   transform: scale(1.06);
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
 }
+
+/* Shared delete control for note rows and grid cards. */
+.delete-note-btn {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-modal);
+  color: var(--text-secondary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.delete-note-btn.is-compact { width: 20px; height: 20px; }
+.delete-note-btn.is-dense { width: 18px; height: 18px; }
+.note-item:hover .delete-note-btn,
+.delete-note-btn:focus-visible { opacity: 1; }
+.delete-note-btn:hover {
+  color: var(--danger-fill-text);
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: none;
+}
+.delete-note-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

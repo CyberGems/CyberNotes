@@ -2329,7 +2329,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         {folder && (isDense ? (
           <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
             <span
-              className={highlightSweep ? 'folder-badge-animating' : ''}
+              className={`note-folder-badge${highlightSweep ? ' folder-badge-animating' : ''}`}
               style={{
                 position: 'relative',
                 display: 'inline-flex',
@@ -2354,7 +2354,7 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
         ) : (
           <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
             <span
-              className={highlightSweep ? 'folder-badge-animating' : ''}
+              className={`note-folder-badge${highlightSweep ? ' folder-badge-animating' : ''}`}
               style={{
                 position: 'relative',
                 display: 'inline-flex',
@@ -2393,54 +2393,23 @@ const NoteItem = memo(function NoteItem({ language, note, folder, viewMode, isSe
       >
         <button
           type="button"
-          className={`delete-note-btn${isDense ? ' is-dense' : ''}`}
+          className={`delete-note-btn${isDense ? ' is-dense' : viewMode === 'compact' ? ' is-compact' : ''}`}
           onClick={e => {
             e.stopPropagation();
             onDelete();
           }}
           aria-label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}
           style={{
-            position: 'absolute',
-            top: isDense ? '50%' : viewMode === 'compact' ? 5 : 8,
-            // En densa con carpeta, a la izquierda del badge para no taparlo
-            // ni mezclar tooltips.
+            top: isDense ? '50%' : viewMode === 'compact' ? 4 : 8,
+            // Keep dense rows' delete button to the left of the folder badge.
             right: isDense && folder ? 36 : 8,
             transform: isDense ? 'translateY(-50%)' : undefined,
-            zIndex: 5,
-            background: 'rgba(20, 20, 25, 0.88)',
-            backdropFilter: 'blur(6px)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            opacity: 0,
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: isDense ? 18 : viewMode === 'compact' ? 22 : 26,
-            height: isDense ? 18 : viewMode === 'compact' ? 22 : 26,
-            borderRadius: '50%',
-            boxShadow: 'var(--shadow-elevated, 0 4px 12px rgba(0, 0, 0, 0.4))',
-            padding: 0,
           }}
         >
           <Trash2 size={isDense ? 11 : viewMode === 'compact' ? 12 : 13} />
         </button>
       </Tooltip>
 
-      <style>{`
-        .note-item:hover .delete-note-btn { opacity: 1 !important; }
-        .note-item:hover .delete-note-btn:hover {
-          color: var(--danger-fill-text) !important;
-          background: var(--danger) !important;
-          border-color: var(--danger) !important;
-          box-shadow: none !important;
-          transform: scale(1.08) !important;
-        }
-        .note-item:hover .delete-note-btn.is-dense:hover {
-          transform: translateY(-50%) scale(1.08) !important;
-        }
-      `}</style>
     </div>
   );
 });
@@ -2567,7 +2536,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
           </span>
           {folder && (
             <Tooltip placement="bottom" label={language === 'es' ? `Carpeta: ${folder.name}` : `Folder: ${folder.name}`}>
-              <span style={{ display: 'inline-flex', flexShrink: 0, color: folder.color || 'var(--text-secondary)' }}>
+              <span className="note-folder-badge" style={{ display: 'inline-flex', flexShrink: 0, color: folder.color || 'var(--text-secondary)' }}>
                 <FolderIcon name={folder.icon} color={folder.color} size={11} />
               </span>
             </Tooltip>
@@ -2587,27 +2556,7 @@ const NoteCard = memo(function NoteCard({ language, note, folder, isSelected, is
             onDelete();
           }}
           aria-label={isTrash ? t.noteList.permanentDelete : (language === 'es' ? 'Eliminar nota' : 'Delete note')}
-          style={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            zIndex: 5,
-            background: 'rgba(20, 20, 25, 0.88)',
-            backdropFilter: 'blur(6px)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            opacity: 0,
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            boxShadow: 'var(--shadow-elevated, 0 4px 12px rgba(0, 0, 0, 0.4))',
-            padding: 0,
-          }}
+          style={{ top: 8, right: 8 }}
         >
           <Trash2 size={12} />
         </button>
