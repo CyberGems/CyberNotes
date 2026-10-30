@@ -6,7 +6,18 @@ import type { UpdateStatus } from '../types';
 type Status = { state: 'idle' } | UpdateStatus;
 
 const SKIP_KEY = 'cybernotes_skipped_update_version';
+const PREVIEW_KEY = 'cybernotes_update_preview_enabled';
+const PREVIEW_VERSION = '0.0.0-preview';
+const PREVIEW_NOTES: Record<Language, string> = {
+  es: '- Vista previa del aviso de actualización.\n- Comprueba el botón, el diseño y los controles sin una actualización real.\n- Descargar y reiniciar solo simulan sus estados, sin modificar la app.',
+  en: '- Update notice preview.\n- Check the button, layout and controls without a real update.\n- Download and restart only simulate their states without changing the app.',
+};
 const RELEASES_REPO = 'CyberGems/CyberNotes';
+
+function readPreviewEnabled(): boolean {
+  try { return localStorage.getItem(PREVIEW_KEY) === 'true'; }
+  catch { return false; }
+}
 
 function isNetworkOrOfflineError(msg?: string): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
@@ -158,20 +169,51 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
   openNonce?: number;
 }) {
   const t = TRANSLATIONS[language].updater;
-  const [status, setStatus] = useState<Status>({ state: 'idle' });
-  const [dismissed, setDismissed] = useState(false);
+  const [updateStatus, setStatus] = useState<Status>({ state: 'idle' });
+  const [updateDismissed, setUpdateDismissed] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [releaseNotes, setReleaseNotes] = useState<string | undefined>();
+  const [updateReleaseNotes, setReleaseNotes] = useState<string | undefined>();
   const [releaseUrl, setReleaseUrl] = useState<string>('');
   const [autoCheckUpdates, setAutoCheckUpdates] = useState<boolean | null>(null);
   const [skippedVersion, setSkippedVersion] = useState(readSkippedVersion);
+  const [previewEnabled, setPreviewEnabled] = useState(readPreviewEnabled);
+  const previewEnabledRef = useRef(previewEnabled);
+  const [previewStatus, setPreviewStatus] = useState<Status>({ state: 'available', version: PREVIEW_VERSION });
+  const [previewDismissed, setPreviewDismissed] = useState(false);
   const lastVersionRef = useRef('');
+  const status = previewEnabled ? previewStatus : updateStatus;
+  const dismissed = previewEnabled ? previewDismissed : updateDismissed;
+  const releaseNotes = previewEnabled ? PREVIEW_NOTES[language] : updateReleaseNotes;
+
+  const togglePreview = useCallback((enabled?: boolean) => {
+    const next = enabled ?? !previewEnabledRef.current;
+    previewEnabledRef.current = next;
+    setPreviewEnabled(next);
+    setPreviewDismissed(false);
+    setPreviewStatus({ state: 'available', version: PREVIEW_VERSION });
+    try {
+      if (next) localStorage.setItem(PREVIEW_KEY, 'true');
+      else localStorage.removeItem(PREVIEW_KEY);
+    } catch (error) {
+      console.warn('[Updater preview] Could not save the preview preference:', error);
+    }
+    return next;
+  }, []);
+
+  useEffect(() => {
+    window.__CYBERNOTES_TOGGLE_UPDATE_PREVIEW__ = togglePreview;
+    return () => {
+      if (window.__CYBERNOTES_TOGGLE_UPDATE_PREVIEW__ === togglePreview) {
+        delete window.__CYBERNOTES_TOGGLE_UPDATE_PREVIEW__;
+      }
+    };
+  }, [togglePreview]);
 
   const currentVersion = status.state === 'available' || status.state === 'downloaded' || status.state === 'installing' || status.state === 'downloading'
     ? (status.version || '')
     : '';
 
-  const noticeVersion = autoCheckUpdates && currentVersion && skippedVersion !== currentVersion
+  const noticeVersion = (previewEnabled || autoCheckUpdates) && currentVersion && (previewEnabled || skippedVersion !== currentVersion)
     ? currentVersion : null;
 
   useEffect(() => {
@@ -179,7 +221,10 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
   }, [noticeVersion, onNoticeChange]);
 
   useEffect(() => {
-    if (openNonce > 0) setDismissed(false);
+    if (openNonce > 0) {
+      if (previewEnabled) setPreviewDismissed(false);
+      else setUpdateDismissed(false);
+    }
   }, [openNonce]);
 
   useEffect(() => {
@@ -220,7 +265,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
         next = { ...next, version: next.version || lastVersionRef.current };
       }
       if (next.state === 'downloading' || next.state === 'downloaded' || next.state === 'installing' || next.state === 'available' || next.state === 'error') {
-        setDismissed(false);
+        setUpdateDismissed(false);
       }
       if (next.state === 'not-available') {
         setStatus({ state: 'idle' });
@@ -247,10 +292,10 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
   }, []);
 
   useEffect(() => {
-    if (status.state !== 'available' || !status.version) return;
-    if (releaseNotes) return;
+    if (previewEnabled || updateStatus.state !== 'available' || !updateStatus.version) return;
+    if (updateReleaseNotes) return;
     let cancelled = false;
-    fetch(`https://api.github.com/repos/${RELEASES_REPO}/releases/tags/v${status.version}`)
+    fetch(`https://api.github.com/repos/${RELEASES_REPO}/releases/tags/v${updateStatus.version}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
@@ -259,36 +304,47 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
       })
       .catch(() => { /* ignore */ });
     return () => { cancelled = true; };
-  }, [status, releaseNotes]);
+  }, [previewEnabled, updateStatus, updateReleaseNotes]);
+
+  const dismiss = useCallback(() => {
+    if (previewEnabled) setPreviewDismissed(true);
+    else setUpdateDismissed(true);
+  }, [previewEnabled]);
 
   // Sin reinicio automático: tras descargar, el usuario decide con
   // Reiniciar ahora o Más tarde. Nada se descarga ni instala sin su clic.
   const handleLater = useCallback(() => {
-    setDismissed(true);
-    window.cyberNotesAPI.cancelAutoInstall?.();
-  }, []);
+    dismiss();
+    if (!previewEnabled) window.cyberNotesAPI.cancelAutoInstall?.();
+  }, [dismiss, previewEnabled]);
 
   const handleNow = useCallback(() => {
+    if (previewEnabled) { togglePreview(false); return; }
     window.cyberNotesAPI.installUpdate();
-  }, []);
+  }, [previewEnabled, togglePreview]);
 
   const handleDismiss = useCallback(() => {
-    setDismissed(true);
-    if (status.state === 'downloaded') {
+    dismiss();
+    if (!previewEnabled && status.state === 'downloaded') {
       window.cyberNotesAPI.cancelAutoInstall?.();
     }
-  }, [status.state]);
+  }, [dismiss, previewEnabled, status.state]);
 
   const handleSkip = useCallback((version: string) => {
+    if (previewEnabled) { togglePreview(false); return; }
     try {
       localStorage.setItem(SKIP_KEY, version);
     } catch { /* ignore */ }
     setSkippedVersion(version);
-    setDismissed(true);
+    setUpdateDismissed(true);
     window.cyberNotesAPI.cancelAutoInstall?.();
-  }, []);
+  }, [previewEnabled, togglePreview]);
 
   const handleDownload = useCallback(() => {
+    if (previewEnabled) {
+      setPreviewStatus({ state: 'downloaded', version: PREVIEW_VERSION });
+      return;
+    }
     try {
       localStorage.removeItem(SKIP_KEY);
     } catch { /* ignore */ }
@@ -296,7 +352,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
     const version = currentVersion;
     setStatus({ state: 'downloading', percent: 0, version });
     void window.cyberNotesAPI.downloadUpdate();
-  }, [currentVersion]);
+  }, [currentVersion, previewEnabled]);
 
   const { items: peekItems, totalCount } = useMemo(
     () => parseChangelogPeek(releaseNotes, language),
@@ -336,6 +392,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
     <div
       role="dialog"
       aria-label={t.available}
+      data-update-preview={previewEnabled || undefined}
       style={{
         position: 'fixed',
         bottom: 24,
@@ -355,6 +412,8 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
         gap: 10,
         animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
         backdropFilter: 'blur(12px)',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -614,7 +673,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
                   alignItems: 'center',
                   gap: 4,
                 }}
-                onClick={() => window.cyberNotesAPI.openExternal(cardUrl)}
+                onClick={() => { if (!previewEnabled) void window.cyberNotesAPI.openExternal(cardUrl); }}
                 title={t.viewReleaseNotes}
               >
                 <ExternalLink size={12} />

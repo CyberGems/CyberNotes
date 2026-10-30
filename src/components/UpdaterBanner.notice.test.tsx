@@ -66,6 +66,7 @@ describe('title-bar update notice', () => {
     act(() => root.unmount());
     expect(updateListeners.size).toBe(0);
     expect(settingListeners.size).toBe(0);
+    expect(window.__CYBERNOTES_TOGGLE_UPDATE_PREVIEW__).toBeUndefined();
     host.remove();
     vi.unstubAllGlobals();
     localStorage.clear();
@@ -82,6 +83,90 @@ describe('title-bar update notice', () => {
   const setAutoCheck = async (value: string) => {
     await act(async () => { settingListeners.forEach(listener => listener({ key: 'auto_check_updates', value })); });
   };
+  const preview = async (enabled?: boolean) => {
+    await act(async () => { window.__CYBERNOTES_TOGGLE_UPDATE_PREVIEW__!(enabled); });
+  };
+  const clickText = async (text: string) => {
+    const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === text)!;
+    await act(async () => button.click());
+  };
+
+  it.each(['es', 'en'] as const)('previews both controls from the console without a real update (%s)', async language => {
+    api.getSetting.mockResolvedValue('false');
+    api.getUpdateStatus.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await render(language);
+    expect(notice()).toBeNull();
+    expect(card()).toBeNull();
+    await preview(true);
+    expect(notice()?.getAttribute('aria-label')).toContain('0.0.0-preview');
+    expect(card()?.getAttribute('data-update-preview')).toBe('true');
+    expect(card()?.textContent).toContain(language === 'es' ? 'Vista previa del aviso' : 'Update notice preview');
+    await clickText(language === 'es' ? 'Ver release' : 'View release');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(api.downloadUpdate).not.toHaveBeenCalled();
+    expect(api.installUpdate).not.toHaveBeenCalled();
+    await preview(false);
+    expect(notice()).toBeNull();
+    expect(card()).toBeNull();
+  });
+
+  it('persists console preview across remounts until explicitly disabled', async () => {
+    api.getUpdateStatus.mockResolvedValue(null);
+    await render();
+    await preview();
+    expect(localStorage.getItem('cybernotes_update_preview_enabled')).toBe('true');
+    await act(async () => root.render(null));
+    expect(window.__CYBERNOTES_TOGGLE_UPDATE_PREVIEW__).toBeUndefined();
+    await render();
+    expect(card()?.getAttribute('data-update-preview')).toBe('true');
+    await preview();
+    expect(localStorage.getItem('cybernotes_update_preview_enabled')).toBeNull();
+    await act(async () => root.render(null));
+    await render();
+    expect(card()).toBeNull();
+    expect(notice()).toBeNull();
+  });
+
+  it('simulates download, Later and restart without calling the real updater', async () => {
+    api.getUpdateStatus.mockResolvedValue(null);
+    await render();
+    await preview(true);
+    await clickText('Descargar');
+    expect(card()?.textContent).toContain('Actualización 0.0.0-preview lista');
+    await clickText('Más tarde');
+    expect(card()).toBeNull();
+    await act(async () => notice()!.click());
+    await clickText('Reiniciar ahora');
+    expect(card()).toBeNull();
+    expect(notice()).toBeNull();
+    expect(api.downloadUpdate).not.toHaveBeenCalled();
+    expect(api.installUpdate).not.toHaveBeenCalled();
+    expect(api.cancelAutoInstall).not.toHaveBeenCalled();
+  });
+
+  it('skipping the preview preserves the real skipped version', async () => {
+    localStorage.setItem('cybernotes_skipped_update_version', '2.0.0');
+    await render();
+    await preview(true);
+    await clickText('Omitir esta versión');
+    expect(card()).toBeNull();
+    expect(notice()).toBeNull();
+    expect(localStorage.getItem('cybernotes_skipped_update_version')).toBe('2.0.0');
+    expect(api.cancelAutoInstall).not.toHaveBeenCalled();
+  });
+
+  it('restores the latest real update after leaving preview', async () => {
+    await render();
+    await preview(true);
+    await emit({ state: 'downloaded', version: '2.1.0' });
+    expect(notice()?.getAttribute('aria-label')).toContain('0.0.0-preview');
+    await preview(false);
+    expect(notice()?.getAttribute('aria-label')).toContain('2.1.0');
+    expect(card()?.textContent).toContain('Actualización 2.1.0 lista');
+    expect(card()?.getAttribute('data-update-preview')).toBeNull();
+  });
 
   it.each(['es', 'en'] as const)('reopens a dismissed notice without downloading or installing (%s)', async language => {
     await render(language);

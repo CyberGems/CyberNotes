@@ -87,6 +87,8 @@ export type UpdateStatus =
 // Window API type
 declare global {
   interface Window {
+    /** Console-only, persistent update UI preview. Omit the argument to toggle. */
+    __CYBERNOTES_TOGGLE_UPDATE_PREVIEW__?: (enabled?: boolean) => boolean;
     cyberNotesAPI: {
       // Ventana
       windowMinimize: () => Promise<void>;
