@@ -901,8 +901,12 @@ export default function SettingsModal({
   // El foco entra al modal al abrirse (no queda en el botón que lo abrió,
   // así Enter no vuelve a dispararlo) y salta al botón primario al elegir.
   const restoreConfirmRef = useRef<HTMLButtonElement | null>(null);
+  const restoreDialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (restorePickerOpen && restoreSelected) restoreConfirmRef.current?.focus();
+    if (restorePickerOpen) {
+      if (restoreSelected) restoreConfirmRef.current?.focus();
+      else restoreDialogRef.current?.focus();
+    }
   }, [restorePickerOpen, restoreSelected]);
 
   const formatBackupDate = (iso: string | null): string => {
@@ -1051,7 +1055,7 @@ export default function SettingsModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (dialog) return;
+      if (dialog || restorePickerOpen || showRecDialog) return;
       if (isCapturingHotkey) return;
 
       if (e.key === 'Escape') {
@@ -1077,7 +1081,7 @@ export default function SettingsModal({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, isCapturingHotkey, dialog]);
+  }, [onClose, isCapturingHotkey, dialog, restorePickerOpen, showRecDialog]);
 
   const navItems: { id: Tab; label: string; icon: ReactNode; separator?: boolean }[] = [
     { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <SlidersHorizontal size={13} /> },
@@ -1374,6 +1378,22 @@ export default function SettingsModal({
       /* portapapeles no disponible: el código sigue visible para copiarlo a mano */
     }
   };
+
+  const closeRecoveryDialog = () => {
+    if (recDialogMode !== 'regen' || recLoading) return;
+    setRecCode(null); setRecAck(false); setShowRecDialog(false);
+  };
+  const confirmRecoveryDialog = async () => {
+    if (recLoading || !recAck) return;
+    if (await handleSaveRecoveryCode()) setShowRecDialog(false);
+  };
+  useModalKeys({
+    enabled: showRecDialog && !recLoading,
+    onEsc: closeRecoveryDialog,
+    onEnter: () => void confirmRecoveryDialog(),
+  });
+  const recoveryDialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (showRecDialog) recoveryDialogRef.current?.focus(); }, [showRecDialog]);
 
   const handleSaveHint = async () => {
     setRecLoading(true);
@@ -3390,104 +3410,39 @@ export default function SettingsModal({
 
       <DialogHost language={language} options={dialog} onResolve={resolveDialog} />
       {showRecDialog && recCode && createPortal(
-        <div
-          role="dialog"
-          aria-modal="true"
+        <div className="settings-secondary-overlay" role="dialog" aria-modal="true"
           aria-label={language === 'es' ? 'Código de recuperación' : 'Recovery code'}
-          onClick={e => {
-            e.stopPropagation();
-            if (recDialogMode === 'regen') { setRecCode(null); setRecAck(false); setShowRecDialog(false); }
-          }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 50000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--overlay-bg, rgba(4, 4, 10, 0.72))', padding: 20,
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%', maxWidth: 420, borderRadius: 14, padding: 24,
-              background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
-              border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-              boxShadow: 'var(--shadow-elevated, 0 24px 64px rgba(0, 0, 0, 0.6))',
-              display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
-            }}
-          >
-            {recDialogMode === 'regen' && (
-              <button
-                type="button"
-                className="btn-icon"
-                onClick={() => { setRecCode(null); setRecAck(false); setShowRecDialog(false); }}
-                aria-label={language === 'es' ? 'Cerrar' : 'Close'}
-                style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28 }}
-              >
-                <X size={15} />
+          onClick={event => { event.stopPropagation(); closeRecoveryDialog(); }}>
+          <div className="settings-secondary-card" ref={recoveryDialogRef} tabIndex={-1}
+            onClick={event => event.stopPropagation()}>
+            <div className="settings-secondary-heading">
+              <span className="settings-secondary-icon"><KeyRound size={17} /></span>
+              <h3>{language === 'es' ? 'Guarda tu código de recuperación' : 'Save your recovery code'}</h3>
+            </div>
+            <div className="settings-secondary-body">
+              <p>{recDialogMode === 'regen'
+                ? (language === 'es' ? 'Este código reemplazará al anterior al continuar.' : 'This code will replace the previous one on continue.')
+                : (language === 'es' ? 'Es la única forma de volver a entrar si olvidas tu contraseña. No se volverá a mostrar.' : 'It is the only way back in if you forget your password. It will not be shown again.')}</p>
+              <div className="settings-recovery-code">{recCode}</div>
+              <button type="button" className="btn btn-ghost settings-recovery-copy" onClick={handleCopyRecoveryCode}>
+                <Copy size={14} />{language === 'es' ? 'Copiar' : 'Copy'}
               </button>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: '50%',
-                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                color: 'var(--accent-light)', flexShrink: 0,
-              }}>
-                <KeyRound size={17} />
-              </span>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-                {language === 'es' ? 'Guarda tu código de recuperación' : 'Save your recovery code'}
-              </h3>
+              {recMessage && <p role="status" style={{ color: recError ? 'var(--danger)' : 'var(--success)' }}>{recMessage}</p>}
+              <label className="settings-recovery-ack">
+                <input type="checkbox" checked={recAck} onChange={event => setRecAck(event.target.checked)} />
+                <span>{language === 'es' ? 'Lo guardé en un lugar seguro fuera de este equipo.' : 'I stored it somewhere safe away from this computer.'}</span>
+              </label>
             </div>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              {recDialogMode === 'regen'
-                ? (language === 'es'
-                  ? 'Este código reemplazará al anterior al continuar.'
-                  : 'This code will replace the previous one on continue.')
-                : (language === 'es'
-                  ? 'Es la única forma de volver a entrar si olvidas tu contraseña. No se volverá a mostrar.'
-                  : 'It is the only way back in if you forget your password. It will not be shown again.')}
-            </p>
-            <div style={{
-              padding: '12px 14px', borderRadius: 'var(--radius-sm)',
-              background: 'var(--bg-app)', border: '1px dashed var(--accent)',
-              fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 700,
-              letterSpacing: '0.08em', textAlign: 'center', color: 'var(--text-primary)',
-              userSelect: 'text', WebkitUserSelect: 'text',
-            }}>
-              {recCode}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-ghost" onClick={handleCopyRecoveryCode} style={{ gap: 6, flex: 1, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', padding: '8px 12px' }}>
-                <Copy size={14} />
-                {language === 'es' ? 'Copiar' : 'Copy'}
+            <div className="modal-actions">
+              {recDialogMode === 'regen' && <button type="button" className="modal-action-btn is-cancel" disabled={recLoading} onClick={closeRecoveryDialog}>
+                {language === 'es' ? 'Cancelar' : 'Cancel'}<KeyHint>Esc</KeyHint>
+              </button>}
+              <button type="button" className="modal-action-btn is-save" disabled={!recAck || recLoading} onClick={() => void confirmRecoveryDialog()}>
+                {language === 'es' ? 'Continuar' : 'Continue'}<EnterGlyph />
               </button>
             </div>
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={recAck}
-                onChange={e => setRecAck(e.target.checked)}
-                style={{ marginTop: 2, accentColor: 'var(--accent)' }}
-              />
-              {language === 'es'
-                ? 'Lo guardé en un lugar seguro fuera de este equipo.'
-                : 'I stored it somewhere safe away from this computer.'}
-            </label>
-            <button
-              className="btn btn-primary"
-              disabled={!recAck || recLoading}
-              onClick={async () => {
-                const ok = await handleSaveRecoveryCode();
-                if (ok) setShowRecDialog(false);
-              }}
-              style={{ gap: 6, width: '100%' }}
-            >
-              <Check size={14} />
-              {language === 'es' ? 'Continuar' : 'Continue'}
-            </button>
           </div>
-        </div>,
-        document.body,
+        </div>, document.body,
       )}
       {restorePickerOpen && createPortal(
         <div
@@ -3498,47 +3453,25 @@ export default function SettingsModal({
             e.stopPropagation();
             if (!restoreBusy) setRestorePickerOpen(false);
           }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 50000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--overlay-bg, rgba(4, 4, 10, 0.72))', padding: 20,
-          }}
+          className="settings-secondary-overlay"
         >
           <div
             onClick={e => e.stopPropagation()}
             tabIndex={-1}
-            autoFocus
-            style={{
-              width: '100%', maxWidth: 460, borderRadius: 14, padding: 24,
-              background: 'linear-gradient(160deg, var(--bg-modal), var(--bg-app))',
-              border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-              boxShadow: 'var(--shadow-elevated, 0 24px 64px rgba(0, 0, 0, 0.6))',
-              display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
-              outline: 'none',
-            }}
+            ref={restoreDialogRef}
+            className="settings-secondary-card"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: '50%',
-                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                color: 'var(--accent-light)', flexShrink: 0,
-              }}>
-                <History size={17} />
-              </span>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-                {language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup'}
-              </h3>
+            <div className="settings-secondary-heading">
+              <span className="settings-secondary-icon"><History size={17} /></span>
+              <h3>{language === 'es' ? 'Restaurar desde respaldo' : 'Restore from backup'}</h3>
             </div>
+            <div className="settings-secondary-body">
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
               {language === 'es'
                 ? 'Tus datos actuales se reemplazarán por los del respaldo elegido. Antes se guardará un respaldo de seguridad con el estado actual y, al terminar, la aplicación se recargará con los datos restaurados.'
                 : 'Your current data will be replaced with the selected backup. A safety backup of the current state is saved first and, when done, the application reloads with the restored data.'}
             </p>
-            <div style={{
-              display: 'flex', flexDirection: 'column', gap: 8,
-              maxHeight: 260, overflowY: 'auto', padding: 2,
-            }}>
+            <div className="settings-restore-list">
               {restoreList.map(entry => {
                 const selected = restoreSelected === entry.file;
                 const legacy = isBackupFile(entry.file);
@@ -3546,6 +3479,8 @@ export default function SettingsModal({
                   <button
                     key={entry.file}
                     type="button"
+                    aria-pressed={selected}
+                    className="settings-restore-entry"
                     onClick={() => setRestoreSelected(entry.file)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%',
@@ -3573,7 +3508,7 @@ export default function SettingsModal({
                       </span>
                       <span style={{
                         fontSize: 11, color: 'var(--text-muted)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        overflowWrap: 'anywhere', lineHeight: 1.5,
                       }}>
                         {entry.file} · {formatBackupSize(entry.size)}
                       </span>
@@ -3581,6 +3516,7 @@ export default function SettingsModal({
                   </button>
                 );
               })}
+            </div>
             </div>
             <div className="modal-actions">
               <button

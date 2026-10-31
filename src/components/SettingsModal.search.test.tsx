@@ -118,6 +118,69 @@ describe('settings search', () => {
     expect(setSetting).toHaveBeenLastCalledWith('auto_backup_hours', '12');
   });
 
+  it.each(['es', 'en'] as const)('keeps restore keyboard actions inside the secondary dialog (%s)', async language => {
+    props.language = language; props.initialTab = 'maintenance';
+    const api = window.cyberNotesAPI;
+    const file = 'cybernotes-backup-' + 'long-name-'.repeat(12) + '.json';
+    api.listBackups = vi.fn().mockResolvedValue([{ file, size: 12345, mtime: '2026-10-30T13:00:00Z' }]);
+    let finishRestore!: (value: { ok: boolean; error: string }) => void;
+    api.restoreBackup = vi.fn().mockReturnValue(new Promise(resolve => { finishRestore = resolve; }));
+    await render();
+    const open = () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes(language === 'es' ? 'Restaurar…' : 'Restore…'))!;
+    await act(async () => open().click());
+    const card = () => document.querySelector<HTMLElement>('.settings-secondary-card')!;
+    expect(document.activeElement).toBe(card());
+    expect(document.querySelector('.settings-restore-entry')?.textContent).toContain(file);
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })));
+    expect(api.restoreBackup).not.toHaveBeenCalled();
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(card()).toBeNull(); expect(props.onClose).not.toHaveBeenCalled();
+    await act(async () => open().click());
+    await act(async () => document.querySelector<HTMLButtonElement>('.settings-restore-entry')!.click());
+    expect(document.activeElement).toBe(card().querySelector('.is-save'));
+    await act(async () => card().querySelector<HTMLButtonElement>('.is-save')!.click());
+    expect(api.restoreBackup).toHaveBeenCalledExactlyOnceWith(file);
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(card()).not.toBeNull(); expect(props.onClose).not.toHaveBeenCalled();
+    await act(async () => finishRestore({ ok: false, error: 'fixture failure' }));
+    expect(card()).toBeNull(); expect(document.body.textContent).toContain('fixture failure');
+  });
+
+  it.each(['first', 'regen'] as const)('requires acknowledgment before saving recovery code and keeps Escape local (%s)', async mode => {
+    props.initialTab = 'security';
+    window.cyberNotesAPI.hasPassword = vi.fn().mockResolvedValue(true);
+    window.cyberNotesAPI.verifyPassword = vi.fn().mockResolvedValue(true);
+    window.cyberNotesAPI.hasRecoveryCode = vi.fn().mockResolvedValue(mode === 'regen');
+    window.cyberNotesAPI.generateRecoveryCode = vi.fn().mockResolvedValue('ABCD-EFGH-IJKL-MNOP-QRST-UVWX');
+    window.cyberNotesAPI.setRecoveryCode = vi.fn().mockResolvedValue(false);
+    await render();
+    const password = container.querySelector<HTMLInputElement>('input[placeholder="Contraseña actual"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(password, 'demo');
+      password.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const open = [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes(mode === 'regen' ? 'Regenerar código' : 'Generar código de recuperación'))!;
+    await act(async () => open.click());
+    const card = () => document.querySelector<HTMLElement>('.settings-secondary-card');
+    expect(document.activeElement).toBe(card()); expect(card()?.querySelector<HTMLButtonElement>('.is-save')?.disabled).toBe(true);
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })));
+    expect(window.cyberNotesAPI.setRecoveryCode).not.toHaveBeenCalled(); expect(props.onClose).not.toHaveBeenCalled();
+    if (mode === 'regen') {
+      await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+      expect(card()).toBeNull(); expect(props.onClose).not.toHaveBeenCalled(); await act(async () => open.click());
+    } else {
+      await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+      expect(card()).not.toBeNull(); expect(props.onClose).not.toHaveBeenCalled();
+    }
+    await act(async () => card()!.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })));
+    expect(window.cyberNotesAPI.setRecoveryCode).toHaveBeenCalledWith('ABCD-EFGH-IJKL-MNOP-QRST-UVWX');
+    expect(card()?.querySelector('[role="status"]')?.textContent).toContain('Error al guardar');
+    vi.mocked(window.cyberNotesAPI.setRecoveryCode).mockResolvedValue(true);
+    await act(async () => card()!.querySelector<HTMLButtonElement>('.is-save')!.click());
+    expect(card()).toBeNull(); expect(props.onClose).not.toHaveBeenCalled();
+  });
+
   const input = () => container.querySelector<HTMLInputElement>('.settings-search input')!;
   const content = () => container.querySelector<HTMLElement>('.settings-content')!;
 

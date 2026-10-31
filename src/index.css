@@ -2481,6 +2481,44 @@ html.tab-dragging * {
   .settings-content { padding: 14px 12px 18px; }
   .settings-search { margin: 8px 12px; }
 }
+.settings-secondary-overlay {
+  position: fixed; inset: 0; z-index: 50000; display: flex;
+  align-items: center; justify-content: center; padding: 12px;
+  background: var(--overlay-bg, rgba(4, 4, 10, 0.72));
+}
+.settings-secondary-card {
+  width: 100%; max-width: 480px; max-height: calc(100dvh - 24px);
+  min-width: 0; display: flex; flex-direction: column; gap: 12px;
+  padding: clamp(14px, 4vw, 24px); border-radius: 14px; outline: none;
+  background: linear-gradient(160deg, var(--bg-modal), var(--bg-app));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: var(--shadow-elevated, 0 24px 64px rgba(0, 0, 0, 0.6));
+  overflow-wrap: anywhere;
+}
+.settings-secondary-heading { display: flex; align-items: flex-start; gap: 10px; flex-shrink: 0; }
+.settings-secondary-heading h3 { min-width: 0; margin: 0; font-size: 16px; color: var(--text-primary); }
+.settings-secondary-icon {
+  width: 36px; height: 36px; border-radius: 50%; display: inline-flex; flex-shrink: 0;
+  align-items: center; justify-content: center; color: var(--accent-light);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.settings-secondary-body { min-height: 0; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px; }
+.settings-secondary-body p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.settings-secondary-card .modal-actions,
+.confirm-dialog-card .modal-actions { flex-wrap: wrap; flex-shrink: 0; }
+.settings-secondary-card .modal-action-btn,
+.confirm-dialog-card .modal-action-btn { min-width: min(128px, 100%); max-width: 100%; white-space: normal; }
+.settings-secondary-card .btn { max-width: 100%; white-space: normal; }
+.settings-recovery-code {
+  padding: 12px 14px; border-radius: var(--radius-sm); border: 1px dashed var(--accent);
+  background: var(--bg-app); font: 700 17px var(--font-mono); letter-spacing: 0.08em;
+  text-align: center; color: var(--text-primary); user-select: text; -webkit-user-select: text;
+}
+.settings-recovery-copy { flex-shrink: 0; gap: 6px; border: 1px solid var(--border); background: var(--bg-surface); }
+.settings-recovery-ack { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.settings-recovery-ack input { flex-shrink: 0; margin-top: 2px; accent-color: var(--accent); }
+.settings-restore-list { display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+.settings-restore-entry { flex-shrink: 0; overflow-wrap: anywhere; }
 .sticky-note-header {
   -webkit-app-region: no-drag;
   user-select: none;

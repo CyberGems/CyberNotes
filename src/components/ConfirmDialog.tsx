@@ -70,9 +70,13 @@ export default function ConfirmDialog({
     >
       <motion.div
         {...modalCardMotion}
-        className="glass-effect"
+        className="glass-effect confirm-dialog-card"
         style={{
           width: 'calc(400px * var(--ui-scale))',
+          maxWidth: 'calc(100vw - 24px)',
+          maxHeight: 'calc(100dvh - 24px)',
+          overflowY: 'auto',
+          overflowWrap: 'anywhere',
           background: 'rgba(var(--dialog-rgb, 15, 15, 22), 0.95)',
           border: `1px solid color-mix(in srgb, ${accent} 30%, transparent)`,
           borderRadius: 'var(--radius-lg)',
