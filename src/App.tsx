@@ -8,6 +8,7 @@ import MainApp from './components/MainApp';
 import AppLoader from './components/AppLoader';
 import StickyNoteApp from './components/StickyNoteApp';
 import WelcomeNameModal from './components/WelcomeNameModal';
+import OnboardingModal from './components/OnboardingModal';
 import GlobalErrorToast from './components/GlobalErrorToast';
 import { formatDisplayName } from './components/WelcomeGreeting';
 
@@ -32,6 +33,7 @@ export default function App() {
   const [hasPassword, setHasPassword] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [showWelcomeNameSetup, setShowWelcomeNameSetup] = useState(false);
+  const [onboardingPending, setOnboardingPending] = useState(false);
 
   const lastActivityRef = useRef<number>(Date.now());
   const hasPasswordRef = useRef<boolean>(false);
@@ -89,7 +91,7 @@ export default function App() {
             'theme', 'colorIntensity', 'language',
             'bg_image', 'glass_blur', 'bg_opacity',
             'auto_lock_minutes', 'editor_font',
-            'welcome_name', 'welcome_name_prompt_dismissed',
+            'welcome_name', 'welcome_name_prompt_dismissed', 'onboarding_pending',
           ]),
           window.cyberNotesAPI.getUserName().catch(() => null),
         ]);
@@ -104,7 +106,8 @@ export default function App() {
         setLanguage(l);
         const hasCustomName = s.welcome_name !== null;
         setDisplayName(hasCustomName ? s.welcome_name : formatDisplayName(systemUserName));
-        setShowWelcomeNameSetup(!hasCustomName && s.welcome_name_prompt_dismissed !== 'true');
+        setOnboardingPending(s.onboarding_pending === 'true');
+        setShowWelcomeNameSetup(s.onboarding_pending !== 'true' && !hasCustomName && s.welcome_name_prompt_dismissed !== 'true');
         setAutoLockMinutes(Number.isFinite(autoLock) ? autoLock : 0);
         applyThemeVars(t, i);
         if (s.theme && s.theme !== t) {
@@ -301,6 +304,8 @@ export default function App() {
       </>
     );
   }
+
+  if (onboardingPending) return <OnboardingModal initialLanguage={language} initialTheme={theme} />;
 
   return (
     <>

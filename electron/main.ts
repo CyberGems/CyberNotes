@@ -472,6 +472,7 @@ async function initDatabase() {
   // not consent to replace it with today's defaults.
   if (isNewProfile) {
     runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['toolbar_hidden_ids', JSON.stringify(DEFAULT_HIDDEN_TOOLBAR_IDS)]);
+    runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['onboarding_pending', 'true']);
   }
 
   // Migración: DBs antiguas sin columnas nuevas o sticky_notes
@@ -487,8 +488,8 @@ async function initDatabase() {
   // Rellenar miniaturas de notas existentes (una sola vez / solo filas vacías)
   backfillNoteThumbs();
 
-  // Existing databases, including deliberately emptied profiles, never reseed.
-  if (isNewProfile) seedInitialDemoContent();
+  // Factory notes are created after a new user chooses their language.
+  // Existing and deliberately emptied profiles are never reseeded here.
 
   // Migración única: imágenes base64 embebidas → archivos en images/
   try {
@@ -2926,6 +2927,37 @@ ipcMain.handle('settings:getMany', (_e: any, keys: string[]) => {
     result[key] = row ? row.value : null;
   }
   return result;
+});
+
+ipcMain.handle('onboarding:finish', (_event, options: unknown) => {
+  if (!options || typeof options !== 'object') return { ok: false };
+  const { language, theme, name } = options as { language?: unknown; theme?: unknown; name?: unknown };
+  if ((language !== 'es' && language !== 'en') || !['cyber-dark', 'graphite', 'light'].includes(String(theme)) || typeof name !== 'string' || name.length > 80) return { ok: false };
+  if (queryGet('SELECT value FROM settings WHERE key = ?', ['onboarding_pending'])?.value !== 'true') return { ok: false };
+  try {
+    db.transaction(() => {
+      for (const [key, value] of [
+        ['language', language], ['theme', String(theme)], ['welcome_name', name.trim()],
+        ['welcome_name_prompt_dismissed', 'true'],
+      ]) runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
+      seedInitialDemoContent();
+      runQuery('DELETE FROM settings WHERE key = ?', ['onboarding_pending']);
+    })();
+    // The normal startup restoration ran before the new notes were created.
+    // Open the example now, as it would have been on a fresh profile before onboarding.
+    try {
+      const restoreSticky = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_restore_on_startup']);
+      if ((!restoreSticky || restoreSticky.value === 'true') && queryGet('SELECT note_id FROM sticky_notes WHERE note_id = ? AND is_open = 1', ['floating-demo-note'])) {
+        openStickyNote('floating-demo-note');
+      }
+    } catch (error) {
+      writeLog('error', `onboarding example window failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return { ok: true };
+  } catch (error) {
+    writeLog('error', `onboarding failed: ${error instanceof Error ? error.message : String(error)}`);
+    return { ok: false };
+  }
 });
 
 ipcMain.handle('settings:reset', () => {

@@ -136,6 +136,7 @@ declare global {
       // Settings
       getSetting: (key: string) => Promise<string | null>;
       getSettings: (keys: string[]) => Promise<Record<string, string | null>>;
+      finishOnboarding: (options: { language: 'es' | 'en'; theme: string; name: string }) => Promise<{ ok: boolean }>;
       setSetting: (key: string, value: string) => Promise<boolean>;
       resetSettings: () => Promise<boolean>;
       wipeAllData: () => Promise<{ ok: boolean; error?: string }>;

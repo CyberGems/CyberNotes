@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Settings --
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
   getSettings: (keys: string[]) => ipcRenderer.invoke('settings:getMany', keys),
+  finishOnboarding: (options: { language: 'es' | 'en'; theme: string; name: string }) => ipcRenderer.invoke('onboarding:finish', options),
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
   resetSettings: () => ipcRenderer.invoke('settings:reset'),
   wipeAllData: () => ipcRenderer.invoke('data:wipe-all'),
