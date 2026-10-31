@@ -5,7 +5,7 @@ import { THEMES, isColorfulTheme } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen, Search } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, BrushCleaning, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen, Search } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
@@ -1759,7 +1759,7 @@ export default function SettingsModal({
                           : 'Global shortcut to show/hide CyberNotes. Click to set, Esc to cancel.')}
                       </span>
                     </SettingsOptionCopy>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <div className="settings-hotkey-controls" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <input
                         ref={hotkeyInputRef}
                         type="text"
@@ -1792,40 +1792,18 @@ export default function SettingsModal({
                           transition: 'all 0.15s ease',
                         }}
                       />
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={handleRestoreHotkey}
-                        title={`${language === 'es' ? 'Restaurar predeterminada' : 'Restore default'} (${DEFAULT_TOGGLE_HOTKEY})`}
-                        style={{
-                          fontSize: 11.5,
-                          padding: '6px 8px',
-                          color: 'var(--text-muted)',
-                          background: 'var(--bg-app)',
-                          border: '1px solid var(--border)',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={handleClearHotkey}
-                        title={language === 'es' ? 'Limpiar atajo' : 'Clear shortcut'}
-                        style={{
-                          fontSize: 11.5,
-                          padding: '6px 10px',
-                          color: 'var(--text-muted)',
-                          background: 'var(--bg-app)',
-                          border: '1px solid var(--border)',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        {language === 'es' ? 'Limpiar' : 'Clear'}
-                      </button>
+                      <Tooltip label={`${language === 'es' ? 'Restaurar atajo predeterminado' : 'Restore default shortcut'} (${DEFAULT_TOGGLE_HOTKEY})`} placement="top">
+                        <button type="button" className="btn btn-ghost settings-hotkey-button" onClick={handleRestoreHotkey}
+                          aria-label={language === 'es' ? 'Restaurar atajo predeterminado' : 'Restore default shortcut'}>
+                          <RotateCcw size={14} aria-hidden="true" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label={language === 'es' ? 'Limpiar atajo' : 'Clear shortcut'} placement="top">
+                        <button type="button" className="btn btn-ghost settings-hotkey-button" onClick={handleClearHotkey}
+                          aria-label={language === 'es' ? 'Limpiar atajo' : 'Clear shortcut'}>
+                          <BrushCleaning size={14} aria-hidden="true" />
+                        </button>
+                      </Tooltip>
                     </div>
                   </div>
 

@@ -205,6 +205,24 @@ describe('settings search', () => {
     expect(card().querySelector('[title]')).toBeNull();
   });
 
+  it.each(['es', 'en'] as const)('clears and restores the shortcut with accessible icon buttons and app tooltips (%s)', async language => {
+    props.language = language; await render();
+    const controls = container.querySelector('.settings-hotkey-controls')!;
+    const buttons = [...controls.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons).toHaveLength(2); expect(container.querySelector('[title]')).toBeNull();
+    expect(buttons[1].textContent).toBe(''); expect(buttons[1].querySelector('svg.lucide-brush-cleaning')).not.toBeNull();
+    expect(buttons[1].getAttribute('aria-label')).toBe(language === 'es' ? 'Limpiar atajo' : 'Clear shortcut');
+    await act(async () => buttons[1].click());
+    expect(controls.querySelector('input')?.value).toBe('');
+    expect(setSetting).toHaveBeenCalledWith('toggle_hotkey', 'disabled'); expect(setSetting).toHaveBeenCalledWith('toggle_hotkey_enabled', 'false');
+    await act(async () => buttons[0].click());
+    expect(controls.querySelector('input')?.value).toBe('Alt+Shift+N');
+    expect(setSetting).toHaveBeenCalledWith('toggle_hotkey', 'Alt+Shift+N'); expect(setSetting).toHaveBeenCalledWith('toggle_hotkey_enabled', 'true');
+    await act(async () => buttons[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 280)); });
+    expect(document.querySelector('.tooltip-shortcut-key')?.textContent).toBe('Alt+Shift+N');
+  });
+
   const input = () => container.querySelector<HTMLInputElement>('.settings-search input')!;
   const content = () => container.querySelector<HTMLElement>('.settings-content')!;
 
