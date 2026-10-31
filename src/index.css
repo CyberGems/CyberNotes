@@ -1657,6 +1657,8 @@ select option {
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: none;
   flex-shrink: 0;
   user-select: none;
   scrollbar-width: none; /* Firefox */

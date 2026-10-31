@@ -92,6 +92,39 @@ describe('NoteEditor tab hydration', () => {
     expect(container!.querySelector('.tab-new-btn')).toBe(create);
   });
 
+  it('routes wheel axes and units horizontally after the strip remounts without changing notes', async () => {
+    const onSelectNote = vi.fn();
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note, notes: [note, { ...note, id: 'second' }], openNoteIds: ['first', 'second'],
+      onSave: vi.fn(), onCreateNote: vi.fn(), onSelectNote, layoutMode: 1, onToggleLayout: vi.fn(), showFloatingToolbar: false,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} note={null} />));
+    const previous = container!.querySelector<HTMLElement>('.tab-strip')!;
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    const strip = container!.querySelector<HTMLElement>('.tab-strip')!;
+    expect(strip).not.toBe(previous);
+    let width = 200;
+    Object.defineProperties(strip, { clientWidth: { get: () => width }, scrollWidth: { value: 1200 }, scrollLeft: { value: 400, writable: true }, scrollTop: { value: 0, writable: true } });
+    const wheel = async (options: WheelEventInit) => {
+      const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...options });
+      await act(async () => strip.querySelector('.editor-tab')!.dispatchEvent(event)); return event;
+    };
+    expect((await wheel({ deltaY: 80 })).defaultPrevented).toBe(true); expect(strip.scrollLeft).toBe(480);
+    await wheel({ deltaY: -2, deltaMode: 1 }); expect(strip.scrollLeft).toBe(416);
+    await wheel({ deltaY: 1, deltaMode: 2 }); expect(strip.scrollLeft).toBe(616);
+    await wheel({ deltaX: -100, deltaY: 2 }); expect(strip.scrollLeft).toBe(516);
+    await wheel({ deltaY: 40, shiftKey: true }); expect(strip.scrollLeft).toBe(556);
+    await wheel({ deltaY: 10000 }); expect(strip.scrollLeft).toBe(1000);
+    expect((await wheel({ deltaY: 100 })).defaultPrevented).toBe(true); expect(strip.scrollLeft).toBe(1000);
+    await wheel({ deltaY: -10000 }); expect(strip.scrollLeft).toBe(0); expect(strip.scrollTop).toBe(0);
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
+      expect((await wheel({ deltaY: 100, ...modifier })).defaultPrevented).toBe(false); expect(strip.scrollLeft).toBe(0);
+    }
+    width = 1400;
+    expect((await wheel({ deltaY: 100 })).defaultPrevented).toBe(false);
+    expect(onSelectNote).not.toHaveBeenCalled(); expect(props.onSave).not.toHaveBeenCalled();
+  });
+
   it('continues scrolling while held, avoids a duplicate click and stops on release, cancellation, blur or unmount', async () => {
     const props: ComponentProps<typeof NoteEditor> = {
       language: 'es', note, notes: [note, { ...note, id: 'second' }], openNoteIds: ['first', 'second'],

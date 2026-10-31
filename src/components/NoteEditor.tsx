@@ -2685,27 +2685,26 @@ export default function NoteEditor({
     window.addEventListener('blur', onBlur);
   };
 
-  // Rueda vertical → scroll horizontal de la tira. Sin rebote elástico: mover
-  // toda la fila con spring se leía como glitch. El overscroll nativo queda
-  // cortado con overscroll-behavior-x en el estilo de la tira.
-  useLayoutEffect(() => {
-    const el = tabStripRef.current;
-    if (!el) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (el.scrollWidth <= el.clientWidth) return;
-      if (e.deltaY === 0 || e.shiftKey || e.ctrlKey || e.metaKey) return;
-      // Gesto horizontal del trackpad: que lo gestione el nativo.
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      e.preventDefault();
-      el.scrollLeft += e.deltaY;
+  // Bind to each actual strip, including replacements when entering/leaving
+  // the empty editor. Overflow on the other axis must never consume the wheel.
+  const attachTabStrip = useCallback((element: HTMLDivElement | null) => {
+    tabStripRef.current = element;
+    if (!element) return;
+    const handleWheel = (event: WheelEvent) => {
+      const maximum = element.scrollWidth - element.clientWidth;
+      if (maximum <= 0 || event.ctrlKey || event.metaKey) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (delta === 0) return;
+      const unit = event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? element.clientWidth : 1;
+      event.preventDefault();
+      element.scrollLeft = Math.max(0, Math.min(maximum, element.scrollLeft + delta * unit));
     };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
+    element.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
-      el.removeEventListener('wheel', handleWheel);
+      element.removeEventListener('wheel', handleWheel);
+      if (tabStripRef.current === element) tabStripRef.current = null;
     };
-  }, [openNoteIds]);
+  }, []);
 
   // Sincronizar ref con cada render para que scheduleAutoSave siempre tenga la note actual
   const [pinned, setPinned] = useState(note?.pinned === 1);
@@ -5122,7 +5121,7 @@ export default function NoteEditor({
             />
           )}
           <div
-            ref={tabStripRef}
+            ref={attachTabStrip}
             className={`tab-strip ${tabsWidthMode === 'wide' ? 'tabs-wide' : ''} ${draggingTabId ? 'is-reordering' : ''}`}
             style={{ borderBottom: 'none', overscrollBehaviorX: 'none' }}
             onScroll={updateTabEdges}
