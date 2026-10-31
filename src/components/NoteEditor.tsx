@@ -6003,7 +6003,7 @@ export default function NoteEditor({
                             </span>
                           </div>
                         ))}
-                        <div style={{ height: 1, background: 'var(--border)', margin: '2px 4px' }} />
+                        <div role="separator" style={{ height: 1, flexShrink: 0, background: 'var(--border)', margin: '6px 4px' }} />
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
@@ -6015,7 +6015,7 @@ export default function NoteEditor({
                             border: 'none', textAlign: 'left',
                           }}
                         >
-                          {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
+                          {language === 'es' ? 'Mostrar todos los botones' : 'Show all buttons'}
                         </button>
                       </div>,
                       document.body
@@ -6076,6 +6076,7 @@ export default function NoteEditor({
                   <span>{language === 'es' ? 'Ocultar' : 'Hide'}</span>
                 </button>
               )}
+              <div role="separator" style={{ height: 1, flexShrink: 0, background: 'var(--border)', margin: '6px 4px' }} />
               <button
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
@@ -6088,7 +6089,7 @@ export default function NoteEditor({
                 }}
               >
                 <RotateCcw size={13} style={{ opacity: 0.75, flexShrink: 0 }} />
-                <span>{language === 'es' ? 'Restablecer botones' : 'Reset buttons'}</span>
+                <span>{language === 'es' ? 'Mostrar todos los botones' : 'Show all buttons'}</span>
               </button>
             </div>,
           document.body,

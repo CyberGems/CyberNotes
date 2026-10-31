@@ -322,6 +322,8 @@ describe('NoteEditor tab hydration', () => {
     await press(more());
     let menu = document.querySelector<HTMLElement>('[data-more-menu]')!;
     expect(menu.parentElement).toBe(document.body);
+    expect(menu.querySelector<HTMLElement>('[role="separator"]')?.style.flexShrink).toBe('0');
+    expect(menu.lastElementChild?.textContent?.trim()).toBe(language === 'es' ? 'Mostrar todos los botones' : 'Show all buttons');
     expect(menu.style.position).toBe('fixed');
     expect(menu.style.left).toBe('8px');
     expect(menu.style.width).toBe('240px');
