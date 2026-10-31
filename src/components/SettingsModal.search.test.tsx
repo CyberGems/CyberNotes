@@ -96,6 +96,28 @@ describe('settings search', () => {
     expect(setSetting).not.toHaveBeenCalled();
   });
 
+  it.each(['es', 'en'] as const)('keeps the backup controls functional after adapting their layout (%s)', async language => {
+    props.language = language; props.initialTab = 'maintenance';
+    await render();
+    const frequency = container.querySelector<HTMLSelectElement>(`[aria-label="${language === 'es' ? 'Frecuencia de respaldo' : 'Backup frequency'}"]`)!;
+    const kept = container.querySelector<HTMLSelectElement>(`[aria-label="${language === 'es' ? 'Copias conservadas' : 'Copies kept'}"]`)!;
+    expect(frequency.disabled).toBe(false); expect(kept.disabled).toBe(false);
+    await act(async () => { frequency.value = '168'; frequency.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(setSetting).toHaveBeenLastCalledWith('auto_backup_hours', '168');
+    await act(async () => { kept.value = '7'; kept.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(setSetting).toHaveBeenLastCalledWith('auto_backup_keep', '7');
+    const scheduled = [...container.querySelectorAll('label')].find(label => label.textContent?.includes(language === 'es' ? 'Respaldo programado' : 'Scheduled backup'))!;
+    await act(async () => scheduled.click()); expect(frequency.disabled).toBe(true); expect(kept.disabled).toBe(true);
+    expect(setSetting).toHaveBeenLastCalledWith('auto_backup_enabled', 'false');
+    await act(async () => scheduled.click()); expect(frequency.disabled).toBe(false); expect(kept.disabled).toBe(false);
+    expect(frequency.value).toBe('168'); expect(kept.value).toBe('7');
+    await search(language === 'es' ? 'frecuencia' : 'frequency');
+    const filteredFrequency = container.querySelector<HTMLSelectElement>('select[aria-label]')!;
+    expect(filteredFrequency.value).toBe('168'); expect(filteredFrequency.disabled).toBe(false);
+    await act(async () => { filteredFrequency.value = '12'; filteredFrequency.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(setSetting).toHaveBeenLastCalledWith('auto_backup_hours', '12');
+  });
+
   const input = () => container.querySelector<HTMLInputElement>('.settings-search input')!;
   const content = () => container.querySelector<HTMLElement>('.settings-content')!;
 

@@ -207,7 +207,7 @@ function UsageTiles({ stats, language }: { stats: UsageStats; language: Language
     : '—';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+      <div className="settings-usage-grid">
         {tiles.map((tile) => (
           <Tooltip key={tile.label} placement="top" label={tile.tip}>
             <div
@@ -383,7 +383,7 @@ function DictionaryWordsManager({ language }: { language: Language }) {
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="settings-row-actions" style={{ display: 'flex', gap: 8 }}>
           <input
             className="input"
             value={newWord}
@@ -1455,7 +1455,7 @@ export default function SettingsModal({
               {navItems.map(item => (
                 <Fragment key={item.id}>
                   {item.separator && (
-                    <div style={{ height: 1, background: 'var(--border)', margin: '6px 10px', opacity: 0.7 }} />
+                    <div className="settings-nav-separator" style={{ height: 1, background: 'var(--border)', margin: '6px 10px', opacity: 0.7 }} />
                   )}
                   <button
                     type="button"
@@ -2115,7 +2115,7 @@ export default function SettingsModal({
                       border: '1px solid var(--border)',
                       flexShrink: 0
                     }} />
-                    <div style={{ flex: 1, display: 'flex', gap: 8 }}>
+                    <div className="settings-row-actions" style={{ flex: 1, display: 'flex', gap: 8 }}>
                       <button 
                         className="btn btn-primary" 
                         style={{ flex: 1, fontSize: 12 }}
@@ -2442,6 +2442,7 @@ export default function SettingsModal({
                             key={font.id}
                             type="button"
                             role="radio"
+                            className="settings-font-option"
                             aria-checked={isCurrent}
                             onClick={() => onEditorFontChange?.(font.id)}
                             style={{
@@ -2471,7 +2472,7 @@ export default function SettingsModal({
                                 boxShadow: isCurrent ? '0 0 6px var(--accent-glow)' : 'none',
                               }}
                             />
-                            <span style={{
+                            <span className="settings-font-name" style={{
                               flex: 1,
                               minWidth: 0,
                               overflow: 'hidden',
@@ -2622,7 +2623,7 @@ export default function SettingsModal({
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="settings-row-actions" style={{ display: 'flex', gap: 8 }}>
                   <button
                     className="btn btn-primary"
                     onClick={handleSetPassword}
@@ -2911,7 +2912,7 @@ export default function SettingsModal({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {/* Export Item */}
-                  <div style={{
+                  <div className="settings-data-row" style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -2921,7 +2922,7 @@ export default function SettingsModal({
                     background: 'var(--bg-surface)',
                     border: '1px solid var(--border)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                    <div className="settings-row-copy" style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                       <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
                         {language === 'es' ? 'Exportar copia de seguridad' : 'Export backup'}
                       </span>
@@ -2951,7 +2952,7 @@ export default function SettingsModal({
                   </div>
 
                   {/* Import Item */}
-                  <div style={{
+                  <div className="settings-data-row" style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -2961,7 +2962,7 @@ export default function SettingsModal({
                     background: 'var(--bg-surface)',
                     border: '1px solid var(--border)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                    <div className="settings-row-copy" style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                       <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
                         {language === 'es' ? 'Importar copia de seguridad' : 'Import backup'}
                       </span>
@@ -3037,7 +3038,7 @@ export default function SettingsModal({
                     <div className={`custom-switch ${autoBackupEnabled ? 'active' : ''}`} />
                   </label>
 
-                  <div style={{
+                  <div className="settings-data-row" style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
@@ -3046,19 +3047,19 @@ export default function SettingsModal({
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)',
                   }}>
-                    <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Clock3 size={18} /></div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                    <SettingsOptionCopy icon={<Clock3 />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                         {language === 'es' ? 'Frecuencia' : 'Frequency'}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {language === 'es' ? 'Cada cuánto se crea una copia' : 'How often a copy is created'}
                       </span>
-                    </div>
+                    </SettingsOptionCopy>
                     <select
+                      aria-label={language === 'es' ? 'Frecuencia de respaldo' : 'Backup frequency'}
                       value={autoBackupHours}
                       onChange={(e) => handleAutoBackupHours(e.target.value)}
-                      className="input"
+                      className="input settings-row-select"
                       disabled={!autoBackupEnabled}
                       style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
                     >
@@ -3069,7 +3070,7 @@ export default function SettingsModal({
                     </select>
                   </div>
 
-                  <div style={{
+                  <div className="settings-data-row" style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
@@ -3078,19 +3079,19 @@ export default function SettingsModal({
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)',
                   }}>
-                    <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Database size={18} /></div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                    <SettingsOptionCopy icon={<Database />}>
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
                         {language === 'es' ? 'Copias conservadas' : 'Copies kept'}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {language === 'es' ? 'Las más antiguas se eliminan solas' : 'Oldest ones are deleted automatically'}
                       </span>
-                    </div>
+                    </SettingsOptionCopy>
                     <select
+                      aria-label={language === 'es' ? 'Copias conservadas' : 'Copies kept'}
                       value={autoBackupKeep}
                       onChange={(e) => handleAutoBackupKeep(e.target.value)}
-                      className="input"
+                      className="input settings-row-select"
                       disabled={!autoBackupEnabled}
                       style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
                     >
@@ -3101,7 +3102,7 @@ export default function SettingsModal({
                     </select>
                   </div>
 
-                  <div style={{
+                  <div className="settings-data-row" style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -3111,7 +3112,7 @@ export default function SettingsModal({
                     background: 'var(--bg-surface)',
                     border: '1px solid var(--border)',
                   }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                    <div className="settings-row-copy" style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                       <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
                         {language === 'es' ? 'Último respaldo' : 'Last backup'}
                       </span>
@@ -3119,7 +3120,7 @@ export default function SettingsModal({
                         {formatBackupDate(autoBackupLast)}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <div className="settings-row-actions" style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                       <button
                       className="btn btn-ghost"
                       onClick={handleBackupNow}
@@ -3161,8 +3162,7 @@ export default function SettingsModal({
                           {language === 'es' ? 'Carpeta de respaldos' : 'Backups folder'}
                         </span>
                         <span
-                          style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          title={backupFolder || (language === 'es' ? 'Predeterminada: dentro de los datos de CyberNotes' : 'Default: inside the CyberNotes data folder')}
+                          style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}
                         >
                           {backupFolder
                             ? backupFolder
@@ -3215,7 +3215,7 @@ export default function SettingsModal({
                     : 'CyberNotes stores all your information locally on your computer with no cloud syncing.'}
                 </p>
 
-                <div style={{
+                <div className="settings-data-row" style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -3225,7 +3225,7 @@ export default function SettingsModal({
                   background: 'var(--bg-surface)',
                   border: '1px solid var(--border)',
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                  <div className="settings-row-copy" style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                     <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {language === 'es' ? 'Carpeta de datos de la aplicación' : 'Application data folder'}
                     </span>
@@ -3262,7 +3262,7 @@ export default function SettingsModal({
                   flexDirection: 'column',
                   gap: 10,
                 }}>
-                <div style={{
+                <div className="settings-data-row" style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -3272,7 +3272,7 @@ export default function SettingsModal({
                   background: 'var(--bg-surface)',
                   border: '1px solid var(--border)',
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                  <div className="settings-row-copy" style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                     <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {language === 'es' ? 'Restablecer a valores de fábrica' : 'Reset to factory defaults'}
                     </span>
@@ -3304,7 +3304,7 @@ export default function SettingsModal({
                   </button>
                 </div>
 
-                <div style={{
+                <div className="settings-data-row" style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -3314,7 +3314,7 @@ export default function SettingsModal({
                   background: 'var(--bg-surface)',
                   border: '1px solid color-mix(in srgb, var(--danger) 35%, var(--border))',
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+                  <div className="settings-row-copy" style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                     <span style={{ fontSize: 'calc(13px * var(--ui-scale))', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {language === 'es' ? 'Borrar todos los datos' : 'Delete all data'}
                     </span>

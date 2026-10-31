@@ -1897,6 +1897,7 @@ html.tab-dragging * {
   width: min(820px, 100%);
 }
 .settings-panel {
+  container: settings-panel / inline-size;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -2188,6 +2189,7 @@ html.tab-dragging * {
   font-size: 10.5px;
 }
 .settings-content {
+  container: settings-body / inline-size;
   flex: 1;
   min-width: 0;
   overflow-y: auto;
@@ -2437,6 +2439,47 @@ html.tab-dragging * {
   min-width: 0;
   background: transparent !important;
   box-shadow: none;
+}
+/* Settings controls share the available width without squeezing their copy. */
+.settings-content :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+.settings-content .btn { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.settings-content .btn svg { flex-shrink: 0; }
+.settings-card { min-width: 0; overflow-wrap: anywhere; }
+.settings-section-heading { flex-wrap: wrap; }
+.settings-row-copy { min-width: 0; flex: 1 1 240px !important; }
+.settings-data-row { flex-wrap: wrap; }
+.settings-data-row > .settings-option-copy { flex: 1 1 220px; }
+.settings-data-row > select.settings-row-select { width: 180px; flex: 0 1 180px; max-width: 100%; }
+.settings-row-actions { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.settings-usage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.settings-usage-grid > * { min-width: 0; }
+.settings-font-option { flex-wrap: wrap; }
+.settings-font-option > .settings-font-name { flex-basis: 150px !important; white-space: normal !important; overflow: visible !important; }
+@container settings-body (min-width: 460px) {
+  .settings-option-row:has(> select),
+  .settings-general-stack > *:has(> .settings-option-copy):has(> select),
+  .settings-general-stack > *:has(> .settings-option-copy):has(> input),
+  .settings-general-stack > div:has(> .settings-option-copy),
+  .settings-general-stack > *:has(> .settings-option-copy):has(> button) {
+    display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(150px, 200px); align-items: center;
+  }
+  .settings-option-row > .settings-option-copy { width: auto; }
+  .settings-option-row > .settings-option-select { width: 100% !important; }
+}
+@container settings-body (max-width: 459px) {
+  .settings-data-row > select.settings-row-select { flex: 1 1 100%; width: 100%; }
+  .settings-usage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container settings-panel (max-width: 640px) {
+  .settings-layout { flex-direction: column; }
+  .settings-nav { width: 100%; padding: 6px 10px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .settings-nav-items { flex-direction: row; flex-wrap: wrap; gap: 4px; overflow: visible; }
+  .settings-nav-btn { width: auto; padding: 7px 8px; }
+  .settings-nav-separator { display: none; }
+  .settings-nav-footer { flex-direction: row; justify-content: flex-end; align-items: center; gap: 12px; padding-top: 0; margin-top: 5px; border-top: 0; }
+  .settings-nav-close { width: auto; padding: 5px 9px; }
+  .settings-content { padding: 14px 12px 18px; }
+  .settings-search { margin: 8px 12px; }
 }
 .sticky-note-header {
   -webkit-app-region: no-drag;
