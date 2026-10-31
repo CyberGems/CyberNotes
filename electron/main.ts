@@ -30,6 +30,9 @@ app.setName('CyberNotes');
 
 // ─── Detectar si estamos en dev o producción ───────────────────────────────
 const isDev = !app.isPackaged;
+// Vite supplies this URL only to the Electron process it starts. A direct
+// `electron .` launch uses the built renderer instead of a nonexistent server.
+const useDevRenderer = isDev && Boolean(process.env.VITE_DEV_SERVER_URL);
 
 function getDevRendererUrl(query?: Record<string, string>): string {
   const raw = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5273';
@@ -1308,7 +1311,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
     });
   });
 
-  if (isDev) {
+  if (useDevRenderer) {
     win.loadURL(getDevRendererUrl({ sticky: noteId }));
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'), {
@@ -2302,7 +2305,7 @@ function createWindow() {
     mainWindow!.focus();
   });
 
-  if (isDev) {
+  if (useDevRenderer) {
     mainWindow.loadURL(getDevRendererUrl());
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
