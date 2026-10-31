@@ -7,7 +7,7 @@ import { Search, Sigma, X } from 'lucide-react';
 import type { Language } from '../languages';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import NativeGlyph from './NativeGlyph';
-import { PickerModeButton, PickerTray } from './PickerControls';
+import { PickerModeButton, PickerTray, reorderPickerEntries } from './PickerControls';
 import { loadGlyphSupport, SYMBOL_FONT_FAMILY } from '../utils/glyphSupport';
 
 type CharacterCategory = 'latin' | 'punctuation' | 'brackets' | 'math' | 'currency' | 'arrows' | 'greek' | 'super' | 'shapes' | 'emoji';
@@ -610,6 +610,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
 
           {multiSelect ? (
             <PickerTray language={language} kind="symbol" entries={batchEntries} fontFamily={SYMBOL_FONT_FAMILY}
+              onReorder={(sourceId, targetId, after) => setBatchEntries(current => reorderPickerEntries(current, sourceId, targetId, after))}
               onRemove={queueId => setBatchEntries(current => current.filter(entry => entry.queueId !== queueId))}
               onClear={() => setBatchEntries([])} focusSearch={() => searchRef.current?.focus({ preventScroll: true })} />
           ) : (

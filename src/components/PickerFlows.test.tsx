@@ -125,3 +125,52 @@ for (const fixture of cases) {
     } finally { await act(async () => root.unmount()); host.remove(); }
   });
 }
+
+for (const fixture of cases) {
+  it.each(['es', 'en'] as const)(`${fixture.name}: drags repeated tray items before insertion and cancels without removing (%s)`, async language => {
+    const inserted = vi.fn(), onClose = vi.fn();
+    const chain = { focus: () => chain, setTextSelection: () => chain,
+      insertContent: (content: unknown) => { inserted(content); return chain; }, run: () => true };
+    const editor = { state: { selection: { from: 1, to: 1 }, doc: { content: { size: 100 } } },
+      chain: () => chain, commands: { focus: vi.fn() }, isDestroyed: false } as unknown as Editor;
+    const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
+    const { Component } = fixture;
+    try {
+      await act(async () => root.render(<Component editor={editor} language={language} uiScale={1} onClose={onClose} />));
+      await act(async () => document.querySelector<HTMLButtonElement>('.picker-mode')!.click());
+      const search = document.querySelector<HTMLInputElement>('.character-map-search input')!;
+      for (const query of fixture.batchQueries) {
+        await change(search, query); await act(async () => document.querySelector<HTMLButtonElement>('.character-map-grid button')!.click());
+      }
+      const chips = () => [...document.querySelectorAll<HTMLButtonElement>('.picker-chip')];
+      const values = () => chips().map(chip => chip.textContent);
+      const initial = chips();
+      initial.forEach(chip => vi.spyOn(chip, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 80, 36)));
+      const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+      const drag = async (target: Element, type: string, clientX = 0) => act(async () => {
+        const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX });
+        Object.defineProperty(event, 'dataTransfer', { value: dataTransfer }); target.dispatchEvent(event);
+      });
+      // Ignore drops from elsewhere; use queue IDs rather than repeated values.
+      await drag(initial[1], 'drop', 0); expect(values()).toEqual(fixture.batchValues);
+      await drag(initial[2], 'dragstart'); await drag(initial[1], 'dragover', 0);
+      expect(initial[1].classList.contains('drop-before')).toBe(true);
+      await drag(initial[1], 'drop', 0);
+      expect(chips()).toEqual([initial[0], initial[2], initial[1]]);
+      expect(values()).toEqual([fixture.batchValues[0], fixture.batchValues[2], fixture.batchValues[1]]);
+      await drag(initial[0], 'dragstart'); await drag(initial[1], 'dragover', 79); await drag(initial[0], 'dragend');
+      expect(document.querySelector('.drop-after')).toBeNull(); expect(chips()).toHaveLength(3);
+      // Move to the end using blank tray space, then back via keyboard.
+      await drag(initial[0], 'dragstart'); await drag(document.querySelector('.picker-tray-items')!, 'drop');
+      expect(chips()).toEqual([initial[2], initial[1], initial[0]]);
+      await act(async () => initial[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true })));
+      expect(chips()).toEqual([initial[2], initial[0], initial[1]]);
+      // Removing a repeated entry still removes precisely that entry.
+      await act(async () => initial[2].click()); expect(chips()).toEqual([initial[0], initial[1]]);
+      expect(inserted).not.toHaveBeenCalled(); expect(onClose).not.toHaveBeenCalled();
+      await enter(search);
+      expect(inserted).toHaveBeenCalledExactlyOnceWith({ type: 'text', text: fixture.batchValues[0] + fixture.batchValues[1] });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally { await act(async () => root.unmount()); host.remove(); }
+  });
+}

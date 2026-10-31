@@ -3216,7 +3216,9 @@ body.sticky-is-dragging * {
   scrollbar-color: var(--scrollbar-thumb) transparent;
   padding: 3px;
 }
+.picker-tray-hint { margin: 0 0 6px; color: var(--text-muted); font-size: calc(11px * var(--ui-scale)); }
 .picker-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3231,6 +3233,16 @@ body.sticky-is-dragging * {
   font-size: calc(21px * var(--ui-scale));
   cursor: pointer;
 }
+.picker-chip[draggable] { cursor: grab; }
+.picker-chip[draggable]:active { cursor: grabbing; }
+.picker-chip.drop-before::before,
+.picker-chip.drop-after::after {
+  content: ''; position: absolute; top: 2px; bottom: 2px; width: 2px;
+  border-radius: 2px; background: var(--accent);
+}
+.picker-chip.drop-before::before { left: -5px; }
+.picker-chip.drop-after::after { right: -5px; }
+.picker-tray-items.drop-at-end { box-shadow: inset 0 -2px var(--accent); }
 .picker-chip:hover { border-color: var(--accent); background: var(--accent-dim); }
 .picker-chip > .picker-glyph { max-width: calc(42px * var(--ui-scale)); }
 .picker-tray-empty {

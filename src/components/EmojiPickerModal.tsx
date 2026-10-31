@@ -10,7 +10,7 @@ import emojiComponentsJson from '../data/emoji-components.json';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import { EMOJI_FONT_FAMILY, filterSupportedEmojis } from '../utils/emojiSupport';
 import NativeGlyph from './NativeGlyph';
-import { PickerModeButton, PickerTray } from './PickerControls';
+import { PickerModeButton, PickerTray, reorderPickerEntries } from './PickerControls';
 
 type EmojiGroup = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type EmojiFilter = 'all' | 'recent' | EmojiGroup;
@@ -436,6 +436,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
 
           {multiSelect ? (
             <PickerTray language={language} kind="emoji" entries={batchEntries} fontFamily={EMOJI_FONT_FAMILY}
+              onReorder={(sourceId, targetId, after) => setBatchEntries(current => reorderPickerEntries(current, sourceId, targetId, after))}
               onRemove={queueId => setBatchEntries(current => current.filter(entry => entry.queueId !== queueId))}
               onClear={() => setBatchEntries([])} focusSearch={() => searchRef.current?.focus({ preventScroll: true })} />
           ) : (
