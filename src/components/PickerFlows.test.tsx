@@ -63,7 +63,7 @@ for (const fixture of cases) {
       expect(inserted).toHaveLength(2);
       await enter(batch);
       expect(inserted).toEqual([fixture.value, fixture.value, fixture.edited]);
-      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(fixture.name === 'emojis' ? 3 : 1);
       expect(JSON.parse(localStorage.getItem(`${fixture.storage}-recents-v1`)!)).toEqual(fixture.recents);
       sessionStorage.setItem(`${fixture.storage}-view-v1`, JSON.stringify({ category: 'recent', scrollTop: {}, gridScrollTop: {} }));
       await render(1);

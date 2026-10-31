@@ -257,7 +257,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   const insertActive = useCallback(() => {
     if (!activeEntry) return;
     if (multiSelect) appendBatchEmoji(activeEntry);
-    else insertEmoji(activeEntry);
+    else insertEmoji(activeEntry, true);
   }, [activeEntry, appendBatchEmoji, insertEmoji, multiSelect]);
   useModalKeys({ enabled: true, onEsc: close, onEnter: multiSelect ? insertBatch : insertActive });
 

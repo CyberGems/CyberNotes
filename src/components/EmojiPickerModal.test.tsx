@@ -39,3 +39,27 @@ it.each(['es', 'en'] as const)('only offers compatible emojis, filters old recen
     await act(async () => root.unmount()); host.remove();
   }
 });
+
+it.each(['es', 'en'] as const)('closes after Insert succeeds and stays open when insertion fails (%s)', async language => {
+  const onClose = vi.fn();
+  const run = vi.fn().mockReturnValue(false);
+  const insertContent = vi.fn();
+  const chain = { focus: () => chain, setTextSelection: () => chain,
+    insertContent: (content: unknown) => { insertContent(content); return chain; }, run };
+  const editor = { state: { selection: { from: 1, to: 1 }, doc: { content: { size: 10 } } }, chain: () => chain,
+    commands: { focus: vi.fn() }, isDestroyed: false } as unknown as Editor;
+  const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(<EmojiPickerModal editor={editor} language={language} uiScale={1} onClose={onClose} />));
+    const insert = document.querySelector<HTMLButtonElement>('.emoji-picker-modal .modal-action-btn.is-save')!;
+    await act(async () => insert.click());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(localStorage.getItem('cybernotes-emoji-picker-recents-v1')).toBeNull();
+    run.mockReturnValue(true);
+    insertContent.mockClear();
+    await act(async () => insert.click());
+    expect(insertContent).toHaveBeenCalledExactlyOnceWith({ type: 'text', text: '😀' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['😀']);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
