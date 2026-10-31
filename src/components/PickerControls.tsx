@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ListPlus, X } from 'lucide-react';
 import type { Language } from '../languages';
 import NativeGlyph from './NativeGlyph';
@@ -22,7 +22,50 @@ export function PickerTray({ language, kind, entries, fontFamily, onRemove, onRe
   const itemsRef = useRef<HTMLDivElement>(null);
   const draggedId = useRef<number | null>(null);
   const [dropHint, setDropHint] = useState<{ id: number | null; after: boolean } | null>(null);
-  const resetDrag = () => { draggedId.current = null; setDropHint(null); };
+  const scrollFrame = useRef<number | null>(null);
+  const dragPoint = useRef<{ x: number; y: number } | null>(null);
+  const stopAutoScroll = useCallback(() => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+    dragPoint.current = null;
+  }, []);
+  const resetDrag = useCallback(() => {
+    stopAutoScroll(); draggedId.current = null; setDropHint(null);
+  }, [stopAutoScroll]);
+  useEffect(() => {
+    window.addEventListener('blur', resetDrag);
+    return () => { window.removeEventListener('blur', resetDrag); stopAutoScroll(); };
+  }, [resetDrag, stopAutoScroll]);
+  const autoScroll = (x: number, y: number) => {
+    dragPoint.current = { x, y };
+    if (scrollFrame.current !== null) return;
+    let previous: number | null = null;
+    const advance = (now: number) => {
+      scrollFrame.current = null;
+      const tray = itemsRef.current, point = dragPoint.current;
+      if (!tray || !point || draggedId.current === null) return;
+      const bounds = tray.getBoundingClientRect();
+      const edge = Math.min(32, bounds.height / 3);
+      if (edge <= 0 || point.x < bounds.left || point.x > bounds.right || point.y < bounds.top || point.y > bounds.bottom) return;
+      const strength = point.y < bounds.top + edge ? -(bounds.top + edge - point.y) / edge
+        : point.y > bounds.bottom - edge ? (point.y - bounds.bottom + edge) / edge : 0;
+      if (!strength) return;
+      const maximum = Math.max(0, tray.scrollHeight - tray.clientHeight);
+      const next = Math.max(0, Math.min(maximum, tray.scrollTop + strength * 360 * Math.min(40, previous === null ? 16 : now - previous) / 1000));
+      previous = now;
+      if (next === tray.scrollTop) return;
+      tray.scrollTop = next;
+      // The pointer can stay still while new chips move underneath it.
+      const target = document.elementFromPoint?.(point.x, point.y)?.closest<HTMLElement>('[data-queue-id]');
+      if (target && tray.contains(target)) {
+        const rect = target.getBoundingClientRect();
+        const hint = { id: Number(target.dataset.queueId), after: point.x >= rect.left + rect.width / 2 };
+        setDropHint(current => current?.id === hint.id && current.after === hint.after ? current : hint);
+      }
+      scrollFrame.current = requestAnimationFrame(advance);
+    };
+    scrollFrame.current = requestAnimationFrame(advance);
+  };
   const es = language === 'es';
   return <section className="picker-tray" aria-label={kind === 'emoji'
     ? (es ? 'Bandeja de emojis' : 'Emoji tray') : (es ? 'Bandeja de símbolos' : 'Symbol tray')}>
@@ -35,13 +78,19 @@ export function PickerTray({ language, kind, entries, fontFamily, onRemove, onRe
     {entries.length > 0 && <p className="picker-tray-hint">{es
       ? 'Arrastra para reordenar. Clic para quitar.' : 'Drag to reorder. Click to remove.'}</p>}
     <div ref={itemsRef} className={`picker-tray-items${dropHint?.id === null ? ' drop-at-end' : ''}`}
+      onDragOverCapture={event => {
+        if (draggedId.current === null) return;
+        event.preventDefault(); autoScroll(event.clientX, event.clientY);
+      }}
       onDragOver={event => {
         if (draggedId.current === null || event.target !== event.currentTarget) return;
         event.preventDefault(); event.dataTransfer.dropEffect = 'move';
         setDropHint({ id: null, after: true });
       }}
       onDragLeave={event => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropHint(null);
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+          stopAutoScroll(); setDropHint(null);
+        }
       }}
       onDrop={event => {
         if (draggedId.current === null) return;
@@ -51,6 +100,7 @@ export function PickerTray({ language, kind, entries, fontFamily, onRemove, onRe
       {entries.length ? entries.map((entry, index) => <button key={entry.queueId} type="button"
         className={`picker-chip${dropHint?.id === entry.queueId ? (dropHint.after ? ' drop-after' : ' drop-before') : ''}`}
         draggable
+        data-queue-id={entry.queueId}
         onDragStart={event => {
           draggedId.current = entry.queueId;
           event.dataTransfer.effectAllowed = 'move';

@@ -3213,6 +3213,7 @@ body.sticky-is-dragging * {
   gap: 6px;
   min-height: calc(38px * var(--ui-scale));
   max-height: min(calc(100px * var(--ui-scale)), 18vh);
+  overscroll-behavior: contain;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
