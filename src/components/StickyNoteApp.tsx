@@ -14,7 +14,7 @@ import TiptapImage from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Note, ThemeId } from '../types';
-import type { StickyColorId } from '../../shared/sticky';
+import { DEFAULT_STICKY_COLOR, type StickyColorId } from '../../shared/sticky';
 import { DEFAULT_STICKY_OPACITY, STICKY_BACKGROUNDS, STICKY_OPACITY_OPTIONS, normalizeStickyOpacity } from '../../shared/sticky';
 import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
@@ -296,7 +296,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [title, setTitle] = useState('');
   const [language, setLanguage] = useState<Language>('es');
   const [editorFontId, setEditorFontId] = useState<EditorFontId>(DEFAULT_EDITOR_FONT);
-  const [color, setColor] = useState<StickyColorId>('cyber-yellow');
+  const [color, setColor] = useState<StickyColorId>(DEFAULT_STICKY_COLOR);
   const [opacity, setOpacity] = useState<number>(DEFAULT_STICKY_OPACITY);
   const [zoom, setZoom] = useState<number>(1);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
@@ -350,7 +350,7 @@ export default function StickyNoteApp({ noteId }: Props) {
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
-  const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS['cyber-yellow'];
+  const colorMeta = STICKY_COLORS[hoveredColor || color] || STICKY_COLORS[DEFAULT_STICKY_COLOR];
   const saveStatusLabel = saveStatus === 'error'
     ? t.editor.saveError
     : saveStatus === 'saving'

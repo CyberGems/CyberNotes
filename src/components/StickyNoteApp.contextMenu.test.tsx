@@ -35,7 +35,7 @@ describe('floating note title context menu', () => {
       value: {
         getSettings: vi.fn().mockResolvedValue({}),
         isSessionLocked: vi.fn().mockResolvedValue(false),
-        getStickyConfig: vi.fn().mockResolvedValue({ opacity: 0.7 }),
+        getStickyConfig: vi.fn().mockResolvedValue({ color: 'cyber-yellow', opacity: 0.7 }),
         getNoteById: vi.fn().mockResolvedValue(note),
         setStickyWindowChrome: vi.fn(),
         onNoteUpdated: () => () => {},
