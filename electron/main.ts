@@ -14,6 +14,7 @@ import { isSpanish } from '../shared/lang';
 import { getThemeVars, normalizeThemeId } from '../src/themes';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, isBackupFile, selectBackupsToPrune } from '../shared/backup';
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
+import { getFactoryNotes } from '../shared/factoryNotes';
 import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../shared/toolbarDefaults';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
@@ -486,11 +487,8 @@ async function initDatabase() {
   // Rellenar miniaturas de notas existentes (una sola vez / solo filas vacías)
   backfillNoteThumbs();
 
-  // Si es una instalación nueva sin notas, crear contenido inicial de demostración
-  const noteCountRow = queryGet('SELECT count(*) as count FROM notes');
-  if (!noteCountRow || noteCountRow.count === 0) {
-    seedInitialDemoContent();
-  }
+  // Existing databases, including deliberately emptied profiles, never reseed.
+  if (isNewProfile) seedInitialDemoContent();
 
   // Migración única: imágenes base64 embebidas → archivos en images/
   try {
@@ -507,110 +505,27 @@ async function initDatabase() {
 
 function seedInitialDemoContent() {
   const langVal = queryGet('SELECT value FROM settings WHERE key = ?', ['language']);
-  const sysLocale = app.getLocale() || '';
-  const isEs = isSpanish(langVal?.value) || (!langVal && isSpanish(sysLocale));
-
+  const language = isSpanish(langVal?.value) || (!langVal && isSpanish(app.getLocale() || '')) ? 'es' : 'en';
   const now = new Date().toISOString();
-
-  // 1. Carpetas iniciales
-  const folderCountRow = queryGet('SELECT count(*) as count FROM folders');
-  const folderGettingStartedId = 'folder-getting-started';
-  const folderCyberGemsId = 'folder-cybergems';
-
-  if (!folderCountRow || folderCountRow.count === 0) {
-    runQuery(
-      `INSERT INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-      [folderGettingStartedId, isEs ? 'Primeros Pasos' : 'Getting Started', 'rocket', '#7c3aed', 0, now]
-    );
-    runQuery(
-      `INSERT INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-      [folderCyberGemsId, 'CyberGems Suite', 'layers', '#06b6d4', 1, now]
-    );
-  }
-
-  // 2. Nota 1: Bienvenida principal (Fijada)
-  const welcomeId = 'welcome-note';
-  const welcomeTitle = isEs ? '👋 ¡Bienvenido a CyberNotes!' : '👋 Welcome to CyberNotes!';
-  const welcomeContent = isEs
-    ? `<h1>👋 ¡Bienvenido a CyberNotes!</h1><p><strong>CyberNotes</strong> es tu espacio de notas rápido, moderno y con estética cyberpunk. Todo lo que escribes se almacena localmente en tu equipo con total privacidad, utilizando <strong>SQL.js (SQLite WASM)</strong>: tus notas nunca salen de tu dispositivo.</p><h2>✨ Características principales</h2><ul><li><strong>📁 Carpetas y Colores:</strong> Organiza tus notas en carpetas personalizadas con iconos y colores vibrantes desde la barra lateral.</li><li><strong>⭐ Favoritos y Pestañas:</strong> Fija tus notas más importantes y trabaja en múltiples documentos simultáneamente mediante pestañas.</li><li><strong>⚡ Atajo global de ventana:</strong> Muestra u oculta CyberNotes desde cualquier aplicación con el atajo de teclado personalizable (por defecto <code>Alt+Shift+N</code>).</li><li><strong>🗺️ Minimapa de navegación:</strong> Visualiza la estructura completa de tu documento para desplazarte ágilmente en notas extensas.</li><li><strong>🔒 Seguridad y Bloqueo:</strong> Protege el acceso con contraseña maestra (hash bcrypt para el bloqueo, las notas se guardan sin cifrar), bloqueo automático por inactividad y escudo de privacidad al minimizar.</li><li><strong>⇪ Auto-desbloqueo de Mayúsculas:</strong> Sistema inteligente que desactiva el Bloq Mayús tras inactividad para evitar errores de tipeo accidentales.</li></ul><h2>💡 Atajos de teclado clave</h2><ul><li><code>Ctrl + N</code>: Crear una nueva nota al instante.</li><li><code>Ctrl + F</code>: Búsqueda instantánea de texto completo en todas las notas.</li><li><code>Ctrl + B</code> / <code>Ctrl + I</code> / <code>Ctrl + U</code>: Formato rápido en negrita, cursiva o subrayado.</li><li><code>Ctrl + P</code>: Imprimir o exportar la nota actual a PDF.</li><li><code>Alt + Shift + N</code>: Invocar u ocultar CyberNotes desde cualquier lugar de Windows.</li></ul><blockquote><p><em>"Tus ideas, notas y código organizados a la velocidad de la luz."</em> (CyberGems Suite)</p></blockquote>`
-    : `<h1>👋 Welcome to CyberNotes!</h1><p><strong>CyberNotes</strong> is your fast, modern, cyberpunk-styled note-taking desktop application. Everything you write is stored locally on your machine with complete privacy, powered by <strong>SQL.js (SQLite WASM)</strong>: your notes never leave your device.</p><h2>✨ Key Features</h2><ul><li><strong>📁 Folders &amp; Colors:</strong> Organize your notes into custom folders with vibrant icons and colors from the sidebar.</li><li><strong>⭐ Favorites &amp; Multi-Tabs:</strong> Pin important notes and work with multiple open documents at once using tabs.</li><li><strong>⚡ Global Window Shortcut:</strong> Quickly summon or hide CyberNotes from anywhere with the customizable hotkey (default: <code>Alt+Shift+N</code>).</li><li><strong>🗺️ Document Minimap:</strong> View a real-time overview of your document to navigate long notes seamlessly.</li><li><strong>🔒 Privacy &amp; Lock:</strong> Protect access with a master password (bcrypt hash for the lock, notes are stored unencrypted), auto-lock timer, and privacy shield on minimize.</li><li><strong>⇪ Auto-Unlock Caps Lock:</strong> Intelligent system that releases Caps Lock after typing inactivity to prevent unintended uppercase text.</li></ul><h2>💡 Essential Keyboard Shortcuts</h2><ul><li><code>Ctrl + N</code>: Create a new note instantly.</li><li><code>Ctrl + F</code>: Search across all your notes in real time.</li><li><code>Ctrl + B</code> / <code>Ctrl + I</code> / <code>Ctrl + U</code>: Quick bold, italic, or underline formatting.</li><li><code>Ctrl + P</code>: Print or export the current note to PDF.</li><li><code>Alt + Shift + N</code>: Summon or hide CyberNotes from anywhere on Windows.</li></ul><blockquote><p><em>"Your thoughts, notes, and code organized at the speed of light."</em> (CyberGems Suite)</p></blockquote>`;
-
-  const welcomePreview = isEs
-    ? 'CyberNotes es tu espacio de notas rápido, moderno y con estética cyberpunk. Todo lo que escribes se almacena localmente en tu equipo con total privacidad.'
-    : 'CyberNotes is your fast, modern, cyberpunk-styled note-taking app. Everything you write is stored locally on your machine with complete privacy.';
-
-  runQuery(
-    `INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [welcomeId, folderGettingStartedId, welcomeTitle, welcomeContent, welcomePreview, '', 1, now, now]
-  );
-
-  // 3. Nota 2: Ecosistema CyberGems y Sitio Web Oficial
-  const suiteId = 'cybergems-suite-note';
-  const suiteTitle = isEs ? '💎 Suite CyberGems: Aplicaciones y Ecosistema' : '💎 CyberGems Suite: Apps & Ecosystem';
-  const suiteContent = isEs
-    ? `<h1>💎 Suite CyberGems: Aplicaciones y Ecosistema</h1><p><strong>CyberGems</strong> es un ecosistema de aplicaciones de escritorio gratuitas y de código abierto (GPLv3) diseñadas para Windows. Todas nuestras herramientas son 100% locales, respetan tu privacidad, y no contienen anuncios, suscripciones ni telemetría.</p><p>🌐 <strong>Sitio web oficial:</strong> <a href="https://cybergems.org" target="_blank" rel="noopener noreferrer">cybergems.org</a> (visítanos para explorar novedades, changelogs y descargas directas).</p><h2>✨ Otras aplicaciones de la Suite</h2><ul><li>🕐 <strong>CyberClock:</strong> Reloj de escritorio con modos analógico y digital, calendario, alarmas, temporizadores y módulo de relajación.</li><li>📢 <strong>CyberFeeds:</strong> Lector RSS y Atom local-first de alto rendimiento para una lectura limpia y sin distracciones.</li><li>🚀 <strong>CyberLauncher:</strong> Lanzador de aplicaciones para Windows con esquinas activas (hot corners), monitor del sistema y terminal integrada.</li><li>💻 <strong>CyberManager:</strong> Administrador de tareas ultra-ligero y nativo de alto rendimiento para Windows NT.</li><li>⚡ <strong>CyberPaste:</strong> Gestor de portapapeles enfocado en privacidad para texto, código, imágenes, HTML y archivos.</li><li>📸 <strong>CyberSnap:</strong> Suite de captura de pantalla y anotación vectorial con OCR de alta velocidad y selector de color.</li><li>⭐ <strong>CyberTray:</strong> Lanzador en la bandeja del sistema con hotspots, monitor de procesos y bóveda protegida por PIN.</li><li>💫 <strong>CyberViewer:</strong> Visor y editor de imágenes completo, ligero y veloz para todo tipo de formatos.</li><li>🛡️ <strong>CyberWall:</strong> Cortafuegos amigable para Windows con reglas por aplicación en tiempo real impulsado por el motor kernel WFP.</li></ul><h2>🔗 Enlaces oficiales</h2><ul><li><strong>Sitio Web Oficial:</strong> <a href="https://cybergems.org" target="_blank" rel="noopener noreferrer">https://cybergems.org</a></li><li><strong>Organización en GitHub:</strong> <a href="https://github.com/CyberGems" target="_blank" rel="noopener noreferrer">https://github.com/CyberGems</a></li><li><strong>Repositorio de CyberNotes:</strong> <a href="https://github.com/CyberGems/CyberNotes" target="_blank" rel="noopener noreferrer">https://github.com/CyberGems/CyberNotes</a></li></ul><blockquote><p><em>"Software libre, transparente y centrado en el usuario."</em> (CyberGems Team)</p></blockquote>`
-    : `<h1>💎 CyberGems Suite: Apps &amp; Ecosystem</h1><p><strong>CyberGems</strong> is a suite of free, open-source (GPLv3) desktop applications engineered for Windows. Every app is 100% local, privacy-first, and completely free of ads, tracking, and subscriptions.</p><p>🌐 <strong>Official Website:</strong> <a href="https://cybergems.org" target="_blank" rel="noopener noreferrer">cybergems.org</a> (visit to browse releases, changelogs, and direct downloads).</p><h2>✨ Explore the Suite Apps</h2><ul><li>🕐 <strong>CyberClock:</strong> Desktop clock with analog and digital displays, calendar, timer, stopwatch, and relaxation module.</li><li>📢 <strong>CyberFeeds:</strong> High-performance, local-first RSS and Atom reader built for clean and distraction-free reading.</li><li>🚀 <strong>CyberLauncher:</strong> Application launcher for Windows with hot corners, scheduler, system monitor, and integrated terminal.</li><li>💻 <strong>CyberManager:</strong> Ultra-lightweight and NT-native task manager alternative.</li><li>⚡ <strong>CyberPaste:</strong> Privacy-first clipboard manager for text, code snippets, images, HTML, and files.</li><li>📸 <strong>CyberSnap:</strong> Screen capture and vector annotation suite with high-speed OCR and color picker.</li><li>⭐ <strong>CyberTray:</strong> System tray launcher with hotspots, performance monitor, and PIN-protected file vault.</li><li>💫 <strong>CyberViewer:</strong> Full-featured and high-speed image viewer and editor for casual and power users.</li><li>🛡️ <strong>CyberWall:</strong> User-friendly Windows firewall with real-time per-app rules powered by the WFP kernel engine.</li></ul><h2>🔗 Official Links</h2><ul><li><strong>Official Website:</strong> <a href="https://cybergems.org" target="_blank" rel="noopener noreferrer">https://cybergems.org</a></li><li><strong>GitHub Organization:</strong> <a href="https://github.com/CyberGems" target="_blank" rel="noopener noreferrer">https://github.com/CyberGems</a></li><li><strong>CyberNotes Repository:</strong> <a href="https://github.com/CyberGems/CyberNotes" target="_blank" rel="noopener noreferrer">https://github.com/CyberGems/CyberNotes</a></li></ul><blockquote><p><em>"Free, transparent, and user-centric software."</em> (CyberGems Team)</p></blockquote>`;
-
-  const suitePreview = isEs
-    ? 'Descubre la suite CyberGems: herramientas gratuitas, de código abierto y sin publicidad para Windows en cybergems.org.'
-    : 'Discover the CyberGems suite: free, open-source, privacy-first tools for Windows at cybergems.org.';
-
-  runQuery(
-    `INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [suiteId, folderCyberGemsId, suiteTitle, suiteContent, suitePreview, '', 0, now, now]
-  );
-
-  // 4. Nota 3: Guía de Inicio Rápido y Checklist
-  const quickstartId = 'quickstart-note';
-  const quickstartTitle = isEs ? '🎯 Lista de Inicio Rápido y Consejos' : '🎯 Quick Start Checklist & Tips';
-  const quickstartContent = isEs
-    ? `<h1>🎯 Lista de Inicio Rápido y Consejos</h1><p>Aquí tienes una guía con los primeros pasos recomendados para dominar <strong>CyberNotes</strong>:</p><h2>✅ Tareas recomendadas</h2><ul><li><strong>Abrir CyberNotes:</strong> ¡Ya estás aquí! Explora la interfaz cyberpunk.</li><li><strong>Crear tu primera nota:</strong> Presiona <code>Ctrl + N</code> o haz clic en el botón <code>+</code> de la barra lateral.</li><li><strong>Organizar con carpetas:</strong> Crea una carpeta en la barra lateral con tu icono y color favorito.</li><li><strong>Probar el atajo global:</strong> Presiona <code>Alt + Shift + N</code> para ocultar la ventana y vuelve a presionarlo para invocarla.</li><li><strong>Personalizar la apariencia:</strong> Abre <em>Configuración</em> desde el menú superior para cambiar el tema, la intensidad del color o añadir un fondo con efecto glass.</li><li><strong>Configurar seguridad:</strong> Si deseas proteger tus notas privadas, activa la contraseña maestra en <em>Configuración &gt; Seguridad</em>.</li><li><strong>Explorar el ecosistema:</strong> Visita <a href="https://cybergems.org" target="_blank" rel="noopener noreferrer">cybergems.org</a> para descubrir las demás herramientas de la suite.</li></ul><h2>💻 Demostración de bloque de código</h2><pre><code>// CyberNotes almacena todo en SQLite local (SQL.js)
-const note = {
-  encrypted: true,
-  privacy: '100% offline',
-  speed: 'lightning-fast'
-};
-console.log('¡Bienvenido a CyberNotes!', note);</code></pre><p>¡Disfruta escribiendo con total privacidad y estilo!</p>`
-    : `<h1>🎯 Quick Start Checklist &amp; Tips</h1><p>Here is a guide with recommended steps to get the most out of <strong>CyberNotes</strong>:</p><h2>✅ Onboarding Checklist</h2><ul><li><strong>Launch CyberNotes:</strong> You are already here! Take a look at the cyberpunk UI.</li><li><strong>Create your first note:</strong> Press <code>Ctrl + N</code> or click the <code>+</code> button on the sidebar.</li><li><strong>Organize with folders:</strong> Create a folder in the sidebar with your favorite icon and color.</li><li><strong>Test the global shortcut:</strong> Press <code>Alt + Shift + N</code> to hide the window and press it again to summon it.</li><li><strong>Customize appearance:</strong> Open <em>Settings</em> from the top menu to change the theme, accent color, or set a background with glass blur.</li><li><strong>Setup security:</strong> To lock sensitive notes, configure a master password in <em>Settings &gt; Security</em>.</li><li><strong>Explore the ecosystem:</strong> Visit <a href="https://cybergems.org" target="_blank" rel="noopener noreferrer">cybergems.org</a> to discover the other tools in the suite.</li></ul><h2>💻 Code Block Demo</h2><pre><code>// CyberNotes stores everything in local SQLite (SQL.js)
-const note = {
-  encrypted: true,
-  privacy: '100% offline',
-  speed: 'lightning-fast'
-};
-console.log('Welcome to CyberNotes!', note);</code></pre><p>Enjoy writing with total privacy and speed!</p>`;
-
-  const quickstartPreview = isEs
-    ? 'Primeros pasos para sacar el máximo provecho a CyberNotes: atajos, carpetas, personalización y seguridad.'
-    : 'Get the most out of CyberNotes: shortcuts, folder organization, customization, and security.';
-
-  runQuery(
-    `INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [quickstartId, folderGettingStartedId, quickstartTitle, quickstartContent, quickstartPreview, '', 0, now, now]
-  );
-
-  // 5. Nota flotante de demostración con referencias prácticas
-  const floatingDemoId = 'floating-demo-note';
-  const floatingDemoTitle = isEs ? '⚡ Atajos rápidos' : '⚡ Quick shortcuts';
-  const floatingDemoContent = isEs
-    ? '<h2>⚡ Atajos rápidos</h2><p>Una pequeña referencia para tener CyberNotes siempre a mano.</p><ul><li><strong>Ctrl + N:</strong> crear una nota normal.</li><li><strong>Ctrl + S:</strong> guardar la nota actual.</li><li><strong>Ctrl + F:</strong> buscar entre tus notas.</li><li><strong>Ctrl + Shift + N:</strong> crear una carpeta.</li><li><strong>Alt + Shift + N:</strong> mostrar u ocultar la aplicación.</li></ul><p><em>Esta nota flotante es solo una demostración. Puedes editarla o cerrarla cuando quieras.</em></p>'
-    : '<h2>⚡ Quick shortcuts</h2><p>A small reference to keep CyberNotes close at hand.</p><ul><li><strong>Ctrl + N:</strong> create a regular note.</li><li><strong>Ctrl + S:</strong> save the current note.</li><li><strong>Ctrl + F:</strong> search your notes.</li><li><strong>Ctrl + Shift + N:</strong> create a folder.</li><li><strong>Alt + Shift + N:</strong> show or hide the app.</li></ul><p><em>This floating note is only a demonstration. Edit or close it whenever you want.</em></p>';
-  const floatingDemoPreview = isEs
-    ? 'Referencia rápida de atajos de teclado de CyberNotes.'
-    : 'Quick reference for CyberNotes keyboard shortcuts.';
-
-  runQuery(
-    `INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [floatingDemoId, null, floatingDemoTitle, floatingDemoContent, floatingDemoPreview, '', 0, now, now]
-  );
-  runQuery(
-    `INSERT INTO sticky_notes (note_id, x, y, width, height, pinned_top, color, opacity, is_open)
-     VALUES (?, NULL, NULL, 340, 320, 1, 'neon-cyan', 0.9, 1)`,
-    [floatingDemoId]
-  );
-
-  // 6. Abrir pestañas iniciales y seleccionar la nota principal
-  runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['open_note_ids', JSON.stringify([welcomeId, suiteId])]);
-  runQuery(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, ['last_note_id', welcomeId]);
+  // INSERT OR IGNORE also makes an explicit restoration safe for existing notes.
+  db.transaction(() => {
+    for (const [id, name, icon, color, order] of [
+      ['folder-getting-started', language === 'es' ? 'Primeros pasos' : 'Getting started', 'rocket', '#7c3aed', 0],
+      ['folder-cybergems', 'CyberGems Suite', 'layers', '#06b6d4', 1],
+    ]) {
+      runQuery('INSERT OR IGNORE INTO folders (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, name, icon, color, order, now]);
+    }
+    for (const note of getFactoryNotes(language)) {
+      if (queryGet('SELECT id FROM notes WHERE id = ?', [note.id])) continue;
+      runQuery('INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [note.id, note.folderId, note.title, note.content, note.preview, '', note.pinned, now, now]);
+      if (note.floating) {
+        runQuery("INSERT INTO sticky_notes (note_id, x, y, width, height, pinned_top, color, opacity, is_open) VALUES (?, NULL, NULL, 340, 400, 1, 'neon-cyan', 0.9, 1)", [note.id]);
+      }
+    }
+    runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['open_note_ids', JSON.stringify(['welcome-note', 'quickstart-note', 'cybergems-suite-note'])]);
+    runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['last_note_id', 'welcome-note']);
+  })();
 }
 
 /** Backfill de thumb sin re-guardar cada nota en el editor. */
