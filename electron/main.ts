@@ -10,7 +10,7 @@ import { initUpdater, setAutoUpdate } from './updater';
 import { initLogger, writeLog, logRendererError } from './logger';
 import { STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
-import { isSpanish } from '../shared/lang';
+import { isSpanish, preferredAppLanguage } from '../shared/lang';
 import { getThemeVars, normalizeThemeId } from '../src/themes';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, isBackupFile, selectBackupsToPrune } from '../shared/backup';
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
@@ -476,6 +476,9 @@ async function initDatabase() {
   if (isNewProfile) {
     runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['toolbar_hidden_ids', JSON.stringify(DEFAULT_HIDDEN_TOOLBAR_IDS)]);
     runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['onboarding_pending', 'true']);
+    let systemLanguages: string[] = [];
+    try { systemLanguages = app.getPreferredSystemLanguages(); } catch { /* use English */ }
+    runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['language', preferredAppLanguage(systemLanguages)]);
   }
 
   // Migración: DBs antiguas sin columnas nuevas o sticky_notes
