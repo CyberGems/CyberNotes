@@ -682,8 +682,10 @@ select option {
   }
 }
 
-.onboarding-overlay { position: fixed; z-index: 10000; inset: 0; display: flex; justify-content: center; align-items: center; padding: 56px 12px 12px; background: var(--overlay-bg, rgba(5,5,8,.8)); }
+.onboarding-overlay { position: fixed; z-index: 10000; inset: 0; display: flex; justify-content: center; align-items: center; padding: 56px 12px 12px; background: var(--bg-app); }
 .onboarding-titlebar { position: absolute; inset: 0 0 auto; height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); -webkit-app-region: drag; }
+.onboarding-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.onboarding-brand img { width: 22px; height: 22px; border-radius: 4px; }
 .onboarding-window-actions { display: flex; gap: 4px; -webkit-app-region: no-drag; }
 .onboarding-window-actions button { width: 28px; height: 28px; }
 .onboarding-card { width: min(620px, 100%); max-height: calc(100dvh - 68px); display: flex; flex-direction: column; gap: 14px; padding: clamp(16px, 4vw, 24px); border: 1px solid var(--border); border-radius: 14px; background: var(--bg-modal); box-shadow: var(--shadow-elevated); }
@@ -692,7 +694,7 @@ select option {
 .onboarding-heading p, .onboarding-body p { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .onboarding-body { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
 .onboarding-body fieldset { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
-.onboarding-body legend, .onboarding-name > span { padding: 0 4px; font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.onboarding-body legend, .onboarding-name > span:first-child { padding: 0 4px; font-size: 12px; font-weight: 600; color: var(--text-primary); }
 .onboarding-languages, .onboarding-themes { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .onboarding-themes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .onboarding-languages button, .onboarding-themes button { min-width: 0; padding: 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); cursor: pointer; font: inherit; text-align: left; }
@@ -701,6 +703,7 @@ select option {
 .onboarding-themes button { display: flex; flex-direction: column; gap: 6px; }
 .onboarding-themes .settings-theme-preview { height: 42px; }
 .onboarding-name { display: flex; flex-direction: column; gap: 6px; }
+.onboarding-name-help { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .onboarding-card .modal-actions { flex-wrap: wrap; flex-shrink: 0; }
 .onboarding-card .modal-action-btn { min-width: min(128px, 100%); max-width: 100%; }
 .onboarding-body .onboarding-error { color: var(--danger); }

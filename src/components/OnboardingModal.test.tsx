@@ -48,6 +48,23 @@ describe('first-run setup', () => {
     expect(finishOnboarding).toHaveBeenCalledWith({ language: 'es', theme: 'light', name: '' });
   });
 
+  it('previews themes locally and keeps the example name as a placeholder', async () => {
+    const rootTheme = document.documentElement.dataset.theme;
+    await act(async () => button('Español').click());
+    const input = container.querySelector('input')!;
+    expect(input.placeholder).toBe('Usuario');
+    expect(input.value).toBe('');
+    expect(container.textContent).toContain('Tu nombre (opcional)');
+    expect(container.querySelector('#onboarding-name-help')?.textContent).toContain('saludos personalizados');
+    await act(async () => button('Claro').click());
+    expect(container.querySelector<HTMLElement>('.onboarding-overlay')?.dataset.theme).toBe('light');
+    expect(container.querySelector<HTMLElement>('.onboarding-overlay')?.style.getPropertyValue('--bg-modal')).toBe('#ffffff');
+    expect(document.documentElement.dataset.theme).toBe(rootTheme);
+    finishOnboarding.mockResolvedValue({ ok: false });
+    await act(async () => button('Comenzar').click());
+    expect(finishOnboarding).toHaveBeenCalledWith({ language: 'es', theme: 'light', name: '' });
+  });
+
   it.each(['start', 'skip', 'escape', 'close'])('closes the preview with %s without saving', async action => {
     const onClosePreview = vi.fn();
     await act(async () => root.render(<OnboardingModal initialLanguage="en" initialTheme="cyber-dark" onClosePreview={onClosePreview} />));

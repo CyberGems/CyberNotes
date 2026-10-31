@@ -315,7 +315,7 @@ export default function App() {
     );
   }
 
-  if (onboardingPending) return <OnboardingModal initialLanguage={language} initialTheme={theme} />;
+  if (onboardingPending) return <OnboardingModal initialLanguage={language} initialTheme={theme} colorIntensity={colorIntensity} />;
 
   return (
     <>
@@ -341,7 +341,7 @@ export default function App() {
           onSkip={handleWelcomeNameSkip}
         />
       )}
-      {showOnboardingPreview && <OnboardingModal initialLanguage={language} initialTheme={theme} onClosePreview={() => setShowOnboardingPreview(false)} />}
+      {showOnboardingPreview && <OnboardingModal initialLanguage={language} initialTheme={theme} colorIntensity={colorIntensity} onClosePreview={() => setShowOnboardingPreview(false)} />}
       {privacyShield && (
         <AppLoader isShield={true} language={language} />
       )}

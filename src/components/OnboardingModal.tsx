@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { Sparkles, Minus, Maximize2, X } from 'lucide-react';
 import type { Language } from '../languages';
 import type { ThemeId } from '../types';
-import { THEMES } from '../themes';
+import { getThemeVars, THEMES } from '../themes';
 import { EnterGlyph, KeyHint, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
 
-export default function OnboardingModal({ initialLanguage, initialTheme, onClosePreview }: { initialLanguage: Language; initialTheme: ThemeId; onClosePreview?: () => void }) {
+export default function OnboardingModal({ initialLanguage, initialTheme, colorIntensity = 50, onClosePreview }: { initialLanguage: Language; initialTheme: ThemeId; colorIntensity?: number; onClosePreview?: () => void }) {
   const [language, setLanguage] = useState<Language>(initialLanguage);
   const [theme, setTheme] = useState<ThemeId>(initialTheme);
   const [name, setName] = useState('');
@@ -26,9 +26,10 @@ export default function OnboardingModal({ initialLanguage, initialTheme, onClose
     } catch { savingRef.current = false; setError(true); setSaving(false); }
   };
   useModalKeys({ enabled: !saving, onEsc: () => void finish(true), onEnter: () => void finish() });
-  return <div className="onboarding-overlay">
+  const themeStyle = { ...getThemeVars(theme, colorIntensity), colorScheme: THEMES.find(item => item.id === theme)?.colorScheme } as CSSProperties;
+  return <div className="onboarding-overlay" data-theme={theme} style={themeStyle}>
     <div className="onboarding-titlebar">
-      <span>CyberNotes</span>
+      <span className="onboarding-brand"><img src="icon.png" alt="" />CyberNotes</span>
       <div className="onboarding-window-actions">
         <Tooltip label={es ? 'Minimizar' : 'Minimize'} placement="bottom"><button className="btn-icon titlebar-btn" aria-label={es ? 'Minimizar' : 'Minimize'} onClick={() => void window.cyberNotesAPI.windowMinimize()}><Minus size={14} /></button></Tooltip>
         <Tooltip label={es ? 'Maximizar o restaurar' : 'Maximize or restore'} placement="bottom"><button className="btn-icon titlebar-btn" aria-label={es ? 'Maximizar o restaurar' : 'Maximize or restore'} onClick={() => void window.cyberNotesAPI.windowMaximizeToggle()}><Maximize2 size={14} /></button></Tooltip>
@@ -53,8 +54,9 @@ export default function OnboardingModal({ initialLanguage, initialTheme, onClose
             </span><span>{es ? item.nameEs || item.name : item.nameEn || item.name}</span>
           </button>)}
         </div></fieldset>
-        <label className="onboarding-name"><span>{es ? 'Nombre para saludarte (opcional)' : 'Name for greetings (optional)'}</span>
-          <input className="input" value={name} maxLength={80} onChange={event => setName(event.target.value)} autoComplete="name" />
+        <label className="onboarding-name"><span>{es ? 'Tu nombre (opcional)' : 'Your name (optional)'}</span>
+          <input className="input" value={name} placeholder={es ? 'Usuario' : 'User'} aria-describedby="onboarding-name-help" maxLength={80} onChange={event => setName(event.target.value)} autoComplete="name" />
+          <span className="onboarding-name-help" id="onboarding-name-help">{es ? 'Se utiliza para saludos personalizados.' : 'Used for personalized greetings.'}</span>
         </label>
         {error && <p role="alert" className="onboarding-error">{es ? 'No se pudo guardar la configuración. Inténtalo de nuevo.' : 'Could not save your settings. Please try again.'}</p>}
       </div>
