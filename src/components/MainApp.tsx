@@ -5,6 +5,7 @@ import { EditorFontId, applyEditorFont, DEFAULT_EDITOR_FONT } from '../fonts';
 import TitleBar from './TitleBar';
 import Sidebar from './Sidebar';
 import NoteList from './NoteList';
+import { LEGACY_HIDDEN_TOOLBAR_IDS } from '../../shared/toolbarDefaults';
 import NoteEditor, { type NoteExportActions, type NoteActionHandlers, isToolbarItemId } from './NoteEditor';
 import SettingsModal from './SettingsModal';
 import AboutModal from './AboutModal';
@@ -265,7 +266,9 @@ export default function MainApp({
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(true);
   const [showImageToolbar, setShowImageToolbar] = useState(true);
   const [showTableToolbar, setShowTableToolbar] = useState(true);
-  const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>(['h1', 'h2']);
+  // New profiles persist their defaults in the main process. Keep the old
+  // implicit selection for existing profiles that never saved this setting.
+  const [hiddenToolbarIds, setHiddenToolbarIds] = useState<string[]>([...LEGACY_HIDDEN_TOOLBAR_IDS]);
   const [recentClearedAt, setRecentClearedAt] = useState(0);
   const [openedHistory, setOpenedHistory] = useState<Record<string, number>>({});
   const [triggerNewFolderSignal, setTriggerNewFolderSignal] = useState(0);

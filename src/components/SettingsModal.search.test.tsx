@@ -2,6 +2,7 @@
 import { act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../../shared/toolbarDefaults';
 import SettingsModal from './SettingsModal';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -221,6 +222,19 @@ describe('settings search', () => {
     await act(async () => buttons[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 280)); });
     expect(document.querySelector('.tooltip-shortcut-key')?.textContent).toBe('Alt+Shift+N');
+  });
+
+  it('lets a new profile show any factory-hidden control or show them all', async () => {
+    props.initialTab = 'appearance'; props.hiddenToolbarIds = [...DEFAULT_HIDDEN_TOOLBAR_IDS]; props.onHiddenToolbarIdsChange = vi.fn();
+    await render();
+    const card = container.querySelector('.settings-toolbar-card')!;
+    expect(card.querySelectorAll('input:checked')).toHaveLength(22);
+    expect(card.querySelectorAll('input:not(:checked)')).toHaveLength(8);
+    const copy = [...card.querySelectorAll('.settings-toolbar-item')].find(row => row.textContent === 'Copiar')!;
+    await act(async () => copy.querySelector<HTMLInputElement>('input')!.click());
+    expect(props.onHiddenToolbarIdsChange).toHaveBeenLastCalledWith(DEFAULT_HIDDEN_TOOLBAR_IDS.filter(id => id !== 'copy'));
+    await act(async () => card.querySelector<HTMLButtonElement>('.settings-toolbar-summary button')!.click());
+    expect(props.onHiddenToolbarIdsChange).toHaveBeenLastCalledWith([]);
   });
 
   const input = () => container.querySelector<HTMLInputElement>('.settings-search input')!;

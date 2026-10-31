@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../../shared/toolbarDefaults';
 import MainApp from './MainApp';
 import { toNoteMeta } from '../utils/notes';
 import type { Note } from '../types';
@@ -81,6 +82,20 @@ describe('choosing an empty editor', () => {
     await act(async () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Eliminar')!.click());
     await act(async () => document.querySelector<HTMLButtonElement>('[data-leave-guard="modal"] .modal-action-btn.is-save')!.click());
   }
+
+  it.each([
+    { name: 'new profile', value: JSON.stringify(DEFAULT_HIDDEN_TOOLBAR_IDS), count: 8 },
+    { name: 'show all', value: '[]', count: 0 },
+    { name: 'custom selection', value: '["bold"]', count: 1 },
+    { name: 'implicit legacy preference', value: undefined, count: 2 },
+  ])('loads the saved toolbar selection without overwriting it: $name', async ({ value, count }) => {
+    if (value !== undefined) settings.toolbar_hidden_ids = value;
+    await render(); await select();
+    const more = host.querySelector<HTMLButtonElement>('[aria-label="Más controles del editor"]');
+    if (count) expect(more?.textContent?.trim()).toBe(String(count)); else expect(more).toBeNull();
+    expect(window.cyberNotesAPI.setSetting).not.toHaveBeenCalledWith('toolbar_hidden_ids', expect.anything());
+    expect(settings.toolbar_hidden_ids).toBe(value);
+  });
 
   it.each(['es', 'en'] as const)('starts with the bilingual empty state and only loads a note explicitly chosen, language: %s', async language => {
     await render(language);

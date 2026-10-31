@@ -14,6 +14,7 @@ import { isSpanish } from '../shared/lang';
 import { getThemeVars, normalizeThemeId } from '../src/themes';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, isBackupFile, selectBackupsToPrune } from '../shared/backup';
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
+import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../shared/toolbarDefaults';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -384,6 +385,7 @@ async function initDatabase() {
   // better-sqlite3 abre (o crea) el archivo directamente; el esquema y las
   // migraciones de columnas se ejecutan igual que antes.
   const Database = require('better-sqlite3');
+  const isNewProfile = !fs.existsSync(dbPath);
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   // NORMAL en WAL: durable ante caída de la app; el único riesgo de pérdida
@@ -464,6 +466,12 @@ async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_access_log_created ON access_log (created_at DESC);
   `);
+
+  // A missing preference in an existing profile means the legacy selection,
+  // not consent to replace it with today's defaults.
+  if (isNewProfile) {
+    runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['toolbar_hidden_ids', JSON.stringify(DEFAULT_HIDDEN_TOOLBAR_IDS)]);
+  }
 
   // Migración: DBs antiguas sin columnas nuevas o sticky_notes
   ensureColumn('notes', 'thumb', "TEXT DEFAULT ''");
@@ -3014,6 +3022,7 @@ ipcMain.handle('settings:reset', () => {
   const recRow = queryGet('SELECT value FROM settings WHERE key = ?', ['recovery_code_hash']);
   const usageRow = queryGet('SELECT value FROM settings WHERE key = ?', ['usage_stats_enabled']);
   runQuery('DELETE FROM settings');
+  runQuery('INSERT INTO settings (key, value) VALUES (?, ?)', ['toolbar_hidden_ids', JSON.stringify(DEFAULT_HIDDEN_TOOLBAR_IDS)]);
   if (hashRow) {
     runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['password_hash', hashRow.value]);
   }
@@ -3058,6 +3067,7 @@ ipcMain.handle('data:wipe-all', async () => {
     wipeDataTables();
     await new Promise(resolve => setTimeout(resolve, 500));
     wipeDataTables();
+    runQuery('INSERT INTO settings (key, value) VALUES (?, ?)', ['toolbar_hidden_ids', JSON.stringify(DEFAULT_HIDDEN_TOOLBAR_IDS)]);
 
     registerToggleHotkey();
     startAutoBackupWatcher();
