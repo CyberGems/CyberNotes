@@ -18,6 +18,7 @@ import { getFactoryNotes } from '../shared/factoryNotes';
 import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../shared/toolbarDefaults';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 import { isOnboardingTestProfile } from './testProfile';
+import { TEST_PROFILE_CLEANUP_SCRIPT } from './testProfileCleanup';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -106,6 +107,16 @@ if (process.env.CYBERNOTES_USER_DATA_DIR) {
   const temporaryProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'cybernotes-onboarding-test-'));
   app.setPath('userData', temporaryProfile);
   app.setPath('sessionData', temporaryProfile);
+  app.once('quit', () => {
+    const cleanup = spawn(process.execPath, ['-e', TEST_PROFILE_CLEANUP_SCRIPT, '--', temporaryProfile, String(process.pid), os.tmpdir()], {
+      detached: true,
+      windowsHide: true,
+      stdio: 'ignore',
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    });
+    cleanup.on('error', error => console.error('Could not start test profile cleanup:', error));
+    cleanup.unref();
+  });
 }
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
