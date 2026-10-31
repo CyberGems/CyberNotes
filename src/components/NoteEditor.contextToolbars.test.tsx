@@ -14,12 +14,16 @@ describe('temporary context toolbar dismissal', () => {
   let editor: Editor;
   let props: ComponentProps<typeof NoteEditor>;
   const setSetting = vi.fn();
+  let contextListener: ((data: unknown) => void) | null;
+  const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
   beforeEach(() => {
     // Keep real timers: Motion captures RAF at import time, before test setup.
     // Mixing that RAF with a fake clock can leave exit animations unfinished.
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-    vi.stubGlobal('cyberNotesAPI', { setUnsavedChanges: vi.fn(), setSetting });
+    contextListener = null;
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: async () => '' } });
+    vi.stubGlobal('cyberNotesAPI', { setUnsavedChanges: vi.fn(), setSetting, onContextMenuData: (listener: typeof contextListener) => { contextListener = listener; return () => { contextListener = null; }; } });
     setSetting.mockClear();
     Object.defineProperty(Element.prototype, 'scrollTo', { configurable: true, value: vi.fn() });
     container = document.createElement('div');
@@ -39,6 +43,8 @@ describe('temporary context toolbar dismissal', () => {
     container.remove();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+    else Reflect.deleteProperty(navigator, 'clipboard');
     if (scrollToDescriptor) Object.defineProperty(Element.prototype, 'scrollTo', scrollToDescriptor);
     else Reflect.deleteProperty(Element.prototype, 'scrollTo');
   });
@@ -102,6 +108,29 @@ describe('temporary context toolbar dismissal', () => {
     await act(async () => { editor.commands.setTextSelection({ from: 8, to: 12 }); });
     await settle();
     expect(textToolbarVisible()).toBe(true);
+  });
+
+  it('dismisses the text bubble for the current selection when opening a context menu', async () => {
+    await render();
+    await act(async () => { editor.commands.setTextSelection({ from: 1, to: 7 }); editor.view.focus(); });
+    await settle(); expect(textToolbarVisible()).toBe(true);
+    const selection = editor.state.selection, html = editor.getHTML();
+    await act(async () => {
+      editor.view.dom.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+      contextListener?.({ x: 80, y: 90, suggestions: [] });
+    });
+    await settle(); expect(textToolbarVisible()).toBe(false);
+    expect(editor.state.selection.eq(selection)).toBe(true);
+    expect(editor.getHTML()).toBe(html);
+    const backdrop = [...document.body.querySelectorAll<HTMLElement>('div')].find(el => el.style.zIndex === '99999')!;
+    await act(async () => backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
+    await act(async () => editor.view.focus());
+    await settle(); expect(textToolbarVisible()).toBe(false);
+    await act(async () => { editor.commands.setTextSelection({ from: 8, to: 12 }); editor.view.focus(); });
+    await settle(); expect(textToolbarVisible()).toBe(true);
+    expect(editor.getHTML()).toBe(html);
+    expect(editor.can().undo()).toBe(false);
+    expect(setSetting).not.toHaveBeenCalled();
   });
 
   it('honors the persistent toolbar preferences even for new selections', async () => {

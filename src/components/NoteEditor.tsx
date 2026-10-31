@@ -2389,6 +2389,7 @@ export default function NoteEditor({
   const showFloatingToolbarRef = useRef(showFloatingToolbar);
   showFloatingToolbarRef.current = showFloatingToolbar;
   const textBubbleMenuRef = useRef<TippyInstance | null>(null);
+  const contextMenuOpenRef = useRef(false);
   const dismissedTextSelectionRef = useRef<Selection | null>(null);
   const [imageToolbarDismissed, setImageToolbarDismissed] = useState(false);
   const [tableToolbarDismissed, setTableToolbarDismissed] = useState(false);
@@ -2396,6 +2397,11 @@ export default function NoteEditor({
   const readOnlyRef = useRef(readOnly);
   readOnlyRef.current = readOnly;
   const editorRef = useRef<any>(null); // inicializado con null; editor se declara más abajo
+  const hideTextToolbarForContextMenu = useCallback(() => {
+    const ed = editorRef.current;
+    if (ed && !ed.isDestroyed) dismissedTextSelectionRef.current = ed.state.selection;
+    textBubbleMenuRef.current?.hide();
+  }, []);
   // Spellcheck progresivo: el editor nace con spellcheck="false" y se activa
   // un instante después de hidratar cada nota. Con "true" desde la creación,
   // Chromium inicializa el corrector y escanea el documento justo al entrar,
@@ -2739,6 +2745,7 @@ export default function NoteEditor({
     canUndo: boolean;
     canRedo: boolean;
   } | null>(null);
+  contextMenuOpenRef.current = contextMenu !== null;
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const linkInputMenu = useInputContextMenu(language);
   const [editLinkData, setEditLinkData] = useState<{ href: string } | null>(null);
@@ -3216,6 +3223,8 @@ export default function NoteEditor({
           return;
         }
 
+        hideTextToolbarForContextMenu();
+
         // Clic derecho sobre un video: menú dedicado (editar/borrar) en vez
         // del contextual habitual, para no mezclar acciones de texto.
         const downEl = (window as any).lastMouseDownEl as HTMLElement | null;
@@ -3395,6 +3404,7 @@ export default function NoteEditor({
         },
         mousedown: (_view, event) => {
           if (event.button === 2) {
+            hideTextToolbarForContextMenu();
             const { from, to } = _view.state.selection;
             if (from !== to) {
               // Prevenir que el click derecho colapse la selección de texto existente
@@ -3413,6 +3423,7 @@ export default function NoteEditor({
           return false;
         },
         contextmenu: (_view, _event) => {
+          hideTextToolbarForContextMenu();
           const { from, to } = _view.state.selection;
           if (from !== to) {
             // Si ya hay texto seleccionado, preservar la selección activa al hacer click derecho lejos
@@ -6102,7 +6113,7 @@ export default function NoteEditor({
               },
             }}
             shouldShow={({ editor: e, state }) => {
-              if (readOnlyRef.current) return false;
+              if (readOnlyRef.current || contextMenuOpenRef.current) return false;
               if (!showFloatingToolbarRef.current) return false;
               if (!e.isEditable) return false;
               // Durante un arrastre de selección (click sostenido) la barra
