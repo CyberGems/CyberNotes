@@ -30,7 +30,9 @@ it.each(['es', 'en'] as const)('filters unsupported recents and Unicode searches
     expect(buttons[0].textContent).toBe('Ω');
     expect(buttons[0].querySelector('.picker-glyph')).not.toBeNull();
     await act(async () => buttons[0].click());
-    expect(insertContent).toHaveBeenLastCalledWith({ type: 'text', text: 'Ω' });
+    expect(insertContent).not.toHaveBeenCalled();
+    await act(async () => modal.querySelector<HTMLButtonElement>('.modal-action-btn.is-save')!.click());
+    expect(insertContent).toHaveBeenCalledExactlyOnceWith({ type: 'text', text: 'Ω' });
     const input = modal.querySelector<HTMLInputElement>('.character-map-search input')!;
     const search = async (value: string) => act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);

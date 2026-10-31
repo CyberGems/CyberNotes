@@ -3,13 +3,12 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent a
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import type { Editor } from '@tiptap/react';
-import { Check, Copy, Pin, Plus, Search, Sigma, X } from 'lucide-react';
+import { Search, Sigma, X } from 'lucide-react';
 import type { Language } from '../languages';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
-import Tooltip from './Tooltip';
 import NativeGlyph from './NativeGlyph';
+import { PickerModeButton, PickerTray } from './PickerControls';
 import { loadGlyphSupport, SYMBOL_FONT_FAMILY } from '../utils/glyphSupport';
-import { splitPickerText } from '../utils/pickerText';
 
 type CharacterCategory = 'latin' | 'punctuation' | 'brackets' | 'math' | 'currency' | 'arrows' | 'greek' | 'super' | 'shapes' | 'emoji';
 type CharacterFilter = 'all' | 'recent' | CharacterCategory;
@@ -20,6 +19,8 @@ interface CharacterEntry {
   en: string;
   category: CharacterCategory;
 }
+
+interface QueuedCharacter extends CharacterEntry { queueId: number; }
 
 const CHARACTER_GROUPS: { id: CharacterCategory; es: string; en: string; entries: [string, string, string][] }[] = [
   { id: 'latin', es: 'Letras', en: 'Letters', entries: [
@@ -249,13 +250,12 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
   onClose: () => void;
 }) {
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const batchInputRef = useRef<HTMLInputElement | null>(null);
+  const nextQueueId = useRef(0);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const resizeStartRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null);
   const skipActiveGridScrollRef = useRef(false);
   const scrollPersistTimerRef = useRef<number | null>(null);
-  const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewStateRef = useRef<CharacterMapViewState | null>(null);
   if (!viewStateRef.current) viewStateRef.current = readCharacterMapViewState();
   const initialViewState = viewStateRef.current;
@@ -268,9 +268,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
   const [category, setCategory] = useState<CharacterFilter>(initialViewState.category);
   const [modalHeight, setModalHeight] = useState<number | null>(initialViewState.modalHeight);
   const [multiSelect, setMultiSelect] = useState(false);
-  const [batchSymbols, setBatchSymbols] = useState('');
-  const [batchEntries, setBatchEntries] = useState<CharacterEntry[]>([]);
-  const [batchCopyState, setBatchCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [batchEntries, setBatchEntries] = useState<QueuedCharacter[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [selected, setSelected] = useState<CharacterEntry | null>(null);
   const [recentCharacters, setRecentCharacters] = useState<string[]>(() => {
@@ -361,12 +359,16 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
       return;
     }
     const buttons = gridRef.current?.querySelectorAll<HTMLButtonElement>('button');
-    buttons?.[Math.min(activeIndex, buttons.length - 1)]?.scrollIntoView?.({ block: 'nearest' });
+    const button = buttons?.[Math.min(activeIndex, buttons.length - 1)];
+    const grid = gridRef.current;
+    if (!grid || !button) return;
+    const view = grid.getBoundingClientRect(), cell = button.getBoundingClientRect();
+    if (cell.top < view.top) grid.scrollTop -= view.top - cell.top;
+    else if (cell.bottom > view.bottom) grid.scrollTop += cell.bottom - view.bottom;
   }, [activeIndex, filteredEntries]);
 
   useEffect(() => () => {
     if (scrollPersistTimerRef.current !== null) window.clearTimeout(scrollPersistTimerRef.current);
-    if (copyFeedbackTimerRef.current !== null) clearTimeout(copyFeedbackTimerRef.current);
   }, []);
 
   const resizeModalTo = useCallback((height: number) => {
@@ -425,55 +427,55 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
     return true;
   }, [editor]);
 
-  const rememberCharacters = useCallback((values: string[]) => {
-    setRecentCharacters(current => {
-      const next = values.reduce((recent, value) => [value, ...recent.filter(item => item !== value)], current).slice(0, 16);
-      try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage opcional */ }
-      return next;
-    });
-  }, []);
-
-  const insertCharacter = useCallback((entry: CharacterEntry) => {
-    if (!insertText(entry.value)) return;
-    setSelected(entry);
-    rememberCharacters([entry.value]);
-    requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
-  }, [insertText, rememberCharacters]);
+  const insertEntries = useCallback((entries: readonly CharacterEntry[]) => {
+    if (!entries.length || !insertText(entries.map(entry => entry.value).join(''))) return;
+    const next = entries.reduce((recent, entry) => [entry.value, ...recent.filter(value => value !== entry.value)], recentCharacters).slice(0, 16);
+    // Save before closing; pending state updaters can be discarded on unmount.
+    try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage opcional */ }
+    setRecentCharacters(next);
+    close();
+  }, [close, insertText, recentCharacters]);
 
   const appendBatchCharacter = useCallback((entry: CharacterEntry) => {
-    setBatchSymbols(current => current + entry.value);
-    setBatchEntries(current => [...current, entry]);
-    setBatchCopyState('idle');
+    const queued = { ...entry, queueId: nextQueueId.current++ };
+    setBatchEntries(current => [...current, queued]);
   }, []);
 
-  const insertBatch = useCallback(() => {
-    if (!batchSymbols || !insertText(batchSymbols)) return;
-    rememberCharacters(splitPickerText(batchSymbols).filter(value => isSupported?.(value)));
-    close();
-  }, [batchSymbols, close, insertText, rememberCharacters, isSupported]);
+  const confirmInsertion = useCallback(() => {
+    if (multiSelect) insertEntries(batchEntries);
+    else if (selected) insertEntries([selected]);
+  }, [batchEntries, insertEntries, multiSelect, selected]);
+  useModalKeys({ enabled: true, onEsc: close, onEnter: confirmInsertion });
 
-  const copyBatch = useCallback(async () => {
-    if (!batchSymbols) return;
-    try {
-      await navigator.clipboard.writeText(batchSymbols);
-      setBatchCopyState('copied');
-    } catch {
-      setBatchCopyState('failed');
+  const activeEntry = filteredEntries.length > 0 ? filteredEntries[Math.min(activeIndex, filteredEntries.length - 1)] : null;
+  const previewEntry = selected || activeEntry;
+  const moveGridCursor = (index: number) => {
+    const next = ((index % filteredEntries.length) + filteredEntries.length) % filteredEntries.length;
+    setActiveIndex(next);
+    if (!multiSelect) setSelected(filteredEntries[next]);
+    gridRef.current?.querySelectorAll<HTMLButtonElement>('[data-character-index]')[next]?.focus({ preventScroll: true });
+  };
+  const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && filteredEntries.length) {
+      event.preventDefault();
+      moveGridCursor(activeIndex + (event.key === 'ArrowDown' ? 1 : -1));
+    } else if (event.key === 'Enter') {
+      event.preventDefault(); event.stopPropagation();
+      if (multiSelect) confirmInsertion();
+      else if (activeEntry && (selected || query.trim())) insertEntries([activeEntry]);
     }
-    if (copyFeedbackTimerRef.current !== null) clearTimeout(copyFeedbackTimerRef.current);
-    copyFeedbackTimerRef.current = setTimeout(() => setBatchCopyState('idle'), 2000);
-  }, [batchSymbols]);
-
-  useModalKeys({ enabled: true, onEsc: close, onEnter: multiSelect ? insertBatch : close });
-
-  const activeEntry = filteredEntries.length > 0
-    ? filteredEntries[Math.min(activeIndex, filteredEntries.length - 1)]
-    : null;
-  const batchCopyLabel = batchCopyState === 'copied'
-    ? (isSpanish ? 'Copiado' : 'Copied')
-    : batchCopyState === 'failed'
-      ? (isSpanish ? 'Error al copiar' : 'Copy failed')
-      : (isSpanish ? 'Copiar' : 'Copy');
+  };
+  const handleGridKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.nativeEvent.isComposing) return;
+    const columns = Math.max(1, getComputedStyle(gridRef.current!).gridTemplateColumns.split(' ').length);
+    const steps: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns };
+    if (event.key in steps) { event.preventDefault(); moveGridCursor(index + steps[event.key]); }
+    else if (event.key === 'Enter') {
+      event.preventDefault(); event.stopPropagation();
+      if (multiSelect) confirmInsertion(); else insertEntries([filteredEntries[index]]);
+    }
+  };
 
   return createPortal(
     <motion.div
@@ -491,7 +493,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
         role="dialog"
         aria-modal="true"
         aria-label={isSpanish ? 'Mapa de caracteres' : 'Character map'}
-        style={{ width: 'calc(720px * var(--ui-scale, 1))', height: modalHeight ? `${modalHeight}px` : undefined, maxWidth: 'calc(100vw - 24px)', maxHeight: 'min(calc(780px * var(--ui-scale, 1)), calc(100vh - 24px))' }}
+        style={{ width: 'calc(720px * var(--ui-scale, 1))', height: modalHeight ? `${modalHeight}px` : 'min(calc(740px * var(--ui-scale, 1)), calc(100vh - 24px))', maxWidth: 'calc(100vw - 24px)', maxHeight: 'min(calc(780px * var(--ui-scale, 1)), calc(100vh - 24px))' }}
         initial={modalCardMotion.initial}
         animate={modalCardMotion.animate}
         exit={modalCardMotion.exit}
@@ -503,70 +505,32 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
             <h2>{isSpanish ? 'Mapa de caracteres' : 'Character map'}</h2>
             <p>{isSpanish ? 'Símbolos, letras y caracteres especiales para tu nota.' : 'Symbols, letters, and special characters for your note.'}</p>
           </div>
-          <Tooltip
-            label={isSpanish
-              ? (multiSelect ? 'Desactivar selección múltiple' : 'Seleccionar varios símbolos')
-              : (multiSelect ? 'Turn off multi-symbol selection' : 'Select multiple symbols')}
-            placement="top"
-          >
-            <button
-              type="button"
-              className={`btn-icon character-map-pin${multiSelect ? ' is-active' : ''}`}
-              aria-label={isSpanish
-                ? (multiSelect ? 'Desactivar selección múltiple' : 'Seleccionar varios símbolos')
-                : (multiSelect ? 'Turn off multi-symbol selection' : 'Select multiple symbols')}
-              aria-pressed={multiSelect}
-              onClick={() => {
-                const next = !multiSelect;
-                setMultiSelect(next);
-                if (next) {
-                  requestAnimationFrame(() => batchInputRef.current?.focus({ preventScroll: true }));
-                } else {
-                  setBatchSymbols('');
-                  setBatchEntries([]);
-                  setBatchCopyState('idle');
-                }
-              }}
-            >
-              <Pin size={16} aria-hidden="true" />
-            </button>
-          </Tooltip>
           <button type="button" className="btn-icon" onClick={close} aria-label={isSpanish ? 'Cerrar mapa de caracteres' : 'Close character map'}>
             <X size={16} />
           </button>
         </div>
 
-        <div className="modal-body character-map-body">
-          <div className="character-map-search" role="search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={event => { setQuery(event.target.value); setActiveIndex(0); }}
-              onKeyDown={event => {
-                if (event.nativeEvent.isComposing) return;
-                if (event.key === 'ArrowDown' && filteredEntries.length > 0) {
-                  event.preventDefault();
-                  setActiveIndex(index => (index + 1) % filteredEntries.length);
-                } else if (event.key === 'ArrowUp' && filteredEntries.length > 0) {
-                  event.preventDefault();
-                  setActiveIndex(index => (index - 1 + filteredEntries.length) % filteredEntries.length);
-                } else if (event.key === 'Enter') {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  if (activeEntry) {
-                    if (multiSelect) appendBatchCharacter(activeEntry);
-                    else insertCharacter(activeEntry);
-                  }
-                }
-              }}
-              placeholder={isSpanish ? 'Buscar por carácter, nombre o código (U+…)' : 'Search character, name, or code (U+…)'}
-              aria-label={isSpanish ? 'Buscar caracteres' : 'Search characters'}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {query && <button type="button" className="character-map-clear-search" onClick={() => { setQuery(''); setActiveIndex(0); }} aria-label={isSpanish ? 'Borrar búsqueda' : 'Clear search'}>×</button>}
+        <div className="modal-body character-map-body picker-body">
+          <div className="picker-search-row">
+            <div className="character-map-search" role="search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={event => { setQuery(event.target.value); setActiveIndex(0); setSelected(null); }}
+                onKeyDown={handleSearchKeyDown}
+                placeholder={isSpanish ? 'Buscar por carácter, nombre o código (U+…)' : 'Search character, name, or code (U+…)'}
+                aria-label={isSpanish ? 'Buscar caracteres' : 'Search characters'}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {query && <button type="button" className="character-map-clear-search" onClick={() => { setQuery(''); setActiveIndex(0); }} aria-label={isSpanish ? 'Borrar búsqueda' : 'Clear search'}>×</button>}
+            </div>
+            <PickerModeButton language={language} active={multiSelect} count={batchEntries.length} onToggle={() => setMultiSelect(value => !value)} />
           </div>
+          <p className="picker-instructions">{multiSelect
+            ? (isSpanish ? 'Clic o Espacio añade a la bandeja. Enter inserta el grupo.' : 'Click or Space adds to the tray. Enter inserts the group.')
+            : (isSpanish ? 'Selecciona un símbolo. Enter o doble clic lo inserta.' : 'Select a symbol. Enter or double-click inserts it.')}</p>
 
           <div className="character-map-browser">
             <div className="character-map-categories" role="tablist" aria-label={isSpanish ? 'Categorías de caracteres' : 'Character categories'}>
@@ -584,6 +548,7 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
                       gridScrollTop: { [category]: query ? gridScrollPositionsRef.current[category] || 0 : gridRef.current?.scrollTop || 0 },
                     });
                     setCategory(filter);
+                    setSelected(null);
                     setActiveIndex(0);
                   }}
                 >
@@ -612,19 +577,17 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
               <button
                 key={`${entry.value}-${index}`}
                 type="button"
+                data-character-index={index}
                 aria-label={`${entry.value}, ${isSpanish ? entry.es : entry.en}, ${codePointLabel(entry.value)}`}
                 aria-current={activeIndex === index ? 'true' : undefined}
-                className={`${activeIndex === index ? 'is-current' : ''}${selected?.value === entry.value ? ' is-inserted' : ''}${batchEntries.some(staged => staged.value === entry.value) ? ' is-batch-selected' : ''}`}
+                aria-pressed={multiSelect ? batchEntries.some(item => item.value === entry.value) : selected?.value === entry.value}
+                tabIndex={activeIndex === index ? 0 : -1}
+                className={`${activeIndex === index && (query || selected) ? 'is-current' : ''}${!multiSelect && selected?.value === entry.value ? ' is-selected' : ''}${multiSelect && batchEntries.some(item => item.value === entry.value) ? ' is-batch-selected' : ''}`}
                 onMouseDown={event => event.preventDefault()}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={event => {
-                  if (multiSelect) {
-                    if (event.detail === 2) appendBatchCharacter(entry);
-                  } else if (event.detail !== 2) {
-                    insertCharacter(entry);
-                  }
-                }}
-                onDoubleClick={() => { if (!multiSelect) close(); }}
+                onFocus={() => { setActiveIndex(index); if (!multiSelect) setSelected(entry); }}
+                onKeyDown={event => handleGridKeyDown(event, index)}
+                onClick={() => { setActiveIndex(index); setSelected(entry); if (multiSelect) appendBatchCharacter(entry); }}
+                onDoubleClick={() => { if (!multiSelect) insertEntries([entry]); }}
               >
                 <NativeGlyph value={entry.value} fontFamily={SYMBOL_FONT_FAMILY} />
               </button>
@@ -645,75 +608,18 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
           </div>
           </div>
 
-          {multiSelect && (
-            <div className="character-map-batch-row">
-              <input
-                ref={batchInputRef}
-                value={batchSymbols}
-                onChange={event => {
-                  setBatchSymbols(event.target.value);
-                  setBatchEntries([]);
-                  setBatchCopyState('idle');
-                }}
-                onKeyDown={event => {
-                  if (event.nativeEvent.isComposing) return;
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    insertBatch();
-                  }
-                }}
-                placeholder={isSpanish ? 'Doble clic en símbolos o usa Agregar' : 'Double-click symbols or use Add'}
-                aria-label={isSpanish ? 'Símbolos preparados para insertar' : 'Symbols queued for insertion'}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <button
-                type="button"
-                className="copyable-block-button character-map-copy-button"
-                aria-label={batchCopyLabel}
-                disabled={!batchSymbols}
-                onMouseDown={event => event.preventDefault()}
-                onClick={() => { void copyBatch(); }}
-              >
-                {batchCopyState === 'copied' ? <Check size={12} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}
-                <span>{batchCopyLabel}</span>
-              </button>
+          {multiSelect ? (
+            <PickerTray language={language} kind="symbol" entries={batchEntries} fontFamily={SYMBOL_FONT_FAMILY}
+              onRemove={queueId => setBatchEntries(current => current.filter(entry => entry.queueId !== queueId))}
+              onClear={() => setBatchEntries([])} focusSearch={() => searchRef.current?.focus({ preventScroll: true })} />
+          ) : (
+            <div className="character-map-details" aria-live="polite">
+              {previewEntry ? <>
+                <span className="character-map-preview"><NativeGlyph value={previewEntry.value} fontFamily={SYMBOL_FONT_FAMILY} /></span>
+                <span className="character-map-detail-copy"><strong>{isSpanish ? previewEntry.es : previewEntry.en}</strong><code>{codePointLabel(previewEntry.value)}</code></span>
+              </> : <span className="character-map-detail-hint">{isSpanish ? 'Selecciona un símbolo de los resultados.' : 'Select a symbol from the results.'}</span>}
             </div>
           )}
-
-          <div className="character-map-details" aria-live="polite">
-            {activeEntry ? (
-              <>
-                <span className="character-map-preview"><NativeGlyph value={activeEntry.value} fontFamily={SYMBOL_FONT_FAMILY} /></span>
-                <span className="character-map-detail-copy">
-                  <strong>{isSpanish ? activeEntry.es : activeEntry.en}</strong>
-                  <code>{codePointLabel(activeEntry.value)}</code>
-                </span>
-                {multiSelect ? (
-                  <button
-                    type="button"
-                    className="character-map-add-button"
-                    onMouseDown={event => event.preventDefault()}
-                    onClick={() => appendBatchCharacter(activeEntry)}
-                  >
-                    <Plus size={13} aria-hidden="true" />
-                    <span>{isSpanish ? 'Agregar' : 'Add'}</span>
-                  </button>
-                ) : (
-                  <span className="character-map-detail-hint">
-                    {isSpanish ? 'Enter para insertar' : 'Enter to insert'}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="character-map-detail-hint">
-                {multiSelect
-                  ? (isSpanish ? 'Elige un símbolo para agregarlo a la selección.' : 'Choose a symbol to add to the selection.')
-                  : (isSpanish ? 'Elige un carácter para insertarlo en la nota.' : 'Choose a character to insert it into the note.')}
-              </span>
-            )}
-          </div>
         </div>
 
         <div className="modal-actions character-map-actions">
@@ -724,10 +630,10 @@ export default function CharacterMapModal({ editor, language, uiScale, onClose }
           <button
             type="button"
             className="modal-action-btn is-save"
-            onClick={multiSelect ? insertBatch : close}
-            disabled={multiSelect && !batchSymbols}
+            onClick={confirmInsertion}
+            disabled={multiSelect ? !batchEntries.length : !selected}
           >
-            {multiSelect ? (isSpanish ? 'Agregar' : 'Add') : (isSpanish ? 'Listo' : 'Done')}
+            {isSpanish ? 'Insertar' : 'Insert'}{multiSelect && batchEntries.length > 0 ? ` (${batchEntries.length})` : ''}
             <EnterGlyph />
           </button>
         </div>

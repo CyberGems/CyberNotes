@@ -85,7 +85,7 @@ it.each(['es', 'en'] as const)('edits a tray with repeats, preserves it across f
   const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
   try {
     await act(async () => root.render(<EmojiPickerModal editor={editor} language={language} uiScale={1} onClose={onClose} />));
-    const mode = document.querySelector<HTMLButtonElement>('.emoji-picker-mode')!;
+    const mode = document.querySelector<HTMLButtonElement>('.picker-mode')!;
     const primary = document.querySelector<HTMLButtonElement>('.emoji-picker-modal .modal-action-btn.is-save')!;
     await act(async () => mode.click());
     expect(mode.getAttribute('aria-pressed')).toBe('true');
@@ -94,19 +94,19 @@ it.each(['es', 'en'] as const)('edits a tray with repeats, preserves it across f
       await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!
         .dispatchEvent(new MouseEvent('click', { bubbles: true, detail })));
     };
-    const queued = () => [...document.querySelectorAll('.emoji-picker-chip')].map(chip => chip.textContent);
+    const queued = () => [...document.querySelectorAll('.picker-chip')].map(chip => chip.textContent);
     await enqueue('😀'); await enqueue('😀', 2); await enqueue('👩‍💻');
     expect(queued()).toEqual(['😀', '😀', '👩‍💻']);
     expect(primary.textContent).toContain(language === 'es' ? 'Insertar (3)' : 'Insert (3)');
     expect(insertContent).not.toHaveBeenCalled();
     expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['❤️']);
-    await act(async () => document.querySelectorAll<HTMLButtonElement>('.emoji-picker-chip')[1].click());
+    await act(async () => document.querySelectorAll<HTMLButtonElement>('.picker-chip')[1].click());
     expect(queued()).toEqual(['😀', '👩‍💻']);
     await act(async () => mode.click());
-    expect(document.querySelector('.emoji-picker-tray')).toBeNull();
+    expect(document.querySelector('.picker-tray')).toBeNull();
     await act(async () => mode.click());
     expect(queued()).toEqual(['😀', '👩‍💻']);
-    await act(async () => document.querySelector<HTMLButtonElement>('.emoji-picker-clear')!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('.picker-clear')!.click());
     expect(queued()).toEqual([]); expect(primary.disabled).toBe(true);
     await enqueue('👩‍💻'); await enqueue('❤️'); await enqueue('👩‍💻');
     await setSearch('no-matches-here');
@@ -139,7 +139,7 @@ it('wraps keyboard navigation, confirms a single choice with Enter and cancels a
     expect(onClose).toHaveBeenCalledTimes(1);
     insertContent.mockClear(); onClose.mockClear();
     await act(async () => root.render(<EmojiPickerModal key="multiple" editor={editor} language="es" uiScale={1} onClose={onClose} />));
-    await act(async () => document.querySelector<HTMLButtonElement>('.emoji-picker-mode')!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('.picker-mode')!.click());
     await setSearch('😀');
     await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!.click());
     await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
@@ -165,7 +165,7 @@ it('saves single and batch recents before the parent unmounts the picker', async
     expect(document.querySelector('.emoji-picker-modal')).toBeNull();
     expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['😀']);
     await act(async () => root.render(<Owner key="batch" />));
-    await act(async () => document.querySelector<HTMLButtonElement>('.emoji-picker-mode')!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('.picker-mode')!.click());
     for (const value of ['👩‍💻', '❤️']) {
       await setSearch(value);
       await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!.click());
