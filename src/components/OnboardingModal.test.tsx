@@ -10,11 +10,13 @@ describe('first-run setup', () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
   const finishOnboarding = vi.fn();
+  const windowForceClose = vi.fn();
   const button = (label: string) => Array.from(container.querySelectorAll('button')).find(item => item.textContent?.includes(label))!;
 
   beforeEach(() => {
     finishOnboarding.mockReset();
-    vi.stubGlobal('cyberNotesAPI', { finishOnboarding });
+    windowForceClose.mockReset();
+    vi.stubGlobal('cyberNotesAPI', { finishOnboarding, windowForceClose });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -65,6 +67,12 @@ describe('first-run setup', () => {
     expect(finishOnboarding).toHaveBeenCalledWith({ language: 'es', theme: 'light', name: '' });
   });
 
+  it('closes the application directly while first-run setup is active', async () => {
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Close"]')!.click());
+    expect(windowForceClose).toHaveBeenCalledOnce();
+    expect(finishOnboarding).not.toHaveBeenCalled();
+  });
+
   it.each(['start', 'skip', 'escape', 'close'])('closes the preview with %s without saving', async action => {
     const onClosePreview = vi.fn();
     await act(async () => root.render(<OnboardingModal initialLanguage="en" initialTheme="cyber-dark" onClosePreview={onClosePreview} />));
@@ -78,5 +86,6 @@ describe('first-run setup', () => {
     });
     expect(onClosePreview).toHaveBeenCalledOnce();
     expect(finishOnboarding).not.toHaveBeenCalled();
+    expect(windowForceClose).not.toHaveBeenCalled();
   });
 });

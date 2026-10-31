@@ -33,7 +33,7 @@ export default function OnboardingModal({ initialLanguage, initialTheme, colorIn
       <div className="onboarding-window-actions">
         <Tooltip label={es ? 'Minimizar' : 'Minimize'} placement="bottom"><button className="btn-icon titlebar-btn" aria-label={es ? 'Minimizar' : 'Minimize'} onClick={() => void window.cyberNotesAPI.windowMinimize()}><Minus size={14} /></button></Tooltip>
         <Tooltip label={es ? 'Maximizar o restaurar' : 'Maximize or restore'} placement="bottom"><button className="btn-icon titlebar-btn" aria-label={es ? 'Maximizar o restaurar' : 'Maximize or restore'} onClick={() => void window.cyberNotesAPI.windowMaximizeToggle()}><Maximize2 size={14} /></button></Tooltip>
-        <Tooltip label={es ? 'Cerrar' : 'Close'} placement="bottom"><button className="btn-icon titlebar-btn close-btn" aria-label={es ? 'Cerrar' : 'Close'} onClick={() => onClosePreview ? onClosePreview() : void window.cyberNotesAPI.windowClose()}><X size={14} /></button></Tooltip>
+        <Tooltip label={es ? 'Cerrar' : 'Close'} placement="bottom"><button className="btn-icon titlebar-btn close-btn" aria-label={es ? 'Cerrar' : 'Close'} onClick={() => onClosePreview ? onClosePreview() : void window.cyberNotesAPI.windowForceClose()}><X size={14} /></button></Tooltip>
       </div>
     </div>
     <div className="onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
