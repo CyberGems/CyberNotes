@@ -30,6 +30,7 @@ import { loadEditorContent } from '../utils/editorContent';
 import { cutSelectedImage } from '../utils/editorClipboard';
 import { removeSelectedImage } from '../utils/editorImages';
 import { createMinimapMirror, getMinimapGeometry } from '../utils/minimap';
+import { balancedToolbarBreak } from '../utils/balanceToolbar';
 import Tooltip from './Tooltip';
 import EditorEdgeToggle from './EditorEdgeToggle';
 import EditorEmptyState from './EditorEmptyState';
@@ -5083,6 +5084,34 @@ export default function NoteEditor({
     </div>
   );
 
+  const formattingToolbarRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const toolbar = formattingToolbarRef.current;
+    if (!toolbar || !editor) return;
+    const update = () => {
+      const units = Array.from(toolbar.querySelectorAll<HTMLElement>(':scope > [data-formatting-unit]'));
+      const breaks = Array.from(toolbar.querySelectorAll<HTMLElement>(':scope > [data-formatting-break]'));
+      const style = getComputedStyle(toolbar);
+      const available = toolbar.clientWidth - parseFloat(style.paddingLeft || '0') - parseFloat(style.paddingRight || '0');
+      const gap = parseFloat(style.columnGap || '0') || 0;
+      if (available <= 0) return;
+      const next = balancedToolbarBreak(units.map(unit => unit.getBoundingClientRect().width), available, gap);
+      breaks.forEach((element, index) => {
+        const display = index === next ? 'block' : 'none';
+        if (element.style.display !== display) element.style.display = display;
+        units[index]?.classList.toggle('is-row-start', index === next);
+      });
+    };
+    update();
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; update(); });
+    });
+    observer.observe(toolbar);
+    toolbar.querySelectorAll(':scope > [data-formatting-unit]').forEach(unit => observer.observe(unit));
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
+  }, [editor, note?.id, hiddenToolbarIds, uiScale]);
+
   const noteTabs = (
     <>
       {/* Pestañas (Tabs) Premium */}
@@ -5911,22 +5940,23 @@ export default function NoteEditor({
         flexShrink: 0, background: 'var(--bg-notelist)',
         position: 'relative', // Necesario para que la barra de imagen se posicione absolutamente
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', flexWrap: 'wrap' }}>
+        <div ref={formattingToolbarRef} className="formatting-toolbar">
           {editor && (
             <>
-              {renderedToolbarGroups.map((group, gi) => (
-                <Fragment key={group.join('+')}>
-                  {gi > 0 && <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />}
-                  {group.map((gid) => (
-                    <Fragment key={gid}>{renderToolbarControl(gid)}</Fragment>
-                  ))}
+              {renderedToolbarGroups.map((group, gi) => group.map((gid, index) => (
+                <Fragment key={gid}>
+                  <div data-formatting-break style={{ display: 'none' }} aria-hidden="true" />
+                  <div data-formatting-unit className="formatting-toolbar-unit">
+                    {gi > 0 && index === 0 && <div className="formatting-toolbar-divider" aria-hidden="true" />}
+                    {renderToolbarControl(gid)}
+                  </div>
                 </Fragment>
-              ))}
-
-              <div style={{ flex: 1 }} />
+              )))}
 
               {hiddenToolbarItems.length > 0 && (
-                <div style={{ position: 'relative', flexShrink: 0 }}>
+                <>
+                <div data-formatting-break style={{ display: 'none' }} aria-hidden="true" />
+                <div data-formatting-unit className="formatting-toolbar-unit" style={{ position: 'relative' }}>
                   {(() => {
                     const moreTipOff = !!toolbarMenu || showMoreMenu;
                     const moreTrigger = (
@@ -6021,6 +6051,7 @@ export default function NoteEditor({
                       document.body
                   )}
                 </div>
+                </>
               )}
             </>
           )}

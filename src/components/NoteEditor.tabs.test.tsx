@@ -309,6 +309,49 @@ describe('NoteEditor tab hydration', () => {
     expect(props.onSave).not.toHaveBeenCalled();
   });
 
+  it('rebalances on resize without changing toolbar preferences or moving More out of order', async () => {
+    const observers: { callback: ResizeObserverCallback; targets: Element[] }[] = [];
+    vi.stubGlobal('ResizeObserver', class {
+      entry: typeof observers[number];
+      constructor(callback: ResizeObserverCallback) { this.entry = { callback, targets: [] }; observers.push(this.entry); }
+      observe(target: Element) { this.entry.targets.push(target); }
+      unobserve() {} disconnect() { this.entry.targets = []; }
+    });
+    let width = 550;
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get() {
+      return (this as Element).classList.contains('formatting-toolbar') ? width : 0;
+    } });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+      const siblings = this.parentElement?.querySelectorAll(':scope > [data-formatting-unit]');
+      const index = siblings ? [...siblings].indexOf(this) : -1;
+      return new DOMRect(0, 0, index === 0 ? 120 : 30, 30);
+    });
+    const changed = vi.fn();
+    const props: ComponentProps<typeof NoteEditor> = { language: 'es', note, onSave: vi.fn(), onCreateNote: vi.fn(),
+      layoutMode: 1, onToggleLayout: vi.fn(), showFloatingToolbar: false, hiddenToolbarIds: ['h1', 'h2'], onHiddenToolbarIdsChange: changed };
+    try {
+      await act(async () => root!.render(<NoteEditor {...props} />));
+      const toolbar = container!.querySelector<HTMLElement>('.formatting-toolbar')!;
+      const units = () => [...toolbar.querySelectorAll<HTMLElement>(':scope > [data-formatting-unit]')];
+      const activeBreaks = () => [...toolbar.querySelectorAll<HTMLElement>(':scope > [data-formatting-break]')].filter(element => element.style.display === 'block');
+      expect(activeBreaks()).toHaveLength(1);
+      expect(units()[units().length - 1]?.querySelector('[aria-label="Más controles del editor"]')).not.toBeNull();
+      const update = async () => act(async () => {
+        observers.filter(observer => observer.targets.includes(toolbar)).forEach(observer => observer.callback([], {} as ResizeObserver));
+        vi.advanceTimersToNextFrame();
+      });
+      width = 2000; await update(); expect(activeBreaks()).toHaveLength(0);
+      width = 200; await update(); expect(activeBreaks()).toHaveLength(0);
+      width = 550; await update(); expect(activeBreaks()).toHaveLength(1);
+      expect(changed).not.toHaveBeenCalled();
+      expect(container!.querySelector('[aria-label="Más controles del editor"]')?.textContent?.trim()).toBe('2');
+    } finally {
+      if (descriptor) Object.defineProperty(Element.prototype, 'clientWidth', descriptor);
+      else Reflect.deleteProperty(Element.prototype, 'clientWidth');
+    }
+  });
+
   it.each(['es', 'en'] as const)('positions More and export menus within the viewport (%s)', async language => {
     vi.stubGlobal('innerWidth', 320);
     vi.stubGlobal('innerHeight', 240);
