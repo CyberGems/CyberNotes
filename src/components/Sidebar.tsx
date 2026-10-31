@@ -782,7 +782,7 @@ export default function Sidebar({
             {item.icon}
           </RailIconBtn>
         ))}
-        <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
+        <div role="separator" data-rail-folders-start style={{ height: 1, flexShrink: 0, width: 24, background: 'var(--border)', margin: '4px 0' }} />
         {folders.map(folder => {
           const isSelected = selectedFolderId === folder.id;
           const count = allNotes.filter(n => n.folder_id === folder.id).length;
@@ -813,7 +813,7 @@ export default function Sidebar({
             </RailIconBtn>
           );
         })}
-        <div style={{ height: 1, width: 24, background: 'var(--border)', margin: '4px 0' }} />
+        {folders.length > 0 && <div role="separator" data-rail-folders-end style={{ height: 1, flexShrink: 0, width: 24, background: 'var(--border)', margin: '4px 0' }} />}
         <Tooltip placement="right" label={language === 'es' ? 'Nueva carpeta (Ctrl+Shift+N)' : 'New folder (Ctrl+Shift+N)'}>
           <button
             type="button"

@@ -62,6 +62,17 @@ describe('dragging note selections into the sidebar', () => {
   async function render() {
     await act(async () => root.render(<><div data-sidebar><Sidebar {...sidebarProps} /></div><NoteList {...listProps} /></>));
   }
+  it('does not render adjacent folder separators in an empty collapsed sidebar', async () => {
+    sidebarProps.rail = true;
+    const folders = sidebarProps.folders;
+    sidebarProps.folders = []; await render();
+    expect(container.querySelectorAll('[data-rail-folders-start]')).toHaveLength(1);
+    expect(container.querySelector('[data-rail-folders-end]')).toBeNull();
+    sidebarProps.folders = folders; await render();
+    expect(container.querySelectorAll('[data-rail-folders-start], [data-rail-folders-end]')).toHaveLength(2);
+    expect(target('Destination')).not.toBeUndefined();
+  });
+
   const list = () => container.querySelector<HTMLElement>('[data-notelist-container]')!;
   const card = (id: string) => list().querySelector<HTMLElement>(`.note-item[data-note-id="${id}"]`)!;
   const target = (label = 'Destination') => Array.from(container.querySelectorAll<HTMLButtonElement>('[data-sidebar] button')).find(button => button.textContent?.includes(label) || button.getAttribute('aria-label')?.startsWith(label))!;
