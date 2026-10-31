@@ -6,7 +6,7 @@ import { THEMES } from '../themes';
 import { EnterGlyph, KeyHint, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
 
-export default function OnboardingModal({ initialLanguage, initialTheme }: { initialLanguage: Language; initialTheme: ThemeId }) {
+export default function OnboardingModal({ initialLanguage, initialTheme, onClosePreview }: { initialLanguage: Language; initialTheme: ThemeId; onClosePreview?: () => void }) {
   const [language, setLanguage] = useState<Language>(initialLanguage);
   const [theme, setTheme] = useState<ThemeId>(initialTheme);
   const [name, setName] = useState('');
@@ -15,6 +15,7 @@ export default function OnboardingModal({ initialLanguage, initialTheme }: { ini
   const [error, setError] = useState(false);
   const es = language === 'es';
   const finish = async (skip = false) => {
+    if (onClosePreview) { onClosePreview(); return; }
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true); setError(false);
@@ -31,7 +32,7 @@ export default function OnboardingModal({ initialLanguage, initialTheme }: { ini
       <div className="onboarding-window-actions">
         <Tooltip label={es ? 'Minimizar' : 'Minimize'} placement="bottom"><button className="btn-icon titlebar-btn" aria-label={es ? 'Minimizar' : 'Minimize'} onClick={() => void window.cyberNotesAPI.windowMinimize()}><Minus size={14} /></button></Tooltip>
         <Tooltip label={es ? 'Maximizar o restaurar' : 'Maximize or restore'} placement="bottom"><button className="btn-icon titlebar-btn" aria-label={es ? 'Maximizar o restaurar' : 'Maximize or restore'} onClick={() => void window.cyberNotesAPI.windowMaximizeToggle()}><Maximize2 size={14} /></button></Tooltip>
-        <Tooltip label={es ? 'Cerrar' : 'Close'} placement="bottom"><button className="btn-icon titlebar-btn close-btn" aria-label={es ? 'Cerrar' : 'Close'} onClick={() => void window.cyberNotesAPI.windowClose()}><X size={14} /></button></Tooltip>
+        <Tooltip label={es ? 'Cerrar' : 'Close'} placement="bottom"><button className="btn-icon titlebar-btn close-btn" aria-label={es ? 'Cerrar' : 'Close'} onClick={() => onClosePreview ? onClosePreview() : void window.cyberNotesAPI.windowClose()}><X size={14} /></button></Tooltip>
       </div>
     </div>
     <div className="onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
@@ -40,6 +41,7 @@ export default function OnboardingModal({ initialLanguage, initialTheme }: { ini
           <p>{es ? 'Prepara tu espacio. Puedes cambiar estas opciones después en Configuración.' : 'Set up your space. You can change these choices later in Settings.'}</p></div>
       </div>
       <div className="onboarding-body">
+        {onClosePreview && <p className="onboarding-preview-notice">{es ? 'Vista previa: tus elecciones no se guardarán.' : 'Preview: your choices will not be saved.'}</p>}
         <fieldset><legend>Idioma / Language</legend><div className="onboarding-languages">
           <button type="button" aria-pressed={language === 'es'} onClick={() => setLanguage('es')}>Español</button>
           <button type="button" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button>

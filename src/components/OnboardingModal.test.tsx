@@ -47,4 +47,19 @@ describe('first-run setup', () => {
     await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     expect(finishOnboarding).toHaveBeenCalledWith({ language: 'es', theme: 'light', name: '' });
   });
+
+  it.each(['start', 'skip', 'escape', 'close'])('closes the preview with %s without saving', async action => {
+    const onClosePreview = vi.fn();
+    await act(async () => root.render(<OnboardingModal initialLanguage="en" initialTheme="cyber-dark" onClosePreview={onClosePreview} />));
+    await act(async () => button('Español').click());
+    await act(async () => button('Claro').click());
+    expect(container.textContent).toContain('Vista previa: tus elecciones no se guardarán.');
+    await act(async () => {
+      if (action === 'escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      else if (action === 'close') container.querySelector<HTMLButtonElement>('[aria-label="Cerrar"]')!.click();
+      else button(action === 'start' ? 'Comenzar' : 'Omitir').click();
+    });
+    expect(onClosePreview).toHaveBeenCalledOnce();
+    expect(finishOnboarding).not.toHaveBeenCalled();
+  });
 });

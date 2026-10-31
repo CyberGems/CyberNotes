@@ -682,7 +682,7 @@ select option {
   }
 }
 
-.onboarding-overlay { position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; padding: 56px 12px 12px; background: var(--overlay-bg, rgba(5,5,8,.8)); }
+.onboarding-overlay { position: fixed; z-index: 10000; inset: 0; display: flex; justify-content: center; align-items: center; padding: 56px 12px 12px; background: var(--overlay-bg, rgba(5,5,8,.8)); }
 .onboarding-titlebar { position: absolute; inset: 0 0 auto; height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); -webkit-app-region: drag; }
 .onboarding-window-actions { display: flex; gap: 4px; -webkit-app-region: no-drag; }
 .onboarding-window-actions button { width: 28px; height: 28px; }

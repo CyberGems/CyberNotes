@@ -34,6 +34,7 @@ export default function App() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [showWelcomeNameSetup, setShowWelcomeNameSetup] = useState(false);
   const [onboardingPending, setOnboardingPending] = useState(false);
+  const [showOnboardingPreview, setShowOnboardingPreview] = useState(false);
 
   const lastActivityRef = useRef<number>(Date.now());
   const hasPasswordRef = useRef<boolean>(false);
@@ -48,6 +49,15 @@ export default function App() {
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
+
+  useEffect(() => {
+    if (view !== 'app' || onboardingPending) return;
+    const show = () => { setShowOnboardingPreview(true); };
+    window.__CYBERNOTES_SHOW_ONBOARDING_PREVIEW__ = show;
+    return () => {
+      if (window.__CYBERNOTES_SHOW_ONBOARDING_PREVIEW__ === show) delete window.__CYBERNOTES_SHOW_ONBOARDING_PREVIEW__;
+    };
+  }, [view, onboardingPending]);
 
   const registerLockPreparation = useCallback((handler: () => Promise<void>) => {
     lockPreparationRef.current = handler;
@@ -331,6 +341,7 @@ export default function App() {
           onSkip={handleWelcomeNameSkip}
         />
       )}
+      {showOnboardingPreview && <OnboardingModal initialLanguage={language} initialTheme={theme} onClosePreview={() => setShowOnboardingPreview(false)} />}
       {privacyShield && (
         <AppLoader isShield={true} language={language} />
       )}

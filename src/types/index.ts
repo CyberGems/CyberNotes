@@ -89,6 +89,8 @@ declare global {
   interface Window {
     /** Console-only, persistent update UI preview. Omit the argument to toggle. */
     __CYBERNOTES_TOGGLE_UPDATE_PREVIEW__?: (enabled?: boolean) => boolean;
+    /** Console-only, non-persistent first-run setup preview. */
+    __CYBERNOTES_SHOW_ONBOARDING_PREVIEW__?: () => void;
     cyberNotesAPI: {
       getStartupAppearance?: () => {
         theme: ThemeId;
