@@ -17,6 +17,7 @@ import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPri
 import { getFactoryNotes } from '../shared/factoryNotes';
 import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../shared/toolbarDefaults';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
+import { isOnboardingTestProfile } from './testProfile';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -94,6 +95,17 @@ const bcrypt = require('bcryptjs');
 // junto a una instalación de producción sin pelear por el single-instance.
 if (process.env.CYBERNOTES_USER_DATA_DIR) {
   app.setPath('userData', path.resolve(process.env.CYBERNOTES_USER_DATA_DIR));
+} else if (isOnboardingTestProfile({
+  isDev,
+  hasEnvironmentOverride: false,
+  requestedProfile: app.commandLine.hasSwitch('user-data-dir') ? path.resolve(app.commandLine.getSwitchValue('user-data-dir')) : '',
+  onboardingProfile: path.resolve(app.getAppPath(), '.onboarding-test'),
+})) {
+  // Keep the named test profile's existing files untouched. A new directory
+  // gives each launch its own database, browser storage, and other state.
+  const temporaryProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'cybernotes-onboarding-test-'));
+  app.setPath('userData', temporaryProfile);
+  app.setPath('sessionData', temporaryProfile);
 }
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'cybernotes.db');
