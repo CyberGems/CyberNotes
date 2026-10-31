@@ -855,7 +855,7 @@ select option {
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 11px;
-  opacity: 0.55;
+  opacity: var(--gutter-number-opacity, 0.55);
   user-select: none;
   pointer-events: none;
   font-weight: 500;
@@ -876,7 +876,7 @@ select option {
   left: 0;
   width: 50px;
   height: 100%;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--gutter-bg, rgba(0, 0, 0, 0.15));
   border-right: 1px solid var(--border);
   pointer-events: none;
   z-index: 0;
