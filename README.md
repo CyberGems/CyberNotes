@@ -22,6 +22,31 @@
 
 ---
 
+## 📑 Table of Contents
+
+- [What is CyberNotes?](#what-is-cybernotes)
+- [🔒 Why CyberNotes?](#-why-cybernotes)
+- [✨ Key Features](#-key-features)
+- [🚀 Getting Started](#-getting-started)
+- [🛠️ Tech Stack & Architecture](#️-tech-stack--architecture)
+- [⌨️ Keyboard Shortcuts](#️-keyboard-shortcuts)
+- [❤️ Donate](#️-donate)
+- [📄 License](#-license)
+- [❓ FAQ](#-faq)
+- [🔗 See also](#-see-also)
+
+<details>
+<summary><strong>🔗 Related links (outside this README)</strong></summary>
+
+- 🌐 [CyberNotes on the web](https://cybergems.org/apps/cybernotes/) — overview, download and SmartScreen guide
+- 📚 [Documentation & FAQ — Wiki](https://github.com/CyberGems/CyberNotes/wiki) — troubleshooting and deep-dives
+- 💾 [Releases](https://github.com/CyberGems/CyberNotes/releases) — installers, portable builds and changelog
+- 🟣 [CyberGems suite](https://github.com/CyberGems) — all open-source apps
+
+</details>
+
+---
+
 ## What is CyberNotes?
 
 CyberNotes is a sleek, privacy-focused note-taking application for Windows that keeps writing and organization entirely on your device. Create rich notes with formatting, images, code blocks, and markdown shortcuts; arrange them in colorful folders; work across multiple tabs; and detach important notes into floating windows. Instant search, autosave, session restore, customizable themes, and an optional master-password access lock support both quick ideas and longer projects. Data is stored locally in a **SQLite database (better-sqlite3 with WAL)**. Built with **Electron + React + TypeScript**.
@@ -268,9 +293,7 @@ For the complete shortcuts reference including cursor navigation, line jumps, an
 
 ## ❤️ Donate
 
-After countless hours building and refining **CyberNotes** for my own use, I recently decided to share it with the world along with my other open-source tools in [CyberGems](https://github.com/CyberGems#-all-apps--repositories).
-
-If you’d like to support future updates, I’d truly appreciate it. Your donation helps keep development going, roll out new features, speed up updates and bug resolution, and enhance documentation quality. You can also show your support by [starring the repo on GitHub](https://github.com/CyberGems/CyberNotes). Thank you! 🙏
+**CyberNotes** is 100% free and open source. If it helps you, please consider [donating](https://cybergems.org/donate) or [starring the repo on GitHub](https://github.com/CyberGems/CyberNotes) to support continued development. [Read the full story](https://cybergems.org/about/) behind the project. Thank you! 🙏
 
 <p align="center">
   <a href="https://www.paypal.com/donate/?hosted_button_id=M4PY3UPJA5Y6Q"><img src="https://img.shields.io/badge/Donate-PayPal-0070BA?style=for-the-badge&logo=paypal" alt="Donate via PayPal" /></a>
