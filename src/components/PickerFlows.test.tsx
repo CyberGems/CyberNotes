@@ -17,7 +17,7 @@ afterEach(() => { localStorage.clear(); sessionStorage.clear(); vi.restoreAllMoc
 
 const cases = [
   { name: 'symbols', Component: CharacterMapModal, storage: 'cybernotes-character-map', query: 'U+221E', names: { es: 'infinito', en: 'infinity' }, value: '∞', edited: 'Ω∞Ω', recents: ['Ω', '∞'] },
-  { name: 'emojis', Component: EmojiPickerModal, storage: 'cybernotes-emoji-picker', query: '👩‍💻', names: { es: 'tecnologa', en: 'woman technologist' }, value: '👩‍💻', edited: '👩‍💻❤👩‍💻', recents: ['👩‍💻', '❤️'] },
+  { name: 'emojis', Component: EmojiPickerModal, storage: 'cybernotes-emoji-picker', query: '👩‍💻', names: { es: 'tecnologa', en: 'woman technologist' }, value: '👩‍💻', edited: '👩‍💻❤️👩‍💻', recents: ['👩‍💻', '❤️'] },
 ];
 const change = async (input: HTMLInputElement, value: string) => act(async () => {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
@@ -52,16 +52,26 @@ for (const fixture of cases) {
       expect(selectedRanges[0]).toEqual({ from: 2, to: 4 });
       await enter(search);
       expect(selectedRanges[1]).toEqual({ from: 2 + fixture.value.length, to: 2 + fixture.value.length });
-      const pin = document.querySelector<HTMLButtonElement>('.character-map-pin')!;
+      const pin = document.querySelector<HTMLButtonElement>(fixture.name === 'emojis' ? '.emoji-picker-mode' : '.character-map-pin')!;
       await act(async () => pin.click());
-      await enter(search);
-      const batch = document.querySelector<HTMLInputElement>('.character-map-batch-row input')!;
-      expect(batch.value).toBe(fixture.value);
-      expect(inserted).toHaveLength(2);
-      await change(batch, fixture.edited);
-      await enter(batch, true);
-      expect(inserted).toHaveLength(2);
-      await enter(batch);
+      if (fixture.name === 'emojis') {
+        for (const value of ['👩‍💻', '❤️', '👩‍💻']) {
+          await change(search, value);
+          await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!.click());
+        }
+        expect([...document.querySelectorAll('.emoji-picker-chip')].map(chip => chip.textContent)).toEqual(['👩‍💻', '❤️', '👩‍💻']);
+        expect(inserted).toHaveLength(2);
+        await enter(search, true); expect(inserted).toHaveLength(2);
+        await enter(search);
+      } else {
+        await enter(search);
+        const batch = document.querySelector<HTMLInputElement>('.character-map-batch-row input')!;
+        expect(batch.value).toBe(fixture.value);
+        expect(inserted).toHaveLength(2);
+        await change(batch, fixture.edited);
+        await enter(batch, true); expect(inserted).toHaveLength(2);
+        await enter(batch);
+      }
       expect(inserted).toEqual([fixture.value, fixture.value, fixture.edited]);
       expect(onClose).toHaveBeenCalledTimes(fixture.name === 'emojis' ? 3 : 1);
       expect(JSON.parse(localStorage.getItem(`${fixture.storage}-recents-v1`)!)).toEqual(fixture.recents);

@@ -3,21 +3,20 @@ import { createPortal } from 'react-dom';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { motion } from 'motion/react';
 import type { Editor } from '@tiptap/react';
-import { Check, Copy, Pin, Plus, Search, Smile, X } from 'lucide-react';
+import { ListPlus, Search, Smile, X } from 'lucide-react';
 import type { Language } from '../languages';
 import emojiCatalogJson from '../data/emoji-catalog.json';
 import emojiComponentsJson from '../data/emoji-components.json';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
-import Tooltip from './Tooltip';
 import { EMOJI_FONT_FAMILY, filterSupportedEmojis } from '../utils/emojiSupport';
 import NativeGlyph from './NativeGlyph';
-import { splitPickerText } from '../utils/pickerText';
 
 type EmojiGroup = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type EmojiFilter = 'all' | 'recent' | EmojiGroup;
 type EmojiTuple = [string, string, string, number, string];
 interface EmojiEntry { value: string; es: string; en: string; group: EmojiGroup; search: string; normalizedSearch: string; }
 interface EmojiCatalog { entries: EmojiTuple[]; }
+interface QueuedEmoji extends EmojiEntry { queueId: number; }
 
 const EMOJI_GROUPS: { id: EmojiGroup; es: string; en: string }[] = [
   { id: 0, es: 'Caras y emociones', en: 'Smileys & emotion' },
@@ -39,7 +38,6 @@ const EMOJI_ENTRIES: EmojiEntry[] = EMOJI_CATALOG_ENTRIES.map(([value, es, en, g
   return { value, es, en, group: group as EmojiGroup, search, normalizedSearch: normalizeSearch(searchText) };
 });
 const EMOJI_BY_VALUE = new Map(EMOJI_ENTRIES.map(entry => [entry.value, entry]));
-const EMOJI_BY_BASE_VALUE = new Map(EMOJI_ENTRIES.map(entry => [entry.value.replace(/\ufe0f/g, ''), entry]));
 let compatibleEntriesPromise: Promise<EmojiEntry[]> | null = null;
 let compatibleEntriesCache: EmojiEntry[] | null = null;
 
@@ -95,7 +93,9 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   onClose: () => void;
 }) {
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const batchInputRef = useRef<HTMLInputElement | null>(null);
+  const trayRef = useRef<HTMLDivElement | null>(null);
+  const nextQueueId = useRef(0);
+  const focusGridRef = useRef(false);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const ensureActiveVisibleRef = useRef(false);
   const insertionRangeRef = useRef({ from: editor.state.selection.from, to: editor.state.selection.to });
@@ -111,9 +111,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   gridMetricsRef.current = gridMetrics;
   const [selected, setSelected] = useState<EmojiEntry | null>(null);
   const [multiSelect, setMultiSelect] = useState(false);
-  const [batchEmojis, setBatchEmojis] = useState('');
-  const [batchEntries, setBatchEntries] = useState<EmojiEntry[]>([]);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [batchEntries, setBatchEntries] = useState<QueuedEmoji[]>([]);
   const [recentEmojis, setRecentEmojis] = useState<string[]>(() => {
     try {
       const stored: unknown = JSON.parse(localStorage.getItem(RECENT_STORAGE_KEY) || '[]');
@@ -138,13 +136,13 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
       : source;
   }, [category, query, recentEmojis, compatibleEntries, compatibleValues]);
 
-  const rememberEmoji = useCallback((value: string) => {
-    setRecentEmojis(current => {
-      const next = [value, ...current.filter(item => item !== value)].slice(0, 32);
-      try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage opcional */ }
-      return next;
-    });
-  }, []);
+  const rememberEmojis = useCallback((entries: readonly EmojiEntry[]) => {
+    const next = entries.reduce((recent, entry) => [entry.value, ...recent.filter(value => value !== entry.value)], recentEmojis).slice(0, 32);
+    // Persist before onClose unmounts the modal. React may discard pending
+    // state updaters during that unmount, so storage writes must happen here.
+    try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch { /* storage opcional */ }
+    setRecentEmojis(next);
+  }, [recentEmojis]);
 
   const close = useCallback(() => {
     if (!query && gridRef.current) scrollTopRef.current[category] = gridRef.current.scrollTop;
@@ -165,38 +163,30 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
     return true;
   }, [editor]);
 
-  const insertEmoji = useCallback((entry: EmojiEntry, closeAfter = false) => {
-    if (!insertText(entry.value)) return;
-    setSelected(entry);
-    rememberEmoji(entry.value);
-    if (closeAfter) close();
-    else requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
-  }, [close, insertText, rememberEmoji]);
+  const insertEntries = useCallback((entries: readonly EmojiEntry[]) => {
+    if (!entries.length || !insertText(entries.map(entry => entry.value).join(''))) return;
+    rememberEmojis(entries);
+    close();
+  }, [close, insertText, rememberEmojis]);
 
   const appendBatchEmoji = useCallback((entry: EmojiEntry) => {
-    setBatchEmojis(current => current + entry.value);
-    setBatchEntries(current => [...current, entry]);
-    setCopyState('idle');
+    const queued = { ...entry, queueId: nextQueueId.current++ };
+    setBatchEntries(current => [...current, queued]);
   }, []);
 
-  const insertBatch = useCallback(() => {
-    if (!batchEmojis || !insertText(batchEmojis)) return;
-    for (const value of splitPickerText(batchEmojis)) {
-      const entry = EMOJI_BY_VALUE.get(value) || EMOJI_BY_BASE_VALUE.get(value.replace(/\ufe0f/g, ''));
-      if (entry && compatibleValues.has(entry.value)) rememberEmoji(entry.value);
-    }
-    close();
-  }, [batchEmojis, close, insertText, rememberEmoji, compatibleValues]);
+  const removeQueuedEmoji = useCallback((queueId: number, index: number) => {
+    setBatchEntries(current => current.filter(entry => entry.queueId !== queueId));
+    requestAnimationFrame(() => {
+      const buttons = trayRef.current?.querySelectorAll<HTMLButtonElement>('.emoji-picker-chip');
+      const next = buttons?.[Math.min(index, buttons.length - 1)];
+      (next || searchRef.current)?.focus({ preventScroll: true });
+    });
+  }, []);
 
-  const copyBatch = useCallback(async () => {
-    if (!batchEmojis) return;
-    try {
-      await navigator.clipboard.writeText(batchEmojis);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-  }, [batchEmojis]);
+  const confirmInsertion = useCallback(() => {
+    if (multiSelect) insertEntries(batchEntries);
+    else if (selected) insertEntries([selected]);
+  }, [batchEntries, insertEntries, multiSelect, selected]);
 
   useEffect(() => { searchRef.current?.focus(); }, []);
   useEffect(() => {
@@ -250,22 +240,34 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
   }, [activeIndex, filteredEntries.length]);
 
   const activeEntry = filteredEntries.length > 0 ? filteredEntries[Math.min(activeIndex, filteredEntries.length - 1)] : null;
+  const previewEntry = selected || activeEntry;
   const totalRows = Math.ceil(filteredEntries.length / gridMetrics.columns);
   const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, gridMetrics.scrollTop - 3) / gridMetrics.rowStep) - 2);
   const lastVisibleRow = Math.min(totalRows, Math.ceil((gridMetrics.scrollTop + gridMetrics.viewportHeight) / gridMetrics.rowStep) + 2);
   const visibleEntries = filteredEntries.slice(firstVisibleRow * gridMetrics.columns, lastVisibleRow * gridMetrics.columns);
-  const insertActive = useCallback(() => {
-    if (!activeEntry) return;
-    if (multiSelect) appendBatchEmoji(activeEntry);
-    else insertEmoji(activeEntry, true);
-  }, [activeEntry, appendBatchEmoji, insertEmoji, multiSelect]);
-  useModalKeys({ enabled: true, onEsc: close, onEnter: multiSelect ? insertBatch : insertActive });
+  useModalKeys({ enabled: true, onEsc: close, onEnter: confirmInsertion });
+  useEffect(() => {
+    if (!focusGridRef.current) return;
+    const button = gridRef.current?.querySelector<HTMLButtonElement>(`[data-emoji-index="${activeIndex}"]`);
+    if (button) {
+      focusGridRef.current = false;
+      button.focus({ preventScroll: true });
+    }
+  }, [activeIndex, gridMetrics.scrollTop, filteredEntries]);
 
-  const copyLabel = copyState === 'copied'
-    ? (isSpanish ? 'Copiado' : 'Copied')
-    : copyState === 'failed'
-      ? (isSpanish ? 'Error al copiar' : 'Copy failed')
-      : (isSpanish ? 'Copiar' : 'Copy');
+  const moveGridCursor = (index: number) => {
+    const next = ((index % filteredEntries.length) + filteredEntries.length) % filteredEntries.length;
+    ensureActiveVisibleRef.current = true;
+    focusGridRef.current = true;
+    setActiveIndex(next);
+    if (!multiSelect) setSelected(filteredEntries[next]);
+    const button = gridRef.current?.querySelector<HTMLButtonElement>(`[data-emoji-index="${next}"]`);
+    if (button) {
+      focusGridRef.current = false;
+      button.focus({ preventScroll: true });
+    }
+  };
+
   const filterList: EmojiFilter[] = ['all', 'recent', ...EMOJI_GROUPS.map(group => group.id)];
   const filterLabel = (filter: EmojiFilter) => filter === 'all'
     ? (isSpanish ? 'Todos' : 'All')
@@ -275,18 +277,28 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
 
   const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
-    if (event.key === 'ArrowDown' && filteredEntries.length > 0) {
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && filteredEntries.length > 0) {
       event.preventDefault();
-      ensureActiveVisibleRef.current = filteredEntries.length > 1;
-      setActiveIndex(index => (index + 1) % filteredEntries.length);
-    } else if (event.key === 'ArrowUp' && filteredEntries.length > 0) {
-      event.preventDefault();
-      ensureActiveVisibleRef.current = filteredEntries.length > 1;
-      setActiveIndex(index => (index - 1 + filteredEntries.length) % filteredEntries.length);
+      moveGridCursor(activeIndex + (event.key === 'ArrowDown' ? 1 : -1));
     } else if (event.key === 'Enter') {
       event.preventDefault();
       event.stopPropagation();
-      insertActive();
+      if (multiSelect) confirmInsertion();
+      else if (activeEntry && (selected || query.trim())) insertEntries([activeEntry]);
+    }
+  };
+
+  const handleGridKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.nativeEvent.isComposing) return;
+    const steps: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -gridMetrics.columns, ArrowDown: gridMetrics.columns };
+    if (event.key in steps) {
+      event.preventDefault();
+      moveGridCursor(index + steps[event.key]);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (multiSelect) confirmInsertion();
+      else insertEntries([filteredEntries[index]]);
     }
   };
 
@@ -316,25 +328,15 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2>{isSpanish ? 'Selector de emojis' : 'Emoji picker'}</h2>
             <p>{compatibleEntries
-              ? (isSpanish ? `${compatibleEntries.length.toLocaleString('es')} emojis compatibles con este equipo.` : `${compatibleEntries.length.toLocaleString('en')} emojis supported on this device.`)
+              ? `${compatibleEntries.length.toLocaleString(isSpanish ? 'es' : 'en')} emojis`
               : (isSpanish ? 'Emojis disponibles en este equipo.' : 'Emojis available on this device.')}</p>
           </div>
-          <Tooltip label={isSpanish ? (multiSelect ? 'Desactivar selección múltiple' : 'Preparar varios emojis') : (multiSelect ? 'Turn off multiple selection' : 'Queue multiple emojis')} placement="top">
-            <button
-              type="button"
-              className={`btn-icon character-map-pin${multiSelect ? ' is-active' : ''}`}
-              aria-label={isSpanish ? (multiSelect ? 'Desactivar selección múltiple' : 'Preparar varios emojis') : (multiSelect ? 'Turn off multiple selection' : 'Queue multiple emojis')}
-              aria-pressed={multiSelect}
-              onClick={() => {
-                const next = !multiSelect;
-                setMultiSelect(next);
-                if (next) requestAnimationFrame(() => batchInputRef.current?.focus({ preventScroll: true }));
-                else { setBatchEmojis(''); setBatchEntries([]); setCopyState('idle'); }
-              }}
-            >
-              <Pin size={16} aria-hidden="true" />
-            </button>
-          </Tooltip>
+          <button type="button" className={`emoji-picker-mode${multiSelect ? ' is-active' : ''}`}
+            aria-pressed={multiSelect} onClick={() => setMultiSelect(value => !value)}>
+            <ListPlus size={15} aria-hidden="true" />
+            <span>{isSpanish ? 'Varios' : 'Multiple'}</span>
+            {batchEntries.length > 0 && <span className="emoji-picker-mode-count">{batchEntries.length}</span>}
+          </button>
           <button type="button" className="btn-icon" onClick={close} aria-label={isSpanish ? 'Cerrar selector de emojis' : 'Close emoji picker'}><X size={16} /></button>
         </div>
 
@@ -344,7 +346,7 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
             <input
               ref={searchRef}
               value={query}
-              onChange={event => { setQuery(event.target.value); setActiveIndex(0); }}
+              onChange={event => { focusGridRef.current = false; ensureActiveVisibleRef.current = false; setQuery(event.target.value); setActiveIndex(0); setSelected(null); }}
               onKeyDown={handleSearchKeyDown}
               placeholder={isSpanish ? 'Buscar por emoji, nombre o palabra' : 'Search emoji, name, or keyword'}
               aria-label={isSpanish ? 'Buscar emojis' : 'Search emojis'}
@@ -353,6 +355,10 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
             />
             {query && <button type="button" className="character-map-clear-search" onClick={() => { setQuery(''); setActiveIndex(0); }} aria-label={isSpanish ? 'Borrar búsqueda' : 'Clear search'}>×</button>}
           </div>
+
+          <p className="emoji-picker-instructions">{multiSelect
+            ? (isSpanish ? 'Clic o Espacio añade a la bandeja. Enter inserta el grupo.' : 'Click or Space adds to the tray. Enter inserts the group.')
+            : (isSpanish ? 'Selecciona un emoji. Insertar o Enter confirma la selección.' : 'Select an emoji. Insert or Enter confirms your selection.')}</p>
 
           <div className="character-map-browser emoji-picker-browser">
             <div className="character-map-categories" role="tablist" aria-label={isSpanish ? 'Categorías de emojis' : 'Emoji categories'}>
@@ -365,7 +371,10 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
                   className={category === filter ? 'is-active' : ''}
                   onClick={() => {
                     if (!query && gridRef.current) scrollTopRef.current[category] = gridRef.current.scrollTop;
+                    focusGridRef.current = false;
+                    ensureActiveVisibleRef.current = false;
                     setCategory(filter);
+                    setSelected(null);
                     setActiveIndex(0);
                     persistViewState(filter, scrollTopRef.current);
                   }}
@@ -410,17 +419,17 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
                           data-emoji-index={index}
                           aria-label={`${entry.value}, ${isSpanish ? entry.es : entry.en}`}
                           aria-current={activeIndex === index ? 'true' : undefined}
-                          className={`${activeIndex === index ? 'is-current' : ''}${selected?.value === entry.value ? ' is-inserted' : ''}${multiSelect && batchEntries.some(staged => staged.value === entry.value) ? ' is-batch-selected' : ''}`}
+                          aria-pressed={multiSelect ? batchEntries.some(staged => staged.value === entry.value) : selected?.value === entry.value}
+                          tabIndex={activeIndex === index ? 0 : -1}
+                          className={`${activeIndex === index && (query || selected) ? 'is-current' : ''}${!multiSelect && selected?.value === entry.value ? ' is-selected' : ''}${multiSelect && batchEntries.some(staged => staged.value === entry.value) ? ' is-batch-selected' : ''}`}
                           onMouseDown={event => event.preventDefault()}
-                          onClick={event => {
+                          onFocus={() => { setActiveIndex(index); if (!multiSelect) setSelected(entry); }}
+                          onKeyDown={event => handleGridKeyDown(event, index)}
+                          onClick={() => {
                             setActiveIndex(index);
-                            if (multiSelect) {
-                              if (event.detail === 2) appendBatchEmoji(entry);
-                            } else if (event.detail !== 2) {
-                              insertEmoji(entry);
-                            }
+                            setSelected(entry);
+                            if (multiSelect) appendBatchEmoji(entry);
                           }}
-                          onDoubleClick={() => { if (!multiSelect) close(); }}
                         ><NativeGlyph value={entry.value} fontFamily={EMOJI_FONT_FAMILY} className="emoji-picker-glyph" /></button>
                       );
                     })}
@@ -436,52 +445,40 @@ export default function EmojiPickerModal({ editor, language, uiScale, onClose }:
             </div>
           </div>
 
-          {multiSelect && (
-            <div className="character-map-batch-row">
-              <input
-                ref={batchInputRef}
-                value={batchEmojis}
-                onChange={event => { setBatchEmojis(event.target.value); setBatchEntries([]); setCopyState('idle'); }}
-                onKeyDown={event => {
-                  if (event.nativeEvent.isComposing) return;
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    insertBatch();
-                  }
-                }}
-                placeholder={isSpanish ? 'Doble clic en emojis o usa Agregar' : 'Double-click emojis or use Add'}
-                aria-label={isSpanish ? 'Emojis preparados para insertar' : 'Emojis queued for insertion'}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <button type="button" className="copyable-block-button character-map-copy-button" aria-label={copyLabel} disabled={!batchEmojis} onMouseDown={event => event.preventDefault()} onClick={() => { void copyBatch(); }}>
-                {copyState === 'copied' ? <Check size={12} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}
-                <span>{copyLabel}</span>
-              </button>
+          {multiSelect ? (
+            <section className="emoji-picker-tray" aria-label={isSpanish ? 'Bandeja de emojis' : 'Emoji tray'}>
+              <div className="emoji-picker-tray-header">
+                <span role="status">{isSpanish ? 'Preparados' : 'Queued'}: {batchEntries.length}</span>
+                <button type="button" className="emoji-picker-clear" disabled={!batchEntries.length}
+                  onClick={() => { setBatchEntries([]); searchRef.current?.focus({ preventScroll: true }); }}>
+                  {isSpanish ? 'Vaciar' : 'Clear'}
+                </button>
+              </div>
+              <div ref={trayRef} className="emoji-picker-tray-items">
+                {batchEntries.length ? batchEntries.map((entry, index) => (
+                  <button key={entry.queueId} type="button" className="emoji-picker-chip"
+                    aria-label={isSpanish ? `Quitar ${entry.es}, posición ${index + 1}` : `Remove ${entry.en}, position ${index + 1}`}
+                    onClick={() => removeQueuedEmoji(entry.queueId, index)}>
+                    <NativeGlyph value={entry.value} fontFamily={EMOJI_FONT_FAMILY} className="emoji-picker-glyph" />
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                )) : <span className="emoji-picker-tray-empty">{isSpanish ? 'Elige emojis para preparar tu grupo. Puedes repetirlos.' : 'Choose emojis for your group. You can repeat emojis.'}</span>}
+              </div>
+            </section>
+          ) : (
+            <div className="character-map-details" aria-live="polite">
+              {previewEntry ? <>
+                <span className="character-map-preview emoji-picker-preview"><NativeGlyph value={previewEntry.value} fontFamily={EMOJI_FONT_FAMILY} /></span>
+                <span className="character-map-detail-copy"><strong>{isSpanish ? previewEntry.es : previewEntry.en}</strong></span>
+              </> : <span className="character-map-detail-hint">{isSpanish ? 'Selecciona un emoji de los resultados.' : 'Select an emoji from the results.'}</span>}
             </div>
           )}
-
-          <div className="character-map-details" aria-live="polite">
-            {activeEntry ? <>
-              <span className="character-map-preview emoji-picker-preview"><NativeGlyph value={activeEntry.value} fontFamily={EMOJI_FONT_FAMILY} /></span>
-              <span className="character-map-detail-copy">
-                <strong>{isSpanish ? activeEntry.es : activeEntry.en}</strong>
-                <code>{codePointLabel(activeEntry.value)}</code>
-              </span>
-              {multiSelect
-                ? <button type="button" className="character-map-add-button" onMouseDown={event => event.preventDefault()} onClick={() => appendBatchEmoji(activeEntry)}><Plus size={13} aria-hidden="true" /><span>{isSpanish ? 'Agregar' : 'Add'}</span></button>
-                : <span className="character-map-detail-hint">{isSpanish ? 'Enter para insertar' : 'Enter to insert'}</span>}
-            </> : <span className="character-map-detail-hint">{multiSelect
-              ? (isSpanish ? 'Elige un emoji para agregarlo a la selección.' : 'Choose an emoji to add to the selection.')
-              : (isSpanish ? 'Elige un emoji para insertarlo en la nota.' : 'Choose an emoji to insert it into the note.')}</span>}
-          </div>
         </div>
 
         <div className="modal-actions character-map-actions">
           <button type="button" className="modal-action-btn is-cancel" onClick={close}>{isSpanish ? 'Cerrar' : 'Close'}<KeyHint>Esc</KeyHint></button>
-          <button type="button" className="modal-action-btn is-save" onClick={multiSelect ? insertBatch : insertActive} disabled={multiSelect ? !batchEmojis : !activeEntry}>
-            {multiSelect ? (isSpanish ? 'Agregar' : 'Add') : (isSpanish ? 'Insertar' : 'Insert')}
+          <button type="button" className="modal-action-btn is-save" onClick={confirmInsertion} disabled={multiSelect ? !batchEntries.length : !selected}>
+            {isSpanish ? 'Insertar' : 'Insert'}{multiSelect && batchEntries.length > 0 ? ` (${batchEntries.length})` : ''}
             <EnterGlyph />
           </button>
         </div>

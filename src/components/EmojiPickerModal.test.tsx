@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Editor } from '@tiptap/react';
@@ -27,14 +27,15 @@ it.each(['es', 'en'] as const)('only offers compatible emojis, filters old recen
   try {
     await act(async () => root.render(<EmojiPickerModal editor={editor} language={language} uiScale={1} onClose={vi.fn()} />));
     const modal = document.querySelector('.emoji-picker-modal')!;
-    expect(modal.querySelector('.character-map-header p')?.textContent).toBe(language === 'es'
-      ? '3 emojis compatibles con este equipo.' : '3 emojis supported on this device.');
+    expect(modal.querySelector('.character-map-header p')?.textContent).toBe('3 emojis');
     const buttons = modal.querySelectorAll<HTMLButtonElement>('[data-emoji-index]');
     expect(buttons).toHaveLength(1);
     expect(buttons[0].textContent).toBe('😀');
     expect(buttons[0].querySelector('.emoji-picker-glyph')).not.toBeNull();
     await act(async () => buttons[0].click());
-    expect(insertContent).toHaveBeenLastCalledWith({ type: 'text', text: '😀' });
+    expect(insertContent).not.toHaveBeenCalled();
+    await act(async () => modal.querySelector<HTMLButtonElement>('.modal-action-btn.is-save')!.click());
+    expect(insertContent).toHaveBeenCalledExactlyOnceWith({ type: 'text', text: '😀' });
   } finally {
     await act(async () => root.unmount()); host.remove();
   }
@@ -52,6 +53,10 @@ it.each(['es', 'en'] as const)('closes after Insert succeeds and stays open when
   try {
     await act(async () => root.render(<EmojiPickerModal editor={editor} language={language} uiScale={1} onClose={onClose} />));
     const insert = document.querySelector<HTMLButtonElement>('.emoji-picker-modal .modal-action-btn.is-save')!;
+    expect(insert.disabled).toBe(true);
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!.click());
+    expect(insertContent).not.toHaveBeenCalled();
+    expect(insert.disabled).toBe(false);
     await act(async () => insert.click());
     expect(onClose).not.toHaveBeenCalled();
     expect(localStorage.getItem('cybernotes-emoji-picker-recents-v1')).toBeNull();
@@ -61,5 +66,112 @@ it.each(['es', 'en'] as const)('closes after Insert succeeds and stays open when
     expect(insertContent).toHaveBeenCalledExactlyOnceWith({ type: 'text', text: '😀' });
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['😀']);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+const setSearch = async (value: string) => act(async () => {
+  const input = document.querySelector<HTMLInputElement>('.character-map-search input')!;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+it.each(['es', 'en'] as const)('edits a tray with repeats, preserves it across filters and mode changes, and confirms once (%s)', async language => {
+  localStorage.setItem('cybernotes-emoji-picker-recents-v1', JSON.stringify(['❤️']));
+  const insertContent = vi.fn(); const onClose = vi.fn();
+  const chain = { focus: () => chain, setTextSelection: () => chain,
+    insertContent: (content: unknown) => { insertContent(content); return chain; }, run: () => true };
+  const editor = { state: { selection: { from: 1, to: 1 }, doc: { content: { size: 100 } } }, chain: () => chain,
+    commands: { focus: vi.fn() }, isDestroyed: false } as unknown as Editor;
+  const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(<EmojiPickerModal editor={editor} language={language} uiScale={1} onClose={onClose} />));
+    const mode = document.querySelector<HTMLButtonElement>('.emoji-picker-mode')!;
+    const primary = document.querySelector<HTMLButtonElement>('.emoji-picker-modal .modal-action-btn.is-save')!;
+    await act(async () => mode.click());
+    expect(mode.getAttribute('aria-pressed')).toBe('true');
+    const enqueue = async (value: string, detail = 1) => {
+      await setSearch(value);
+      await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true, detail })));
+    };
+    const queued = () => [...document.querySelectorAll('.emoji-picker-chip')].map(chip => chip.textContent);
+    await enqueue('😀'); await enqueue('😀', 2); await enqueue('👩‍💻');
+    expect(queued()).toEqual(['😀', '😀', '👩‍💻']);
+    expect(primary.textContent).toContain(language === 'es' ? 'Insertar (3)' : 'Insert (3)');
+    expect(insertContent).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['❤️']);
+    await act(async () => document.querySelectorAll<HTMLButtonElement>('.emoji-picker-chip')[1].click());
+    expect(queued()).toEqual(['😀', '👩‍💻']);
+    await act(async () => mode.click());
+    expect(document.querySelector('.emoji-picker-tray')).toBeNull();
+    await act(async () => mode.click());
+    expect(queued()).toEqual(['😀', '👩‍💻']);
+    await act(async () => document.querySelector<HTMLButtonElement>('.emoji-picker-clear')!.click());
+    expect(queued()).toEqual([]); expect(primary.disabled).toBe(true);
+    await enqueue('👩‍💻'); await enqueue('❤️'); await enqueue('👩‍💻');
+    await setSearch('no-matches-here');
+    await act(async () => document.querySelectorAll<HTMLButtonElement>('.character-map-categories button')[1].click());
+    expect(queued()).toEqual(['👩‍💻', '❤️', '👩‍💻']);
+    await act(async () => document.querySelector<HTMLInputElement>('.character-map-search input')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true })));
+    expect(insertContent).not.toHaveBeenCalled();
+    await act(async () => primary.click());
+    expect(insertContent).toHaveBeenCalledExactlyOnceWith({ type: 'text', text: '👩‍💻❤️👩‍💻' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['👩‍💻', '❤️']);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it('wraps keyboard navigation, confirms a single choice with Enter and cancels a tray without inserting', async () => {
+  const insertContent = vi.fn(); const onClose = vi.fn();
+  const chain = { focus: () => chain, setTextSelection: () => chain,
+    insertContent: (content: unknown) => { insertContent(content); return chain; }, run: () => true };
+  const editor = { state: { selection: { from: 1, to: 1 }, doc: { content: { size: 100 } } }, chain: () => chain,
+    commands: { focus: vi.fn() }, isDestroyed: false } as unknown as Editor;
+  const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(<EmojiPickerModal key="single" editor={editor} language="es" uiScale={1} onClose={onClose} />));
+    const search = document.querySelector<HTMLInputElement>('.character-map-search input')!;
+    await act(async () => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+    expect(document.activeElement?.getAttribute('data-emoji-index')).toBe('2');
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(insertContent).toHaveBeenCalledExactlyOnceWith({ type: 'text', text: '👩‍💻' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    insertContent.mockClear(); onClose.mockClear();
+    await act(async () => root.render(<EmojiPickerModal key="multiple" editor={editor} language="es" uiScale={1} onClose={onClose} />));
+    await act(async () => document.querySelector<HTMLButtonElement>('.emoji-picker-mode')!.click());
+    await setSearch('😀');
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!.click());
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(insertContent).not.toHaveBeenCalled(); expect(onClose).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['👩‍💻']);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it('saves single and batch recents before the parent unmounts the picker', async () => {
+  const chain = { focus: () => chain, setTextSelection: () => chain, insertContent: () => chain, run: () => true };
+  const editor = { state: { selection: { from: 1, to: 1 }, doc: { content: { size: 100 } } }, chain: () => chain,
+    commands: { focus: vi.fn() }, isDestroyed: false } as unknown as Editor;
+  function Owner() {
+    const [open, setOpen] = useState(true);
+    return open ? <EmojiPickerModal editor={editor} language="en" uiScale={1} onClose={() => setOpen(false)} /> : null;
+  }
+  const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(<Owner key="single" />));
+    await setSearch('😀');
+    await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('.modal-action-btn.is-save')!.click());
+    expect(document.querySelector('.emoji-picker-modal')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['😀']);
+    await act(async () => root.render(<Owner key="batch" />));
+    await act(async () => document.querySelector<HTMLButtonElement>('.emoji-picker-mode')!.click());
+    for (const value of ['👩‍💻', '❤️']) {
+      await setSearch(value);
+      await act(async () => document.querySelector<HTMLButtonElement>('[data-emoji-index]')!.click());
+    }
+    await act(async () => document.querySelector<HTMLButtonElement>('.modal-action-btn.is-save')!.click());
+    expect(document.querySelector('.emoji-picker-modal')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('cybernotes-emoji-picker-recents-v1')!)).toEqual(['❤️', '👩‍💻', '😀']);
   } finally { await act(async () => root.unmount()); host.remove(); }
 });
