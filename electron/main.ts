@@ -8,7 +8,7 @@ import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
 import { initUpdater, setAutoUpdate } from './updater';
 import { initLogger, writeLog, logRendererError } from './logger';
-import { DEFAULT_STICKY_COLOR, STICKY_BACKGROUNDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
+import { DEFAULT_STICKY_COLOR, DEFAULT_STICKY_OPACITY, STICKY_BACKGROUNDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish, preferredAppLanguage } from '../shared/lang';
 import { getThemeVars, normalizeThemeId } from '../src/themes';
@@ -467,7 +467,7 @@ async function initDatabase() {
       height      INTEGER DEFAULT 360,
       pinned_top  INTEGER DEFAULT 1,
       color       TEXT DEFAULT 'electric-blue',
-      opacity     REAL DEFAULT 0.9,
+      opacity     REAL DEFAULT 1,
       is_open     INTEGER DEFAULT 1
     );
 
@@ -509,7 +509,7 @@ async function initDatabase() {
   ensureColumn('notes', 'deleted_at', 'TEXT');
   ensureColumn('sticky_notes', 'pinned_top', "INTEGER DEFAULT 1");
   ensureColumn('sticky_notes', 'color', "TEXT DEFAULT 'electric-blue'");
-  ensureColumn('sticky_notes', 'opacity', "REAL DEFAULT 0.9");
+  ensureColumn('sticky_notes', 'opacity', "REAL DEFAULT 1");
   ensureColumn('sticky_notes', 'zoom', 'REAL DEFAULT 1.0');
   ensureColumn('sticky_notes', 'is_open', "INTEGER DEFAULT 1");
   purgeOldTrash();
@@ -550,7 +550,7 @@ function seedInitialDemoContent() {
       runQuery('INSERT INTO notes (id, folder_id, title, content, preview, thumb, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [note.id, note.folderId, note.title, note.content, note.preview, '', note.pinned, now, now]);
       if (note.floating) {
-        runQuery('INSERT INTO sticky_notes (note_id, x, y, width, height, pinned_top, color, opacity, is_open) VALUES (?, NULL, NULL, 340, 400, 1, ?, 0.9, 1)', [note.id, DEFAULT_STICKY_COLOR]);
+        runQuery('INSERT INTO sticky_notes (note_id, x, y, width, height, pinned_top, color, opacity, is_open) VALUES (?, NULL, NULL, 340, 400, 1, ?, ?, 1)', [note.id, DEFAULT_STICKY_COLOR, DEFAULT_STICKY_OPACITY]);
       }
     }
     runQuery('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ['open_note_ids', JSON.stringify(['welcome-note', 'quickstart-note', 'cybergems-suite-note'])]);
@@ -1241,10 +1241,10 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
   stickyWindows.set(noteId, win);
   runQuery(
     `INSERT INTO sticky_notes (note_id, x, y, width, height, color, opacity, is_open)
-     VALUES (?, ?, ?, ?, ?, ?, 0.9, 1)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1)
      ON CONFLICT(note_id) DO UPDATE SET x = excluded.x, y = excluded.y,
        width = excluded.width, height = excluded.height, is_open = 1`,
-    [noteId, winX, winY, width, height, DEFAULT_STICKY_COLOR]
+    [noteId, winX, winY, width, height, DEFAULT_STICKY_COLOR, stickyConfig.opacity]
   );
 
   let boundsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1409,11 +1409,16 @@ function clampStickyZoom(value: unknown): number {
   return Math.min(1.5, Math.max(0.8, Math.round(n * 100) / 100));
 }
 
+function getPreferredStickyOpacity(): number {
+  const value = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_default_opacity'])?.value;
+  return normalizeStickyOpacity(value == null ? DEFAULT_STICKY_OPACITY : readNumericSetting(value, DEFAULT_STICKY_OPACITY));
+}
+
 function getStickyConfig(noteId: string) {
   const row = queryGet('SELECT color, opacity, pinned_top, zoom FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
     color: asStickyColorId(row?.color),
-    opacity: normalizeStickyOpacity(readNumericSetting(row?.opacity, 0.9)),
+    opacity: row ? normalizeStickyOpacity(readNumericSetting(row.opacity, DEFAULT_STICKY_OPACITY)) : getPreferredStickyOpacity(),
     pinned_top: row ? row.pinned_top !== 0 : true,
     zoom: clampStickyZoom(row?.zoom ?? 1.0),
   };
@@ -1426,12 +1431,17 @@ function saveStickyConfig(noteId: string, config: { color?: string; opacity?: nu
   const pinnedTop = config.pinned_top !== undefined ? (config.pinned_top ? 1 : 0) : (current.pinned_top ? 1 : 0);
   const zoom = config.zoom !== undefined ? clampStickyZoom(config.zoom) : current.zoom;
 
-  runQuery(
-    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, zoom, is_open)
-     VALUES (?, ?, ?, ?, ?, 1)
-     ON CONFLICT(note_id) DO UPDATE SET color = excluded.color, opacity = excluded.opacity, pinned_top = excluded.pinned_top, zoom = excluded.zoom`,
-    [noteId, color, opacity, pinnedTop, zoom]
-  );
+  db.transaction(() => {
+    runQuery(
+      `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, zoom, is_open)
+       VALUES (?, ?, ?, ?, ?, 1)
+       ON CONFLICT(note_id) DO UPDATE SET color = excluded.color, opacity = excluded.opacity, pinned_top = excluded.pinned_top, zoom = excluded.zoom`,
+      [noteId, color, opacity, pinnedTop, zoom]
+    );
+    if (typeof config.opacity === 'number' && Number.isFinite(config.opacity)) {
+      runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['sticky_default_opacity', String(opacity)]);
+    }
+  })();
 
   const win = stickyWindows.get(noteId);
   if (win && !win.isDestroyed()) {
@@ -1484,8 +1494,8 @@ function createAndOpenStickyNote(centerOnMainWindow = false): string {
 
   runQuery(
     `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open)
-     VALUES (?, ?, 0.9, 1, 1)`,
-    [newId, DEFAULT_STICKY_COLOR]
+     VALUES (?, ?, ?, 1, 1)`,
+    [newId, DEFAULT_STICKY_COLOR, getPreferredStickyOpacity()]
   );
 
   openStickyNote(newId, centerOnMainWindow);

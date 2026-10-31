@@ -7,7 +7,7 @@ describe('floating note opacity limit', () => {
     expect(normalizeStickyOpacity(0.1)).toBe(0.6);
     expect(normalizeStickyOpacity(0.4)).toBe(0.6);
     expect(normalizeStickyOpacity(0.8)).toBe(0.8);
-    expect(normalizeStickyOpacity(Number.NaN)).toBe(0.9);
+    expect(normalizeStickyOpacity(Number.NaN)).toBe(1);
   });
 });
 

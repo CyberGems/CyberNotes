@@ -26,7 +26,7 @@ export const STICKY_COLOR_IDS: readonly StickyColorId[] = [
 
 export const DEFAULT_STICKY_COLOR: StickyColorId = 'electric-blue';
 
-export const DEFAULT_STICKY_OPACITY = 0.9;
+export const DEFAULT_STICKY_OPACITY = 1;
 /** 60% de opacidad equivale al máximo de 40% de transparencia. */
 export const STICKY_OPACITY_OPTIONS = [1, 0.9, 0.8, 0.7, 0.6] as const;
 
