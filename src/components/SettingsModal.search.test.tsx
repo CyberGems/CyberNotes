@@ -181,6 +181,30 @@ describe('settings search', () => {
     expect(card()).toBeNull(); expect(props.onClose).not.toHaveBeenCalled();
   });
 
+  it.each(['es', 'en'] as const)('keeps toolbar controls grouped and stationary when visibility changes (%s)', async language => {
+    props.language = language; props.initialTab = 'appearance'; props.hiddenToolbarIds = ['h1', 'h2', 'future-item'];
+    props.onHiddenToolbarIdsChange = vi.fn();
+    await render();
+    const card = () => container.querySelector('.settings-toolbar-card')!;
+    const rows = () => [...card().querySelectorAll<HTMLLabelElement>('.settings-toolbar-item')];
+    const names = rows().map(row => row.textContent);
+    expect(card().querySelectorAll('fieldset')).toHaveLength(6); expect(rows()).toHaveLength(30);
+    expect(card().querySelectorAll('input:checked')).toHaveLength(28); expect(card().querySelector('[role="status"]')?.textContent).toContain('28');
+    const bold = rows().find(row => row.textContent === (language === 'es' ? 'Negrita' : 'Bold'))!;
+    await act(async () => bold.querySelector<HTMLInputElement>('input')!.click());
+    expect(props.onHiddenToolbarIdsChange).toHaveBeenLastCalledWith(['h1', 'h2', 'future-item', 'bold']);
+    props.hiddenToolbarIds = ['h1', 'h2', 'future-item', 'bold']; await render();
+    expect(rows().map(row => row.textContent)).toEqual(names); expect(card().querySelectorAll('input:checked')).toHaveLength(27);
+    expect(bold.querySelector<HTMLInputElement>('input')!.checked).toBe(false);
+    await act(async () => bold.querySelector<HTMLInputElement>('input')!.click());
+    expect(props.onHiddenToolbarIdsChange).toHaveBeenLastCalledWith(['h1', 'h2', 'future-item']);
+    await act(async () => card().querySelector<HTMLButtonElement>('.settings-toolbar-summary button')!.click());
+    expect(props.onHiddenToolbarIdsChange).toHaveBeenLastCalledWith([]);
+    await search(language === 'es' ? 'alineación' : 'alignment');
+    expect(card().querySelectorAll('input[type="checkbox"]')).toHaveLength(30);
+    expect(card().querySelector('[title]')).toBeNull();
+  });
+
   const input = () => container.querySelector<HTMLInputElement>('.settings-search input')!;
   const content = () => container.querySelector<HTMLElement>('.settings-content')!;
 

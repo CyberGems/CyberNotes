@@ -2318,124 +2318,49 @@ export default function SettingsModal({
               </div>
             </div>
 
-            <div className="settings-card">
+            <div className="settings-card settings-toolbar-card">
               <SettingsHeading icon={<SlidersHorizontal />}>
                 {language === 'es' ? 'Barra de herramientas' : 'Toolbar'}
               </SettingsHeading>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
-                {language === 'es'
-                  ? 'Elige qué botones se ven en la barra. Los ocultos viven en el menú Más (···). También puedes ocultarlos con clic derecho sobre cada botón.'
-                  : 'Choose which buttons appear in the toolbar. Hidden ones live in the More (···) menu. You can also hide them by right-clicking each button.'}
-              </p>
-              <div className="settings-option-stack">
-                {(() => {
-                  const knownHidden = hiddenToolbarIds.filter((x): x is ToolbarItemDef['id'] =>
-                    TOOLBAR_ITEMS.some((d) => d.id === x));
-                  const visibleItems = TOOLBAR_ITEMS.filter((d) => !knownHidden.includes(d.id));
-                  const hiddenItems = TOOLBAR_ITEMS.filter((d) => knownHidden.includes(d.id));
-                  const chipStyle = (active: boolean): React.CSSProperties => ({
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 7,
-                    padding: '6px 8px 6px 10px',
-                    borderRadius: 8,
-                    border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    background: active ? 'var(--accent-dim)' : 'var(--bg-surface)',
-                    color: active ? 'var(--accent-light)' : 'var(--text-secondary)',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all var(--transition)',
-                  });
-                  const renderChip = (item: ToolbarItemDef, active: boolean) => {
-                    const Icon = item.icon;
-                    const itemName = language === 'es' ? item.labelEs : item.labelEn;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          onHiddenToolbarIdsChange(
-                            active
-                              ? [...knownHidden, item.id]
-                              : knownHidden.filter((x) => x !== item.id),
-                          );
-                        }}
-                        title={active
-                          ? (language === 'es' ? `Ocultar ${itemName}` : `Hide ${itemName}`)
-                          : (language === 'es' ? `Mostrar ${itemName}` : `Show ${itemName}`)}
-                        style={chipStyle(active)}
-                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.2)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.filter = ''; }}
-                      >
-                        <Icon size={13} style={{ flexShrink: 0 }} />
-                        <span style={{ whiteSpace: 'nowrap' }}>{itemName}</span>
-                        <span
-                          aria-hidden="true"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 16, height: 16, borderRadius: 4,
-                            background: active ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {active ? <X size={11} /> : <Plus size={11} />}
-                        </span>
-                      </button>
-                    );
-                  };
-                  const bayStyle: React.CSSProperties = {
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-surface)',
-                    padding: 10,
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                  };
-                  const bayTitleStyle: React.CSSProperties = {
-                    fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-                    textTransform: 'uppercase', color: 'var(--text-muted)', margin: '2px 2px 0',
-                  };
-                  const emptyHint = language === 'es' ? 'Vacía' : 'Empty';
-                  return (
-                    <>
-                      <div>
-                        <div style={bayTitleStyle}>
-                          {language === 'es' ? `En la barra (${visibleItems.length})` : `In toolbar (${visibleItems.length})`}
-                        </div>
-                        <div style={{ ...bayStyle, marginTop: 6 }}>
-                          {visibleItems.length === 0 && (
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 6px' }}>{emptyHint}</span>
-                          )}
-                          {visibleItems.map((item) => renderChip(item, true))}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={bayTitleStyle}>
-                          {language === 'es' ? `Ocultos en Más (${hiddenItems.length})` : `Hidden in More (${hiddenItems.length})`}
-                        </div>
-                        <div style={{ ...bayStyle, marginTop: 6 }}>
-                          {hiddenItems.length === 0 && (
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 6px' }}>{emptyHint}</span>
-                          )}
-                          {hiddenItems.map((item) => renderChip(item, false))}
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => onHiddenToolbarIdsChange([])}
-                  disabled={hiddenToolbarIds.length === 0}
-                  style={{ alignSelf: 'flex-end', fontSize: 12, opacity: hiddenToolbarIds.length === 0 ? 0.4 : 1 }}
-                >
-                  <RotateCcw size={13} />
-                  {language === 'es' ? 'Restablecer botones' : 'Reset buttons'}
-                </button>
-              </div>
+              <p className="settings-toolbar-help">{language === 'es'
+                ? 'Marca los botones que quieres en la barra. Los demás siguen disponibles en Más (···). También puedes ocultarlos con clic derecho en el editor.'
+                : 'Check the buttons you want in the toolbar. The rest stay available in More (···). You can also hide them by right-clicking in the editor.'}</p>
+              {(() => {
+                const hidden = new Set(hiddenToolbarIds.filter((id): id is ToolbarItemDef['id'] => TOOLBAR_ITEMS.some(item => item.id === id)));
+                const groups: { es: string; en: string; ids: ToolbarItemDef['id'][] }[] = [
+                  { es: 'Edición', en: 'Editing', ids: ['undo', 'redo', 'copy', 'paste', 'find'] },
+                  { es: 'Texto', en: 'Text', ids: ['fontFamily', 'fontSize', 'changeCase', 'clearFormat'] },
+                  { es: 'Formato', en: 'Formatting', ids: ['bold', 'italic', 'underline', 'strike', 'highlight', 'h1', 'h2'] },
+                  { es: 'Listas y alineación', en: 'Lists and alignment', ids: ['bullet', 'ordered', 'alignLeft', 'alignCenter', 'alignRight', 'alignJustify'] },
+                  { es: 'Bloques', en: 'Blocks', ids: ['quote', 'code'] },
+                  { es: 'Insertar', en: 'Insert', ids: ['link', 'image', 'table', 'video', 'characters', 'emojis'] },
+                ];
+                return <>
+                  <div className="settings-toolbar-summary">
+                    <span role="status">{language === 'es'
+                      ? `En la barra: ${TOOLBAR_ITEMS.length - hidden.size} · En Más: ${hidden.size}`
+                      : `In toolbar: ${TOOLBAR_ITEMS.length - hidden.size} · In More: ${hidden.size}`}</span>
+                    <button type="button" className="btn btn-ghost" disabled={!hidden.size} onClick={() => onHiddenToolbarIdsChange([])}>
+                      <RotateCcw size={13} />{language === 'es' ? 'Mostrar todos' : 'Show all'}
+                    </button>
+                  </div>
+                  <div className="settings-toolbar-groups">
+                    {groups.map(group => <fieldset key={group.en}>
+                      <legend>{language === 'es' ? group.es : group.en}</legend>
+                      {group.ids.map(id => {
+                        const item = TOOLBAR_ITEMS.find(entry => entry.id === id)!;
+                        const Icon = item.icon;
+                        return <label key={id} className="settings-toolbar-item">
+                          <input type="checkbox" checked={!hidden.has(id)} onChange={event => onHiddenToolbarIdsChange(event.target.checked
+                            ? hiddenToolbarIds.filter(value => value !== id) : [...hiddenToolbarIds, id])} />
+                          <Icon size={15} aria-hidden="true" />
+                          <span>{language === 'es' ? item.labelEs : item.labelEn}</span>
+                        </label>;
+                      })}
+                    </fieldset>)}
+                  </div>
+                </>;
+              })()}
             </div>
 
             <div className="settings-card">

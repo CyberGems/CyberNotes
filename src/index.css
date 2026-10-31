@@ -2481,6 +2481,20 @@ html.tab-dragging * {
   .settings-content { padding: 14px 12px 18px; }
   .settings-search { margin: 8px 12px; }
 }
+.settings-toolbar-help { margin: -4px 0 12px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.settings-toolbar-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.settings-toolbar-summary > span { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.settings-toolbar-summary .btn { gap: 6px; padding: 5px 8px; font-size: 11px; }
+.settings-toolbar-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.settings-toolbar-groups fieldset { min-width: 0; margin: 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.settings-toolbar-groups legend { max-width: 100%; padding: 0 5px; font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+.settings-toolbar-item { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 7px 6px; border-radius: 5px; cursor: pointer; }
+.settings-toolbar-item:hover { background: var(--bg-hover); }
+.settings-toolbar-item:focus-within { outline: 1px solid var(--accent-light); outline-offset: -1px; }
+.settings-toolbar-item input { width: 14px; height: 14px; margin: 0; flex-shrink: 0; accent-color: var(--accent); cursor: pointer; }
+.settings-toolbar-item svg { flex-shrink: 0; color: var(--text-muted); }
+.settings-toolbar-item span { min-width: 0; font-size: 12px; color: var(--text-primary); }
+@container settings-body (max-width: 440px) { .settings-toolbar-groups { grid-template-columns: 1fr; } }
 .settings-secondary-overlay {
   position: fixed; inset: 0; z-index: 50000; display: flex;
   align-items: center; justify-content: center; padding: 12px;
