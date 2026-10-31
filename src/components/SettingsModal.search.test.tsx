@@ -67,6 +67,35 @@ describe('settings search', () => {
     }
   });
 
+  it.each(['es', 'en'] as const)('provides theme descriptions, previews and keyboard selection (%s)', async language => {
+    props.language = language; props.initialTab = 'appearance'; props.onThemeChange = vi.fn();
+    await render();
+    const group = container.querySelector('[role="radiogroup"]')!;
+    expect(group.getAttribute('aria-label')).toBe(language === 'es' ? 'Tema' : 'Theme');
+    const cards = [...group.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+    expect(cards).toHaveLength(3);
+    expect(cards.map(card => card.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
+    expect(cards.map(card => card.tabIndex)).toEqual([0, -1, -1]);
+    expect(cards.every(card => card.querySelectorAll('.settings-theme-preview i').length === 3)).toBe(true);
+    expect(cards[1].querySelector('.settings-theme-desc')?.textContent).toBe(language === 'es' ? 'Escala de grises sobria, sin color.' : 'Refined grayscale, no colour.');
+    for (const card of cards) {
+      expect(document.getElementById(card.getAttribute('aria-describedby')!)?.textContent).toBeTruthy();
+      await act(async () => card.click());
+    }
+    expect(vi.mocked(props.onThemeChange).mock.calls.map(call => call[0])).toEqual(['cyber-dark', 'graphite', 'light']);
+    for (const [index, key, expected] of [[0, 'ArrowLeft', 'light'], [2, 'ArrowRight', 'cyber-dark'], [0, 'End', 'light'], [2, 'Home', 'cyber-dark']] as const) {
+      await act(async () => cards[index].dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })));
+      expect(props.onThemeChange).toHaveBeenLastCalledWith(expected);
+      expect(document.activeElement).toBe(cards[expected === 'light' ? 2 : 0]);
+    }
+    props.currentTheme = 'graphite'; await render();
+    expect(cards.map(card => card.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
+    expect(cards.map(card => card.tabIndex)).toEqual([-1, 0, -1]);
+    await search(language === 'es' ? 'escala de grises' : 'refined grayscale');
+    expect(container.querySelectorAll('[role="radio"]')).toHaveLength(3);
+    expect(setSetting).not.toHaveBeenCalled();
+  });
+
   const input = () => container.querySelector<HTMLInputElement>('.settings-search input')!;
   const content = () => container.querySelector<HTMLElement>('.settings-content')!;
 

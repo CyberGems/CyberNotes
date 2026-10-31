@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ThemeId, type UsageStats, type AccessLogEvent } from '../types';
-import { THEMES, isColorfulTheme, getPreviewColor } from '../themes';
+import { THEMES, isColorfulTheme } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language } from '../languages';
@@ -2029,73 +2029,37 @@ export default function SettingsModal({
           {/* ── APPEARANCE ── */}
           {(searching || tab === 'appearance') && (
             <SettingsSearchGroup label={navItems[1].label}>
-            <div className="settings-card">
-                <SettingsHeading icon={<Palette />}>
-                  {language === 'es' ? 'Tema visual' : 'Visual Theme'}
-                </SettingsHeading>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-                  {THEMES.map(theme => {
+            <div className="settings-card settings-theme-card">
+                <h3 className="settings-theme-heading">{language === 'es' ? 'Tema' : 'Theme'}</h3>
+                <div className="settings-theme-grid" role="radiogroup" aria-label={language === 'es' ? 'Tema' : 'Theme'}>
+                  {THEMES.map((theme, index) => {
                     const isCurrent = currentTheme === theme.id;
-                    const ledColor = getPreviewColor(theme.id, isCurrent ? colorIntensity : 65);
                     const themeName = language === 'es' ? (theme.nameEs || theme.name) : (theme.nameEn || theme.name);
-
-  return (
-                      <button
-                        key={theme.id}
-                        onClick={() => onThemeChange(theme.id as ThemeId)}
-                        style={{
-                          padding: '13px 16px',
-                          borderRadius: 'var(--radius-md)',
-                          border: isCurrent ? `2px solid var(--accent)` : '1px solid var(--border)',
-                          background: isCurrent ? 'var(--accent-dim)' : 'var(--bg-surface)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          transition: 'all var(--transition)',
-                          boxShadow: isCurrent ? '0 0 14px var(--accent-glow)' : 'none',
-                        }}
-                      >
-                        {/* Hardware LED socket */}
-                        <div style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: '50%',
-                          background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.5))',
-                          border: isCurrent ? `1.5px solid ${ledColor}88` : '1px solid rgba(255, 255, 255, 0.12)',
-                          boxShadow: isCurrent
-                            ? `0 0 12px ${ledColor}40, inset 0 2px 4px rgba(0, 0, 0, 0.7)`
-                            : 'inset 0 2px 4px rgba(0, 0, 0, 0.6)',
-                          flexShrink: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                    const descriptions = language === 'es'
+                      ? ['Interfaz oscura con acento de color.', 'Escala de grises sobria, sin color.', 'Interfaz clara con acento de color.']
+                      : ['Dark interface with a colour accent.', 'Refined grayscale, no colour.', 'Light interface with a colour accent.'];
+                    return (
+                      <button type="button" key={theme.id} role="radio" aria-checked={isCurrent}
+                        aria-labelledby={`settings-theme-${theme.id}`} aria-describedby={`settings-theme-${theme.id}-desc`}
+                        tabIndex={isCurrent ? 0 : -1}
+                        className={`settings-theme-option${isCurrent ? ' is-active' : ''}`}
+                        onClick={() => onThemeChange(theme.id)}
+                        onKeyDown={event => {
+                          const direction = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0;
+                          if (!direction && event.key !== 'Home' && event.key !== 'End') return;
+                          event.preventDefault();
+                          const next = event.key === 'Home' ? 0 : event.key === 'End' ? THEMES.length - 1 : (index + direction + THEMES.length) % THEMES.length;
+                          onThemeChange(THEMES[next].id);
+                          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
                         }}>
-                          {/* Noticeably large illuminated LED diode (16px vs 8px in tabs) */}
-                          <span
-                            style={{
-                              width: 16,
-                              height: 16,
-                              borderRadius: '50%',
-                              background: `radial-gradient(circle at 35% 35%, #ffffff 0%, ${ledColor} 46%, rgba(0, 0, 0, 0.6) 100%)`,
-                              boxShadow: isCurrent
-                                ? `0 0 16px ${ledColor}, 0 0 6px ${ledColor}, inset 0 1px 2px rgba(255, 255, 255, 0.95)`
-                                : `0 0 8px ${ledColor}aa, inset 0 1px 1.5px rgba(255, 255, 255, 0.65)`,
-                              border: '1px solid rgba(255, 255, 255, 0.3)',
-                              display: 'inline-block',
-                              flexShrink: 0,
-                              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                            }}
-                          />
-                        </div>
-                        <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {themeName}
-                          </div>
-                          <div style={{ fontSize: 11, color: isCurrent ? 'var(--accent-light)' : 'var(--text-muted)' }}>
-                            {isCurrent ? (language === 'es' ? '● Activo' : '● Active') : (language === 'es' ? 'Click para activar' : 'Click to activate')}
-                          </div>
-                        </div>
+                        <span className="settings-theme-preview" aria-hidden="true"
+                          style={{ background: theme.vars['--bg-app'], borderColor: theme.vars['--border'], color: theme.vars['--accent'] }}>
+                          <i style={{ background: theme.vars['--bg-surface'] }} />
+                          <i style={theme.id === 'light' ? { background: '#bac3d2' } : undefined} />
+                          <i />
+                        </span>
+                        <span className="settings-theme-name" id={`settings-theme-${theme.id}`}>{themeName}</span>
+                        <span className="settings-theme-desc" id={`settings-theme-${theme.id}-desc`}>{descriptions[index]}</span>
                       </button>
                     );
                   })}
