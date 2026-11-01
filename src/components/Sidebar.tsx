@@ -617,6 +617,11 @@ export default function Sidebar({
       .map(n => ({ note: n, ts: n[field] }));
   }, [recentTab, allNotes, openedHistory, recentClearedAt]);
 
+  const recentListRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (showRecent && recentListRef.current) recentListRef.current.scrollTop = 0;
+  }, [showRecent, recentTab]);
+
   const recentTabs: { id: 'edited' | 'opened' | 'created'; label: string }[] = [
     { id: 'edited', label: t.sidebar.recentEdited },
     { id: 'opened', label: t.sidebar.recentOpened },
@@ -1394,8 +1399,7 @@ export default function Sidebar({
             height: Math.min(500, recentMenuLayout.maxHeight),
             maxHeight: recentMenuLayout.maxHeight,
             boxSizing: 'border-box',
-            overflowY: 'auto',
-            overscrollBehavior: 'contain',
+            overflow: 'hidden',
             background: 'var(--bg-modal)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
@@ -1408,7 +1412,7 @@ export default function Sidebar({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 6px 6px 10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 6px 6px 10px', flexShrink: 0 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {t.sidebar.recentTitle}
             </span>
@@ -1437,7 +1441,7 @@ export default function Sidebar({
           </div>
 
           {/* Pestañas arriba: Editadas / Abiertas / Creadas */}
-          <div style={{ display: 'flex', gap: 4, margin: '2px 0 8px' }}>
+          <div style={{ display: 'flex', gap: 4, margin: '2px 0 8px', flexShrink: 0 }}>
             {recentTabs.map(tab => {
               const active = recentTab === tab.id;
               return (
@@ -1466,7 +1470,19 @@ export default function Sidebar({
           </div>
 
           {/* Lista compacta para mostrar hasta 10 notas */}
-          <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div
+            ref={recentListRef}
+            style={{
+              flex: '1 1 0',
+              minHeight: 0,
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              scrollbarGutter: 'stable',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+            }}
+          >
             {recentForTab.length === 0 ? (
               <div style={{ margin: 'auto', fontSize: 13, color: 'var(--text-muted)', padding: '20px 10px', textAlign: 'center' }}>
                 {t.noteList.noNotes}
@@ -1538,7 +1554,7 @@ export default function Sidebar({
 
           {/* Limpiar historial (con confirmación inline) */}
           {clearConfirm ? (
-            <div style={{ marginTop: 4, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-hover)', borderRadius: 6 }}>
+            <div style={{ marginTop: 4, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-hover)', borderRadius: 6, flexShrink: 0 }}>
               <span style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, textAlign: 'center' }}>
                 {language === 'es' ? '¿Borrar el historial de notas recientes?' : 'Clear the recent notes history?'}
               </span>
@@ -1588,6 +1604,7 @@ export default function Sidebar({
                 borderRadius: 6,
                 cursor: 'pointer',
                 width: '100%',
+                flexShrink: 0,
                 transition: 'background 0.12s, color 0.12s',
               }}
             >
