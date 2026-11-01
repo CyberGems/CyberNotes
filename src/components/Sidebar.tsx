@@ -511,11 +511,19 @@ export default function Sidebar({
       const spaceAbove = Math.max(0, anchor.top - gap - edge);
       const spaceBelow = Math.max(0, window.innerHeight - anchor.bottom - gap - edge);
       const opensBelow = spaceBelow > spaceAbove;
+      const availableSpace = opensBelow ? spaceBelow : spaceAbove;
+
+      // On very short windows, use the viewport instead of squeezing the list
+      // and confirmation controls into the space beside the anchor.
+      if (availableSpace < 240 && window.innerHeight - edge * 2 > availableSpace) {
+        setRecentMenuLayout({ left, width, top: edge, maxHeight: Math.max(0, window.innerHeight - edge * 2) });
+        return;
+      }
 
       setRecentMenuLayout({
         left,
         width,
-        maxHeight: opensBelow ? spaceBelow : spaceAbove,
+        maxHeight: availableSpace,
         ...(opensBelow
           ? { top: anchor.bottom + gap }
           : { bottom: window.innerHeight - anchor.top + gap }),
