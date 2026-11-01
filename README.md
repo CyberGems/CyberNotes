@@ -102,8 +102,8 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Caps Lock Manager**: Auto-off after inactivity with a themed title-bar countdown and dismissible notice, plus sound notifications (5 synthesized presets)
 
 ### 🎨 Customization
-- **6 Visual Themes**: Cyber Dark, Midnight, Forest, Cyber Neon, Light, Graphite
-- **Color Intensity**: Adjustable 0–100% for colorful themes
+- **3 Visual Themes**: CyberNotes (dark), Gray and Light
+- **Color Intensity**: Adjustable 0–100% (applies to the CyberNotes theme)
 - **Custom Background**: Set your own wallpaper image
 - **Glass Effects**: Configurable blur intensity (0–40px) and overlay opacity (0–95%)
 - **UI Scaling**: Adjust interface size to your preference
@@ -202,6 +202,7 @@ CyberNotes/
 │   │   ├── UpdaterBanner.tsx   Auto-update progress banner
 │   │   ├── TrayPinModal.tsx    Tray pin helper dialog
 │   │   ├── AppLoader.tsx       Startup loader and privacy shield
+│   │   ├── OnboardingModal.tsx First-run welcome and setup
 │   │   ├── WelcomeGreeting.tsx Time-aware greeting with date
 │   │   ├── WelcomeNameModal.tsx First-run name setup
 │   │   ├── FolderIcon.tsx      Folder icons and colors

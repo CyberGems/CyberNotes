@@ -66,7 +66,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 | Mantente organizado | Carpetas con iconos y colores, varias pestañas, notas flotantes, arrastrar y soltar |
 | Proteger notas sensibles | Contraseña maestra (bloqueo de acceso con hash bcrypt, notas almacenadas sin cifrar) con bloqueo automático y escudo de privacidad |
 | Trabajar eficientemente | Guardado automático, restauración de sesión, atajo global, bandeja del sistema |
-| Hazlo tuyo | 6 temas, fondos personalizados, efectos de cristal, escalado de la interfaz |
+| Hazlo tuyo | 3 temas, fondos personalizados, efectos de cristal, escalado de la interfaz |
 
 ---
 
@@ -102,8 +102,8 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Gestor de Bloc Mayús**: apagado automático tras la inactividad con cuenta regresiva temática en la barra y aviso cerrable, además de sonidos (5 preajustes sintetizados)
 
 ### 🎨 Personalización
-- **6 temas visuales**: CyberNotes (oscuro), Cian Medianoche, Verde Bosque, Magenta Neón, Blanco Claro y Gris Grafito
-- **Intensidad de color**: ajustable del 0 al 100 % para los temas coloridos
+- **3 temas visuales**: CyberNotes (oscuro), Gris y Claro
+- **Intensidad de color**: ajustable del 0 al 100 % (se aplica al tema CyberNotes)
 - **Fondo personalizado**: define tu propia imagen de fondo
 - **Efectos de cristal**: intensidad de desenfoque configurable (0–40 px) y opacidad de superposición (0–95 %)
 - **Escalado de la interfaz**: ajusta el tamaño de la interfaz a tu gusto
@@ -200,6 +200,7 @@ CyberNotes/
 │   │   ├── UpdaterBanner.tsx   Banner de progreso de actualización automática
 │   │   ├── TrayPinModal.tsx    Diálogo auxiliar de anclado a la bandeja
 │   │   ├── AppLoader.tsx       Cargador de inicio y escudo de privacidad
+│   │   ├── OnboardingModal.tsx Bienvenida y configuración inicial
 │   │   ├── WelcomeGreeting.tsx Saludo según la hora con fecha
 │   │   ├── WelcomeNameModal.tsx Configuración inicial del nombre
 │   │   ├── FolderIcon.tsx      Iconos y colores de carpetas
