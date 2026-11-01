@@ -1383,6 +1383,7 @@ export default function Sidebar({
             top: recentMenuLayout.top,
             bottom: recentMenuLayout.bottom,
             width: recentMenuLayout.width,
+            height: Math.min(500, recentMenuLayout.maxHeight),
             maxHeight: recentMenuLayout.maxHeight,
             boxSizing: 'border-box',
             overflowY: 'auto',
@@ -1457,9 +1458,9 @@ export default function Sidebar({
           </div>
 
           {/* Lista compacta para mostrar hasta 10 notas */}
-          <div style={{ minHeight: 0, maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
             {recentForTab.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '40px 10px', textAlign: 'center' }}>
+              <div style={{ margin: 'auto', fontSize: 13, color: 'var(--text-muted)', padding: '20px 10px', textAlign: 'center' }}>
                 {t.noteList.noNotes}
               </div>
             ) : (
