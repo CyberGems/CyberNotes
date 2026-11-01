@@ -1852,10 +1852,10 @@ const noteActionBtnStyle = (active: boolean, opts?: { warn?: boolean }): CSSProp
 const TAB_DRAG_MIME = 'application/x-cybernotes-tab';
 
 /** Tamaños del desplegable de letra (px), estilo Word. Compartido con stickies. */
-export const FONT_SIZE_OPTIONS = ['12', '14', '15', '16', '18', '20', '24', '28', '32'];
+export const FONT_SIZE_OPTIONS = ['12', '13', '14', '15', '16', '18', '20', '24', '28', '32'];
 
 /** Lista Word para el combo editable (incluye 8-11 como en la captura). */
-export const WORD_FONT_SIZE_OPTIONS = ['8', '9', '10', '11', '12', '14', '15', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
+export const WORD_FONT_SIZE_OPTIONS = ['8', '9', '10', '11', '12', '13', '14', '15', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
 
 export interface FontFamilyOption {
   label: string;
