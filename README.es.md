@@ -25,7 +25,7 @@
 
 <div align="center">
 
-### Toma de notas privada y flexible que se queda en tu equipo
+### Un lugar rico y privado para tus notas, carpetas e ideas, con todo guardado en tu PC
 
 </div>
 
@@ -58,7 +58,7 @@
 
 ## 👋 Introducción
 
-CyberNotes es una aplicación de toma de notas elegante y centrada en la privacidad para Windows que mantiene la escritura y la organización completamente en tu equipo. Crea notas enriquecidas con formato, imágenes, bloques de código y atajos de markdown; organízalas en carpetas de colores; trabaja con varias pestañas; y separa notas importantes en ventanas flotantes. La búsqueda instantánea, el guardado automático, la restauración de sesión, temas personalizables y un bloqueo de acceso opcional con contraseña maestra sostienen tanto las ideas rápidas como los proyectos largos. Los datos se guardan localmente en una **base de datos SQLite (better-sqlite3 con WAL)**. Construido con **Electron + React + TypeScript**.
+La mayoría de las apps de notas piden una cuenta, una suscripción o tus datos en sus servidores. CyberNotes lo guarda todo en tu PC: un editor TipTap con atajos de markdown, imágenes y bloques de código; carpetas con iconos y colores; pestañas y notas flotantes para lo que necesitas a mano; búsqueda instantánea y guardado automático. Una contraseña maestra opcional bloquea la app cuando te alejas, y las copias automáticas en la carpeta que elijas protegen meses de escritura. Construido con **Electron + React + TypeScript**.
 
 *Gratuito y de código abierto (GPLv3): sin anuncios, sin rastreo y sin recogida de datos. Solo disfrútalo.*
 
@@ -66,11 +66,12 @@ CyberNotes es una aplicación de toma de notas elegante y centrada en la privaci
 
 ## 🔒 ¿Por qué CyberNotes?
 
-La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de privacidad) o son demasiado básicas para ser útiles. CyberNotes te da **lo mejor de ambos mundos**: edición enriquecida, organización potente y seguridad de hierro, todo 100 % sin conexión.
+Muchos editores son cloud-first o demasiado básicos para ser útiles. CyberNotes te da **lo mejor de ambos mundos**: edición enriquecida, organización potente y seguridad de hierro, todo 100 % sin conexión.
 
 | Necesidad | Solución |
 |---|---|
 | Mantener las notas privadas | SQLite solo local: sin nube, sin cuentas, sin rastreo |
+| No pierdas tus notas | Copias automáticas cada 6, 12 o 24 horas o semanales, en la carpeta que elijas |
 | Edición enriquecida sin bloat | Editor TipTap con atajos de markdown, imágenes y bloques de código |
 | Mantente organizado | Carpetas con iconos y colores, varias pestañas, notas flotantes, arrastrar y soltar |
 | Proteger notas sensibles | Contraseña maestra (bloqueo de acceso con hash bcrypt, notas almacenadas sin cifrar) con bloqueo automático y escudo de privacidad |
@@ -133,6 +134,7 @@ La mayoría de las apps de notas sincronizan tus datos en la nube (riesgo de pri
 - **Actualizaciones automáticas**: comprobación en segundo plano al iniciar y cada 6 h, barra de progreso, descarga automática y reinicio
 - **Las comprobaciones manuales siguen siendo manuales**: las comprobaciones bajo demanda solo comprueban; las descargas y los reinicios requieren tu confirmación
 - **Estadísticas de uso**: estadísticas locales opcionales con rachas, restablecimiento y purga
+- **Copias automáticas:** activadas por defecto, copian la base de datos de notas cada 6, 12 o 24 horas o cada semana, conservan 1, 3, 5 o 7 copias en la carpeta que elijas, con copia manual y restauración desde Ajustes
 - **Exportación**: Markdown, HTML (con estilo) o copia de seguridad JSON completa
 - **Importación**: restaura desde una copia JSON (con copia de seguridad automática)
 - **Interfaz bilingüe**: inglés y español completos con cambio instantáneo

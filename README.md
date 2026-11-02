@@ -25,7 +25,7 @@
 
 <div align="center">
 
-### Private and flexible note-taking that stays on your device
+### A rich, private place for your notes, folders and ideas, with everything stored on your PC
 
 </div>
 
@@ -58,7 +58,7 @@
 
 ## 👋 Introduction
 
-CyberNotes is a sleek, privacy-focused note-taking application for Windows that keeps writing and organization entirely on your device. Create rich notes with formatting, images, code blocks, and markdown shortcuts; arrange them in colorful folders; work across multiple tabs; and detach important notes into floating windows. Instant search, autosave, session restore, customizable themes, and an optional master-password access lock support both quick ideas and longer projects. Data is stored locally in a **SQLite database (better-sqlite3 with WAL)**. Built with **Electron + React + TypeScript**.
+Most note apps want an account, a subscription, or your data on their servers. CyberNotes keeps everything on your PC: a TipTap editor with markdown shortcuts, images and code blocks; folders with icons and colors; tabs and floating notes for whatever you need at hand; instant search and autosave. An optional master password locks the app when you step away, and automatic backups in a folder you choose protect months of writing. Built with **Electron + React + TypeScript**.
 
 *Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
 
@@ -66,11 +66,12 @@ CyberNotes is a sleek, privacy-focused note-taking application for Windows that 
 
 ## 🔒 Why CyberNotes?
 
-Most note apps either sync your data to the cloud (privacy risk) or are too basic to be useful. CyberNotes gives you **the best of both worlds**: rich editing, powerful organization, and rock-solid security, all 100% offline.
+Plenty of editors are either cloud-first or too basic to be useful. CyberNotes gives you **the best of both worlds**: rich editing, powerful organization, and rock-solid security, all 100% offline.
 
 | Need | Solution |
 |---|---|
 | Keep notes private | Local-only SQLite: no cloud, no accounts, no tracking |
+| Don't lose your notes | Automatic backups every 6, 12 or 24 hours or weekly, in a folder you choose |
 | Rich editing without bloat | TipTap editor with markdown shortcuts, images, code blocks |
 | Stay organized | Folders with icons & colors, multi-tabs, floating notes, drag & drop |
 | Protect sensitive notes | Master password (bcrypt-hashed access lock, notes stored unencrypted) with auto-lock and privacy shield |
@@ -133,6 +134,7 @@ Most note apps either sync your data to the cloud (privacy risk) or are too basi
 - **Auto-Updates**: Background check on launch + every 6h, progress bar, auto-download and restart
 - **Manual Checks Stay Manual**: On-demand checks only check; downloads and restarts need your tap
 - **Usage Statistics**: Optional local stats with streaks, reset and purge
+- **Automatic Backups**: On by default, copying the notes database every 6, 12 or 24 hours or weekly, keeping 1, 3, 5 or 7 copies in a folder you choose, with manual backup and restore from Settings
 - **Export**: Markdown, HTML (styled), or full JSON backup
 - **Import**: Restore from JSON backup (with automatic safety backup)
 - **Bilingual UI**: Full English / Español with instant switching
