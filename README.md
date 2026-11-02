@@ -58,7 +58,7 @@
 
 ## 👋 Introduction
 
-Most note apps want an account, a subscription, or your data on their servers. CyberNotes keeps everything on your PC: a TipTap editor with markdown shortcuts, images and code blocks; folders with icons and colors; tabs and floating notes for whatever you need at hand; instant search and autosave. An optional master password locks the app when you step away, and automatic backups in a folder you choose protect months of writing. Built with **Electron + React + TypeScript**.
+Most note apps want an account, a subscription, or your data on their servers. CyberNotes keeps everything on your PC: a TipTap editor with markdown shortcuts, images and code blocks; folders with icons and colors; tabs and floating notes for whatever you need at hand; instant search and autosave. An optional master password locks the app when you step away, and automatic backups in a folder you choose keep every note and image safe. Built with **Electron + React + TypeScript**.
 
 *Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
 
@@ -134,7 +134,7 @@ Plenty of editors are either cloud-first or too basic to be useful. CyberNotes g
 - **Auto-Updates**: Background check on launch + every 6h, progress bar, auto-download and restart
 - **Manual Checks Stay Manual**: On-demand checks only check; downloads and restarts need your tap
 - **Usage Statistics**: Optional local stats with streaks, reset and purge
-- **Automatic Backups**: On by default, copying the notes database every 6, 12 or 24 hours or weekly, keeping 1, 3, 5 or 7 copies in a folder you choose, with manual backup and restore from Settings
+- **Automatic Backups**: On by default, writing a single self-contained JSON file every 6, 12 or 24 hours or weekly, with notes, folders and images embedded, keeping 1, 3, 5 or 7 copies in a folder you choose, plus manual backup and restore from Settings
 - **Export**: Markdown, HTML (styled), or full JSON backup
 - **Import**: Restore from JSON backup (with automatic safety backup)
 - **Bilingual UI**: Full English / Español with instant switching
