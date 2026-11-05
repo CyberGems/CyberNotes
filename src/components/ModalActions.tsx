@@ -1,4 +1,5 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { CornerDownLeft } from 'lucide-react';
 
 export const modalOverlayMotion = {
   initial: { opacity: 0 },
@@ -28,12 +29,11 @@ export function KeyHint({ children }: { children: ReactNode }) {
   return <kbd className="modal-key">{children}</kbd>;
 }
 
+/** Suite-wide Enter glyph: the lucide return arrow, matching CyberFiles' DialogButton. */
 export function EnterGlyph() {
   return (
     <KeyHint>
-      <svg className="modal-key-glyph" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-        <path d="M2 10.5 L7 5.2 L4.8 9 L14.6 9 L14.6 2.5 L17.4 2.5 L17.4 9 A2.8 2.8 0 0 1 14.6 11.8 L4.8 11.8 L7 15.8 Z" fill="currentColor" stroke="none" />
-      </svg>
+      <CornerDownLeft className="modal-key-glyph" strokeWidth={2.5} aria-hidden="true" />
     </KeyHint>
   );
 }
