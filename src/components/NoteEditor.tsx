@@ -47,7 +47,7 @@ import {
     Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info, Sigma, Smile,
     type LucideIcon,
   } from 'lucide-react';
-import { FILTER_COLORS } from './FolderIcon';
+import FolderIcon, { FILTER_COLORS } from './FolderIcon';
 import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 import CharacterMapModal from './CharacterMapModal';
 
@@ -5217,7 +5217,17 @@ export default function NoteEditor({
                     <>
                       <span style={{ fontWeight: 600 }}>{displayTitle || (language === 'es' ? 'Sin título' : 'Untitled')}</span>
                       {folder?.name && (
-                        <span style={{ fontSize: 9, color: folder.color || 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 9,
+                          color: folder.color || 'var(--text-muted)',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}>
+                          <FolderIcon name={folder.icon} color={folder.color || 'currentColor'} size={10} />
                           {folder.name}
                         </span>
                       )}
