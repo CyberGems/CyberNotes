@@ -5794,7 +5794,11 @@ export default function NoteEditor({
             {/* Grupo 1: Estado y Marcadores (Bloq Mayús, Favorito) */}
             <Tooltip
               placement="bottom"
-              label={language === 'es' ? 'Mayús auto (Alt+C)' : 'Auto Caps (Alt+C)'}
+              label={
+                language === 'es'
+                  ? `Auto-apagar Bloq Mayús por inactividad: ${autoUnlockCapsLock ? 'activo' : 'inactivo'} (Alt+C)`
+                  : `Auto-disable Caps Lock on idle: ${autoUnlockCapsLock ? 'on' : 'off'} (Alt+C)`
+              }
             >
             <button
               type="button"
@@ -5802,6 +5806,11 @@ export default function NoteEditor({
                 const nextVal = !autoUnlockCapsLock;
                 onAutoUnlockCapsLockChange?.(nextVal);
               }}
+              aria-label={
+                language === 'es'
+                  ? `Auto-apagar Bloq Mayús por inactividad: ${autoUnlockCapsLock ? 'activo' : 'inactivo'} (Alt+C)`
+                  : `Auto-disable Caps Lock on idle: ${autoUnlockCapsLock ? 'on' : 'off'} (Alt+C)`
+              }
               style={noteActionBtnStyle(autoUnlockCapsLock)}
               onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--bg-hover)';
@@ -5923,25 +5932,6 @@ export default function NoteEditor({
               }}
             >
               <Braces size={15} />
-            </button>
-            </Tooltip>
-
-            {/* Cambiar vista */}
-            <Tooltip placement="bottom" label={language === 'es' ? `Cambiar vista (Alt+L, actual: ${layoutMode})` : `Switch view (Alt+L, current: ${layoutMode})`}>
-            <button
-              type="button"
-              onClick={onToggleLayout}
-              style={noteActionBtnStyle(false)}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'var(--bg-hover)';
-                e.currentTarget.style.color = 'var(--text-primary)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = 'var(--text-muted)';
-              }}
-            >
-              <PanelLeft size={15} />
             </button>
             </Tooltip>
 

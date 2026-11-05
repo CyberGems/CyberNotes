@@ -49,6 +49,7 @@ interface Props {
   onDeleteNote?: () => void;
   onToggleRaw?: () => void;
   onCycleLayout?: () => void;
+  layoutMode?: 1 | 2 | 3;
   onShowHistory?: () => void;
   minimizeToTray?: boolean;
   closeToTray?: boolean;
@@ -112,6 +113,7 @@ export default function TitleBar({
   onDeleteNote,
   onToggleRaw,
   onCycleLayout,
+  layoutMode = 3,
   onShowHistory,
   minimizeToTray = false,
   closeToTray = false,
@@ -490,6 +492,23 @@ export default function TitleBar({
         style={{ display: 'flex', alignItems: 'center', gap: 2, WebkitAppRegion: 'no-drag', flexShrink: 0 } as any}
       >
         <TitleBarUpdateButton language={language} version={updateVersion} onClick={onShowUpdate} />
+        {/* Switch View Button */}
+        {onCycleLayout && (
+          <Tooltip
+            placement="bottom"
+            label={language === 'es' ? `Cambiar vista: modo ${layoutMode} (Alt+L)` : `Switch view: mode ${layoutMode} (Alt+L)`}
+          >
+            <button
+              type="button"
+              className="btn-icon titlebar-btn"
+              onClick={onCycleLayout}
+              aria-label={language === 'es' ? `Cambiar vista: modo ${layoutMode} (Alt+L)` : `Switch view: mode ${layoutMode} (Alt+L)`}
+              style={{ width: 28, height: 28 }}
+            >
+              <PanelLeft size={14} />
+            </button>
+          </Tooltip>
+        )}
         {/* Settings Button */}
         <Tooltip placement="bottom" label={t('Configuración general (Ctrl+,)', 'General settings (Ctrl+,)')}>
           <button
@@ -613,9 +632,9 @@ export default function TitleBar({
                   </button>
                   <button
                     className="menu-item"
-                    disabled={!currentNoteId}
+                    disabled={!onCycleLayout}
                     onClick={() => { setMenuOpen(false); onCycleLayout?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
+                    style={{ padding: '4px 10px', fontSize: 11, opacity: onCycleLayout ? 1 : 0.4 }}
                     aria-keyshortcuts="Alt+L"
                   >
                     <PanelLeft size={13} style={{ opacity: 0.7 }} />

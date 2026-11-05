@@ -199,6 +199,9 @@ export default function MainApp({
     return () => window.removeEventListener('keydown', onKey);
   }, [showFirstCloseDialog, chooseFirstClose]);
   const [layoutMode, setLayoutMode] = useState<1 | 2 | 3>(3);
+  const handleToggleLayout = useCallback(() => {
+    setLayoutMode(prev => prev === 1 ? 3 : (prev - 1 as 1 | 2 | 3));
+  }, []);
   const [sidebarWidth, setSidebarWidth] = useState(240);
   // En ancho angosto usa automáticamente el rail de iconos. El usuario puede
   // alternarlo manualmente mientras quiera recuperar espacio para el editor.
@@ -2018,7 +2021,8 @@ export default function MainApp({
         onSaveNote={() => noteActionsRef.current?.manualSave()}
         onDeleteNote={() => noteActionsRef.current?.requestDelete()}
         onToggleRaw={() => noteActionsRef.current?.toggleRaw()}
-        onCycleLayout={() => noteActionsRef.current?.cycleLayout()}
+        onCycleLayout={handleToggleLayout}
+        layoutMode={layoutMode}
         onShowHistory={() => noteActionsRef.current?.showHistory()}
         autosaveEnabled={autosaveEnabled}
         onAutosaveChange={handleAutosaveEnabledChange}
@@ -2179,7 +2183,7 @@ export default function MainApp({
           onSave={handleSaveNote}
           onCreateNote={handleCreateNote}
           layoutMode={layoutMode}
-          onToggleLayout={() => setLayoutMode(prev => prev === 1 ? 3 : prev - 1 as any)}
+          onToggleLayout={handleToggleLayout}
           showLineCounter={showLineCounter}
           autosaveEnabled={autosaveEnabled}
           autoUnlockCapsLock={autoUnlockCapsLock}
