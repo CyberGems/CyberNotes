@@ -400,15 +400,24 @@ export default function TitleBar({
                 color: 'var(--text-secondary)',
               };
           const tooltip = !capsOn
-            ? t('Bloq Mayús apagado', 'Caps Lock is off')
+            ? t('Bloq Mayús apagado (Alt+C)', 'Caps Lock is off (Alt+C)')
             : autoOn
-              ? t('El Bloq Mayús se apagará solo si dejas de escribir', 'Caps Lock will turn off if you stop typing')
-              : t('Bloq Mayús encendido (auto-desactivar está apagado)', 'Caps Lock is on (auto-disable is off)');
+              ? t('El Bloq Mayús se apagará solo si dejas de escribir (Alt+C)', 'Caps Lock will turn off if you stop typing (Alt+C)')
+              : t('Bloq Mayús encendido: auto-apagar desactivado (Alt+C)', 'Caps Lock is on: auto-disable off (Alt+C)');
 
           return capsOn && autoOn ? (
             <Tooltip placement="bottom" label={tooltip}>
               <div
                 data-no-drag
+                role="button"
+                tabIndex={0}
+                onClick={() => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock);
+                  }
+                }}
                 style={{
                   WebkitAppRegion: 'no-drag',
                   display: 'inline-flex',
@@ -422,7 +431,7 @@ export default function TitleBar({
                   letterSpacing: 0.2,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  cursor: 'default',
+                  cursor: onAutoUnlockCapsLockChange ? 'pointer' : 'default',
                   transition: 'background 0.2s, border-color 0.2s, color 0.2s',
                   ...chipStyle,
                 } as any}
@@ -740,7 +749,7 @@ export default function TitleBar({
                 {menuSwitch(autosaveEnabled)}
               </div>
               </Tooltip>
-              <Tooltip placement="top" label={t('Desactiva Bloq Mayús automáticamente tras un periodo de inactividad.', 'Turns Caps Lock off automatically after a period of inactivity.')}>
+              <Tooltip placement="top" label={t('Desactiva Bloq Mayús automáticamente tras un periodo de inactividad (Alt+C)', 'Turns Caps Lock off automatically after a period of inactivity (Alt+C)')}>
               <div
                 className="menu-item"
                 role="menuitem"
@@ -749,7 +758,7 @@ export default function TitleBar({
                 onKeyDown={e => activateMenuItem(e, () => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock))}
               >
                 <span style={{ fontSize: 13, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, opacity: 0.7 }}>⇪</span>
-                <span style={{ flex: 1 }}>{t('Auto-unlock Caps', 'Auto-unlock Caps')}</span>
+                <span style={{ flex: 1 }}>{t('Auto-apagar Bloq Mayús', 'Auto-unlock Caps Lock')}</span>
                 {menuSwitch(autoUnlockCapsLock)}
               </div>
               </Tooltip>

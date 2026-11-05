@@ -5791,54 +5791,7 @@ export default function NoteEditor({
               </div>
             )}
 
-            {/* Grupo 1: Estado y Marcadores (Bloq Mayús, Favorito) */}
-            <Tooltip
-              placement="bottom"
-              label={
-                language === 'es'
-                  ? `Auto-apagar Bloq Mayús por inactividad: ${autoUnlockCapsLock ? 'activo' : 'inactivo'} (Alt+C)`
-                  : `Auto-disable Caps Lock on idle: ${autoUnlockCapsLock ? 'on' : 'off'} (Alt+C)`
-              }
-            >
-            <button
-              type="button"
-              onClick={() => {
-                const nextVal = !autoUnlockCapsLock;
-                onAutoUnlockCapsLockChange?.(nextVal);
-              }}
-              aria-label={
-                language === 'es'
-                  ? `Auto-apagar Bloq Mayús por inactividad: ${autoUnlockCapsLock ? 'activo' : 'inactivo'} (Alt+C)`
-                  : `Auto-disable Caps Lock on idle: ${autoUnlockCapsLock ? 'on' : 'off'} (Alt+C)`
-              }
-              style={noteActionBtnStyle(autoUnlockCapsLock)}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'var(--bg-hover)';
-                e.currentTarget.style.color = 'var(--text-primary)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = autoUnlockCapsLock ? 'var(--accent-dim)' : 'transparent';
-                e.currentTarget.style.color = autoUnlockCapsLock ? 'var(--accent-light)' : 'var(--text-muted)';
-              }}
-            >
-              <span style={{ fontSize: 14, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>⇪</span>
-              {isCapsLockActive && (
-                <span style={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  width: 6,
-                  height: 6,
-                  background: autoUnlockCapsLock ? 'var(--accent-light)' : '#ef4444',
-                  borderRadius: '50%',
-                  boxShadow: autoUnlockCapsLock
-                    ? '0 0 4px var(--accent-glow)'
-                    : '0 0 3px #ef4444',
-                }} />
-              )}
-            </button>
-            </Tooltip>
-
+            {/* Grupo 1: Marcadores y Estado de Nota (Favorito, Flotante, Eliminar) */}
             {/* Favorite */}
             <Tooltip placement="bottom" label={pinned ? (language === 'es' ? 'Quitar de favoritos (Alt+S)' : 'Remove from favorites (Alt+S)') : (language === 'es' ? 'Marcar favorito (Alt+S)' : 'Add to favorites (Alt+S)')}>
             <button
