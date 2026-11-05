@@ -350,6 +350,35 @@ body:has(.sticky-note-window),
   width: 60px !important;
 }
 
+.sidebar-rail-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, filter 0.15s;
+}
+
+.sidebar-rail-btn:hover:not(.is-active) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-rail-btn.is-active {
+  background: var(--bg-active);
+}
+
+.sidebar-rail-btn.is-active:hover {
+  filter: brightness(1.18);
+}
+
 /* La barra inferior distribuye sus grupos en varias filas cuando el editor
    es angosto, para mantener visibles el estado de guardado y las métricas. */
 .toolbar-strip {

@@ -98,22 +98,6 @@ function timeAgo(iso: string, language: Language): string {
   return new Date(iso).toLocaleDateString(isEn ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric' });
 }
 
-// Botón del rail: 40px centrado, con activo y hover elegante.
-const railBtnStyle = (active: boolean, tint?: string): CSSProperties => ({
-  width: 40,
-  height: 40,
-  borderRadius: 10,
-  flexShrink: 0,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: active ? 'var(--bg-active)' : 'transparent',
-  border: active ? `1px solid ${tint || 'var(--accent)'}` : '1px solid transparent',
-  color: active ? (tint || 'var(--accent-light)') : 'var(--text-secondary)',
-  cursor: 'pointer',
-  transition: 'background 0.15s, color 0.15s, border-color 0.15s, filter 0.15s',
-});
-
 function RailIconBtn({
   label, active, tint, dropState, dropColor, onClick, onContextMenu, onDragOver, onDragLeave, onDrop, children,
 }: {
@@ -129,33 +113,24 @@ function RailIconBtn({
   onDrop?: (e: ReactDragEvent) => void;
   children: ReactNode;
 }) {
-  const [hover, setHover] = useState(false);
   return (
     <Tooltip placement="right" label={label}>
       <button
         type="button"
         aria-label={label}
-        className="note-drop-target"
+        className={`note-drop-target sidebar-rail-btn${active ? ' is-active' : ''}`}
         data-note-drop-state={dropState}
         onClick={onClick}
         onContextMenu={onContextMenu}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
         style={{
           '--note-drop-color': dropColor,
-          ...railBtnStyle(active, tint),
-          ...(hover && !active
-            ? {
-              background: 'var(--bg-hover)',
-              color: 'var(--text-primary)',
-              borderColor: 'var(--border)',
-              boxShadow: '0 0 10px var(--accent-glow)',
-            }
-            : null),
-          ...(hover && active ? { filter: 'brightness(1.18)' } : null),
+          ...(active ? {
+            border: `1px solid ${tint || 'var(--accent)'}`,
+            color: tint || 'var(--accent-light)',
+          } : null),
         } as CSSProperties}
       >
         {children}
