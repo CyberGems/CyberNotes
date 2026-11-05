@@ -76,7 +76,11 @@ describe('choosing an empty editor', () => {
     await act(async () => card(id).click());
     editor().view.setProps({ handleScrollToSelection: () => true });
   }
-  async function deselect() { await act(async () => (host.querySelector('[aria-label="Deseleccionar nota"]') as HTMLElement).click()); }
+  async function deselect() {
+    await act(async () => {
+      list().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+  }
   async function trashFromContext(id: string) {
     await act(async () => card(id).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
     await act(async () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Eliminar')!.click());
@@ -124,9 +128,9 @@ describe('choosing an empty editor', () => {
     expect(editor().getText()).toBe('second body');
   });
 
-  it.each(['button', 'Escape', 'Ctrl click', 'blank click', 'clear group', 'click selected', 'selected group'])('deselects with %s while retaining the open tab and stored note', async action => {
+  it.each(['Escape', 'Ctrl click', 'blank click', 'clear group', 'click selected', 'selected group'])('deselects with %s while retaining the open tab and stored note', async action => {
     await render(); await select();
-    if (action === 'button') await deselect();
+    if (action === 'Escape') await deselect();
     else if (action === 'click selected') await act(async () => card('first').click());
     else if (action === 'selected group') {
       await act(async () => list().dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })));

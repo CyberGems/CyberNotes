@@ -43,7 +43,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Star, AlignLeft, AlignCenter, AlignRight, Braces, PanelLeft,
   Undo, Redo, Save, Upload, FileDown, FileText, Printer, Globe, X, ExternalLink, Pencil, Unlink, Scissors, Copy, Clipboard,
    CheckSquare, Trash2, RemoveFormatting, BookPlus, AppWindow, RotateCcw,
-    FileX2, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
+    ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ALargeSmall, AlignJustify, MoreHorizontal, Type,
     Eye, EyeOff, History, CaseUpper, PanelTop, Search, Replace, Play, MonitorPlay, Languages, Info, Sigma, Smile,
     type LucideIcon,
   } from 'lucide-react';
@@ -113,7 +113,6 @@ interface Props {
   notes?: Note[];
   folders?: Folder[];
   onSelectNote?: (id: string) => void;
-  onDeselectNote?: () => void;
   showBackButton?: boolean;
   onBack?: () => void;
   onCloseTab?: (id: string) => void;
@@ -2199,7 +2198,6 @@ export default function NoteEditor({
   notes = [],
   folders = [],
   onSelectNote,
-  onDeselectNote,
   showBackButton = false,
   onBack,
   onCloseTab,
@@ -5908,15 +5906,6 @@ export default function NoteEditor({
             )}
 
             <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
-
-            {onDeselectNote && (
-              <Tooltip placement="bottom" label={language === 'es' ? 'Deseleccionar nota' : 'Deselect note'}>
-                <button type="button" className="btn-icon" style={noteActionBtnStyle(false)}
-                  aria-label={language === 'es' ? 'Deseleccionar nota' : 'Deselect note'} onClick={onDeselectNote}>
-                  <FileX2 size={15} />
-                </button>
-              </Tooltip>
-            )}
 
             {/* Grupo 2: Vistas y Edición (HTML, Columnas) */}
             <Tooltip placement="bottom" label={language === 'es' ? 'Vista HTML (Alt+H)' : 'HTML view (Alt+H)'}>

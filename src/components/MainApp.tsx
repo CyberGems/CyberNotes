@@ -2195,7 +2195,6 @@ export default function MainApp({
           folders={folders}
           openStickyIds={openStickyIds}
           onSelectNote={handleAttemptSelectNote}
-          onDeselectNote={() => { void handleDeselectNote(); }}
           onCloseTab={handleCloseTab}
           onDuplicateNote={handleDuplicateNote}
           onRequestDeleteNote={handleRequestDeleteNote}
