@@ -405,6 +405,7 @@ export default function LockScreen({
         <WelcomeGreeting
           language={language}
           showName={false}
+          dateFormat="short"
           style={{
             fontSize: 13,
             fontWeight: 500,

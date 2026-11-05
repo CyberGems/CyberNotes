@@ -7,6 +7,7 @@ interface WelcomeGreetingProps {
   name?: string | null;
   showName?: boolean;
   showDateTime?: boolean;
+  dateFormat?: 'full' | 'short';
   className?: string;
   style?: CSSProperties;
 }
@@ -39,9 +40,14 @@ export function getWelcomeGreeting(language: Language, name?: string | null, sho
   return general[key].replace('{name}', displayName);
 }
 
-function getDateTimeParts(language: Language, now: Date): { time: string; date: string } {
+function getDateTimeParts(language: Language, now: Date, dateFormat: 'full' | 'short' = 'full'): { time: string; date: string } {
   const locale = language === 'es' ? 'es-ES' : 'en-US';
   const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', hour12: true }).format(now);
+  if (dateFormat === 'short') {
+    const rawDate = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(now);
+    const date = rawDate.replace(/\b[a-záéíóúñ]/gi, c => c.toUpperCase());
+    return { time, date };
+  }
   const rawDate = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
   const date = rawDate.charAt(0).toUpperCase() + rawDate.slice(1);
   return { time, date };
@@ -60,6 +66,7 @@ export default function WelcomeGreeting({
   name,
   showName = true,
   showDateTime = true,
+  dateFormat = 'full',
   className,
   style,
 }: WelcomeGreetingProps) {
@@ -79,7 +86,7 @@ export default function WelcomeGreeting({
   }, []);
 
   const greeting = getWelcomeGreeting(language, name, showName);
-  const { time, date } = showDateTime ? getDateTimeParts(language, now) : { time: '', date: '' };
+  const { time, date } = showDateTime ? getDateTimeParts(language, now, dateFormat) : { time: '', date: '' };
   const ariaLabel = showDateTime ? `${greeting}, ${time}, ${date}` : greeting;
   const timeOfDay = getTimeOfDay(now.getHours());
   const TimeIcon = timeOfDay === 'morning' ? Coffee : timeOfDay === 'afternoon' ? Sun : MoonStar;
