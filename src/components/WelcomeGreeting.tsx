@@ -41,8 +41,9 @@ export function getWelcomeGreeting(language: Language, name?: string | null, sho
 
 function getDateTimeParts(language: Language, now: Date): { time: string; date: string } {
   const locale = language === 'es' ? 'es-ES' : 'en-US';
-  const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(now);
-  const date = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(now);
+  const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', hour12: true }).format(now);
+  const rawDate = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  const date = rawDate.charAt(0).toUpperCase() + rawDate.slice(1);
   return { time, date };
 }
 
@@ -97,7 +98,7 @@ export default function WelcomeGreeting({
           <span className="welcome-greeting-sep">·</span>
           <span>{time}</span>
           <span className="welcome-greeting-sep">·</span>
-          <span style={{ textTransform: 'capitalize' }}>{date}</span>
+          <span>{date}</span>
         </span>
       )}
     </div>
