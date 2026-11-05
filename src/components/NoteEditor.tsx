@@ -2340,6 +2340,37 @@ export default function NoteEditor({
     document.documentElement.classList.remove('tab-dragging');
   }, []);
 
+  const handleTabMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (draggingTabIdRef.current) return;
+    const tab = e.currentTarget;
+    const container = tab.querySelector<HTMLElement>('.editor-tab-title');
+    const text = tab.querySelector<HTMLElement>('.editor-tab-title-text');
+    if (!container || !text) return;
+
+    const overflow = text.scrollWidth - container.clientWidth;
+    if (overflow > 2) {
+      text.style.setProperty('--marquee-dist', `${overflow}px`);
+      const duration = Math.max(2.8, (overflow / 32) + 2);
+      text.style.setProperty('--marquee-duration', `${duration}s`);
+      text.classList.add('is-marquee');
+      container.classList.add('has-marquee');
+    }
+  }, []);
+
+  const handleTabMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const tab = e.currentTarget;
+    const container = tab.querySelector<HTMLElement>('.editor-tab-title');
+    const text = tab.querySelector<HTMLElement>('.editor-tab-title-text');
+    if (text) {
+      text.classList.remove('is-marquee');
+      text.style.removeProperty('--marquee-dist');
+      text.style.removeProperty('--marquee-duration');
+    }
+    if (container) {
+      container.classList.remove('has-marquee');
+    }
+  }, []);
+
   useEffect(() => {
     if (!tabContextMenu) return;
     const closeMenu = () => setTabContextMenu(null);
@@ -5245,6 +5276,7 @@ export default function NoteEditor({
                     });
                   }}
                   onDragStart={(e) => {
+                    handleTabMouseLeave(e);
                     if ((e.target as HTMLElement).closest('.tab-close-btn')) {
                       e.preventDefault();
                       return;
@@ -5282,6 +5314,8 @@ export default function NoteEditor({
                     }
                   }}
                   onDragEnd={clearTabDrag}
+                  onMouseEnter={handleTabMouseEnter}
+                  onMouseLeave={handleTabMouseLeave}
                 >
                   {isActive && (
                     <div
@@ -5321,7 +5355,9 @@ export default function NoteEditor({
                   )}
 
                   <span className="editor-tab-title" style={{ fontStyle: isDirty ? 'italic' : 'normal' }}>
-                    {displayTitle || (language === 'es' ? 'Sin título' : 'Untitled')}
+                    <span className="editor-tab-title-text">
+                      {displayTitle || (language === 'es' ? 'Sin título' : 'Untitled')}
+                    </span>
                   </span>
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, position: 'relative' }}>
