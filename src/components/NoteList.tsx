@@ -407,7 +407,7 @@ function NewNoteSplitButton({
         mainTooltip={t.noteList.addNote}
         onMain={() => onCreateNote()}
         chevronTooltip={language === 'es' ? 'Más opciones para crear' : 'More create options'}
-        menuAlign="right"
+        menuAlign="left"
         mainStyle={{ minWidth: 96, justifyContent: 'center' }}
         renderMenu={(close) => (
           <>
