@@ -148,7 +148,7 @@ const CustomImage = Image.extend({
       width: {
         default: '100%',
         renderHTML: attributes => ({
-          style: `width: ${attributes.width}; height: auto; display: inline-block; vertical-align: bottom; max-width: 100%;`,
+          style: `width: ${attributes.width}; height: auto; display: inline-block; vertical-align: bottom; max-width: 100%; margin: 0 4px;`,
         }),
         parseHTML: element => element.style.width || '100%',
       },
@@ -4404,6 +4404,53 @@ export default function NoteEditor({
     window.cyberNotesAPI?.setUnsavedChanges(hasUnsavedChanges);
   }, [hasUnsavedChanges]);
 
+  // Autofoco garantizado del editor al cargar o desbloquear la app,
+  // y al volver a una nota existente una vez que el DOM está conectado.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || !note || readOnly) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const tryFocus = () => {
+      if (cancelled || editor.isDestroyed) return;
+
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+      if (ae?.closest?.('[role="dialog"], .modal, .modal-backdrop')) return;
+
+      const dom = editor.view.dom;
+      if (!dom || !dom.isConnected) {
+        if (attempts < 30) {
+          attempts++;
+          requestAnimationFrame(tryFocus);
+        }
+        return;
+      }
+
+      // Si se acaba de crear una nota, respetar el foco del título
+      if (focusTitleNoteId && focusTitleNoteId === note.id) return;
+
+      editor.view.focus();
+      if (document.activeElement !== dom) {
+        dom.focus({ preventScroll: true });
+      }
+    };
+
+    const rafId = requestAnimationFrame(tryFocus);
+    const t1 = setTimeout(tryFocus, 60);
+    const t2 = setTimeout(tryFocus, 180);
+    const t3 = setTimeout(tryFocus, 360);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [editor, note?.id, readOnly, focusTitleNoteId]);
+
   // Al reactivar o enfocar la ventana de la app (arranque, Alt+Tab), asegurar que el editor
   // recupere el foco y pinte el caret si no se está interactuando con otro campo o modal.
   useEffect(() => {
@@ -4413,14 +4460,21 @@ export default function NoteEditor({
       const ae = document.activeElement as HTMLElement | null;
       if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
       if (document.querySelector('.modal-backdrop, .modal, [role="dialog"]')) return;
-      editor.commands.focus(undefined, { scrollIntoView: false });
+      if (focusTitleNoteId && focusTitleNoteId === note?.id) return;
+      const dom = editor.view.dom;
+      if (dom && dom.isConnected) {
+        editor.view.focus();
+        if (document.activeElement !== dom) {
+          dom.focus({ preventScroll: true });
+        }
+      }
     };
 
     window.addEventListener('focus', handleWindowFocus);
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [editor, readOnly]);
+  }, [editor, note?.id, readOnly, focusTitleNoteId]);
 
   // Actualizar editor cuando cambia la nota seleccionada o cuando se monta/desmonta
   useLayoutEffect(() => {
@@ -4502,18 +4556,9 @@ export default function NoteEditor({
         // síncrono pre-paint; view.focus() enfoca sin scrollIntoView.
         scrollContainerRef.current?.scrollTo(0, 0);
         editor.view.focus();
-        // Durante el arranque en Electron, la ventana nativa puede terminar de mostrarse
-        // unos milisegundos después de esta microtarea. Re-confirmar el foco en el editor
-        // garantiza que Chromium pinte el caret parpadeante en la posición 1 sin requerir clic.
-        const focusEditor = () => {
-          if (editor.isDestroyed) return;
-          const ae = document.activeElement as HTMLElement | null;
-          if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
-          if (document.querySelector('.modal-backdrop, .modal, [role="dialog"]')) return;
-          editor.commands.focus(undefined, { scrollIntoView: false });
-        };
-        setTimeout(focusEditor, 60);
-        setTimeout(focusEditor, 250);
+        if (editor.view.dom && document.activeElement !== editor.view.dom) {
+          editor.view.dom.focus({ preventScroll: true });
+        }
       }
       setIsRaw(false);
 
