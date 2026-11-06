@@ -848,7 +848,7 @@ function handleSessionUnlocked(): void {
     const win = stickyWindows.get(noteId);
     if (win && !win.isDestroyed()) {
       if (win.isMinimized()) win.restore();
-      win.show();
+      win.showInactive();
     }
   }
   stickyNotesHiddenByLock.clear();
@@ -857,6 +857,10 @@ function handleSessionUnlocked(): void {
       win.webContents.send('session:shield-disable');
     }
   });
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
+    mainWindow.focus();
+    mainWindow.webContents.focus();
+  }
   updateTrayMenu();
 }
 
@@ -1032,6 +1036,7 @@ function restoreWindow() {
   mainWindow.show();
   mainWindow.setOpacity(1);
   mainWindow.focus();
+  mainWindow.webContents.focus();
 }
 
 // ─── Sticky Notes Manager ──────────────────────────────────────────────────
@@ -1105,7 +1110,7 @@ function notifyStickyListChanged() {
   updateTrayMenu();
 }
 
-function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
+function openStickyNote(noteId: string, centerOnMainWindow = false, focusWindow = true): boolean {
   if (stickyWindows.has(noteId)) {
     const existing = stickyWindows.get(noteId);
     if (existing && !existing.isDestroyed()) {
@@ -1114,8 +1119,16 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
         return true;
       }
       if (existing.isMinimized()) existing.restore();
-      existing.show();
-      existing.focus();
+      if (focusWindow) {
+        existing.show();
+        existing.focus();
+      } else {
+        existing.showInactive();
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
+          mainWindow.focus();
+          mainWindow.webContents.focus();
+        }
+      }
       return true;
     }
   }
@@ -1311,7 +1324,15 @@ function openStickyNote(noteId: string, centerOnMainWindow = false): boolean {
       win.webContents.send('session:force-lock');
     }
     win.setContentSize(width, height);
-    win.show();
+    if (focusWindow) {
+      win.show();
+    } else {
+      win.showInactive();
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
+        mainWindow.focus();
+        mainWindow.webContents.focus();
+      }
+    }
     notifyStickyListChanged();
     updateTrayMenu();
   };
@@ -2338,6 +2359,7 @@ function createWindow() {
     mainWindow!.setOpacity(1);
     mainWindow!.show();
     mainWindow!.focus();
+    mainWindow!.webContents.focus();
   });
 
   if (useDevRenderer) {
@@ -2986,7 +3008,7 @@ ipcMain.handle('onboarding:finish', (_event, options: unknown) => {
     try {
       const restoreSticky = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_restore_on_startup']);
       if ((!restoreSticky || restoreSticky.value === 'true') && queryGet('SELECT note_id FROM sticky_notes WHERE note_id = ? AND is_open = 1', ['floating-demo-note'])) {
-        openStickyNote('floating-demo-note');
+        openStickyNote('floating-demo-note', false, false);
       }
     } catch (error) {
       writeLog('error', `onboarding example window failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -4156,7 +4178,7 @@ if (!gotTheLock) {
       for (const row of openStickies) {
         const noteExists = queryGet('SELECT id FROM notes WHERE id = ? AND deleted_at IS NULL', [row.note_id]);
         if (noteExists) {
-          openStickyNote(row.note_id);
+          openStickyNote(row.note_id, false, false);
         } else {
           runQuery('DELETE FROM sticky_notes WHERE note_id = ?', [row.note_id]);
         }
