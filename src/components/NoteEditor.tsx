@@ -32,7 +32,6 @@ import { removeSelectedImage } from '../utils/editorImages';
 import { createMinimapMirror, getMinimapGeometry } from '../utils/minimap';
 import { balancedToolbarBreak } from '../utils/balanceToolbar';
 import Tooltip from './Tooltip';
-import EditorEdgeToggle from './EditorEdgeToggle';
 import EditorEmptyState from './EditorEmptyState';
 import VersionHistoryModal from './VersionHistoryModal';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
@@ -6482,48 +6481,7 @@ export default function NoteEditor({
 
       </div>
 
-      <EditorEdgeToggle
-        side="left"
-        expanded={showLineGutter}
-        offset={showLineGutter ? 50 : 0}
-        label={showLineGutter
-          ? (language === 'es' ? 'Ocultar números de línea' : 'Hide line numbers')
-          : (language === 'es' ? 'Mostrar números de línea' : 'Show line numbers')}
-        onToggle={() => onShowLineGutterChange?.(!showLineGutter)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          openGutterMenu(e.clientX, e.clientY);
-        }}
-      />
-
       {/* ─── Minimap (retraíble) ─────────────────────────────────── */}
-      <EditorEdgeToggle
-        side="right"
-        expanded={showMinimap}
-        offset={showMinimap ? MINIMAP_WIDTH : 0}
-        label={showMinimap
-          ? (language === 'es' ? 'Ocultar minimapa' : 'Hide minimap')
-          : (language === 'es' ? 'Mostrar minimapa' : 'Show minimap')}
-        onToggle={() => onShowMinimapChange?.(!showMinimap)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const MENU_WIDTH = 180;
-          const MENU_HEIGHT = 48;
-          const margin = 10;
-          let x = e.clientX;
-          let y = e.clientY;
-          if (x + MENU_WIDTH + margin > window.innerWidth) {
-            x = window.innerWidth - MENU_WIDTH - margin;
-          }
-          if (y + MENU_HEIGHT + margin > window.innerHeight) {
-            y = window.innerHeight - MENU_HEIGHT - margin;
-          }
-          setMinimapMenu({ x: Math.max(margin, x), y: Math.max(margin, y) });
-        }}
-      />
-
       <div
         ref={minimapRef}
         onMouseDown={event => event.preventDefault()}
