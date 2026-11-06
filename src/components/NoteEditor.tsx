@@ -2366,7 +2366,7 @@ export default function NoteEditor({
 
     const overflow = text.scrollWidth - container.clientWidth;
     if (overflow > 2) {
-      const travel = overflow + 24;
+      const travel = overflow + 12;
       text.style.setProperty('--marquee-dist', `${travel}px`);
       const duration = Math.max(3.0, (travel / 30) + 1.8);
       text.style.setProperty('--marquee-duration', `${duration}s`);
