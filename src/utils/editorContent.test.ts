@@ -206,33 +206,40 @@ describe('loading tab content', () => {
     expect(parse).toHaveBeenCalledTimes(5);
   });
 
-  it('places a GapCursor instead of a NodeSelection when loading content starting with an image', () => {
+  it('places a TextSelection at pos 1 for inline images without auto-selecting the image', () => {
     const editor = new Editor({
-      extensions: [StarterKit, Image.configure({ inline: false })],
+      extensions: [StarterKit, Image.configure({ inline: true })],
     });
     editors.push(editor);
 
-    // Image followed by text
-    loadEditorContent(editor, '<img src="file:///pic.png"><p>After image</p>');
-    expect(editor.state.selection).toBeInstanceOf(GapCursor);
-    expect(editor.state.selection.from).toBe(0);
+    // Inline image followed by text
+    loadEditorContent(editor, '<p><img src="file:///pic.png"></p><p>After image</p>');
+    expect(editor.state.selection).toBeInstanceOf(TextSelection);
+    expect(editor.state.selection.from).toBe(1);
     expect(editor.isActive('image')).toBe(false);
 
-    // Only an image
+    // Root <img> parses into inline <p><img> and positions text caret at pos 1
     loadEditorContent(editor, '<img src="file:///only.png">');
-    expect(editor.state.selection).toBeInstanceOf(GapCursor);
-    expect(editor.state.selection.from).toBe(0);
-    expect(editor.isActive('image')).toBe(false);
-
-    // Focusing the view preserves the GapCursor and does not auto-select the image
-    editor.view.focus();
-    expect(editor.state.selection).toBeInstanceOf(GapCursor);
+    expect(editor.state.selection).toBeInstanceOf(TextSelection);
+    expect(editor.state.selection.from).toBe(1);
     expect(editor.isActive('image')).toBe(false);
 
     // Normal text notes still get a standard TextSelection inside the first textblock
     loadEditorContent(editor, '<p>Normal text note</p>');
     expect(editor.state.selection).toBeInstanceOf(TextSelection);
     expect(editor.state.selection.from).toBe(1);
+    expect(editor.isActive('image')).toBe(false);
+  });
+
+  it('places a GapCursor instead of a NodeSelection when loading block images', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, Image.configure({ inline: false })],
+    });
+    editors.push(editor);
+
+    loadEditorContent(editor, '<img src="file:///block.png">');
+    expect(editor.state.selection).toBeInstanceOf(GapCursor);
+    expect(editor.state.selection.from).toBe(0);
     expect(editor.isActive('image')).toBe(false);
   });
 });

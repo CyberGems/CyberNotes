@@ -1157,7 +1157,8 @@ select option {
 .ProseMirror img {
   max-width: 100%;
   border-radius: var(--radius-md);
-  margin: 12px auto;
+  margin: 6px 0;
+  vertical-align: bottom;
   border: 2px solid transparent;
   transition: all var(--transition);
   cursor: pointer;
@@ -1169,6 +1170,32 @@ select option {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
   box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+/* GapCursor de ProseMirror (cursor vertical entre bloques no textuales) */
+.ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+}
+.ProseMirror-gapcursor:after {
+  content: "";
+  display: block;
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+@keyframes ProseMirror-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
 }
 
 /* Tablas TipTap: bordes sobrios + celda activa visible. */

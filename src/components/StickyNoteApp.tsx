@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
-import { EditorState } from '@tiptap/pm/state';
+import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { EditorView } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -442,7 +442,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       }),
       CopyableCodeBlock,
       CopyableBlockquote,
-      TiptapImage.configure({ allowBase64: true, inline: false }),
+      TiptapImage.configure({ allowBase64: true, inline: true }),
       Underline,
       Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -470,6 +470,14 @@ export default function StickyNoteApp({ noteId }: Props) {
       // Mismo set simple que el editor principal (h1/h2/cita/código quedan en
       // sus atajos dobles por defecto). Alt+F/T enfoca los combos del footer.
       handleKeyDown: (_view, event) => {
+        if (event.key === 'Escape') {
+          const selection = _view.state.selection;
+          if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+            event.preventDefault();
+            _view.dispatch(_view.state.tr.setSelection(TextSelection.create(_view.state.doc, selection.from)));
+            return true;
+          }
+        }
         if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
           const k = event.key.toLowerCase();
           const ed = stickyEditorRef.current;

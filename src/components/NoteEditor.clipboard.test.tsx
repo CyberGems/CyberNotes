@@ -67,7 +67,7 @@ describe('NoteEditor image clipboard actions', () => {
     }
   });
 
-  async function render(language: 'es' | 'en' = 'es', content = `<img src="${source}"><p>After</p>`, imagePos = 0) {
+  async function render(language: 'es' | 'en' = 'es', content = `<img src="${source}"><p>After</p>`, imagePos?: number) {
     const props: ComponentProps<typeof NoteEditor> = {
       language,
       note: { id: 'image-note', title: 'Image', content,
@@ -79,7 +79,17 @@ describe('NoteEditor image clipboard actions', () => {
     const dom = container.querySelector<HTMLElement>('.tiptap')!;
     editor = (dom as HTMLElement & { editor: Editor }).editor;
     editor.view.setProps({ handleScrollToSelection: () => true });
-    await act(async () => { editor.commands.setNodeSelection(imagePos); });
+    if (imagePos !== undefined) {
+      await act(async () => { editor.commands.setNodeSelection(imagePos); });
+    } else {
+      let firstImagePos: number | null = null;
+      editor.state.doc.descendants((node, pos) => {
+        if (firstImagePos === null && node.type.name === 'image') firstImagePos = pos;
+      });
+      if (firstImagePos !== null) {
+        await act(async () => { editor.commands.setNodeSelection(firstImagePos!); });
+      }
+    }
     return dom;
   }
 
@@ -108,7 +118,7 @@ describe('NoteEditor image clipboard actions', () => {
 
   it.each(['Delete', 'Backspace', 'menu', 'cut'])('leaves the caret where the image was after %s', async action => {
     const second = 'file:///notes/images/second.png';
-    const dom = await render('es', `<p>Before</p><img src="${source}"><img src="${second}"><p>After</p>`, 8);
+    const dom = await render('es', `<p>Before</p><p><img src="${source}"></p><p><img src="${second}"></p><p>After</p>`, 9);
     if (action === 'menu') {
       await openMenu();
       await act(async () => { menuButton('Eliminar').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); });
@@ -121,19 +131,19 @@ describe('NoteEditor image clipboard actions', () => {
     expectCaretInEmptyParagraph(9);
     expect(editor.state.doc.firstChild?.textContent).toBe('Before');
     expect(editor.state.doc.lastChild?.textContent).toBe('After');
-    expect(editor.view.dom.querySelectorAll('img')).toHaveLength(1);
-    expect(editor.view.dom.querySelector('img')?.getAttribute('src')).toBe(second);
+    expect(editor.view.dom.querySelectorAll('img:not(.ProseMirror-separator)')).toHaveLength(1);
+    expect(editor.view.dom.querySelector('img:not(.ProseMirror-separator)')?.getAttribute('src')).toBe(second);
   });
 
   it('targets the exact image on right click even when its source is repeated', async () => {
     await render('es', `<img src="${source}"><p>Between</p><img src="${source}"><p>After</p>`);
-    const images = editor.view.dom.querySelectorAll('img');
+    const images = editor.view.dom.querySelectorAll<HTMLImageElement>('img:not(.ProseMirror-separator)');
     await openMenu(images[1]);
     expect(editor.state.selection).toBeInstanceOf(NodeSelection);
-    expect(editor.state.selection.from).toBe(10);
+    expect(editor.state.selection.from).toBe(13);
     await act(async () => { menuButton('Eliminar').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); });
-    expect(editor.state.doc.firstChild?.type.name).toBe('image');
-    expectCaretInEmptyParagraph(11);
+    expect(editor.state.doc.firstChild?.firstChild?.type.name).toBe('image');
+    expectCaretInEmptyParagraph(13);
   });
 
   it.each([
@@ -142,17 +152,17 @@ describe('NoteEditor image clipboard actions', () => {
     ['last block', `<p>Before</p><img src="${source}">`],
     ['between text blocks', `<p>Before</p><img src="${source}"><p>After</p>`],
     ['next to an empty paragraph', `<p></p><img src="${source}"><p></p>`],
-    ['inside a quote', `<blockquote><img src="${source}"></blockquote>`],
-    ['inside a list', `<ul><li><p>Item</p><img src="${source}"></li></ul>`],
-    ['inside a table cell', `<table><tr><td><img src="${source}"></td><td><p>Other cell</p></td></tr></table>`],
+    ['inside a quote', `<blockquote><p><img src="${source}"></p></blockquote>`],
+    ['inside a list', `<ul><li><p>Item</p><p><img src="${source}"></p></li></ul>`],
+    ['inside a table cell', `<table><tr><td><p><img src="${source}"></p></td><td><p>Other cell</p></td></tr></table>`],
   ])('keeps a writable caret after deleting the %s', async (_name, content) => {
     const dom = await render('es', content);
     let imagePos = -1;
     editor.state.doc.descendants((node, pos) => { if (node.type.name === 'image') imagePos = pos; });
     await act(async () => { editor.commands.setNodeSelection(imagePos); });
     await act(async () => { dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true })); });
-    expectCaretInEmptyParagraph(imagePos + 1);
-    expect(editor.view.dom.querySelector('img')).toBeNull();
+    expectCaretInEmptyParagraph(imagePos);
+    expect(editor.view.dom.querySelector('img:not(.ProseMirror-separator)')).toBeNull();
     await act(async () => { editor.commands.insertContent('Here'); });
     expect(editor.state.selection.$from.parent.textContent).toBe('Here');
   });

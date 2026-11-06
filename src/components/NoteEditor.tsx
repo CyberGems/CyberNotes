@@ -137,7 +137,7 @@ interface Props {
   openStickyIds?: string[];
 }
 
-// Extensión personalizada para imagen con soporte de tamaño y alineación
+// Extensión personalizada para imagen con soporte de tamaño y alineación (en línea, estilo Word)
 const CustomImage = Image.extend({
   addAttributes() {
     return {
@@ -145,16 +145,16 @@ const CustomImage = Image.extend({
       width: {
         default: '100%',
         renderHTML: attributes => ({
-          style: `width: ${attributes.width}; height: auto; display: block; margin-left: ${attributes.align === 'left' ? '0' : attributes.align === 'right' ? 'auto' : 'auto'}; margin-right: ${attributes.align === 'right' ? '0' : attributes.align === 'left' ? 'auto' : 'auto'};`,
+          style: `width: ${attributes.width}; height: auto; display: inline-block; vertical-align: bottom; max-width: 100%;`,
         }),
-        parseHTML: element => element.style.width,
+        parseHTML: element => element.style.width || '100%',
       },
       align: {
         default: 'center',
         renderHTML: attributes => ({
           'data-align': attributes.align,
         }),
-        parseHTML: element => element.getAttribute('data-align'),
+        parseHTML: element => element.getAttribute('data-align') || 'center',
       },
     };
   },
@@ -3298,10 +3298,34 @@ export default function NoteEditor({
           canRedo = ed.can().redo();
           // La URL puede repetirse. Resolver el elemento pulsado a su posición
           // real evita seleccionar o borrar la primera copia de otra imagen.
-          const img = lastContextMenuElementRef.current?.closest('img');
+          const img = lastContextMenuElementRef.current?.closest('img:not(.ProseMirror-separator)');
           if (img && ed.view.dom.contains(img)) {
-            const pos = ed.view.posAtDOM(img, 0);
-            if (ed.state.doc.nodeAt(pos)?.type.name === 'image') ed.commands.setNodeSelection(pos);
+            let imagePos: number | null = null;
+            if (img.parentElement) {
+              const childIdx = Array.from(img.parentElement.childNodes).indexOf(img);
+              if (childIdx !== -1) {
+                try {
+                  const pPos = ed.view.posAtDOM(img.parentElement, childIdx);
+                  if (ed.state.doc.nodeAt(pPos)?.type.name === 'image') imagePos = pPos;
+                } catch {
+                  /* fallback */
+                }
+              }
+            }
+            if (imagePos === null) {
+              try {
+                const pos = ed.view.posAtDOM(img, 0);
+                for (const candidate of [pos, pos - 1, pos + 1]) {
+                  if (candidate >= 0 && ed.state.doc.nodeAt(candidate)?.type.name === 'image') {
+                    imagePos = candidate;
+                    break;
+                  }
+                }
+              } catch {
+                /* fallback */
+              }
+            }
+            if (imagePos !== null) ed.commands.setNodeSelection(imagePos);
           }
           const selection = ed.state.selection;
           if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
@@ -3382,7 +3406,7 @@ export default function NoteEditor({
       CopyableBlockquote,
       CustomImage.configure({
         allowBase64: true,
-        inline: false,
+        inline: true,
         HTMLAttributes: {
           class: 'editor-image',
         },
@@ -3463,6 +3487,17 @@ export default function NoteEditor({
         },
       },
       handleKeyDown: (_view, event) => {
+        // Esc: si hay una imagen seleccionada, colapsa el caret al lado izquierdo de la imagen (estilo Word)
+        if (event.key === 'Escape') {
+          const selection = _view.state.selection;
+          if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+            event.preventDefault();
+            const from = selection.from;
+            _view.dispatch(_view.state.tr.setSelection(TextSelection.create(_view.state.doc, from)));
+            setImageToolbarDismissed(true);
+            return true;
+          }
+        }
         // Shift+Supr conserva el corte nativo. Los demás borrados de una
         // imagen seleccionada comparten el mismo destino explícito del caret.
         if (
@@ -3859,7 +3894,7 @@ export default function NoteEditor({
         link: e.isActive('link'),
         image: e.isActive('image'),
         table: e.isActive('table'),
-        imageAlign: (imageAttrs?.align as string | undefined) ?? 'center',
+        imageAlign: (imageAttrs?.align as string | undefined) ?? (e.isActive({ textAlign: 'center' }) ? 'center' : e.isActive({ textAlign: 'right' }) ? 'right' : 'left'),
         imageWidth: (imageAttrs?.width as string | undefined) ?? null,
       };
     },
@@ -4854,6 +4889,25 @@ export default function NoteEditor({
     if (!url) return;
     editor.chain().focus().setImage({ src: url }).run();
   };
+
+  const updateSelectedImageAttributes = useCallback((attrs: { width?: string; align?: 'left' | 'center' | 'right' }) => {
+    if (!editor) return;
+    const { selection } = editor.state;
+    if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+      const pos = selection.from;
+      const tr = editor.state.tr.setNodeMarkup(pos, undefined, {
+        ...selection.node.attrs,
+        ...attrs,
+      });
+      tr.setSelection(NodeSelection.create(tr.doc, pos));
+      editor.view.dispatch(tr);
+    } else {
+      editor.chain().focus().updateAttributes('image', attrs).run();
+    }
+    if (attrs.align) {
+      editor.chain().focus().setTextAlign(attrs.align).run();
+    }
+  }, [editor]);
 
   /**
    * Imágenes pegadas o arrastradas al editor: se guardan como archivo en
@@ -6174,9 +6228,9 @@ export default function NoteEditor({
             >
               <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>{language === 'es' ? 'Imagen:' : 'Image:'}</span>
               <div style={{ display: 'flex', gap: 4 }}>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()} active={ui.imageAlign === 'left'} title={language === 'es' ? 'Izquierda' : 'Left'}><AlignLeft size={14} /></ToolbarBtn>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()} active={ui.imageAlign === 'center'} title={language === 'es' ? 'Centro' : 'Center'}><AlignCenter size={14} /></ToolbarBtn>
-                <ToolbarBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()} active={ui.imageAlign === 'right'} title={language === 'es' ? 'Derecha' : 'Right'}><AlignRight size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => updateSelectedImageAttributes({ align: 'left' })} active={ui.imageAlign === 'left'} title={language === 'es' ? 'Izquierda' : 'Left'}><AlignLeft size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => updateSelectedImageAttributes({ align: 'center' })} active={ui.imageAlign === 'center'} title={language === 'es' ? 'Centro' : 'Center'}><AlignCenter size={14} /></ToolbarBtn>
+                <ToolbarBtn onClick={() => updateSelectedImageAttributes({ align: 'right' })} active={ui.imageAlign === 'right'} title={language === 'es' ? 'Derecha' : 'Right'}><AlignRight size={14} /></ToolbarBtn>
               </div>
               <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
               <div style={{ display: 'flex', gap: 4 }}>
@@ -6185,7 +6239,7 @@ export default function NoteEditor({
                     key={size}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => editor.chain().focus().updateAttributes('image', { width: size }).run()}
+                    onClick={() => updateSelectedImageAttributes({ width: size })}
                     style={{
                       padding: '4px 8px', fontSize: 10, fontWeight: 700, borderRadius: 4,
                       border: '1px solid var(--border)', cursor: 'pointer',

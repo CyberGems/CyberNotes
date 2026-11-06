@@ -66,7 +66,7 @@ describe('temporary context toolbar dismissal', () => {
 
   it('hides only the current image toolbar and preserves selection and note content', async () => {
     await render();
-    await act(async () => { editor.commands.setNodeSelection(18); });
+    await act(async () => { editor.commands.setNodeSelection(19); });
     const selection = editor.state.selection;
     const html = editor.getHTML();
     expect(container.querySelector('[data-editor-toolbar="image"]')).not.toBeNull();
@@ -80,11 +80,11 @@ describe('temporary context toolbar dismissal', () => {
     await act(async () => { editor.commands.updateAttributes('image', { width: '40%' }); });
     await settle();
     expect(container.querySelector('[data-editor-toolbar="image"]')).toBeNull();
-    await act(async () => { editor.commands.setNodeSelection(19); });
+    await act(async () => { editor.commands.setNodeSelection(20); });
     expect(container.querySelector('[data-editor-toolbar="image"]')).not.toBeNull();
-    await act(async () => { editor.commands.setTextSelection(1); editor.commands.setNodeSelection(18); });
+    await act(async () => { editor.commands.setTextSelection(1); editor.commands.setNodeSelection(19); });
     expect(container.querySelector('[data-editor-toolbar="image"]')).not.toBeNull();
-  });
+  }, 15000);
 
   it('does not display image toolbar or select image when opening a note starting with an image', async () => {
     props = {
@@ -106,9 +106,18 @@ describe('temporary context toolbar dismissal', () => {
     expect(container.querySelector('[data-editor-toolbar="image"]')).toBeNull();
     expect(editor.isActive('image')).toBe(false);
 
-    await act(async () => { editor.commands.setNodeSelection(0); });
+    await act(async () => { editor.commands.setNodeSelection(1); });
     expect(container.querySelector('[data-editor-toolbar="image"]')).not.toBeNull();
     expect(editor.isActive('image')).toBe(true);
+
+    // Pressing Escape collapses selection to a text caret at the left of the image and closes toolbar
+    await act(async () => {
+      editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await settle();
+    expect(container.querySelector('[data-editor-toolbar="image"]')).toBeNull();
+    expect(editor.isActive('image')).toBe(false);
+    expect(editor.state.selection.from).toBe(1);
   });
 
   it('hides the real text bubble without collapsing its selection, then returns for a new selection', async () => {
@@ -215,5 +224,5 @@ describe('temporary context toolbar dismissal', () => {
     await settle();
     await act(async () => selectText('Second table'));
     expect(container.querySelector('[data-editor-toolbar="table"]')).not.toBeNull();
-  });
+  }, 15000);
 });

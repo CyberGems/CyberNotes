@@ -10,15 +10,32 @@ export function removeImageAt(editor: Editor, pos: number, options: {
   const { state } = editor;
   const image = state.doc.nodeAt(pos);
   const paragraph = state.schema.nodes.paragraph;
-  if (image?.type.name !== 'image' || !image.isBlock || !paragraph) return false;
-  const $pos = state.doc.resolve(pos);
-  if (!$pos.parent.canReplaceWith($pos.index(), $pos.index() + 1, paragraph)) return false;
+  if (image?.type.name !== 'image') return false;
 
-  // This replaces one media block, even if it is the quote's only content.
-  // Keep TipTap's select-all cleanup from lifting the new paragraph out.
-  const tr = state.tr.replaceWith(pos, pos + image.nodeSize, paragraph.create())
-    .setMeta('preventClearDocument', true);
-  if (!options.preserveSelection) tr.setSelection(TextSelection.create(tr.doc, pos + 1));
+  if (image.isBlock) {
+    if (!paragraph) return false;
+    const $pos = state.doc.resolve(pos);
+    if (!$pos.parent.canReplaceWith($pos.index(), $pos.index() + 1, paragraph)) return false;
+
+    // This replaces one media block, even if it is the quote's only content.
+    // Keep TipTap's select-all cleanup from lifting the new paragraph out.
+    const tr = state.tr.replaceWith(pos, pos + image.nodeSize, paragraph.create())
+      .setMeta('preventClearDocument', true);
+    if (!options.preserveSelection) tr.setSelection(TextSelection.create(tr.doc, pos + 1));
+    editor.view.dispatch(tr.scrollIntoView().setMeta('uiEvent', options.uiEvent ?? 'delete'));
+    return true;
+  }
+
+  // Imagen en línea: eliminar el nodo y colocar el caret de texto en la misma posición dentro del párrafo
+  const tr = state.tr.delete(pos, pos + image.nodeSize).setMeta('preventClearDocument', true);
+  const safePos = Math.max(0, Math.min(pos, tr.doc.content.size));
+  if (!options.preserveSelection) {
+    try {
+      tr.setSelection(TextSelection.create(tr.doc, safePos));
+    } catch {
+      /* selección protegida */
+    }
+  }
   editor.view.dispatch(tr.scrollIntoView().setMeta('uiEvent', options.uiEvent ?? 'delete'));
   return true;
 }
