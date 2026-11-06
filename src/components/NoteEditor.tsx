@@ -27,6 +27,7 @@ import { playSynthSound } from '../utils/audio';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabHydrationStart, tabHydrationEnd } from '../utils/tabPerf';
 import { loadEditorContent } from '../utils/editorContent';
+import { ImageCaret } from '../utils/imageCaret';
 import { cutSelectedImage } from '../utils/editorClipboard';
 import { removeSelectedImage } from '../utils/editorImages';
 import { createMinimapMirror, getMinimapGeometry } from '../utils/minimap';
@@ -3415,6 +3416,7 @@ export default function NoteEditor({
           class: 'editor-image',
         },
       }),
+      ImageCaret,
       Link.configure({
         openOnClick: true,
         autolink: true,
@@ -4402,6 +4404,24 @@ export default function NoteEditor({
     window.cyberNotesAPI?.setUnsavedChanges(hasUnsavedChanges);
   }, [hasUnsavedChanges]);
 
+  // Al reactivar o enfocar la ventana de la app (arranque, Alt+Tab), asegurar que el editor
+  // recupere el foco y pinte el caret si no se está interactuando con otro campo o modal.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || readOnly) return;
+
+    const handleWindowFocus = () => {
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+      if (document.querySelector('.modal-backdrop, .modal, [role="dialog"]')) return;
+      editor.commands.focus(undefined, { scrollIntoView: false });
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [editor, readOnly]);
+
   // Actualizar editor cuando cambia la nota seleccionada o cuando se monta/desmonta
   useLayoutEffect(() => {
     const draft = note ? draftCache[note.id] : null;
@@ -4482,6 +4502,18 @@ export default function NoteEditor({
         // síncrono pre-paint; view.focus() enfoca sin scrollIntoView.
         scrollContainerRef.current?.scrollTo(0, 0);
         editor.view.focus();
+        // Durante el arranque en Electron, la ventana nativa puede terminar de mostrarse
+        // unos milisegundos después de esta microtarea. Re-confirmar el foco en el editor
+        // garantiza que Chromium pinte el caret parpadeante en la posición 1 sin requerir clic.
+        const focusEditor = () => {
+          if (editor.isDestroyed) return;
+          const ae = document.activeElement as HTMLElement | null;
+          if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+          if (document.querySelector('.modal-backdrop, .modal, [role="dialog"]')) return;
+          editor.commands.focus(undefined, { scrollIntoView: false });
+        };
+        setTimeout(focusEditor, 60);
+        setTimeout(focusEditor, 250);
       }
       setIsRaw(false);
 

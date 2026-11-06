@@ -1157,7 +1157,7 @@ select option {
 .ProseMirror img {
   max-width: 100%;
   border-radius: var(--radius-md);
-  margin: 6px 0;
+  margin: 0;
   vertical-align: bottom;
   border: 2px solid transparent;
   transition: all var(--transition);
@@ -1170,6 +1170,38 @@ select option {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
   box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+/* Caret de estilo Word para imágenes en línea */
+.editor-image-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  background-color: var(--text-primary);
+  vertical-align: bottom;
+  margin-bottom: 2px;
+  pointer-events: none;
+  animation: editor-caret-blink 1s steps(2, start) infinite;
+}
+.editor-image-caret.is-before {
+  margin-right: -2px;
+}
+.editor-image-caret.is-after {
+  margin-left: -2px;
+}
+
+@keyframes editor-caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.ProseMirror.has-image-caret {
+  caret-color: transparent !important;
+}
+
+.ProseMirror:not(:focus) .editor-image-caret,
+.ProseMirror:not(:focus-within) .editor-image-caret {
+  display: none !important;
 }
 
 /* GapCursor de ProseMirror (cursor vertical entre bloques no textuales) */

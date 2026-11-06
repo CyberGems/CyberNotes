@@ -21,6 +21,7 @@ import { applyThemeVars } from '../themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { getInitialSelection } from '../utils/editorContent';
+import { ImageCaret } from '../utils/imageCaret';
 import { CustomTextStyle, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
 import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 import Tooltip from './Tooltip';
@@ -443,6 +444,7 @@ export default function StickyNoteApp({ noteId }: Props) {
       CopyableCodeBlock,
       CopyableBlockquote,
       TiptapImage.configure({ allowBase64: true, inline: true }),
+      ImageCaret,
       Underline,
       Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
