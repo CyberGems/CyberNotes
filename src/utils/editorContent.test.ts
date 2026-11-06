@@ -7,8 +7,11 @@ import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
+import Image from '@tiptap/extension-image';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
+import { GapCursor } from '@tiptap/pm/gapcursor';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadEditorContent } from './editorContent';
+import { getInitialSelection, loadEditorContent } from './editorContent';
 
 describe('loading tab content', () => {
   const editors: Editor[] = [];
@@ -201,5 +204,35 @@ describe('loading tab content', () => {
     expect(editor.getText()).toBe('Oversized');
     loadEditorContent(editor, large);
     expect(parse).toHaveBeenCalledTimes(5);
+  });
+
+  it('places a GapCursor instead of a NodeSelection when loading content starting with an image', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, Image.configure({ inline: false })],
+    });
+    editors.push(editor);
+
+    // Image followed by text
+    loadEditorContent(editor, '<img src="file:///pic.png"><p>After image</p>');
+    expect(editor.state.selection).toBeInstanceOf(GapCursor);
+    expect(editor.state.selection.from).toBe(0);
+    expect(editor.isActive('image')).toBe(false);
+
+    // Only an image
+    loadEditorContent(editor, '<img src="file:///only.png">');
+    expect(editor.state.selection).toBeInstanceOf(GapCursor);
+    expect(editor.state.selection.from).toBe(0);
+    expect(editor.isActive('image')).toBe(false);
+
+    // Focusing the view preserves the GapCursor and does not auto-select the image
+    editor.view.focus();
+    expect(editor.state.selection).toBeInstanceOf(GapCursor);
+    expect(editor.isActive('image')).toBe(false);
+
+    // Normal text notes still get a standard TextSelection inside the first textblock
+    loadEditorContent(editor, '<p>Normal text note</p>');
+    expect(editor.state.selection).toBeInstanceOf(TextSelection);
+    expect(editor.state.selection.from).toBe(1);
+    expect(editor.isActive('image')).toBe(false);
   });
 });

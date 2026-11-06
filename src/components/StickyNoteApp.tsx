@@ -20,6 +20,7 @@ import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
+import { getInitialSelection } from '../utils/editorContent';
 import { CustomTextStyle, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
 import { CopyableBlockquote, CopyableCodeBlock } from './CopyableBlocks';
 import Tooltip from './Tooltip';
@@ -240,6 +241,7 @@ function loadStickyEditorContent(editor: Editor, raw: string) {
   editor.chain().setMeta('addToHistory', false).setContent(raw || '', false).run();
   const fresh = EditorState.create({
     doc: editor.state.doc,
+    selection: getInitialSelection(editor.state.doc),
     plugins: editor.state.plugins,
   });
   editor.view.updateState(fresh);

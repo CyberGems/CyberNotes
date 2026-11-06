@@ -86,6 +86,31 @@ describe('temporary context toolbar dismissal', () => {
     expect(container.querySelector('[data-editor-toolbar="image"]')).not.toBeNull();
   });
 
+  it('does not display image toolbar or select image when opening a note starting with an image', async () => {
+    props = {
+      ...props,
+      note: {
+        id: 'image-first',
+        title: 'Image First',
+        content: '<img src="file:///lead.png"><p>Following text</p>',
+        folder_id: null,
+        pinned: 0,
+        preview: '',
+        created_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      },
+    };
+    await render();
+    await settle();
+
+    expect(container.querySelector('[data-editor-toolbar="image"]')).toBeNull();
+    expect(editor.isActive('image')).toBe(false);
+
+    await act(async () => { editor.commands.setNodeSelection(0); });
+    expect(container.querySelector('[data-editor-toolbar="image"]')).not.toBeNull();
+    expect(editor.isActive('image')).toBe(true);
+  });
+
   it('hides the real text bubble without collapsing its selection, then returns for a new selection', async () => {
     await render();
     await act(async () => { editor.commands.setTextSelection({ from: 1, to: 7 }); editor.view.focus(); });
