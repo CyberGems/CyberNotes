@@ -415,5 +415,59 @@ describe('ImageCaret Extension', () => {
 
       editor.destroy();
     });
+
+    it('expands text selection across an image, intervening spaces, and into a second image with Shift+ArrowRight', () => {
+      const editor = new Editor({
+        extensions: [
+          StarterKit,
+          Image.configure({ inline: true, allowBase64: true }),
+          ImageCaret,
+        ],
+        content: '<p><img src="data:image/png;base64,123" />&nbsp;&nbsp;&nbsp;<img src="data:image/png;base64,456" /></p>',
+      });
+
+      // Pos 1 is before first image
+      editor.commands.setTextSelection(1);
+
+      // Press Shift + ArrowRight: selects first image (from: 1, to: 2)
+      editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true }))
+      );
+      expect(editor.state.selection.from).toBe(1);
+      expect(editor.state.selection.to).toBe(2);
+
+      // Press Shift + ArrowRight: selects 1st space (to: 3)
+      editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true }))
+      );
+      expect(editor.state.selection.from).toBe(1);
+      expect(editor.state.selection.to).toBe(3);
+
+      // Press Shift + ArrowRight: selects 2nd space (to: 4)
+      editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true }))
+      );
+      expect(editor.state.selection.to).toBe(4);
+
+      // Press Shift + ArrowRight: selects 3rd space (to: 5, right before 2nd image)
+      editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true }))
+      );
+      expect(editor.state.selection.to).toBe(5);
+
+      // Press Shift + ArrowRight: steps across 2nd image (to: 6)
+      editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true }))
+      );
+      expect(editor.state.selection.to).toBe(6);
+
+      // Press Shift + ArrowLeft: contracts back across 2nd image (to: 5)
+      editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true }))
+      );
+      expect(editor.state.selection.to).toBe(5);
+
+      editor.destroy();
+    });
   });
 });

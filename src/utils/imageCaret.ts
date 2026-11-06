@@ -1,8 +1,25 @@
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey, NodeSelection, TextSelection } from '@tiptap/pm/state';
+import { Plugin, PluginKey, NodeSelection, TextSelection, type Selection } from '@tiptap/pm/state';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 export const imageCaretPluginKey = new PluginKey('imageCaret');
+
+/** Comprueba si la selección actual contiene o linda con una imagen en línea. */
+export function selectionTouchesImage(selection: Selection, doc: PMNode): boolean {
+  if (selection instanceof NodeSelection && selection.node.type.name === 'image') return true;
+  if (!(selection instanceof TextSelection)) return false;
+  const { $head } = selection;
+  if ($head.nodeAfter?.type.name === 'image' || $head.nodeBefore?.type.name === 'image') return true;
+  let touches = false;
+  doc.nodesBetween(selection.from, selection.to, node => {
+    if (node.type.name === 'image') {
+      touches = true;
+      return false;
+    }
+  });
+  return touches;
+}
 
 /**
  * Renders a Word-style font-height blinking caret next to inline images,
@@ -131,22 +148,43 @@ export const ImageCaret = Extension.create({
               }
             }
 
-            // Shift + Flechas junto a una imagen en línea: extender/contraer selección sobre la imagen
+            // Shift + Flechas cuando la selección incluye o toca una imagen en línea:
+            // extender/contraer selección sobre texto e imágenes contiguas (evitando que Chromium se atasque)
             if (event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && selection instanceof TextSelection) {
-              const { $head, anchor } = selection;
-              if (event.key === 'ArrowRight' && $head.nodeAfter?.type.name === 'image') {
-                event.preventDefault();
-                const newHead = $head.pos + $head.nodeAfter.nodeSize;
-                view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, newHead)));
-                view.focus();
-                return true;
-              }
-              if (event.key === 'ArrowLeft' && $head.nodeBefore?.type.name === 'image') {
-                event.preventDefault();
-                const newHead = $head.pos - $head.nodeBefore.nodeSize;
-                view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, newHead)));
-                view.focus();
-                return true;
+              if (selectionTouchesImage(selection, view.state.doc)) {
+                const { $head, anchor } = selection;
+                if (event.key === 'ArrowRight') {
+                  let newHead: number | null = null;
+                  if ($head.pos < $head.end()) {
+                    const step = $head.nodeAfter?.type.name === 'image' ? $head.nodeAfter.nodeSize : 1;
+                    newHead = $head.pos + step;
+                  } else if ($head.pos < view.state.doc.content.size) {
+                    const nextSel = TextSelection.findFrom(view.state.doc.resolve($head.pos + 1), 1);
+                    if (nextSel) newHead = nextSel.head;
+                  }
+                  if (newHead !== null && newHead !== $head.pos) {
+                    event.preventDefault();
+                    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, newHead)));
+                    view.focus();
+                    return true;
+                  }
+                }
+                if (event.key === 'ArrowLeft') {
+                  let newHead: number | null = null;
+                  if ($head.pos > $head.start()) {
+                    const step = $head.nodeBefore?.type.name === 'image' ? $head.nodeBefore.nodeSize : 1;
+                    newHead = $head.pos - step;
+                  } else if ($head.pos > 0) {
+                    const prevSel = TextSelection.findFrom(view.state.doc.resolve($head.pos - 1), -1);
+                    if (prevSel) newHead = prevSel.head;
+                  }
+                  if (newHead !== null && newHead !== $head.pos) {
+                    event.preventDefault();
+                    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, newHead)));
+                    view.focus();
+                    return true;
+                  }
+                }
               }
             }
 

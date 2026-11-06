@@ -225,4 +225,53 @@ describe('temporary context toolbar dismissal', () => {
     await act(async () => selectText('Second table'));
     expect(container.querySelector('[data-editor-toolbar="table"]')).not.toBeNull();
   }, 15000);
+
+  it('does not display floating text toolbar when only spaces are selected', async () => {
+    props = {
+      ...props,
+      note: {
+        ...props.note!,
+        content: '<p>Hello&nbsp;&nbsp;&nbsp;World</p>',
+      },
+    };
+    await render();
+    // Pos 6 to 9 are the three non-breaking spaces between Hello and World
+    await act(async () => {
+      editor.commands.setTextSelection({ from: 6, to: 9 });
+      editor.view.focus();
+    });
+    await settle();
+    expect(textToolbarVisible()).toBe(false);
+
+    // Now select actual text "World"
+    await act(async () => {
+      editor.commands.setTextSelection({ from: 9, to: 14 });
+      editor.view.focus();
+    });
+    await settle();
+    expect(textToolbarVisible()).toBe(true);
+  });
+
+  it('hides floating text toolbar while modifier key is held and displays it when released', async () => {
+    await render();
+    // Simulate modifier keydown (e.g. Shift)
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', shiftKey: true }));
+    });
+
+    // Select text while Shift is held down
+    await act(async () => {
+      editor.commands.setTextSelection({ from: 1, to: 7 });
+      editor.view.focus();
+    });
+    await settle();
+    expect(textToolbarVisible()).toBe(false);
+
+    // Release Shift
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift' }));
+    });
+    await settle();
+    expect(textToolbarVisible()).toBe(true);
+  });
 });

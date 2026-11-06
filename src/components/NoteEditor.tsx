@@ -2046,12 +2046,11 @@ export function applyChangeCase(editor: Editor, kind: ChangeCaseKind): boolean {
  * selección de forma nativa y dejar el caret en el punto pulsado. Por eso
  * solo se aplica si el gesto fue un arrastre real.
  */
-export function refreshBubbleMenuAfterDrag(
-  editor: Editor,
-  start: { x: number; y: number } | null,
-  end: { clientX: number; clientY: number },
-): boolean {
-  if (!wasDragSelection(start, end)) return false;
+/**
+ * Fuerza la reevaluación de la barra flotante (BubbleMenu) re-emitiendo la selección.
+ * Solo pasos de selección: nada entra en el undo.
+ */
+export function refreshBubbleMenu(editor: Editor): boolean {
   if (editor.isDestroyed || editor.state.selection.empty) return false;
   const sel = editor.state.selection;
   if (!(sel instanceof TextSelection)) return false;
@@ -2062,6 +2061,15 @@ export function refreshBubbleMenuAfterDrag(
     /* vista no lista */
   }
   return true;
+}
+
+export function refreshBubbleMenuAfterDrag(
+  editor: Editor,
+  start: { x: number; y: number } | null,
+  end: { clientX: number; clientY: number },
+): boolean {
+  if (!wasDragSelection(start, end)) return false;
+  return refreshBubbleMenu(editor);
 }
 
 /**
@@ -2445,6 +2453,9 @@ export default function NoteEditor({
   // Click izquierdo presionado dentro del editor: arrastre de selección en
   // curso. Mientras dure, shouldShow de la barra flotante devuelve false.
   const isDragSelectingRef = useRef(false);
+  // Teclas modificadoras (Shift, Ctrl, Alt, Meta) pulsadas/mantenidas durante
+  // una selección. La barra flotante no se muestra hasta soltar el modificador.
+  const isModifierSelectingRef = useRef(false);
   // Posición del mouse al iniciar el arrastre, para distinguir un clic
   // simple (colapsar la selección en el punto del clic) de un arrastre real.
   const dragStartPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -2488,8 +2499,54 @@ export default function NoteEditor({
       // punto pulsado. No hay que tocar nada.
       refreshBubbleMenuAfterDrag(ed, start, event);
     };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Shift' ||
+        event.key === 'Control' ||
+        event.key === 'Alt' ||
+        event.key === 'Meta' ||
+        event.shiftKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey
+      ) {
+        isModifierSelectingRef.current = true;
+      }
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        const wasModifierActive = isModifierSelectingRef.current;
+        isModifierSelectingRef.current = false;
+        if (wasModifierActive) {
+          const ed = editorRef.current;
+          if (ed && !ed.isDestroyed && !ed.state.selection.empty) {
+            const text = ed.state.doc.textBetween(ed.state.selection.from, ed.state.selection.to);
+            if (text.trim().length > 0) {
+              refreshBubbleMenu(ed);
+            }
+          }
+        }
+      }
+    };
+
+    const onBlur = () => {
+      isModifierSelectingRef.current = false;
+      isDragSelectingRef.current = false;
+    };
+
     window.addEventListener('mouseup', onMouseUp);
-    return () => window.removeEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    window.addEventListener('keyup', onKeyUp, { capture: true });
+    window.addEventListener('blur', onBlur);
+
+    return () => {
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown, { capture: true });
+      window.removeEventListener('keyup', onKeyUp, { capture: true });
+      window.removeEventListener('blur', onBlur);
+    };
   }, []);
   const [minimapScale, setMinimapScale] = useState(0.075);
   const minimapScaleRef = useRef(0.075);
@@ -6298,10 +6355,16 @@ export default function NoteEditor({
               // Durante un arrastre de selección (click sostenido) la barra
               // estorba: solo se muestra al soltar el botón.
               if (isDragSelectingRef.current) return false;
+              // Durante una selección con modificadores pulsados/mantenidos
+              // (Shift, Ctrl, Alt, Meta), no mostrar hasta soltar el modificador.
+              if (isModifierSelectingRef.current) return false;
               const { selection } = state;
               if (dismissedTextSelectionRef.current?.eq(selection)) return false;
               if (selection.empty) return false;
               if ('node' in selection && selection.node) return false;
+              // No mostrar si solo hay espacios o saltos de línea (sin nada de texto).
+              const selectedText = state.doc.textBetween(selection.from, selection.to);
+              if (!selectedText.trim()) return false;
               return true;
             }}
           >
