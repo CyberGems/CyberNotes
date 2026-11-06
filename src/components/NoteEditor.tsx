@@ -1818,7 +1818,7 @@ export function VideoSelect({
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
       {hideTooltip ? trigger : (
-        <Tooltip label={language === 'es' ? 'Insertar video' : 'Insert video'} placement="bottom">
+        <Tooltip label={language === 'es' ? 'Insertar video (Alt+V)' : 'Insert video (Alt+V)'} placement="bottom">
           {trigger}
         </Tooltip>
       )}
@@ -2366,8 +2366,9 @@ export default function NoteEditor({
 
     const overflow = text.scrollWidth - container.clientWidth;
     if (overflow > 2) {
-      text.style.setProperty('--marquee-dist', `${overflow}px`);
-      const duration = Math.max(2.8, (overflow / 32) + 2);
+      const travel = overflow + 24;
+      text.style.setProperty('--marquee-dist', `${travel}px`);
+      const duration = Math.max(3.0, (travel / 30) + 1.8);
       text.style.setProperty('--marquee-duration', `${duration}s`);
       text.classList.add('is-marquee');
       container.classList.add('has-marquee');
@@ -3660,6 +3661,7 @@ export default function NoteEditor({
           const k = event.key.toLowerCase();
           const runFormat = (): boolean => {
             switch (k) {
+              case 'd': editor.chain().focus().toggleStrike().run(); break;
               case 'h': editor.chain().focus().toggleHighlight().run(); break;
               case '1': editor.chain().focus().toggleHeading({ level: 1 }).run(); break;
               case '2': editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
@@ -3684,7 +3686,8 @@ export default function NoteEditor({
           }
         }
 
-        // Alt+F / Alt+T = llevar el foco a los combos de fuente y tamaño.
+        // Atajos simples con Alt (un solo modificador):
+        // Alt+F fuente, Alt+T tamaño, Alt+C código, Alt+V video, Alt+M caracteres, Alt+E emojis.
         if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
           const k = event.key.toLowerCase();
           if (k === 'f' || k === 't') {
@@ -3694,6 +3697,29 @@ export default function NoteEditor({
             ) as HTMLElement | null;
             if (k === 'f') target?.click();
             else (target as HTMLInputElement | null)?.focus();
+            return true;
+          }
+          if (k === 'c') {
+            event.preventDefault();
+            editor?.chain().focus().toggleCodeBlock().run();
+            return true;
+          }
+          if (k === 'v') {
+            event.preventDefault();
+            const target = editorRootRef.current?.querySelector('[data-word-combo="video"]') as HTMLElement | null;
+            target?.click();
+            return true;
+          }
+          if (k === 'm') {
+            event.preventDefault();
+            setShowMoreMenu(false);
+            setCharacterMapOpen((v) => !v);
+            return true;
+          }
+          if (k === 'e') {
+            event.preventDefault();
+            setShowMoreMenu(false);
+            setEmojiPickerOpen((v) => !v);
             return true;
           }
         }
@@ -4792,7 +4818,7 @@ export default function NoteEditor({
       const k = e.key.toLowerCase();
       if (k !== 'c' && k !== 's' && k !== 'a' && k !== 'h' && k !== 'l' && k !== 'r') return;
       const target = e.target as HTMLElement | null;
-      if (target?.closest?.('input, textarea, select, [role="dialog"], [role="menu"], [data-word-menu]')) return;
+      if (target?.closest?.('input, textarea, select, [contenteditable], .ProseMirror, [role="dialog"], [role="menu"], [data-word-menu]')) return;
       e.preventDefault();
       if (k === 'c') onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock);
       else if (k === 's') handlePin();
@@ -5261,7 +5287,7 @@ export default function NoteEditor({
       case 'underline':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleUnderline().run()} active={ui.underline || menuHl} title={language === 'es' ? 'Subrayado (Ctrl+U)' : 'Underline (Ctrl+U)'}><UnderlineIcon size={15} /></ToolbarBtn>;
       case 'strike':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={ui.strike || menuHl} title={language === 'es' ? 'Tachado (Ctrl+Mayús+S)' : 'Strikethrough (Ctrl+Shift+S)'}><Strikethrough size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleStrike().run()} active={ui.strike || menuHl} title={language === 'es' ? 'Tachado (Ctrl+D)' : 'Strikethrough (Ctrl+D)'}><Strikethrough size={15} /></ToolbarBtn>;
       case 'highlight':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleHighlight().run()} active={ui.highlight || menuHl} title={language === 'es' ? 'Resaltar (Ctrl+H)' : 'Highlight (Ctrl+H)'}><Highlighter size={15} /></ToolbarBtn>;
       case 'clearFormat':
@@ -5285,7 +5311,7 @@ export default function NoteEditor({
       case 'quote':
         return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={ui.blockquote || menuHl} title={language === 'es' ? 'Cita (Ctrl+Q)' : 'Blockquote (Ctrl+Q)'}><Quote size={15} /></ToolbarBtn>;
       case 'code':
-        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={ui.codeBlock || menuHl} title={language === 'es' ? 'Bloque de código (Ctrl+Alt+C)' : 'Code block (Ctrl+Alt+C)'}><Code size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={ui.codeBlock || menuHl} title={language === 'es' ? 'Bloque de código (Alt+C)' : 'Code block (Alt+C)'}><Code size={15} /></ToolbarBtn>;
       case 'link':
         return <ToolbarBtn {...ctxProps} onClick={handleSetLink} active={ui.link || menuHl} title={language === 'es' ? 'Insertar link (Ctrl+K)' : 'Insert Link (Ctrl+K)'}><LinkIcon size={15} /></ToolbarBtn>;
       case 'image':
@@ -5299,9 +5325,9 @@ export default function NoteEditor({
       case 'find':
         return <ToolbarBtn {...ctxProps} active={findOpen || menuHl} onClick={() => { if (findOpen) closeFindBar(); else openFindBar(); }} title={language === 'es' ? 'Buscar en la nota (F3)' : 'Find in note (F3)'}><Search size={15} /></ToolbarBtn>;
       case 'characters':
-        return <ToolbarBtn {...ctxProps} active={characterMapOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setCharacterMapOpen(true); }} title={language === 'es' ? 'Mapa de caracteres' : 'Character map'}><Sigma size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={characterMapOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setCharacterMapOpen(true); }} title={language === 'es' ? 'Mapa de caracteres (Alt+M)' : 'Character map (Alt+M)'}><Sigma size={15} /></ToolbarBtn>;
       case 'emojis':
-        return <ToolbarBtn {...ctxProps} active={emojiPickerOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setEmojiPickerOpen(true); }} title={language === 'es' ? 'Selector de emojis' : 'Emoji picker'}><Smile size={15} /></ToolbarBtn>;
+        return <ToolbarBtn {...ctxProps} active={emojiPickerOpen || menuHl} disabled={readOnly} onClick={() => { setShowMoreMenu(false); setEmojiPickerOpen(true); }} title={language === 'es' ? 'Selector de emojis (Alt+E)' : 'Emoji picker (Alt+E)'}><Smile size={15} /></ToolbarBtn>;
       case 'video':
         return (
           <span onContextMenu={onCtx} style={{ display: 'inline-flex', filter: menuHl ? 'brightness(1.3)' : undefined }}>

@@ -494,6 +494,7 @@ export default function StickyNoteApp({ noteId }: Props) {
           const ed = stickyEditorRef.current;
           if (ed) {
             switch (k) {
+              case 'd': event.preventDefault(); ed.chain().focus().toggleStrike().run(); return true;
               case 'h': event.preventDefault(); ed.chain().focus().toggleHighlight().run(); return true;
               case '7': event.preventDefault(); ed.chain().focus().toggleOrderedList().run(); return true;
               case '8': event.preventDefault(); ed.chain().focus().toggleBulletList().run(); return true;
@@ -506,6 +507,7 @@ export default function StickyNoteApp({ noteId }: Props) {
         }
         if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
           const k = event.key.toLowerCase();
+          const ed = stickyEditorRef.current;
           if (k === 'f' || k === 't') {
             event.preventDefault();
             const target = document.querySelector(
@@ -513,6 +515,11 @@ export default function StickyNoteApp({ noteId }: Props) {
             ) as HTMLElement | null;
             if (k === 'f') target?.click();
             else (target as HTMLInputElement | null)?.focus();
+            return true;
+          }
+          if (k === 'c' && ed) {
+            event.preventDefault();
+            ed.chain().focus().toggleCodeBlock().run();
             return true;
           }
         }
