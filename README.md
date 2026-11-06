@@ -278,8 +278,8 @@ Artifacts land in `release/`:
 
 | Artifact | Description |
 |---|---|
-| `CyberNotes_Setup_1.18.0.exe` | NSIS installer (interactive wizard, custom install dir) |
-| `CyberNotes_Portable_1.18.0.exe` | Portable build (zero-install) |
+| `CyberNotes_Setup_1.19.0.exe` | NSIS installer (interactive wizard, custom install dir) |
+| `CyberNotes_Portable_1.19.0.exe` | Portable build (zero-install) |
 
 ---
 
@@ -288,6 +288,7 @@ Artifacts land in `release/`:
 | Key | Action |
 |---|---|
 | `Alt+Shift+N` | Toggle window visibility (global, customizable) |
+| `Alt+Shift+F` | Create new floating note (global, customizable) |
 | `Ctrl+N` | Create a new note |
 | `Ctrl+Shift+N` | Create a new folder |
 | `Ctrl+F` | Focus search bar |

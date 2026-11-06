@@ -276,8 +276,8 @@ Los artefactos quedan en `release/`:
 
 | Artefacto | Descripción |
 |---|---|
-| `CyberNotes_Setup_1.18.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
-| `CyberNotes_Portable_1.18.0.exe` | Build portable (sin instalación) |
+| `CyberNotes_Setup_1.19.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
+| `CyberNotes_Portable_1.19.0.exe` | Build portable (sin instalación) |
 ---
 
 ## ⌨️ Atajos de teclado
@@ -285,6 +285,7 @@ Los artefactos quedan en `release/`:
 | Tecla | Acción |
 |---|---|
 | `Alt+Shift+N` | Alternar visibilidad de la ventana (global, personalizable) |
+| `Alt+Shift+F` | Crear nueva nota flotante (global, personalizable) |
 | `Ctrl+N` | Crear una nota nueva |
 | `Ctrl+Shift+N` | Crear una carpeta nueva |
 | `Ctrl+F` | Enfocar la barra de búsqueda |

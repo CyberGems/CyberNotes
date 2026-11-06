@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <img src="https://raw.githubusercontent.com/CyberGems/CyberNotes/main/public/icon.png" width="120" alt="CyberNotes">
 </p>
 
@@ -8,7 +8,7 @@
 
 <!-- IMPORTANT FOR AGENTS & MAINTAINERS: Always rewrite this entire section and highlights with the ACTUAL release notes for this specific new version before tagging. NEVER leave or copy previous version notes! Use 25-45 words for the summary, lead with user-facing changes, and do not repeat the app name or version. -->
 <!-- changelog-summary:start -->
-First-run setup greets new users with live theme previews, notes support multi-select drag and drop into folders, and emoji and symbol trays become fully editable. Customizable toolbars, refreshed themes, and smoother tab, minimap, and update experiences round out the release.
+Floating notes gain dedicated settings, default colors, sizes, and a customizable global shortcut. Inline images offer seamless Word-style selection and caret navigation, editor hotkeys eliminate double modifiers, and tabs feature smooth hover marquees.
 <!-- changelog-summary:end -->
 
 > **New to CyberNotes?** A privacy-focused Windows notes app with rich text, folders, tabs, floating notes, and fully local data.
@@ -17,12 +17,12 @@ First-run setup greets new users with live theme previews, notes support multi-s
 
 ### ✨ Key Features & Highlights
 
-- 🧭 **First-run setup**: a guided welcome before any note exists, with live theme previews, system language detection, and refreshed factory notes.
-- 🖱️ **Select and organize notes faster**: marquee selection, drag multi-note selections into sidebar folders with clear drop targets and auto-scroll, and close tabs with the middle mouse button.
-- 😀 **Editable emoji and symbol trays**: reorder entries by dragging, one unified selection flow, recents preserved, and unsupported glyphs filtered out.
-- 🎛️ **Customizable toolbars and settings**: a show-all action, stable visibility checklists, searchable settings, dismissible context toolbars, and a balanced two-row toolbar.
-- 🎨 **Refined themes and update notices**: consolidated suite themes with improved light and gray contrast, saved appearance applied at startup, and a title-bar notice plus persistent preview for updates.
-- ✍️ **Editor and performance polish**: fixed minimap navigation and line-number gutters, instant tab switching with cached content, a 13pt font size option, and floating notes that remember their opacity.
+- 📌 **Dedicated floating notes settings & global shortcut**: customize default color (with random), opacity, pinned state, window size, and launch new notes anywhere via an editable, disableable `Alt+Shift+F` global shortcut.
+- 🎨 **Expanded 10-color palette**: new Cyber Red color completes a balanced 5x2 swatch grid in the floating note color picker, featuring uniform circular swatches.
+- 🖼️ **Word-style inline images & selection**: natural caret placement before and after images with native blinking, lateral click positioning, Shift+Arrow multi-element range selection, and refined click frames.
+- ⌨️ **Streamlined editor hotkeys**: double modifiers eliminated across all 29 toolbar actions (`Ctrl+D` strikethrough, `Alt+C` code block), with new dedicated single-modifier shortcuts for tables, media, symbols, and emojis.
+- 🏷️ **Tab title hover marquee**: hovering over long tab names smoothly scrolls the full title into view with exact fade mask clearance.
+- ⚙️ **Refined settings & modern artwork**: embedded search bar directly in the settings sidebar, standardized enter badge glyphs, harmonized controls, and refreshed installer sidebar artwork.
 
 <details>
 <summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
@@ -30,7 +30,7 @@ First-run setup greets new users with live theme previews, notes support multi-s
 ### 🚀 Novedades de esta versión
 
 <!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
-La configuración inicial recibe a los nuevos usuarios con vistas previas de temas, las notas admiten selección múltiple con arrastre a carpetas, y las bandejas de emojis y símbolos son editables. Barras de herramientas personalizables, temas renovados y pestañas y minimapa más fluidos.
+Las notas flotantes suman pestaña de configuración dedicada, colores y tamaños predeterminados y atajo global personalizable. Las imágenes integradas adoptan selección y cursor fluidos estilo Word, los atajos del editor eliminan modificadores dobles y las pestañas estrenan marquesina al pasar el ratón.
 
 ---
 
@@ -38,12 +38,12 @@ La configuración inicial recibe a los nuevos usuarios con vistas previas de tem
 
 <!-- Maintainer: Espejo en español de los puntos de arriba. -->
 
-- 🧭 **Configuración inicial**: una bienvenida guiada antes de crear cualquier nota, con vistas previas de temas, detección del idioma del sistema y notas de fábrica renovadas.
-- 🖱️ **Organiza notas más rápido**: selección con lazo, arrastre de varias notas a carpetas de la barra lateral con zonas claras y desplazamiento automático, y cierre de pestañas con el botón central.
-- 😀 **Bandejas de emojis y símbolos editables**: reordena arrastrando, un flujo de selección unificado, recientes conservados y glifos no compatibles filtrados.
-- 🎛️ **Barras y ajustes personalizables**: acción de mostrar todo, listas de visibilidad estables, ajustes con búsqueda, barras contextuales descartables y una barra equilibrada en dos filas.
-- 🎨 **Temas y avisos de actualización refinados**: temas de la suite consolidados con mejor contraste claro y gris, apariencia guardada aplicada al inicio y aviso en la barra de título con vista previa persistente de actualizaciones.
-- ✍️ **Pulido del editor y rendimiento**: minimapa y números de línea corregidos, cambio de pestañas inmediato con contenido en caché, tamaño de 13 puntos y notas flotantes que recuerdan su opacidad.
+- 📌 **Ajustes dedicados y atajo global para notas flotantes**: personaliza color inicial (con opción aleatoria), opacidad, fijado, tamaño de ventana y crea notas desde cualquier lugar con el atajo global editable y desactivable `Alt+Shift+F`.
+- 🎨 **Paleta ampliada a 10 colores**: nuevo color Rojo Ciber que completa una cuadrícula equilibrada de 5x2 en el selector de notas flotantes, con muestras circulares uniformes.
+- 🖼️ **Imágenes integradas y selección estilo Word**: posición natural del cursor antes y después de imágenes con parpadeo nativo, clic lateral, selección con Shift+Flechas para texto e imágenes y marco de selección refinado.
+- ⌨️ **Atajos de barra simplificados**: modificadores dobles eliminados en las 29 acciones de la barra (`Ctrl+D` tachado, `Alt+C` bloque de código) y nuevos atajos simples para tablas, video, símbolos y emojis.
+- 🏷️ **Marquesina en títulos de pestañas**: pasar el ratón sobre títulos largos desplaza suavemente el texto completo con precisión milimétrica sobre la máscara de degradado.
+- ⚙️ **Ajustes refinados y arte del instalador**: barra de búsqueda integrada en la barra lateral de configuración, botón Enter estandarizado, controles armonizados y arte de instalador modernizado.
 
 </details>
 
