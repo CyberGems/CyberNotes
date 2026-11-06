@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 export interface CustomSelectOption {
   value: string | number;
   label: string;
+  icon?: React.ReactNode;
   disabled?: boolean;
 }
 
@@ -294,7 +295,14 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         onKeyDown={handleKeyDown}
         style={style}
       >
-        <span className="cfg-select-value">{currentLabel}</span>
+        <span className="cfg-select-value">
+          {currentOption?.icon && (
+            <span className="cfg-select-opt-icon" aria-hidden="true">
+              {currentOption.icon}
+            </span>
+          )}
+          <span className="cfg-select-label-text">{currentLabel}</span>
+        </span>
         <svg
           className="cfg-select-chevron"
           viewBox="0 0 24 24"
@@ -334,7 +342,12 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   onClick={() => selectOption(opt.value, opt.disabled)}
                   onPointerEnter={() => !opt.disabled && setActiveIndex(index)}
                 >
-                  {opt.label}
+                  {opt.icon && (
+                    <span className="cfg-select-opt-icon" aria-hidden="true">
+                      {opt.icon}
+                    </span>
+                  )}
+                  <span className="cfg-select-label-text">{opt.label}</span>
                 </div>
               );
             })}

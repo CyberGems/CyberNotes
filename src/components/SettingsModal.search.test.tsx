@@ -341,6 +341,7 @@ describe('settings search', () => {
     expect(content().textContent).toContain(language === 'es' ? 'Opacidad predeterminada' : 'Default note opacity');
     expect(content().textContent).toContain(language === 'es' ? 'Fijar al frente por defecto' : 'Always on top by default');
     expect(content().textContent).toContain(language === 'es' ? 'Zoom predeterminado' : 'Default zoom level');
+    expect(content().textContent).toContain(language === 'es' ? 'Tamaño predeterminado' : 'Default window size');
 
     // Switch to maintenance tab to verify backup headings
     const maintenanceNav = navButtons.find(b => b.textContent?.includes(language === 'es' ? 'Respaldo y Datos' : 'Backup & Data'))!;

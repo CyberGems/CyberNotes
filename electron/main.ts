@@ -1137,13 +1137,14 @@ function openStickyNote(noteId: string, centerOnMainWindow = false, focusWindow 
   if (!noteRow) return false;
 
   const row = queryGet('SELECT * FROM sticky_notes WHERE note_id = ?', [noteId]);
-  const hasSavedSize = !!row;
+  const defaultSize = getPreferredStickySize();
+  const hasSavedSize = !!(row && row.width && row.height);
   let width = hasSavedSize
-    ? readNumericSetting(row.width, STICKY_DEFAULT_WIDTH)
-    : STICKY_DEFAULT_WIDTH;
+    ? readNumericSetting(row.width, defaultSize.width)
+    : defaultSize.width;
   let height = hasSavedSize
-    ? readNumericSetting(row.height, STICKY_DEFAULT_HEIGHT)
-    : STICKY_DEFAULT_HEIGHT;
+    ? readNumericSetting(row.height, defaultSize.height)
+    : defaultSize.height;
   const pinnedTop = row?.pinned_top != null ? row.pinned_top !== 0 : getPreferredStickyPinned();
 
   let winX: number | undefined = row && typeof row.x === 'number' ? row.x : undefined;
@@ -1454,6 +1455,19 @@ function getPreferredStickyZoom(): number {
   return clampStickyZoom(value == null ? 1.0 : readNumericSetting(value, 1.0));
 }
 
+function getPreferredStickySize(): { width: number; height: number } {
+  const value = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_default_size'])?.value;
+  switch (value) {
+    case 'compact':
+      return { width: 280, height: 300 };
+    case 'large':
+      return { width: 400, height: 450 };
+    case 'standard':
+    default:
+      return { width: STICKY_DEFAULT_WIDTH, height: STICKY_DEFAULT_HEIGHT };
+  }
+}
+
 function getStickyConfig(noteId: string) {
   const row = queryGet('SELECT color, opacity, pinned_top, zoom FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
@@ -1529,15 +1543,16 @@ function createAndOpenStickyNote(centerOnMainWindow = false): string {
     [newId, null, defaultTitle, '', '', '', 0, now, now]
   );
 
+  const preferredSize = getPreferredStickySize();
   const preferredColor = getPreferredStickyColor();
   const preferredOpacity = getPreferredStickyOpacity();
   const preferredPinned = getPreferredStickyPinned() ? 1 : 0;
   const preferredZoom = getPreferredStickyZoom();
 
   runQuery(
-    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open, zoom)
-     VALUES (?, ?, ?, ?, 1, ?)`,
-    [newId, preferredColor, preferredOpacity, preferredPinned, preferredZoom]
+    `INSERT INTO sticky_notes (note_id, width, height, color, opacity, pinned_top, is_open, zoom)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
+    [newId, preferredSize.width, preferredSize.height, preferredColor, preferredOpacity, preferredPinned, preferredZoom]
   );
 
   openStickyNote(newId, centerOnMainWindow);

@@ -5,7 +5,8 @@ import { THEMES, isColorfulTheme } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language, TRANSLATIONS } from '../languages';
-import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, BrushCleaning, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen, Search } from 'lucide-react';
+import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, BrushCleaning, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen, Search, Maximize2 } from 'lucide-react';
+import { STICKY_ACCENTS } from '../../shared/sticky';
 import { playSynthSound } from '../utils/audio';
 import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
@@ -682,6 +683,7 @@ export default function SettingsModal({
   const [stickyDefaultOpacity, setStickyDefaultOpacity] = useState(1);
   const [stickyDefaultPinned, setStickyDefaultPinned] = useState(true);
   const [stickyDefaultZoom, setStickyDefaultZoom] = useState(1);
+  const [stickyDefaultSize, setStickyDefaultSize] = useState('standard');
   const [dismissedConfirmationCount, setDismissedConfirmationCount] = useState(0);
   const [restoreNoticesFeedback, setRestoreNoticesFeedback] = useState(false);
   const restoreNoticesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -807,6 +809,11 @@ export default function SettingsModal({
   const handleChangeStickyDefaultZoom = async (val: number) => {
     setStickyDefaultZoom(val);
     await window.cyberNotesAPI.setSetting('sticky_default_zoom', String(val));
+  };
+
+  const handleChangeStickyDefaultSize = async (val: string) => {
+    setStickyDefaultSize(val);
+    await window.cyberNotesAPI.setSetting('sticky_default_size', val);
   };
 
   const handleRestoreDismissedConfirmations = async () => {
@@ -1028,6 +1035,8 @@ export default function SettingsModal({
       setStickyDefaultPinned(sStickyPinned !== 'false');
       const sStickyZoom = await window.cyberNotesAPI.getSetting('sticky_default_zoom');
       setStickyDefaultZoom(sStickyZoom ? Number(sStickyZoom) : 1);
+      const sStickySize = await window.cyberNotesAPI.getSetting('sticky_default_size');
+      setStickyDefaultSize(sStickySize || 'standard');
       const dismissedConfirmations = await window.cyberNotesAPI.getSettings([...DISMISSIBLE_CONFIRMATION_KEYS]);
       setDismissedConfirmationCount(
         DISMISSIBLE_CONFIRMATION_KEYS.filter((key) => dismissedConfirmations[key] === 'true').length
@@ -1055,6 +1064,7 @@ export default function SettingsModal({
         stickyDefaultOpacity: sStickyOpacity ? Number(sStickyOpacity) : 1,
         stickyDefaultPinned: sStickyPinned !== 'false',
         stickyDefaultZoom: sStickyZoom ? Number(sStickyZoom) : 1,
+        stickyDefaultSize: sStickySize || 'standard',
       });
       setLoaded(true);
     };
@@ -1071,6 +1081,7 @@ export default function SettingsModal({
       closeToTray, minimizeToTray, autoStart, toggleHotkey,
       stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction,
       stickyDefaultColor, stickyDefaultOpacity, stickyDefaultPinned, stickyDefaultZoom,
+      stickyDefaultSize,
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
       setHasSavedChanges(true);
@@ -1084,6 +1095,7 @@ export default function SettingsModal({
     closeToTray, minimizeToTray, autoStart, toggleHotkey,
     stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction,
     stickyDefaultColor, stickyDefaultOpacity, stickyDefaultPinned, stickyDefaultZoom,
+    stickyDefaultSize,
   ]);
 
   useEffect(() => {
@@ -2532,16 +2544,56 @@ export default function SettingsModal({
                         value={stickyDefaultColor}
                         onChange={(val) => handleChangeStickyDefaultColor(val)}
                         options={[
-                          { value: 'random', label: language === 'es' ? '🎲 Aleatorio (Random)' : '🎲 Random' },
-                          { value: 'cyber-yellow', label: `🟡 ${TRANSLATIONS[language].editor.stickyColors.yellow}` },
-                          { value: 'neon-cyan', label: `🩵 ${TRANSLATIONS[language].editor.stickyColors.cyan}` },
-                          { value: 'matrix-green', label: `🟢 ${TRANSLATIONS[language].editor.stickyColors.green}` },
-                          { value: 'midnight-purple', label: `🟣 ${TRANSLATIONS[language].editor.stickyColors.purple}` },
-                          { value: 'cyber-pink', label: `🌸 ${TRANSLATIONS[language].editor.stickyColors.pink}` },
-                          { value: 'graphite', label: `⚫ ${TRANSLATIONS[language].editor.stickyColors.dark}` },
-                          { value: 'electric-blue', label: `🔵 ${TRANSLATIONS[language].editor.stickyColors.blue}` },
-                          { value: 'cyber-orange', label: `🟠 ${TRANSLATIONS[language].editor.stickyColors.orange}` },
-                          { value: 'acid-lime', label: `🍏 ${TRANSLATIONS[language].editor.stickyColors.lime}` },
+                          {
+                            value: 'random',
+                            label: language === 'es' ? 'Aleatorio (Random)' : 'Random',
+                            icon: <span style={{ fontSize: 13, lineHeight: 1 }}>🎲</span>,
+                          },
+                          {
+                            value: 'cyber-yellow',
+                            label: TRANSLATIONS[language].editor.stickyColors.yellow,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['cyber-yellow'], boxShadow: `0 0 5px ${STICKY_ACCENTS['cyber-yellow']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'neon-cyan',
+                            label: TRANSLATIONS[language].editor.stickyColors.cyan,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['neon-cyan'], boxShadow: `0 0 5px ${STICKY_ACCENTS['neon-cyan']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'matrix-green',
+                            label: TRANSLATIONS[language].editor.stickyColors.green,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['matrix-green'], boxShadow: `0 0 5px ${STICKY_ACCENTS['matrix-green']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'midnight-purple',
+                            label: TRANSLATIONS[language].editor.stickyColors.purple,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['midnight-purple'], boxShadow: `0 0 5px ${STICKY_ACCENTS['midnight-purple']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'cyber-pink',
+                            label: TRANSLATIONS[language].editor.stickyColors.pink,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['cyber-pink'], boxShadow: `0 0 5px ${STICKY_ACCENTS['cyber-pink']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'graphite',
+                            label: TRANSLATIONS[language].editor.stickyColors.dark,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS.graphite, boxShadow: `0 0 5px ${STICKY_ACCENTS.graphite}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'electric-blue',
+                            label: TRANSLATIONS[language].editor.stickyColors.blue,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['electric-blue'], boxShadow: `0 0 5px ${STICKY_ACCENTS['electric-blue']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'cyber-orange',
+                            label: TRANSLATIONS[language].editor.stickyColors.orange,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['cyber-orange'], boxShadow: `0 0 5px ${STICKY_ACCENTS['cyber-orange']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
+                          {
+                            value: 'acid-lime',
+                            label: TRANSLATIONS[language].editor.stickyColors.lime,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['acid-lime'], boxShadow: `0 0 5px ${STICKY_ACCENTS['acid-lime']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
                         ]}
                         ariaLabel={language === 'es' ? 'Color predeterminado' : 'Default note color'}
                         className="settings-option-select"
@@ -2613,6 +2665,31 @@ export default function SettingsModal({
                           { value: '1.3', label: '130%' },
                         ]}
                         ariaLabel={language === 'es' ? 'Zoom predeterminado' : 'Default zoom level'}
+                        className="settings-option-select"
+                      />
+                    </div>
+
+                    {/* Default Window Size */}
+                    <div className="settings-option-row">
+                      <SettingsOptionCopy icon={<Maximize2 />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Tamaño predeterminado' : 'Default window size'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es'
+                            ? 'Dimensiones iniciales de la ventana al crear nuevas notas flotantes'
+                            : 'Initial window dimensions when creating new floating notes'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <CustomSelect
+                        value={stickyDefaultSize}
+                        onChange={(val) => handleChangeStickyDefaultSize(val)}
+                        options={[
+                          { value: 'compact', label: language === 'es' ? 'Compacto (280 × 300)' : 'Compact (280 × 300)' },
+                          { value: 'standard', label: language === 'es' ? 'Estándar (320 × 360) · Recomendado' : 'Standard (320 × 360) · Default' },
+                          { value: 'large', label: language === 'es' ? 'Amplio (400 × 450)' : 'Large (400 × 450)' },
+                        ]}
+                        ariaLabel={language === 'es' ? 'Tamaño predeterminado' : 'Default window size'}
                         className="settings-option-select"
                       />
                     </div>

@@ -50,6 +50,18 @@ export const STICKY_BACKGROUNDS: Record<StickyColorId, string> = {
   'acid-lime': '#141e0a',
 };
 
+export const STICKY_ACCENTS: Record<StickyColorId, string> = {
+  'cyber-yellow': '#f59e0b',
+  'neon-cyan': '#06b6d4',
+  'matrix-green': '#10b981',
+  'midnight-purple': '#a855f7',
+  'cyber-pink': '#f43f5e',
+  graphite: '#38bdf8',
+  'electric-blue': '#3b82f6',
+  'cyber-orange': '#f97316',
+  'acid-lime': '#a3e635',
+};
+
 /** Normaliza un color desconocido al color por defecto (nunca undefined). */
 export function asStickyColorId(value: unknown): StickyColorId {
   return (STICKY_COLOR_IDS as readonly string[]).includes(value as string)
