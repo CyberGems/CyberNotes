@@ -1545,7 +1545,7 @@ select option {
   margin: 0;
   vertical-align: bottom;
   border: 2px solid transparent;
-  transition: all var(--transition);
+  transition: outline-color 0.1s ease, box-shadow 0.1s ease;
   cursor: pointer;
 }
 
@@ -1554,9 +1554,17 @@ select option {
 }
 
 .ProseMirror img.ProseMirror-selectednode {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 2px var(--accent-dim), 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+/* Selección mixta/rango sobre imágenes (estilo Word) */
+.ProseMirror img.is-range-selected {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: -1px;
+  filter: brightness(0.72) contrast(1.08) !important;
+  box-shadow: 0 0 0 2px var(--accent-glow) !important;
 }
 
 /* Caret de estilo Word para imágenes en línea */
@@ -1606,8 +1614,39 @@ select option {
 }
 
 .ProseMirror:not(:focus) .editor-image-caret,
-.ProseMirror:not(:focus-within) .editor-image-caret {
+.ProseMirror:not(:focus-within) .editor-image-caret,
+.ProseMirror:not(:focus) .editor-image-selection-edge,
+.ProseMirror:not(:focus-within) .editor-image-selection-edge {
   display: none !important;
+}
+
+/* Indicador vertical al extremo de la selección sobre imágenes en línea */
+.editor-image-selection-edge {
+  display: inline-block;
+  position: relative;
+  width: 0;
+  height: 0;
+  vertical-align: bottom;
+  pointer-events: none;
+}
+
+.editor-image-selection-edge::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  width: 2.5px;
+  height: 1.15em;
+  background-color: var(--accent);
+  border-radius: 1px;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.editor-image-selection-edge.is-before::after {
+  left: 0;
+}
+
+.editor-image-selection-edge.is-after::after {
+  right: 0;
 }
 
 /* GapCursor de ProseMirror (cursor vertical entre bloques no textuales) */

@@ -469,5 +469,30 @@ describe('ImageCaret Extension', () => {
 
       editor.destroy();
     });
+
+    it('adds is-range-selected node decoration and edge indicator to images covered by a TextSelection', () => {
+      const editor = new Editor({
+        extensions: [
+          StarterKit,
+          Image.configure({ inline: true, allowBase64: true }),
+          ImageCaret,
+        ],
+        content: '<p><img src="data:image/png;base64,123" /></p><p><img src="data:image/png;base64,456" /></p>',
+      });
+
+      // Select from start of doc across both images (pos 1 to pos 5)
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 1, 5)));
+
+      const decos = getDecos(editor);
+      const found = decos.find();
+      // Expect both images to have node decorations with is-range-selected, plus edge indicator
+      const nodeDecos = found.filter(d => (d as any).type?.attrs?.class?.includes('is-range-selected'));
+      expect(nodeDecos.length).toBe(2);
+
+      const edgeDecos = found.filter(d => (d as any).type?.toDOM?.className?.includes('editor-image-selection-edge'));
+      expect(edgeDecos.length).toBe(1);
+
+      editor.destroy();
+    });
   });
 });

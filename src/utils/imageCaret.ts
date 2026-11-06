@@ -40,28 +40,72 @@ export const ImageCaret = Extension.create({
         key: imageCaretPluginKey,
         props: {
           decorations(state) {
-            const { selection } = state;
-            if (!selection || !selection.empty || !selection.$from) {
-              return DecorationSet.empty;
-            }
-            const { $from } = selection;
-            const isBeforeImage = $from.nodeAfter?.type.name === 'image';
-            const isAfterImage = !isBeforeImage && $from.nodeBefore?.type.name === 'image';
-
-            if (!isBeforeImage && !isAfterImage) {
+            const { selection, doc } = state;
+            if (!selection) {
               return DecorationSet.empty;
             }
 
-            const caret = document.createElement('span');
-            caret.className = `editor-image-caret ${isBeforeImage ? 'is-before' : 'is-after'}`;
-            caret.setAttribute('aria-hidden', 'true');
+            // 1. Selección vacía (caret parpadeante estilo Word antes o después de la imagen)
+            if (selection.empty && selection.$from) {
+              const { $from } = selection;
+              const isBeforeImage = $from.nodeAfter?.type.name === 'image';
+              const isAfterImage = !isBeforeImage && $from.nodeBefore?.type.name === 'image';
 
-            return DecorationSet.create(state.doc, [
-              Decoration.widget($from.pos, caret, {
-                side: isBeforeImage ? -1 : 1,
-                key: 'image-caret',
-              }),
-            ]);
+              if (!isBeforeImage && !isAfterImage) {
+                return DecorationSet.empty;
+              }
+
+              const caret = document.createElement('span');
+              caret.className = `editor-image-caret ${isBeforeImage ? 'is-before' : 'is-after'}`;
+              caret.setAttribute('aria-hidden', 'true');
+
+              return DecorationSet.create(doc, [
+                Decoration.widget($from.pos, caret, {
+                  side: isBeforeImage ? -1 : 1,
+                  key: 'image-caret',
+                }),
+              ]);
+            }
+
+            // 2. Selección por rango (TextSelection abarcando imágenes y/o texto, estilo Word)
+            if (selection instanceof TextSelection && !selection.empty) {
+              const decos: Decoration[] = [];
+              const { from, to, $head } = selection;
+
+              doc.nodesBetween(from, to, (node, pos) => {
+                if (node.type.name === 'image') {
+                  const nodeEnd = pos + node.nodeSize;
+                  if (from <= pos && to >= nodeEnd) {
+                    decos.push(
+                      Decoration.node(pos, nodeEnd, {
+                        class: 'is-range-selected',
+                      })
+                    );
+                  }
+                }
+              });
+
+              // Indicador vertical en el extremo activo (head) si linda inmediatamente con una imagen
+              const isHeadAfterImage = $head.nodeBefore?.type.name === 'image';
+              const isHeadBeforeImage = !isHeadAfterImage && $head.nodeAfter?.type.name === 'image';
+              if (isHeadAfterImage || isHeadBeforeImage) {
+                const edge = document.createElement('span');
+                edge.className = `editor-image-selection-edge ${isHeadBeforeImage ? 'is-before' : 'is-after'}`;
+                edge.setAttribute('aria-hidden', 'true');
+                decos.push(
+                  Decoration.widget($head.pos, edge, {
+                    side: isHeadBeforeImage ? -1 : 1,
+                    key: 'image-selection-edge',
+                  })
+                );
+              }
+
+              if (decos.length > 0) {
+                return DecorationSet.create(doc, decos);
+              }
+            }
+
+            return DecorationSet.empty;
           },
           attributes(state): { [name: string]: string } {
             const { selection } = state;
