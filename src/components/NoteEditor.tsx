@@ -35,6 +35,7 @@ import { balancedToolbarBreak } from '../utils/balanceToolbar';
 import Tooltip from './Tooltip';
 import EditorEmptyState from './EditorEmptyState';
 import VersionHistoryModal from './VersionHistoryModal';
+import CustomSelect from './CustomSelect';
 import { EnterGlyph, KeyHint, modalCardMotion, modalOverlayMotion, modalOverlayStyle, useModalKeys } from './ModalActions';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
@@ -1620,18 +1621,24 @@ export function TableSelect({
               </h3>
             </div>
             <div className="modal-body" style={{ display: 'flex', gap: 12 }}>
-              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {language === 'es' ? 'Filas' : 'Rows'}
-                <select className="input" value={rows} onChange={(e) => setRows(Number(e.target.value))}>
-                  {countOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </label>
-              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {language === 'es' ? 'Columnas' : 'Columns'}
-                <select className="input" value={cols} onChange={(e) => setCols(Number(e.target.value))}>
-                  {countOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </label>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                <span>{language === 'es' ? 'Filas' : 'Rows'}</span>
+                <CustomSelect
+                  value={rows}
+                  onChange={(val) => setRows(Number(val))}
+                  options={countOptions.map((n) => ({ value: n, label: String(n) }))}
+                  ariaLabel={language === 'es' ? 'Filas' : 'Rows'}
+                />
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                <span>{language === 'es' ? 'Columnas' : 'Columns'}</span>
+                <CustomSelect
+                  value={cols}
+                  onChange={(val) => setCols(Number(val))}
+                  options={countOptions.map((n) => ({ value: n, label: String(n) }))}
+                  ariaLabel={language === 'es' ? 'Columnas' : 'Columns'}
+                />
+              </div>
             </div>
             <div className="modal-actions" style={{ padding: '4px 16px 16px' }}>
               <button type="button" className="modal-action-btn is-cancel" onClick={() => setCustomOpen(false)}>

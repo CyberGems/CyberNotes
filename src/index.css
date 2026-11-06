@@ -3855,6 +3855,133 @@ html.tab-dragging * {
   pointer-events: none;
 }
 
+/* ── Theme-aware Range Sliders (CyberViewer / CyberNotes style) ── */
+.cfg-range,
+.settings-panel input[type="range"],
+.settings-card input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--bg-input, var(--border));
+  outline: none;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  accent-color: var(--accent);
+}
+
+.cfg-range:hover,
+.settings-panel input[type="range"]:hover,
+.settings-card input[type="range"]:hover {
+  background: color-mix(in srgb, var(--accent) 25%, var(--border));
+}
+
+.cfg-range:focus-visible,
+.settings-panel input[type="range"]:focus-visible,
+.settings-card input[type="range"]:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-dim), 0 0 8px var(--accent-glow);
+}
+
+/* Webkit track & thumb */
+.cfg-range::-webkit-slider-runnable-track,
+.settings-panel input[type="range"]::-webkit-slider-runnable-track,
+.settings-card input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.cfg-range::-webkit-slider-thumb,
+.settings-panel input[type="range"]::-webkit-slider-thumb,
+.settings-card input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-surface, #181828);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 6px var(--accent-glow);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.cfg-range::-webkit-slider-thumb:hover,
+.settings-panel input[type="range"]::-webkit-slider-thumb:hover,
+.settings-card input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 10px var(--accent-glow);
+}
+
+.cfg-range:active::-webkit-slider-thumb,
+.settings-panel input[type="range"]:active::-webkit-slider-thumb,
+.settings-card input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.22);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 14px var(--accent);
+}
+
+/* Firefox track & thumb */
+.cfg-range::-moz-range-track,
+.settings-panel input[type="range"]::-moz-range-track,
+.settings-card input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--bg-input, var(--border));
+  border: none;
+}
+
+.cfg-range::-moz-range-thumb,
+.settings-panel input[type="range"]::-moz-range-thumb,
+.settings-card input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-surface, #181828);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 6px var(--accent-glow);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.cfg-range::-moz-range-thumb:hover,
+.settings-panel input[type="range"]::-moz-range-thumb:hover,
+.settings-card input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 10px var(--accent-glow);
+}
+
+.cfg-range:active::-moz-range-thumb,
+.settings-panel input[type="range"]:active::-moz-range-thumb,
+.settings-card input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.22);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 14px var(--accent);
+}
+
+/* ── Harmonized Settings Inputs ── */
+.settings-card .input,
+.settings-panel .input,
+.settings-search-box .input {
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-surface, #181828);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-card .input:hover,
+.settings-panel .input:hover,
+.settings-search-box .input:hover {
+  border-color: var(--accent);
+}
+
+.settings-card .input:focus,
+.settings-panel .input:focus,
+.settings-search-box .input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim), 0 0 10px var(--accent-glow);
+}
+
 .sticky-note-header {
   -webkit-app-region: no-drag;
   user-select: none;

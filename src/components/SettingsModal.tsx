@@ -1892,6 +1892,7 @@ export default function SettingsModal({
                         </div>
                         <input 
                           type="range"
+                          className="cfg-range"
                           min="0"
                           max="16"
                           step="1"
@@ -2078,7 +2079,7 @@ export default function SettingsModal({
                   </span>
                 </div>
                 <input 
-                  type="range" min="0" max="100" step="5" 
+                  type="range" className="cfg-range" min="0" max="100" step="5" 
                   value={colorIntensity}
                   onChange={(e) => onIntensityChange(parseInt(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--accent)' }}
@@ -2141,7 +2142,7 @@ export default function SettingsModal({
                         <span style={{ color: 'var(--accent-light)' }}>{glassBlur}px</span>
                       </div>
                       <input 
-                        type="range" min="0" max="40" step="1" 
+                        type="range" className="cfg-range" min="0" max="40" step="1" 
                         value={glassBlur} onChange={(e) => onBlurChange(parseInt(e.target.value))}
                         style={{ width: '100%', accentColor: 'var(--accent)' }}
                       />
@@ -2153,7 +2154,7 @@ export default function SettingsModal({
                         <span style={{ color: 'var(--accent-light)' }}>{Math.round(bgOpacity * 100)}%</span>
                       </div>
                       <input 
-                        type="range" min="0" max="0.95" step="0.05" 
+                        type="range" className="cfg-range" min="0" max="0.95" step="0.05" 
                         value={bgOpacity} onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
                         style={{ width: '100%', accentColor: 'var(--accent)' }}
                       />
