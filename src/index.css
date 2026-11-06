@@ -1156,8 +1156,9 @@ select option {
 
 .ProseMirror img {
   max-width: 100%;
+  box-sizing: border-box;
   border-radius: var(--radius-md);
-  margin: 0 4px;
+  margin: 0;
   vertical-align: bottom;
   border: 2px solid transparent;
   transition: all var(--transition);
@@ -1175,20 +1176,27 @@ select option {
 /* Caret de estilo Word para imágenes en línea */
 .editor-image-caret {
   display: inline-block;
+  position: relative;
+  width: 0;
+  height: 0;
+  vertical-align: bottom;
+  pointer-events: none;
+}
+.editor-image-caret::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
   width: 1.5px;
   height: 1.15em;
   background-color: currentColor;
   color: var(--text-primary);
-  vertical-align: bottom;
-  margin-bottom: 2px;
-  pointer-events: none;
   animation: editor-caret-blink 1.06s steps(1) infinite;
 }
-.editor-image-caret.is-before {
-  margin-right: 0px;
+.editor-image-caret.is-before::after {
+  left: 0;
 }
-.editor-image-caret.is-after {
-  margin-left: 0px;
+.editor-image-caret.is-after::after {
+  right: 0;
 }
 
 @keyframes editor-caret-blink {

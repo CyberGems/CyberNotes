@@ -148,7 +148,7 @@ const CustomImage = Image.extend({
       width: {
         default: '100%',
         renderHTML: attributes => ({
-          style: `width: ${attributes.width}; height: auto; display: inline-block; vertical-align: bottom; max-width: 100%; margin: 0 4px;`,
+          style: `width: ${attributes.width}; height: auto; display: inline-block; vertical-align: bottom; max-width: 100%; box-sizing: border-box; margin: 0;`,
         }),
         parseHTML: element => element.style.width || '100%',
       },
@@ -4404,10 +4404,36 @@ export default function NoteEditor({
     window.cyberNotesAPI?.setUnsavedChanges(hasUnsavedChanges);
   }, [hasUnsavedChanges]);
 
+  // Posicionar foco y selection range en el editor garantizando que Chromium y ProseMirror
+  // pinten el caret parpadeante en la posición actual (o posición 1) sin requerir clic.
+  const focusEditorAtSelection = useCallback(() => {
+    if (!editor || editor.isDestroyed) return;
+    const dom = editor.view.dom;
+    if (!dom || !dom.isConnected) return;
+    try { window.focus(); } catch (_) {}
+    dom.focus({ preventScroll: true });
+    editor.view.focus();
+    setIsFocused(true);
+    try {
+      const sel = window.getSelection();
+      if (sel) {
+        const pos = editor.state.selection ? editor.state.selection.from : 1;
+        const targetPos = editor.view.domAtPos(pos);
+        if (targetPos && targetPos.node) {
+          const range = document.createRange();
+          range.setStart(targetPos.node, targetPos.offset);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+    } catch (_) {}
+  }, [editor]);
+
   // Autofoco garantizado del editor al cargar o desbloquear la app,
   // y al volver a una nota existente una vez que el DOM está conectado.
   useEffect(() => {
-    if (!editor || editor.isDestroyed || !note || readOnly) return;
+    if (!editor || editor.isDestroyed || !note || readOnly || isNoteLoading) return;
 
     let cancelled = false;
     let attempts = 0;
@@ -4421,7 +4447,7 @@ export default function NoteEditor({
 
       const dom = editor.view.dom;
       if (!dom || !dom.isConnected) {
-        if (attempts < 30) {
+        if (attempts < 40) {
           attempts++;
           requestAnimationFrame(tryFocus);
         }
@@ -4431,16 +4457,14 @@ export default function NoteEditor({
       // Si se acaba de crear una nota, respetar el foco del título
       if (focusTitleNoteId && focusTitleNoteId === note.id) return;
 
-      editor.view.focus();
-      if (document.activeElement !== dom) {
-        dom.focus({ preventScroll: true });
-      }
+      focusEditorAtSelection();
     };
 
     const rafId = requestAnimationFrame(tryFocus);
     const t1 = setTimeout(tryFocus, 60);
     const t2 = setTimeout(tryFocus, 180);
     const t3 = setTimeout(tryFocus, 360);
+    const t4 = setTimeout(tryFocus, 600);
 
     return () => {
       cancelled = true;
@@ -4448,8 +4472,9 @@ export default function NoteEditor({
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      clearTimeout(t4);
     };
-  }, [editor, note?.id, readOnly, focusTitleNoteId]);
+  }, [editor, note?.id, readOnly, focusTitleNoteId, isNoteLoading, focusEditorAtSelection]);
 
   // Al reactivar o enfocar la ventana de la app (arranque, Alt+Tab), asegurar que el editor
   // recupere el foco y pinte el caret si no se está interactuando con otro campo o modal.
@@ -4463,10 +4488,7 @@ export default function NoteEditor({
       if (focusTitleNoteId && focusTitleNoteId === note?.id) return;
       const dom = editor.view.dom;
       if (dom && dom.isConnected) {
-        editor.view.focus();
-        if (document.activeElement !== dom) {
-          dom.focus({ preventScroll: true });
-        }
+        focusEditorAtSelection();
       }
     };
 
@@ -4474,7 +4496,7 @@ export default function NoteEditor({
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [editor, note?.id, readOnly, focusTitleNoteId]);
+  }, [editor, note?.id, readOnly, focusTitleNoteId, focusEditorAtSelection]);
 
   // Actualizar editor cuando cambia la nota seleccionada o cuando se monta/desmonta
   useLayoutEffect(() => {
@@ -4555,10 +4577,7 @@ export default function NoteEditor({
         // Sin robo de scroll: el contenido es nuevo y el scroller se resetea
         // síncrono pre-paint; view.focus() enfoca sin scrollIntoView.
         scrollContainerRef.current?.scrollTo(0, 0);
-        editor.view.focus();
-        if (editor.view.dom && document.activeElement !== editor.view.dom) {
-          editor.view.dom.focus({ preventScroll: true });
-        }
+        focusEditorAtSelection();
       }
       setIsRaw(false);
 
