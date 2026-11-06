@@ -4,7 +4,7 @@ import { ThemeId, type UsageStats, type AccessLogEvent } from '../types';
 import { THEMES, isColorfulTheme } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
-import { Language } from '../languages';
+import { Language, TRANSLATIONS } from '../languages';
 import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, BrushCleaning, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen, Search } from 'lucide-react';
 import { playSynthSound } from '../utils/audio';
 import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
@@ -75,7 +75,7 @@ interface Props {
   initialTab?: Tab;
 }
 
-type Tab = 'general' | 'appearance' | 'security' | 'maintenance' | 'stats';
+type Tab = 'general' | 'appearance' | 'floating' | 'security' | 'maintenance' | 'stats';
 
 /** Atajo global por defecto (misma fuente que electron/main.ts). */
 const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
@@ -678,6 +678,10 @@ export default function SettingsModal({
   const [stickyRestoreOnStartup, setStickyRestoreOnStartup] = useState(true);
   const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
   const [stickyLockAction, setStickyLockAction] = useState<'hide' | 'shield'>('hide');
+  const [stickyDefaultColor, setStickyDefaultColor] = useState('random');
+  const [stickyDefaultOpacity, setStickyDefaultOpacity] = useState(1);
+  const [stickyDefaultPinned, setStickyDefaultPinned] = useState(true);
+  const [stickyDefaultZoom, setStickyDefaultZoom] = useState(1);
   const [dismissedConfirmationCount, setDismissedConfirmationCount] = useState(0);
   const [restoreNoticesFeedback, setRestoreNoticesFeedback] = useState(false);
   const restoreNoticesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -783,6 +787,26 @@ export default function SettingsModal({
   const handleChangeStickyLockAction = async (val: 'hide' | 'shield') => {
     setStickyLockAction(val);
     await window.cyberNotesAPI.setSetting('sticky_lock_action', val);
+  };
+
+  const handleChangeStickyDefaultColor = async (val: string) => {
+    setStickyDefaultColor(val);
+    await window.cyberNotesAPI.setSetting('sticky_default_color', val);
+  };
+
+  const handleChangeStickyDefaultOpacity = async (val: number) => {
+    setStickyDefaultOpacity(val);
+    await window.cyberNotesAPI.setSetting('sticky_default_opacity', String(val));
+  };
+
+  const handleToggleStickyDefaultPinned = async (val: boolean) => {
+    setStickyDefaultPinned(val);
+    await window.cyberNotesAPI.setSetting('sticky_default_pinned', val ? 'true' : 'false');
+  };
+
+  const handleChangeStickyDefaultZoom = async (val: number) => {
+    setStickyDefaultZoom(val);
+    await window.cyberNotesAPI.setSetting('sticky_default_zoom', String(val));
   };
 
   const handleRestoreDismissedConfirmations = async () => {
@@ -996,6 +1020,14 @@ export default function SettingsModal({
       setStickySkipTaskbar(sStickySkip !== 'false');
       const sStickyLock = await window.cyberNotesAPI.getSetting('sticky_lock_action');
       setStickyLockAction((sStickyLock as any) || 'hide');
+      const sStickyColor = await window.cyberNotesAPI.getSetting('sticky_default_color');
+      setStickyDefaultColor(sStickyColor || 'random');
+      const sStickyOpacity = await window.cyberNotesAPI.getSetting('sticky_default_opacity');
+      setStickyDefaultOpacity(sStickyOpacity ? Number(sStickyOpacity) : 1);
+      const sStickyPinned = await window.cyberNotesAPI.getSetting('sticky_default_pinned');
+      setStickyDefaultPinned(sStickyPinned !== 'false');
+      const sStickyZoom = await window.cyberNotesAPI.getSetting('sticky_default_zoom');
+      setStickyDefaultZoom(sStickyZoom ? Number(sStickyZoom) : 1);
       const dismissedConfirmations = await window.cyberNotesAPI.getSettings([...DISMISSIBLE_CONFIRMATION_KEYS]);
       setDismissedConfirmationCount(
         DISMISSIBLE_CONFIRMATION_KEYS.filter((key) => dismissedConfirmations[key] === 'true').length
@@ -1018,7 +1050,11 @@ export default function SettingsModal({
         closeToTray: ctt, minimizeToTray: mtt, autoStart: isAutoStart, toggleHotkey: currentHk,
         stickyRestoreOnStartup: sStickyRestore !== 'false',
         stickySkipTaskbar: sStickySkip !== 'false',
-        stickyLockAction: (sStickyLock as any) || 'hide'
+        stickyLockAction: (sStickyLock as any) || 'hide',
+        stickyDefaultColor: sStickyColor || 'random',
+        stickyDefaultOpacity: sStickyOpacity ? Number(sStickyOpacity) : 1,
+        stickyDefaultPinned: sStickyPinned !== 'false',
+        stickyDefaultZoom: sStickyZoom ? Number(sStickyZoom) : 1,
       });
       setLoaded(true);
     };
@@ -1033,7 +1069,8 @@ export default function SettingsModal({
       autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
       capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar, showTableToolbar,
       closeToTray, minimizeToTray, autoStart, toggleHotkey,
-      stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
+      stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction,
+      stickyDefaultColor, stickyDefaultOpacity, stickyDefaultPinned, stickyDefaultZoom,
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
       setHasSavedChanges(true);
@@ -1045,7 +1082,8 @@ export default function SettingsModal({
     autosaveEnabled, autoUnlockCapsLock, autoUnlockCapsLockTimeout,
     capsLockSound, capsLockSoundScope, tabsWidthMode, editorFont, showMinimap, showWordCounter, showKeyboardIndicators, showFloatingToolbar, showImageToolbar, showTableToolbar,
     closeToTray, minimizeToTray, autoStart, toggleHotkey,
-    stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction
+    stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction,
+    stickyDefaultColor, stickyDefaultOpacity, stickyDefaultPinned, stickyDefaultZoom,
   ]);
 
   useEffect(() => {
@@ -1093,10 +1131,13 @@ export default function SettingsModal({
   const navItems: { id: Tab; label: string; icon: ReactNode; separator?: boolean }[] = [
     { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <SlidersHorizontal size={13} /> },
     { id: 'appearance', label: language === 'es' ? 'Apariencia' : 'Appearance', icon: <Palette size={13} /> },
+    { id: 'floating', label: language === 'es' ? 'Notas Flotantes' : 'Floating Notes', icon: <StickyNote size={13} /> },
     { id: 'security', label: language === 'es' ? 'Seguridad' : 'Security', icon: <Shield size={13} /> },
     { id: 'maintenance', label: language === 'es' ? 'Respaldo y Datos' : 'Backup & Data', icon: <Database size={13} /> },
     { id: 'stats', label: language === 'es' ? 'Estadísticas' : 'Statistics', icon: <BarChart3 size={13} />, separator: true },
   ];
+
+  const getTabLabel = (tabId: Tab) => navItems.find((item) => item.id === tabId)?.label ?? '';
 
   const handleToggleTray = async (val: boolean) => {
     setCloseToTray(val);
@@ -1514,7 +1555,7 @@ export default function SettingsModal({
 
           {/* ── GENERAL ── */}
           {(searching || tab === 'general') && (
-            <SettingsSearchGroup label={navItems[0].label}>
+            <SettingsSearchGroup label={getTabLabel('general')}>
             <div className="settings-card settings-general-card">
                 <SettingsHeading icon={<SlidersHorizontal />}>
                   {language === 'es' ? 'Preferencias' : 'Preferences'}
@@ -1971,65 +2012,12 @@ export default function SettingsModal({
             <SettingsSearchItem searchText={language === 'es' ? 'Diccionario personal corrector ortográfico palabras' : 'Personal dictionary spell checker words'}>
               <DictionaryWordsManager language={language} />
             </SettingsSearchItem>
-            <div className="settings-card settings-floating-card">
-              <SettingsHeading icon={<StickyNote />}>
-                {language === 'es' ? 'Notas flotantes' : 'Floating Notes'}
-              </SettingsHeading>
-              <div className="settings-option-stack">
-                <label className="settings-option-row" onClick={() => handleToggleStickyRestore(!stickyRestoreOnStartup)}>
-                  <SettingsOptionCopy icon={<History />}>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                      {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore floating notes on startup'}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {language === 'es' ? 'Vuelve a abrir en el escritorio las notas flotantes que estaban activas al cerrar' : 'Reopens active desktop floating notes when CyberNotes starts'}
-                    </span>
-                  </SettingsOptionCopy>
-                  <div className={`custom-switch ${stickyRestoreOnStartup ? 'active' : ''}`} />
-                </label>
-
-                <label className="settings-option-row" onClick={() => handleToggleStickySkipTaskbar(!stickySkipTaskbar)}>
-                  <SettingsOptionCopy icon={<LayoutGrid />}>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                      {language === 'es' ? 'Notas flotantes en modo widget' : 'Floating notes as desktop widgets'}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {language === 'es' ? 'Oculta las notas flotantes de la barra de tareas para no saturarla' : 'Hides floating notes from the taskbar to avoid cluttering it'}
-                    </span>
-                  </SettingsOptionCopy>
-                  <div className={`custom-switch ${stickySkipTaskbar ? 'active' : ''}`} />
-                </label>
-
-                <div className="settings-option-row">
-                  <SettingsOptionCopy icon={<ShieldCheck />}>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-                      {language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {language === 'es'
-                        ? 'Elige si las notas se ocultan o permanecen visibles con una capa opaca desenfocada mientras CyberNotes está bloqueado.'
-                        : 'Choose whether notes are hidden or remain visible behind an opaque, blurred layer while CyberNotes is locked.'}
-                    </span>
-                  </SettingsOptionCopy>
-                  <CustomSelect
-                    value={stickyLockAction}
-                    onChange={(val) => handleChangeStickyLockAction(val as 'hide' | 'shield')}
-                    options={[
-                      { value: 'hide', label: language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked' },
-                      { value: 'shield', label: language === 'es' ? 'Mantener visibles con una capa opaca desenfocada' : 'Keep visible with an opaque, blurred layer' },
-                    ]}
-                    ariaLabel={language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
-                    className="settings-option-select"
-                  />
-                </div>
-              </div>
-            </div>
             </SettingsSearchGroup>
           )}
 
           {/* ── APPEARANCE ── */}
           {(searching || tab === 'appearance') && (
-            <SettingsSearchGroup label={navItems[1].label}>
+            <SettingsSearchGroup label={getTabLabel('appearance')}>
             <div className="settings-card settings-theme-card">
                 <h3 className="settings-theme-heading">{language === 'es' ? 'Tema' : 'Theme'}</h3>
                 <div className="settings-theme-grid" role="radiogroup" aria-label={language === 'es' ? 'Tema' : 'Theme'}>
@@ -2458,9 +2446,185 @@ export default function SettingsModal({
             </SettingsSearchGroup>
           )}
 
+          {/* ── NOTAS FLOTANTES / FLOATING NOTES ── */}
+          {(searching || tab === 'floating') && (
+            <SettingsSearchGroup label={getTabLabel('floating')}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Card 1: Comportamiento / Behavior */}
+                <div className="settings-card settings-floating-card">
+                  <SettingsHeading icon={<StickyNote />}>
+                    {language === 'es' ? 'Comportamiento de notas flotantes' : 'Floating notes behavior'}
+                  </SettingsHeading>
+                  <div className="settings-option-stack">
+                    <label className="settings-option-row" onClick={() => handleToggleStickyRestore(!stickyRestoreOnStartup)}>
+                      <SettingsOptionCopy icon={<History />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Restaurar notas flotantes al iniciar' : 'Restore floating notes on startup'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es' ? 'Vuelve a abrir en el escritorio las notas flotantes que estaban activas al cerrar' : 'Reopens active desktop floating notes when CyberNotes starts'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <div className={`custom-switch ${stickyRestoreOnStartup ? 'active' : ''}`} />
+                    </label>
+
+                    <label className="settings-option-row" onClick={() => handleToggleStickySkipTaskbar(!stickySkipTaskbar)}>
+                      <SettingsOptionCopy icon={<LayoutGrid />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Notas flotantes en modo widget' : 'Floating notes as desktop widgets'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es' ? 'Oculta las notas flotantes de la barra de tareas para no saturarla' : 'Hides floating notes from the taskbar to avoid cluttering it'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <div className={`custom-switch ${stickySkipTaskbar ? 'active' : ''}`} />
+                    </label>
+
+                    <div className="settings-option-row">
+                      <SettingsOptionCopy icon={<ShieldCheck />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es'
+                            ? 'Elige si las notas se ocultan o permanecen visibles con una capa opaca desenfocada mientras CyberNotes está bloqueado.'
+                            : 'Choose whether notes are hidden or remain visible behind an opaque, blurred layer while CyberNotes is locked.'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <CustomSelect
+                        value={stickyLockAction}
+                        onChange={(val) => handleChangeStickyLockAction(val as 'hide' | 'shield')}
+                        options={[
+                          { value: 'hide', label: language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked' },
+                          { value: 'shield', label: language === 'es' ? 'Mantener visibles con una capa opaca desenfocada' : 'Keep visible with an opaque, blurred layer' },
+                        ]}
+                        ariaLabel={language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
+                        className="settings-option-select"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Valores predeterminados / Defaults for new notes */}
+                <div className="settings-card">
+                  <SettingsHeading icon={<Sparkles />}>
+                    {language === 'es' ? 'Predeterminados para nuevas notas' : 'Defaults for new notes'}
+                  </SettingsHeading>
+                  <p className="setting-desc" style={{ marginBottom: 16 }}>
+                    {language === 'es'
+                      ? 'Configura la apariencia inicial y comportamiento de las nuevas notas flotantes al crearlas.'
+                      : 'Configure the initial appearance and behavior for newly created floating notes.'}
+                  </p>
+                  <div className="settings-option-stack">
+                    {/* Default Color */}
+                    <div className="settings-option-row">
+                      <SettingsOptionCopy icon={<Palette />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Color predeterminado' : 'Default note color'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es'
+                            ? 'Color aplicado automáticamente al crear nuevas notas flotantes'
+                            : 'Color applied automatically when creating new floating notes'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <CustomSelect
+                        value={stickyDefaultColor}
+                        onChange={(val) => handleChangeStickyDefaultColor(val)}
+                        options={[
+                          { value: 'random', label: language === 'es' ? '🎲 Aleatorio (Random)' : '🎲 Random' },
+                          { value: 'cyber-yellow', label: `🟡 ${TRANSLATIONS[language].editor.stickyColors.yellow}` },
+                          { value: 'neon-cyan', label: `🩵 ${TRANSLATIONS[language].editor.stickyColors.cyan}` },
+                          { value: 'matrix-green', label: `🟢 ${TRANSLATIONS[language].editor.stickyColors.green}` },
+                          { value: 'midnight-purple', label: `🟣 ${TRANSLATIONS[language].editor.stickyColors.purple}` },
+                          { value: 'cyber-pink', label: `🌸 ${TRANSLATIONS[language].editor.stickyColors.pink}` },
+                          { value: 'graphite', label: `⚫ ${TRANSLATIONS[language].editor.stickyColors.dark}` },
+                          { value: 'electric-blue', label: `🔵 ${TRANSLATIONS[language].editor.stickyColors.blue}` },
+                          { value: 'cyber-orange', label: `🟠 ${TRANSLATIONS[language].editor.stickyColors.orange}` },
+                          { value: 'acid-lime', label: `🍏 ${TRANSLATIONS[language].editor.stickyColors.lime}` },
+                        ]}
+                        ariaLabel={language === 'es' ? 'Color predeterminado' : 'Default note color'}
+                        className="settings-option-select"
+                      />
+                    </div>
+
+                    {/* Default Opacity */}
+                    <div className="settings-option-row">
+                      <SettingsOptionCopy icon={<Droplets />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Opacidad predeterminada' : 'Default note opacity'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es'
+                            ? 'Nivel de opacidad o transparencia inicial para nuevas notas flotantes'
+                            : 'Initial opacity and transparency level for newly created floating notes'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <CustomSelect
+                        value={String(stickyDefaultOpacity)}
+                        onChange={(val) => handleChangeStickyDefaultOpacity(Number(val))}
+                        options={[
+                          { value: '1', label: `100% (${language === 'es' ? 'Opaca / Por defecto' : 'Opaque / Default'})` },
+                          { value: '0.9', label: '90%' },
+                          { value: '0.8', label: '80%' },
+                          { value: '0.7', label: '70%' },
+                          { value: '0.6', label: `60% (${language === 'es' ? 'Máx. transparencia' : 'Max transparency'})` },
+                        ]}
+                        ariaLabel={language === 'es' ? 'Opacidad predeterminada' : 'Default note opacity'}
+                        className="settings-option-select"
+                      />
+                    </div>
+
+                    {/* Always on top by default */}
+                    <label className="settings-option-row" onClick={() => handleToggleStickyDefaultPinned(!stickyDefaultPinned)}>
+                      <SettingsOptionCopy icon={<Pin />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Fijar al frente por defecto' : 'Always on top by default'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es'
+                            ? 'Mantiene las nuevas notas flotantes siempre visibles sobre otras ventanas (📌)'
+                            : 'Keeps newly created floating notes always visible above other windows (📌)'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <div className={`custom-switch ${stickyDefaultPinned ? 'active' : ''}`} />
+                    </label>
+
+                    {/* Default Zoom */}
+                    <div className="settings-option-row">
+                      <SettingsOptionCopy icon={<SlidersHorizontal />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Zoom predeterminado' : 'Default zoom level'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {language === 'es'
+                            ? 'Escala inicial de texto para nuevas notas flotantes'
+                            : 'Initial text display scale for newly created floating notes'}
+                        </span>
+                      </SettingsOptionCopy>
+                      <CustomSelect
+                        value={String(stickyDefaultZoom)}
+                        onChange={(val) => handleChangeStickyDefaultZoom(Number(val))}
+                        options={[
+                          { value: '0.9', label: '90%' },
+                          { value: '1', label: `100% (${language === 'es' ? 'Normal / Por defecto' : 'Normal / Default'})` },
+                          { value: '1.1', label: '110%' },
+                          { value: '1.2', label: '120%' },
+                          { value: '1.3', label: '130%' },
+                        ]}
+                        ariaLabel={language === 'es' ? 'Zoom predeterminado' : 'Default zoom level'}
+                        className="settings-option-select"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </SettingsSearchGroup>
+          )}
+
           {/* ── SECURITY ── */}
           {(searching || tab === 'security') && (
-            <SettingsSearchGroup label={navItems[2].label}>
+            <SettingsSearchGroup label={getTabLabel('security')}>
             <div className="settings-card">
               <SettingsHeading icon={<LockKeyhole />}>
                 {language === 'es' ? 'Contraseña' : 'Password'}
@@ -2727,7 +2891,7 @@ export default function SettingsModal({
 
           {/* ── ESTADÍSTICAS / STATISTICS ── */}
           {(searching || tab === 'stats') && (
-            <SettingsSearchGroup label={navItems[4].label}>
+            <SettingsSearchGroup label={getTabLabel('stats')}>
             <div className="settings-card">
               <SettingsHeading icon={<BarChart3 />}>
                 {language === 'es' ? 'Estadísticas de uso' : 'Usage statistics'}
@@ -2827,11 +2991,11 @@ export default function SettingsModal({
 
           {/* ── RESPALDO Y DATOS / BACKUP & DATA ── */}
           {(searching || tab === 'maintenance') && (
-            <SettingsSearchGroup label={navItems[3].label}>
+            <SettingsSearchGroup label={getTabLabel('maintenance')}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>              {/* Card 1: Copias de seguridad (Exportar / Importar) */}
               <div className="settings-card">
                 <SettingsHeading icon={<Database />}>
-                  {language === 'es' ? 'Copias de Seguridad' : 'Backups'}
+                  {language === 'es' ? 'Respaldo manual' : 'Manual Backup'}
                 </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'
@@ -2937,7 +3101,7 @@ export default function SettingsModal({
               {/* Card 2: Respaldo automático programado */}
               <div className="settings-card">
                 <SettingsHeading icon={<Archive />}>
-                  {language === 'es' ? 'Respaldo automático' : 'Automatic backup'}
+                  {language === 'es' ? 'Respaldos automáticos' : 'Automatic Backups'}
                 </SettingsHeading>
                 <p className="setting-desc" style={{ marginBottom: 16 }}>
                   {language === 'es'

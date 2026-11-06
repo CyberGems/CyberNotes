@@ -8,7 +8,7 @@ import { createRequire } from 'module';
 import { exec, spawn } from 'child_process';
 import { initUpdater, setAutoUpdate } from './updater';
 import { initLogger, writeLog, logRendererError } from './logger';
-import { DEFAULT_STICKY_COLOR, DEFAULT_STICKY_OPACITY, STICKY_BACKGROUNDS, asStickyColorId, normalizeStickyOpacity } from '../shared/sticky';
+import { DEFAULT_STICKY_COLOR, DEFAULT_STICKY_OPACITY, STICKY_BACKGROUNDS, STICKY_COLOR_IDS, asStickyColorId, normalizeStickyOpacity, type StickyColorId } from '../shared/sticky';
 import { extractThumbFromContent } from '../shared/notes';
 import { isSpanish, preferredAppLanguage } from '../shared/lang';
 import { getThemeVars, normalizeThemeId } from '../src/themes';
@@ -1144,7 +1144,7 @@ function openStickyNote(noteId: string, centerOnMainWindow = false, focusWindow 
   let height = hasSavedSize
     ? readNumericSetting(row.height, STICKY_DEFAULT_HEIGHT)
     : STICKY_DEFAULT_HEIGHT;
-  const pinnedTop = row ? row.pinned_top !== 0 : true;
+  const pinnedTop = row?.pinned_top != null ? row.pinned_top !== 0 : getPreferredStickyPinned();
 
   let winX: number | undefined = row && typeof row.x === 'number' ? row.x : undefined;
   let winY: number | undefined = row && typeof row.y === 'number' ? row.y : undefined;
@@ -1253,11 +1253,11 @@ function openStickyNote(noteId: string, centerOnMainWindow = false, focusWindow 
 
   stickyWindows.set(noteId, win);
   runQuery(
-    `INSERT INTO sticky_notes (note_id, x, y, width, height, color, opacity, is_open)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    `INSERT INTO sticky_notes (note_id, x, y, width, height, color, opacity, pinned_top, is_open, zoom)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
      ON CONFLICT(note_id) DO UPDATE SET x = excluded.x, y = excluded.y,
        width = excluded.width, height = excluded.height, is_open = 1`,
-    [noteId, winX, winY, width, height, DEFAULT_STICKY_COLOR, stickyConfig.opacity]
+    [noteId, winX, winY, width, height, stickyConfig.color, stickyConfig.opacity, pinnedTop ? 1 : 0, stickyConfig.zoom]
   );
 
   let boundsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1430,18 +1430,37 @@ function clampStickyZoom(value: unknown): number {
   return Math.min(1.5, Math.max(0.8, Math.round(n * 100) / 100));
 }
 
+function getPreferredStickyColor(): StickyColorId {
+  const value = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_default_color'])?.value;
+  if (!value || value === 'random') {
+    const randomIndex = Math.floor(Math.random() * STICKY_COLOR_IDS.length);
+    return STICKY_COLOR_IDS[randomIndex];
+  }
+  return asStickyColorId(value);
+}
+
 function getPreferredStickyOpacity(): number {
   const value = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_default_opacity'])?.value;
   return normalizeStickyOpacity(value == null ? DEFAULT_STICKY_OPACITY : readNumericSetting(value, DEFAULT_STICKY_OPACITY));
 }
 
+function getPreferredStickyPinned(): boolean {
+  const value = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_default_pinned'])?.value;
+  return value !== 'false';
+}
+
+function getPreferredStickyZoom(): number {
+  const value = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_default_zoom'])?.value;
+  return clampStickyZoom(value == null ? 1.0 : readNumericSetting(value, 1.0));
+}
+
 function getStickyConfig(noteId: string) {
   const row = queryGet('SELECT color, opacity, pinned_top, zoom FROM sticky_notes WHERE note_id = ?', [noteId]);
   return {
-    color: asStickyColorId(row?.color),
-    opacity: row ? normalizeStickyOpacity(readNumericSetting(row.opacity, DEFAULT_STICKY_OPACITY)) : getPreferredStickyOpacity(),
-    pinned_top: row ? row.pinned_top !== 0 : true,
-    zoom: clampStickyZoom(row?.zoom ?? 1.0),
+    color: row?.color ? asStickyColorId(row.color) : getPreferredStickyColor(),
+    opacity: row?.opacity != null ? normalizeStickyOpacity(readNumericSetting(row.opacity, DEFAULT_STICKY_OPACITY)) : getPreferredStickyOpacity(),
+    pinned_top: row?.pinned_top != null ? row.pinned_top !== 0 : getPreferredStickyPinned(),
+    zoom: clampStickyZoom(row?.zoom ?? getPreferredStickyZoom()),
   };
 }
 
@@ -1459,9 +1478,6 @@ function saveStickyConfig(noteId: string, config: { color?: string; opacity?: nu
        ON CONFLICT(note_id) DO UPDATE SET color = excluded.color, opacity = excluded.opacity, pinned_top = excluded.pinned_top, zoom = excluded.zoom`,
       [noteId, color, opacity, pinnedTop, zoom]
     );
-    if (typeof config.opacity === 'number' && Number.isFinite(config.opacity)) {
-      runQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['sticky_default_opacity', String(opacity)]);
-    }
   })();
 
   const win = stickyWindows.get(noteId);
@@ -1513,10 +1529,15 @@ function createAndOpenStickyNote(centerOnMainWindow = false): string {
     [newId, null, defaultTitle, '', '', '', 0, now, now]
   );
 
+  const preferredColor = getPreferredStickyColor();
+  const preferredOpacity = getPreferredStickyOpacity();
+  const preferredPinned = getPreferredStickyPinned() ? 1 : 0;
+  const preferredZoom = getPreferredStickyZoom();
+
   runQuery(
-    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open)
-     VALUES (?, ?, ?, 1, 1)`,
-    [newId, DEFAULT_STICKY_COLOR, getPreferredStickyOpacity()]
+    `INSERT INTO sticky_notes (note_id, color, opacity, pinned_top, is_open, zoom)
+     VALUES (?, ?, ?, ?, 1, ?)`,
+    [newId, preferredColor, preferredOpacity, preferredPinned, preferredZoom]
   );
 
   openStickyNote(newId, centerOnMainWindow);

@@ -327,4 +327,25 @@ describe('settings search', () => {
     await search('zz-no-such-setting');
     expect(content().querySelector('[role="status"]')?.textContent).toBe('No matching settings found.');
   });
+
+  it.each(['es', 'en'] as const)('renders dedicated floating notes tab and new backup headings (%s)', async language => {
+    props = { ...props, language, initialTab: 'floating' };
+    await render();
+    const navButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-nav-btn'));
+    const floatingNav = navButtons.find(b => b.textContent?.includes(language === 'es' ? 'Notas Flotantes' : 'Floating Notes'));
+    expect(floatingNav).toBeTruthy();
+
+    expect(content().textContent).toContain(language === 'es' ? 'Comportamiento de notas flotantes' : 'Floating notes behavior');
+    expect(content().textContent).toContain(language === 'es' ? 'Predeterminados para nuevas notas' : 'Defaults for new notes');
+    expect(content().textContent).toContain(language === 'es' ? 'Color predeterminado' : 'Default note color');
+    expect(content().textContent).toContain(language === 'es' ? 'Opacidad predeterminada' : 'Default note opacity');
+    expect(content().textContent).toContain(language === 'es' ? 'Fijar al frente por defecto' : 'Always on top by default');
+    expect(content().textContent).toContain(language === 'es' ? 'Zoom predeterminado' : 'Default zoom level');
+
+    // Switch to maintenance tab to verify backup headings
+    const maintenanceNav = navButtons.find(b => b.textContent?.includes(language === 'es' ? 'Respaldo y Datos' : 'Backup & Data'))!;
+    await act(async () => maintenanceNav.click());
+    expect(content().textContent).toContain(language === 'es' ? 'Respaldo manual' : 'Manual Backup');
+    expect(content().textContent).toContain(language === 'es' ? 'Respaldos automáticos' : 'Automatic Backups');
+  });
 });
