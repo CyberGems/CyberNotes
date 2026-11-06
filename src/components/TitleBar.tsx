@@ -409,15 +409,6 @@ export default function TitleBar({
             <Tooltip placement="bottom" label={tooltip}>
               <div
                 data-no-drag
-                role="button"
-                tabIndex={0}
-                onClick={() => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock);
-                  }
-                }}
                 style={{
                   WebkitAppRegion: 'no-drag',
                   display: 'inline-flex',
@@ -431,7 +422,7 @@ export default function TitleBar({
                   letterSpacing: 0.2,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  cursor: onAutoUnlockCapsLockChange ? 'pointer' : 'default',
+                  cursor: 'default',
                   transition: 'background 0.2s, border-color 0.2s, color 0.2s',
                   ...chipStyle,
                 } as any}

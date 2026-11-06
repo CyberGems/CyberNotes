@@ -5648,28 +5648,6 @@ export default function NoteEditor({
             </Tooltip>
           )}
           <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            {(pinned || isFloatingNote) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                {pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    delay={400}
-                    label={language === 'es' ? 'Nota favorita' : 'Favorite note'}
-                  >
-                    <span style={{ display: 'inline-flex' }}>
-                      <Star size={16} color={pinColor} fill={pinColor} stroke="none" />
-                    </span>
-                  </Tooltip>
-                )}
-                {isFloatingNote && (
-                  <Tooltip placement="bottom" delay={400} label={t.noteList.stickyActive}>
-                    <span style={{ display: 'inline-flex' }}>
-                      <AppWindow size={16} color={floatingColor} />
-                    </span>
-                  </Tooltip>
-                )}
-              </div>
-            )}
             <input
               ref={titleInputRef}
               value={localTitle}
