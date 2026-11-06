@@ -113,6 +113,41 @@ export const ImageCaret = Extension.create({
                 view.focus();
                 return true;
               }
+
+              // Shift + Flechas con imagen seleccionada: convertir a selección de texto que abarque la imagen
+              if (event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                if (event.key === 'ArrowRight') {
+                  event.preventDefault();
+                  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, selection.from, selection.from + selection.node.nodeSize)));
+                  view.focus();
+                  return true;
+                }
+                if (event.key === 'ArrowLeft') {
+                  event.preventDefault();
+                  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, selection.from + selection.node.nodeSize, selection.from)));
+                  view.focus();
+                  return true;
+                }
+              }
+            }
+
+            // Shift + Flechas junto a una imagen en línea: extender/contraer selección sobre la imagen
+            if (event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && selection instanceof TextSelection) {
+              const { $head, anchor } = selection;
+              if (event.key === 'ArrowRight' && $head.nodeAfter?.type.name === 'image') {
+                event.preventDefault();
+                const newHead = $head.pos + $head.nodeAfter.nodeSize;
+                view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, newHead)));
+                view.focus();
+                return true;
+              }
+              if (event.key === 'ArrowLeft' && $head.nodeBefore?.type.name === 'image') {
+                event.preventDefault();
+                const newHead = $head.pos - $head.nodeBefore.nodeSize;
+                view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, newHead)));
+                view.focus();
+                return true;
+              }
             }
 
             // Ctrl + Flechas junto a una imagen en línea: saltar al otro lado de la imagen

@@ -11,6 +11,7 @@ import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
 import { EnterGlyph, KeyHint, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
+import CustomSelect from './CustomSelect';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
 import SettingsSearch, { normalizeSettingsSearch, SettingsSearchGroup, SettingsSearchItem } from './SettingsSearch';
 
@@ -1536,23 +1537,16 @@ export default function SettingsModal({
                     </SettingsOptionCopy>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
                       <Languages size={15} style={{ color: 'var(--accent)', opacity: 0.8 }} />
-                      <select 
+                      <CustomSelect
                         value={language}
-                        onChange={(e) => onLanguageChange(e.target.value as Language)}
-                        className="input"
-                        style={{
-                          background: 'var(--bg-app)',
-                          cursor: 'pointer',
-                          padding: '6px 12px',
-                          fontSize: 12,
-                          width: 120,
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--border)'
-                        }}
-                      >
-                        <option value="es">Español</option>
-                        <option value="en">English</option>
-                      </select>
+                        onChange={(val) => onLanguageChange(val as Language)}
+                        options={[
+                          { value: 'es', label: 'Español' },
+                          { value: 'en', label: 'English' },
+                        ]}
+                        ariaLabel={language === 'es' ? 'Idioma de la interfaz' : 'Interface Language'}
+                        shellStyle={{ width: 130 }}
+                      />
                     </div>
                   </div>
 
@@ -1922,18 +1916,19 @@ export default function SettingsModal({
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <select
+                          <CustomSelect
                             value={capsLockSound}
-                            onChange={(e) => onCapsLockSoundChange(e.target.value)}
-                            className="input"
-                            style={{ flex: '1 1 auto', minWidth: 0, fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer' }}
-                          >
-                            <option value="off">{language === 'es' ? 'Silenciar (Sin sonido)' : 'Muted (No sound)'}</option>
-                            <option value="mechanical-click">{language === 'es' ? 'Click Mecánico ⌨️' : 'Mechanical Click ⌨️'}</option>
-                            <option value="cyber-beep">{language === 'es' ? 'Chirp Cyber-Beep 🔊' : 'Cyber-Beep Chirp 🔊'}</option>
-                            <option value="digital-chime">{language === 'es' ? 'Chime Digital 🎵' : 'Digital Chime 🎵'}</option>
-                            <option value="glitch-blip">{language === 'es' ? 'Blip de Glitch ⚡' : 'Glitch Blip ⚡'}</option>
-                          </select>
+                            onChange={(val) => onCapsLockSoundChange(val)}
+                            options={[
+                              { value: 'off', label: language === 'es' ? 'Silenciar (Sin sonido)' : 'Muted (No sound)' },
+                              { value: 'mechanical-click', label: language === 'es' ? 'Click Mecánico ⌨️' : 'Mechanical Click ⌨️' },
+                              { value: 'cyber-beep', label: language === 'es' ? 'Chirp Cyber-Beep 🔊' : 'Cyber-Beep Chirp 🔊' },
+                              { value: 'digital-chime', label: language === 'es' ? 'Chime Digital 🎵' : 'Digital Chime 🎵' },
+                              { value: 'glitch-blip', label: language === 'es' ? 'Blip de Glitch ⚡' : 'Glitch Blip ⚡' },
+                            ]}
+                            ariaLabel={language === 'es' ? 'Sonido de Bloq Mayús' : 'Caps Lock Sound'}
+                            shellStyle={{ flex: '1 1 auto', minWidth: 0 }}
+                          />
                           <button
                             className="btn btn-ghost"
                             onClick={() => playSynthSound(capsLockSound)}
@@ -1952,15 +1947,16 @@ export default function SettingsModal({
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <select
+                          <CustomSelect
                             value={capsLockSoundScope}
-                            onChange={(e) => onCapsLockSoundScopeChange(e.target.value)}
-                            className="input"
-                            style={{ flex: '1 1 auto', minWidth: 0, fontSize: 12, background: 'var(--bg-app)', cursor: 'pointer' }}
-                          >
-                            <option value="app">{language === 'es' ? 'Solo dentro de la app 📱' : 'Only inside the app 📱'}</option>
-                            <option value="global">{language === 'es' ? 'Global en el sistema 🌍' : 'Global in the system 🌍'}</option>
-                          </select>
+                            onChange={(val) => onCapsLockSoundScopeChange(val)}
+                            options={[
+                              { value: 'app', label: language === 'es' ? 'Solo dentro de la app 📱' : 'Only inside the app 📱' },
+                              { value: 'global', label: language === 'es' ? 'Global en el sistema 🌍' : 'Global in the system 🌍' },
+                            ]}
+                            ariaLabel={language === 'es' ? 'Ámbito del sonido' : 'Sound Scope'}
+                            shellStyle={{ flex: '1 1 auto', minWidth: 0 }}
+                          />
                         </div>
                       </div>
                     )}
@@ -2010,14 +2006,16 @@ export default function SettingsModal({
                         : 'Choose whether notes are hidden or remain visible behind an opaque, blurred layer while CyberNotes is locked.'}
                     </span>
                   </SettingsOptionCopy>
-                  <select
+                  <CustomSelect
                     value={stickyLockAction}
-                    onChange={(e) => handleChangeStickyLockAction(e.target.value as 'hide' | 'shield')}
-                    className="input settings-option-select"
-                  >
-                    <option value="hide">{language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked'}</option>
-                    <option value="shield">{language === 'es' ? 'Mantener visibles con una capa opaca desenfocada' : 'Keep visible with an opaque, blurred layer'}</option>
-                  </select>
+                    onChange={(val) => handleChangeStickyLockAction(val as 'hide' | 'shield')}
+                    options={[
+                      { value: 'hide', label: language === 'es' ? 'Ocultar mientras esté bloqueado' : 'Hide while locked' },
+                      { value: 'shield', label: language === 'es' ? 'Mantener visibles con una capa opaca desenfocada' : 'Keep visible with an opaque, blurred layer' },
+                    ]}
+                    ariaLabel={language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
+                    className="settings-option-select"
+                  />
                 </div>
               </div>
             </div>
@@ -2178,14 +2176,16 @@ export default function SettingsModal({
                       {language === 'es' ? 'Elige el tamaño horizontal de las pestañas en el editor' : 'Choose the horizontal size of tabs in the editor'}
                     </span>
                   </SettingsOptionCopy>
-                  <select
+                  <CustomSelect
                     value={tabsWidthMode}
-                    onChange={(e) => onTabsWidthModeChange(e.target.value as 'normal' | 'wide')}
-                    className="input settings-option-select"
-                  >
-                    <option value="normal">{language === 'es' ? 'Normal' : 'Normal'}</option>
-                    <option value="wide">{language === 'es' ? 'Ancho (+30%)' : 'Wide (+30%)'}</option>
-                  </select>
+                    onChange={(val) => onTabsWidthModeChange(val as 'normal' | 'wide')}
+                    options={[
+                      { value: 'normal', label: language === 'es' ? 'Normal' : 'Normal' },
+                      { value: 'wide', label: language === 'es' ? 'Ancho (+30%)' : 'Wide (+30%)' },
+                    ]}
+                    ariaLabel={language === 'es' ? 'Ancho de pestañas' : 'Tab Width'}
+                    className="settings-option-select"
+                  />
                 </div>
 
                 <label className="settings-option-row" onClick={() => onShowLineCounterChange(!showLineCounter)}>
@@ -2471,18 +2471,18 @@ export default function SettingsModal({
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-                  {language === 'es' ? 'Método de desbloqueo' : 'Unlock method'}
-                  <select
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <span>{language === 'es' ? 'Método de desbloqueo' : 'Unlock method'}</span>
+                  <CustomSelect
                     value={authMethod}
-                    onChange={e => setAuthMethod(e.target.value === 'pin' ? 'pin' : 'password')}
-                    className="input"
-                    style={{ background: 'var(--bg-app)', cursor: 'pointer' }}
-                  >
-                    <option value="password">{language === 'es' ? 'Contraseña' : 'Password'}</option>
-                    <option value="pin">{language === 'es' ? 'PIN (4 a 8 dígitos)' : 'PIN (4 to 8 digits)'}</option>
-                  </select>
-                </label>
+                    onChange={(val) => setAuthMethod(val === 'pin' ? 'pin' : 'password')}
+                    options={[
+                      { value: 'password', label: language === 'es' ? 'Contraseña' : 'Password' },
+                      { value: 'pin', label: language === 'es' ? 'PIN (4 a 8 dígitos)' : 'PIN (4 to 8 digits)' },
+                    ]}
+                    ariaLabel={language === 'es' ? 'Método de desbloqueo' : 'Unlock method'}
+                  />
+                </div>
                 {hasPassword && (
                   <div style={{ position: 'relative' }}>
                     <input
@@ -2690,24 +2690,25 @@ export default function SettingsModal({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ color: 'var(--accent)', opacity: 0.8 }}><Shield size={18} /></div>
-                    <select 
+                    <CustomSelect
                       value={autoLockMinutes}
-                      onChange={(e) => onAutoLockChange(parseInt(e.target.value))}
-                      className="input"
-                      style={{ flex: 1, background: 'var(--bg-app)', cursor: 'pointer' }}
-                    >
-                      <option value="0">{language === 'es' ? 'Nunca (Desactivado)' : 'Never (Disabled)'}</option>
-                      <option value="1">{language === 'es' ? 'Después de 1 minuto' : 'After 1 minute'}</option>
-                      <option value="5">{language === 'es' ? 'Después de 5 minutos' : 'After 5 minutes'}</option>
-                      <option value="15">{language === 'es' ? 'Después de 15 minutos' : 'After 15 minutes'}</option>
-                      <option value="30">{language === 'es' ? 'Después de 30 minutos' : 'After 30 minutes'}</option>
-                      <option value="60">{language === 'es' ? 'Después de 1 hora' : 'After 1 hour'}</option>
-                      <option value="120">{language === 'es' ? 'Después de 2 horas' : 'After 2 hours'}</option>
-                      <option value="240">{language === 'es' ? 'Después de 4 horas' : 'After 4 hours'}</option>
-                      <option value="480">{language === 'es' ? 'Después de 8 horas' : 'After 8 hours'}</option>
-                      <option value="720">{language === 'es' ? 'Después de 12 horas' : 'After 12 hours'}</option>
-                      <option value="1440">{language === 'es' ? 'Después de 24 horas' : 'After 24 hours'}</option>
-                    </select>
+                      onChange={(val) => onAutoLockChange(parseInt(val, 10))}
+                      options={[
+                        { value: '0', label: language === 'es' ? 'Nunca (Desactivado)' : 'Never (Disabled)' },
+                        { value: '1', label: language === 'es' ? 'Después de 1 minuto' : 'After 1 minute' },
+                        { value: '5', label: language === 'es' ? 'Después de 5 minutos' : 'After 5 minutes' },
+                        { value: '15', label: language === 'es' ? 'Después de 15 minutos' : 'After 15 minutes' },
+                        { value: '30', label: language === 'es' ? 'Después de 30 minutos' : 'After 30 minutes' },
+                        { value: '60', label: language === 'es' ? 'Después de 1 hora' : 'After 1 hour' },
+                        { value: '120', label: language === 'es' ? 'Después de 2 horas' : 'After 2 hours' },
+                        { value: '240', label: language === 'es' ? 'Después de 4 horas' : 'After 4 hours' },
+                        { value: '480', label: language === 'es' ? 'Después de 8 horas' : 'After 8 hours' },
+                        { value: '720', label: language === 'es' ? 'Después de 12 horas' : 'After 12 hours' },
+                        { value: '1440', label: language === 'es' ? 'Después de 24 horas' : 'After 24 hours' },
+                      ]}
+                      ariaLabel={language === 'es' ? 'Auto-bloqueo por inactividad' : 'Auto-lock on inactivity'}
+                      shellStyle={{ flex: 1 }}
+                    />
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
                     {language === 'es' 
@@ -2978,19 +2979,19 @@ export default function SettingsModal({
                         {language === 'es' ? 'Cada cuánto se crea una copia' : 'How often a copy is created'}
                       </span>
                     </SettingsOptionCopy>
-                    <select
-                      aria-label={language === 'es' ? 'Frecuencia de respaldo' : 'Backup frequency'}
+                    <CustomSelect
+                      ariaLabel={language === 'es' ? 'Frecuencia de respaldo' : 'Backup frequency'}
                       value={autoBackupHours}
-                      onChange={(e) => handleAutoBackupHours(e.target.value)}
-                      className="input settings-row-select"
+                      onChange={(val) => handleAutoBackupHours(val)}
+                      options={[
+                        { value: '6', label: language === 'es' ? 'Cada 6 horas' : 'Every 6 hours' },
+                        { value: '12', label: language === 'es' ? 'Cada 12 horas' : 'Every 12 hours' },
+                        { value: '24', label: language === 'es' ? 'Cada día' : 'Every day' },
+                        { value: '168', label: language === 'es' ? 'Cada semana' : 'Every week' },
+                      ]}
                       disabled={!autoBackupEnabled}
-                      style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
-                    >
-                      <option value="6">{language === 'es' ? 'Cada 6 horas' : 'Every 6 hours'}</option>
-                      <option value="12">{language === 'es' ? 'Cada 12 horas' : 'Every 12 hours'}</option>
-                      <option value="24">{language === 'es' ? 'Cada día' : 'Every day'}</option>
-                      <option value="168">{language === 'es' ? 'Cada semana' : 'Every week'}</option>
-                    </select>
+                      className="settings-row-select"
+                    />
                   </div>
 
                   <div className="settings-data-row" style={{
@@ -3010,19 +3011,19 @@ export default function SettingsModal({
                         {language === 'es' ? 'Las más antiguas se eliminan solas' : 'Oldest ones are deleted automatically'}
                       </span>
                     </SettingsOptionCopy>
-                    <select
-                      aria-label={language === 'es' ? 'Copias conservadas' : 'Copies kept'}
+                    <CustomSelect
+                      ariaLabel={language === 'es' ? 'Copias conservadas' : 'Copies kept'}
                       value={autoBackupKeep}
-                      onChange={(e) => handleAutoBackupKeep(e.target.value)}
-                      className="input settings-row-select"
+                      onChange={(val) => handleAutoBackupKeep(val)}
+                      options={[
+                        { value: '1', label: '1' },
+                        { value: '3', label: '3' },
+                        { value: '5', label: '5' },
+                        { value: '7', label: '7' },
+                      ]}
                       disabled={!autoBackupEnabled}
-                      style={{ background: 'var(--bg-app)', cursor: 'pointer', padding: '6px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
-                    >
-                      <option value="1">1</option>
-                      <option value="3">3</option>
-                      <option value="5">5</option>
-                      <option value="7">7</option>
-                    </select>
+                      className="settings-row-select"
+                    />
                   </div>
 
                   <div className="settings-data-row" style={{

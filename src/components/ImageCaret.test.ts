@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
-import { NodeSelection } from '@tiptap/pm/state';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import type { DecorationSet } from '@tiptap/pm/view';
 import { ImageCaret, imageCaretPluginKey } from '../utils/imageCaret';
 
@@ -338,6 +338,80 @@ describe('ImageCaret Extension', () => {
       );
       expect(handled).toBe(true);
       expect(editor.state.selection.from).toBe(1);
+
+      editor.destroy();
+    });
+
+    it('expands text selection across image on Shift+ArrowRight when cursor is before the image', () => {
+      const editor = new Editor({
+        extensions: [
+          StarterKit,
+          Image.configure({ inline: true, allowBase64: true }),
+          ImageCaret,
+        ],
+        content: '<p><img src="data:image/png;base64,123" /></p>',
+      });
+
+      editor.commands.setTextSelection(1);
+      const handled = editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true }))
+      );
+      expect(handled).toBe(true);
+      expect(editor.state.selection.from).toBe(1);
+      expect(editor.state.selection.to).toBe(2);
+
+      editor.destroy();
+    });
+
+    it('expands text selection backwards across image on Shift+ArrowLeft when cursor is after the image', () => {
+      const editor = new Editor({
+        extensions: [
+          StarterKit,
+          Image.configure({ inline: true, allowBase64: true }),
+          ImageCaret,
+        ],
+        content: '<p><img src="data:image/png;base64,123" /></p>',
+      });
+
+      editor.commands.setTextSelection(2);
+      const handled = editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true }))
+      );
+      expect(handled).toBe(true);
+      expect(editor.state.selection.from).toBe(1);
+      expect(editor.state.selection.to).toBe(2);
+
+      editor.destroy();
+    });
+
+    it('converts NodeSelection on image to TextSelection spanning the image on Shift+Arrow', () => {
+      const editor = new Editor({
+        extensions: [
+          StarterKit,
+          Image.configure({ inline: true, allowBase64: true }),
+          ImageCaret,
+        ],
+        content: '<p><img src="data:image/png;base64,123" /></p>',
+      });
+
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 1)));
+      const handledRight = editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true }))
+      );
+      expect(handledRight).toBe(true);
+      expect(editor.state.selection).toBeInstanceOf(TextSelection);
+      expect(editor.state.selection.from).toBe(1);
+      expect(editor.state.selection.to).toBe(2);
+
+      // Re-select NodeSelection and test Shift+ArrowLeft
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 1)));
+      const handledLeft = editor.view.someProp('handleKeyDown', f =>
+        f(editor.view, new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true }))
+      );
+      expect(handledLeft).toBe(true);
+      expect(editor.state.selection).toBeInstanceOf(TextSelection);
+      expect(editor.state.selection.from).toBe(1);
+      expect(editor.state.selection.to).toBe(2);
 
       editor.destroy();
     });
