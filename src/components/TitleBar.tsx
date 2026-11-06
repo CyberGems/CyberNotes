@@ -88,7 +88,7 @@ export default function TitleBar({
   onAutosaveChange,
   autoUnlockCapsLock = false,
   onAutoUnlockCapsLockChange,
-  autoUnlockCapsLockTimeout = 10,
+  autoUnlockCapsLockTimeout = 120,
   showMinimap = false,
   onShowMinimapChange,
   showKeyboardIndicators = true,

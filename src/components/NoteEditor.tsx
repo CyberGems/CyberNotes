@@ -2187,7 +2187,7 @@ export default function NoteEditor({
   onHiddenToolbarIdsChange,
   autosaveEnabled = true,
   autoUnlockCapsLock = false,
-  autoUnlockCapsLockTimeout = 8,
+  autoUnlockCapsLockTimeout = 120,
   onAutoUnlockCapsLockChange,
   capsLockSound = 'cyber-beep',
   capsLockSoundScope = 'app',
@@ -2744,16 +2744,16 @@ export default function NoteEditor({
   const identityBorder = pinned && isFloatingNote
     ? '1px solid color-mix(in srgb, rgb(var(--pin-rgb, 245, 158, 11)) 55%, rgb(var(--floating-rgb, 34, 211, 238)))'
     : pinned
-      ? '1px solid rgba(var(--pin-rgb, 245, 158, 11), 0.45)'
+      ? '1px solid rgba(var(--pin-rgb, 245, 158, 11), 0.30)'
       : isFloatingNote
-        ? '1px solid rgba(var(--floating-rgb, 34, 211, 238), 0.45)'
+        ? '1px solid rgba(var(--floating-rgb, 34, 211, 238), 0.30)'
         : '1px solid rgba(255, 255, 255, 0.05)';
   const identityGlow = pinned && isFloatingNote
-    ? '0 0 12px rgba(var(--pin-rgb, 245, 158, 11), 0.18), 0 0 10px rgba(var(--floating-rgb, 34, 211, 238), 0.14), inset 0 1px 3px rgba(0,0,0,0.2)'
+    ? '0 0 8px rgba(var(--pin-rgb, 245, 158, 11), 0.09), 0 0 8px rgba(var(--floating-rgb, 34, 211, 238), 0.07), inset 0 1px 3px rgba(0,0,0,0.2)'
     : pinned
-      ? '0 0 12px rgba(var(--pin-rgb, 245, 158, 11), 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
+      ? '0 0 8px rgba(var(--pin-rgb, 245, 158, 11), 0.11), inset 0 1px 3px rgba(0,0,0,0.2)'
       : isFloatingNote
-        ? '0 0 12px rgba(var(--floating-rgb, 34, 211, 238), 0.22), inset 0 1px 3px rgba(0,0,0,0.2)'
+        ? '0 0 8px rgba(var(--floating-rgb, 34, 211, 238), 0.11), inset 0 1px 3px rgba(0,0,0,0.2)'
         : 'inset 0 1px 3px rgba(0,0,0,0.2)';
   const [isRaw, setIsRaw] = useState(false);
   const [showHistory, setShowHistory] = useState(false);

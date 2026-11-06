@@ -1892,7 +1892,7 @@ export default function SettingsModal({
                                 ? ['5s', '10s', '15s', '30s', '45s', '1m', '2m', '5m', '10m', '15m', '30m', '1h', '2h', '3h', '6h', '12h', '24h'] 
                                 : ['5s', '10s', '15s', '30s', '45s', '1m', '2m', '5m', '10m', '15m', '30m', '1h', '2h', '3h', '6h', '12h', '24h'];
                               const idx = CAPS_LOCK_STEPS.indexOf(autoUnlockCapsLockTimeout);
-                              return idx !== -1 ? CAPS_LOCK_LABELS[idx] : '8s';
+                              return idx !== -1 ? CAPS_LOCK_LABELS[idx] : '2m';
                             })()}
                           </span>
                         </div>
@@ -1904,7 +1904,7 @@ export default function SettingsModal({
                           value={(() => {
                             const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];
                             const idx = CAPS_LOCK_STEPS.indexOf(autoUnlockCapsLockTimeout);
-                            return idx !== -1 ? idx : 1;
+                            return idx !== -1 ? idx : 6;
                           })()}
                           onChange={(e) => {
                             const CAPS_LOCK_STEPS = [5, 10, 15, 30, 45, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400];

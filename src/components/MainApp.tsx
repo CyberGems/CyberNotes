@@ -257,7 +257,7 @@ export default function MainApp({
   const [showWrapGuides, setShowWrapGuides] = useState(true);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [autoUnlockCapsLock, setAutoUnlockCapsLock] = useState(true);
-  const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(5);
+  const [autoUnlockCapsLockTimeout, setAutoUnlockCapsLockTimeout] = useState(120);
   const [capsStatus, setCapsStatus] = useState<{ active: boolean; timeLeft: number }>({ active: false, timeLeft: 0 });
   const [capsLockSound, setCapsLockSound] = useState('cyber-beep');
   const [capsLockSoundScope, setCapsLockSoundScope] = useState('app');
