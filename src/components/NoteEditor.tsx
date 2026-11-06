@@ -135,6 +135,8 @@ interface Props {
   showMinimap?: boolean;
   onShowMinimapChange?: (v: boolean) => void;
   openStickyIds?: string[];
+  focusTitleNoteId?: string | null;
+  onClearFocusTitle?: () => void;
 }
 
 // Extensión personalizada para imagen con soporte de tamaño y alineación (en línea, estilo Word)
@@ -2220,6 +2222,8 @@ export default function NoteEditor({
   showMinimap = false,
   onShowMinimapChange,
   openStickyIds = [],
+  focusTitleNoteId = null,
+  onClearFocusTitle,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4459,7 +4463,11 @@ export default function NoteEditor({
       // cambia la selección: el foco debe quedarse escribiendo).
       const focusedTag = (document.activeElement as HTMLElement | null)?.tagName;
       const typingElsewhere = focusedTag === 'INPUT' || focusedTag === 'TEXTAREA' || focusedTag === 'SELECT';
-      if ((draft ? draft.title : note.title) === 'Nueva nota') {
+      // Solo enfocar el input del título la primera vez que se crea la nota explícitamente.
+      // Al reingresar a una nota existente (incluso con título por defecto "Nueva nota"),
+      // el cursor se posiciona en el contenido del editor (posición 1).
+      if (focusTitleNoteId && focusTitleNoteId === note.id) {
+        onClearFocusTitle?.();
         setTimeout(() => {
           const ae = document.activeElement as HTMLElement | null;
           if (ae && ae !== titleInputRef.current && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;

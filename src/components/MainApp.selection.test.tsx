@@ -323,4 +323,17 @@ describe('choosing an empty editor', () => {
     await act(async () => document.querySelector<HTMLButtonElement>('.modal-actions.is-stack .is-cancel')!.click());
     expect(editor().getText()).toContain('unsaved');
   });
+
+  it('positions caret in editor when opening a note with default title, and focuses title on note creation', async () => {
+    saved.set('default-title', {
+      id: 'default-title', title: 'Nueva nota', content: '<p>Existing text</p>',
+      preview: '', pinned: 0, folder_id: null, created_at: '2026-01-01', updated_at: '2026-01-01',
+    });
+    await render();
+    await act(async () => card('default-title').click());
+    vi.advanceTimersByTime(100);
+    const titleInput = host.querySelector<HTMLInputElement>('.title-input');
+    expect(document.activeElement).not.toBe(titleInput);
+    expect(editor().state.selection.from).toBe(1);
+  });
 });

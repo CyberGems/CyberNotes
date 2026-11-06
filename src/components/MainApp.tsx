@@ -144,6 +144,7 @@ export default function MainApp({
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   /** Nota abierta con content completo (listas solo llevan meta). */
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [focusTitleNoteId, setFocusTitleNoteId] = useState<string | null>(null);
   /** True hasta conocer si hay sesión que restaurar / content listo (evita flash de bienvenida). */
   const [sessionReady, setSessionReady] = useState(false);
   /** True mientras se pide content a disco (cambio de nota sin cache). */
@@ -1079,6 +1080,7 @@ export default function MainApp({
       if (selectedFolderId === 'sticky' || selectedFolderId === 'favorites' || selectedFolderId === 'floating') {
         setSelectedFolderId(null);
       }
+      setFocusTitleNoteId(saved.id);
       setSelectedNoteId(saved.id);
     } catch (err) {
       console.error('[MainApp] Error creating note:', err);
@@ -2198,6 +2200,8 @@ export default function MainApp({
           notes={allNotes}
           folders={folders}
           openStickyIds={openStickyIds}
+          focusTitleNoteId={focusTitleNoteId}
+          onClearFocusTitle={() => setFocusTitleNoteId(null)}
           onSelectNote={handleAttemptSelectNote}
           onCloseTab={handleCloseTab}
           onDuplicateNote={handleDuplicateNote}
