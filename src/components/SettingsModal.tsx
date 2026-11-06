@@ -643,6 +643,12 @@ export default function SettingsModal({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const settingsContentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    // Situar el foco de una vez en la barra de búsqueda al abrir la configuración
+    if (!restorePickerOpen && !showRecDialog && !dialog) {
+      searchInputRef.current?.focus();
+    }
+  }, []);
+  useEffect(() => {
     if (settingsContentRef.current) settingsContentRef.current.scrollTop = 0;
   }, [tab, searchQuery]);
   const [appVersion, setAppVersion] = useState('');
@@ -1444,34 +1450,34 @@ export default function SettingsModal({
           </button>
           </Tooltip>
         </div>
-        <div className="settings-search">
-          <Search size={14} aria-hidden="true" />
-          <input
-            ref={searchInputRef}
-            type="search"
-            value={searchQuery}
-            placeholder={language === 'es' ? 'Buscar en todos los ajustes…' : 'Search all settings…'}
-            aria-label={language === 'es' ? 'Buscar en todos los ajustes' : 'Search all settings'}
-            onChange={event => setSearchQuery(event.target.value)}
-            onKeyDown={event => {
-              if (event.key === 'Escape' && searchQuery) {
-                event.preventDefault();
-                event.stopPropagation();
-                setSearchQuery('');
-              }
-            }}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="settings-header-close"
-              aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
-              onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
-            ><X size={13} /></button>
-          )}
-        </div>
         <div className="settings-layout">
           <aside className="settings-nav">
+            <div className="settings-search">
+              <Search size={13} aria-hidden="true" />
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchQuery}
+                placeholder={language === 'es' ? 'Buscar ajustes…' : 'Search settings…'}
+                aria-label={language === 'es' ? 'Buscar en todos los ajustes' : 'Search all settings'}
+                onChange={event => setSearchQuery(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Escape' && searchQuery) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSearchQuery('');
+                  }
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="settings-header-close"
+                  aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+                  onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+                ><X size={12} /></button>
+              )}
+            </div>
             <div className="settings-nav-items">
               {navItems.map(item => (
                 <Fragment key={item.id}>
@@ -1498,9 +1504,7 @@ export default function SettingsModal({
               )}
               <button type="button" className="settings-nav-close" onClick={onClose}>
                 <span>{language === 'es' ? 'Cerrar' : 'Close'}</span>
-                <svg className="config-close-enter" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 10.5 L7 5.2 L4.8 9 L14.6 9 L14.6 2.5 L17.4 2.5 L17.4 9 A2.8 2.8 0 0 1 14.6 11.8 L4.8 11.8 L7 15.8 Z" fill="currentColor" stroke="none" />
-                </svg>
+                <EnterGlyph />
               </button>
             </div>
           </aside>
