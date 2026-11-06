@@ -14,7 +14,7 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "installer-graphics": "python scripts/generate-installer-art.py public/icon.png public installerSidebar",
+    "installer-graphics": "python scripts/generate-installer-art.py public/icon.png public installerSidebar --small",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {

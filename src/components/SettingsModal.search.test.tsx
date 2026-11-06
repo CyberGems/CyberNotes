@@ -224,6 +224,26 @@ describe('settings search', () => {
     expect(document.querySelector('.tooltip-shortcut-key')?.textContent).toBe('Alt+Shift+N');
   });
 
+  it.each(['es', 'en'] as const)('clears and restores the floating notes shortcut with accessible icon buttons (%s)', async language => {
+    props.language = language;
+    props.initialTab = 'floating';
+    await render();
+    const allControls = container.querySelectorAll('.settings-hotkey-controls');
+    const controls = allControls[allControls.length - 1];
+    expect(controls).not.toBeNull();
+    const buttons = [...controls.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons).toHaveLength(2);
+    expect(buttons[1].getAttribute('aria-label')).toBe(language === 'es' ? 'Limpiar atajo' : 'Clear shortcut');
+    await act(async () => buttons[1].click());
+    expect(controls.querySelector('input')?.value).toBe('');
+    expect(setSetting).toHaveBeenCalledWith('sticky_toggle_hotkey', 'disabled');
+    expect(setSetting).toHaveBeenCalledWith('sticky_toggle_hotkey_enabled', 'false');
+    await act(async () => buttons[0].click());
+    expect(controls.querySelector('input')?.value).toBe('Alt+Shift+F');
+    expect(setSetting).toHaveBeenCalledWith('sticky_toggle_hotkey', 'Alt+Shift+F');
+    expect(setSetting).toHaveBeenCalledWith('sticky_toggle_hotkey_enabled', 'true');
+  });
+
   it('lets a new profile show any factory-hidden control or show them all', async () => {
     props.initialTab = 'appearance'; props.hiddenToolbarIds = [...DEFAULT_HIDDEN_TOOLBAR_IDS]; props.onHiddenToolbarIdsChange = vi.fn();
     await render();

@@ -220,7 +220,7 @@ function renderMainView() {
 
   if (currentState.stickyCount > 0) {
     items.push(
-      makeItem({ action: 'toggle-sticky', icon: 'sticky', label: currentState.toggleStickyLabel })
+      makeItem({ action: 'toggle-sticky', icon: 'sticky', label: currentState.toggleStickyLabel, shortcut: currentState.stickyShortcut || '' })
     );
   }
 

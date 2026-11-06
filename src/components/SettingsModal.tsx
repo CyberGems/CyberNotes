@@ -80,6 +80,7 @@ type Tab = 'general' | 'appearance' | 'floating' | 'security' | 'maintenance' | 
 
 /** Atajo global por defecto (misma fuente que electron/main.ts). */
 const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
+const DEFAULT_STICKY_TOGGLE_HOTKEY = 'Alt+Shift+F';
 
 const DISMISSIBLE_CONFIRMATION_KEYS = [
   'confirm_move_note_to_trash_dismissed',
@@ -700,6 +701,11 @@ export default function SettingsModal({
   const [hotkeyError, setHotkeyError] = useState<string | null>(null);
   const [hotkeyPreview, setHotkeyPreview] = useState<string | null>(null);
   const hotkeyInputRef = useRef<HTMLInputElement>(null);
+  const [stickyToggleHotkey, setStickyToggleHotkey] = useState(DEFAULT_STICKY_TOGGLE_HOTKEY);
+  const [isCapturingStickyHotkey, setIsCapturingStickyHotkey] = useState(false);
+  const [stickyHotkeyError, setStickyHotkeyError] = useState<string | null>(null);
+  const [stickyHotkeyPreview, setStickyHotkeyPreview] = useState<string | null>(null);
+  const stickyHotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const initialSnapshotRef = useRef<string | null>(null);
@@ -1021,6 +1027,16 @@ export default function SettingsModal({
       }
       setToggleHotkey(currentHk);
 
+      const sStickyHk = await window.cyberNotesAPI.getSetting('sticky_toggle_hotkey');
+      const sStickyLegacyHk = await window.cyberNotesAPI.getSetting('sticky_toggle_hotkey_enabled');
+      let currentStickyHk = DEFAULT_STICKY_TOGGLE_HOTKEY;
+      if (sStickyHk !== null) {
+        currentStickyHk = sStickyHk === 'disabled' ? '' : sStickyHk;
+      } else if (sStickyLegacyHk === 'false') {
+        currentStickyHk = '';
+      }
+      setStickyToggleHotkey(currentStickyHk);
+
       const sStickyRestore = await window.cyberNotesAPI.getSetting('sticky_restore_on_startup');
       setStickyRestoreOnStartup(sStickyRestore !== 'false');
       const sStickySkip = await window.cyberNotesAPI.getSetting('sticky_skip_taskbar');
@@ -1065,6 +1081,7 @@ export default function SettingsModal({
         stickyDefaultPinned: sStickyPinned !== 'false',
         stickyDefaultZoom: sStickyZoom ? Number(sStickyZoom) : 1,
         stickyDefaultSize: sStickySize || 'standard',
+        stickyToggleHotkey: currentStickyHk,
       });
       setLoaded(true);
     };
@@ -1082,6 +1099,7 @@ export default function SettingsModal({
       stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction,
       stickyDefaultColor, stickyDefaultOpacity, stickyDefaultPinned, stickyDefaultZoom,
       stickyDefaultSize,
+      stickyToggleHotkey,
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
       setHasSavedChanges(true);
@@ -1096,24 +1114,29 @@ export default function SettingsModal({
     stickyRestoreOnStartup, stickySkipTaskbar, stickyLockAction,
     stickyDefaultColor, stickyDefaultOpacity, stickyDefaultPinned, stickyDefaultZoom,
     stickyDefaultSize,
+    stickyToggleHotkey,
   ]);
 
   useEffect(() => {
-    if (!isCapturingHotkey) return;
+    if (!isCapturingHotkey && !isCapturingStickyHotkey) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (hotkeyInputRef.current && !hotkeyInputRef.current.contains(e.target as Node)) {
+      if (isCapturingHotkey && hotkeyInputRef.current && !hotkeyInputRef.current.contains(e.target as Node)) {
         setIsCapturingHotkey(false);
         setHotkeyPreview(null);
+      }
+      if (isCapturingStickyHotkey && stickyHotkeyInputRef.current && !stickyHotkeyInputRef.current.contains(e.target as Node)) {
+        setIsCapturingStickyHotkey(false);
+        setStickyHotkeyPreview(null);
       }
     };
     window.addEventListener('mousedown', handleClickOutside);
     return () => window.removeEventListener('mousedown', handleClickOutside);
-  }, [isCapturingHotkey]);
+  }, [isCapturingHotkey, isCapturingStickyHotkey]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (dialog || restorePickerOpen || showRecDialog) return;
-      if (isCapturingHotkey) return;
+      if (isCapturingHotkey || isCapturingStickyHotkey) return;
 
       if (e.key === 'Escape') {
         onClose();
@@ -1138,7 +1161,7 @@ export default function SettingsModal({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, isCapturingHotkey, dialog, restorePickerOpen, showRecDialog]);
+  }, [onClose, isCapturingHotkey, isCapturingStickyHotkey, dialog, restorePickerOpen, showRecDialog]);
 
   const navItems: { id: Tab; label: string; icon: ReactNode; separator?: boolean }[] = [
     { id: 'general', label: language === 'es' ? 'General' : 'General', icon: <SlidersHorizontal size={13} /> },
@@ -1246,6 +1269,13 @@ export default function SettingsModal({
 
     const parts = mods.concat(key);
     const acc = parts.join('+');
+    if (stickyToggleHotkey && acc.toLowerCase() === stickyToggleHotkey.toLowerCase()) {
+      setHotkeyError(language === 'es'
+        ? 'Este atajo ya está en uso para las notas flotantes.'
+        : 'This shortcut is already used for floating notes.');
+      return;
+    }
+
     handleSetHotkey(acc);
     setIsCapturingHotkey(false);
   };
@@ -1253,6 +1283,89 @@ export default function SettingsModal({
   const handleHotkeyKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isCapturingHotkey) return;
     setHotkeyPreview(formatHeldHotkeyPreview(e));
+  };
+
+  const handleSetStickyHotkey = async (val: string) => {
+    setStickyHotkeyError(null);
+    setStickyHotkeyPreview(null);
+    setStickyToggleHotkey(val);
+    await window.cyberNotesAPI.setSetting('sticky_toggle_hotkey', val.trim() || 'disabled');
+    await window.cyberNotesAPI.setSetting('sticky_toggle_hotkey_enabled', val.trim() ? 'true' : 'false');
+  };
+
+  const handleClearStickyHotkey = async () => {
+    setStickyHotkeyError(null);
+    setStickyHotkeyPreview(null);
+    setStickyToggleHotkey('');
+    setIsCapturingStickyHotkey(false);
+    await window.cyberNotesAPI.setSetting('sticky_toggle_hotkey', 'disabled');
+    await window.cyberNotesAPI.setSetting('sticky_toggle_hotkey_enabled', 'false');
+  };
+
+  const handleRestoreStickyHotkey = async () => {
+    setIsCapturingStickyHotkey(false);
+    await handleSetStickyHotkey(DEFAULT_STICKY_TOGGLE_HOTKEY);
+  };
+
+  const handleStickyHotkeyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isCapturingStickyHotkey) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.key === 'Escape') {
+      setStickyHotkeyError(null);
+      setStickyHotkeyPreview(null);
+      setIsCapturingStickyHotkey(false);
+      return;
+    }
+
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      handleClearStickyHotkey();
+      return;
+    }
+
+    const modKeys = ['Control', 'Alt', 'Shift', 'Meta', 'OS'];
+    if (modKeys.includes(e.key)) {
+      setStickyHotkeyPreview(formatHeldHotkeyPreview(e));
+      return;
+    }
+
+    const mods: string[] = [];
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey) mods.push('Shift');
+    if (e.metaKey) mods.push('Meta');
+
+    let key = e.key;
+    if (key.length === 1) key = key.toUpperCase();
+    else if (key.startsWith('Arrow')) key = key.replace('Arrow', '');
+    else if (key === ' ') key = 'Space';
+
+    const hasStrongModifier = e.ctrlKey || e.altKey || e.metaKey;
+    const isNonPrintable = /^(F\d{1,2}|Up|Down|Left|Right|Home|End|PageUp|PageDown|Insert|Tab|Enter|Space)$/.test(key);
+    if (!hasStrongModifier && !isNonPrintable) {
+      setStickyHotkeyError(language === 'es'
+        ? 'Agrega Ctrl, Alt o Win: Shift solo no vale para un atajo global.'
+        : 'Add Ctrl, Alt or Win: Shift alone is not valid for a global shortcut.');
+      return;
+    }
+
+    const parts = mods.concat(key);
+    const acc = parts.join('+');
+    if (toggleHotkey && acc.toLowerCase() === toggleHotkey.toLowerCase()) {
+      setStickyHotkeyError(language === 'es'
+        ? 'Este atajo ya está en uso para la ventana principal.'
+        : 'This shortcut is already used for the main window.');
+      return;
+    }
+
+    handleSetStickyHotkey(acc);
+    setIsCapturingStickyHotkey(false);
+  };
+
+  const handleStickyHotkeyKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isCapturingStickyHotkey) return;
+    setStickyHotkeyPreview(formatHeldHotkeyPreview(e));
   };
 
   const handleSetPassword = async () => {
@@ -2513,6 +2626,66 @@ export default function SettingsModal({
                         ariaLabel={language === 'es' ? 'Bloqueo de notas flotantes' : 'Floating notes session lock action'}
                         className="settings-option-select"
                       />
+                    </div>
+
+                    {/* Global floating notes shortcut */}
+                    <div className="settings-option-row" style={{ alignItems: 'center' }}>
+                      <SettingsOptionCopy icon={<Keyboard />}>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {language === 'es' ? 'Atajo global de notas flotantes' : 'Global floating notes shortcut'}
+                        </span>
+                        <span style={{ fontSize: 11, color: stickyHotkeyError ? 'var(--danger)' : 'var(--text-muted)' }}>
+                          {stickyHotkeyError ?? (language === 'es'
+                            ? 'Atajo global para mostrar u ocultar todas las notas flotantes activas. Clic para asignar, Esc para cancelar.'
+                            : 'Global shortcut to show/hide all active floating notes. Click to set, Esc to cancel.')}
+                        </span>
+                      </SettingsOptionCopy>
+                      <div className="settings-hotkey-controls" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <input
+                          ref={stickyHotkeyInputRef}
+                          type="text"
+                          readOnly
+                          value={isCapturingStickyHotkey ? (stickyHotkeyPreview ?? '') : (stickyToggleHotkey || '')}
+                          placeholder={
+                            isCapturingStickyHotkey
+                              ? (language === 'es' ? 'Pulsa las teclas…' : 'Press keys…')
+                              : (stickyToggleHotkey ? stickyToggleHotkey : (language === 'es' ? 'Desactivado' : 'Disabled'))
+                          }
+                          onClick={() => { setStickyHotkeyError(null); setStickyHotkeyPreview(null); setIsCapturingStickyHotkey(true); }}
+                          onKeyDown={handleStickyHotkeyKeyDown}
+                          onKeyUp={handleStickyHotkeyKeyUp}
+                          style={{
+                            background: 'var(--bg-app)',
+                            color: stickyToggleHotkey ? 'var(--accent-light)' : 'var(--text-muted)',
+                            border: isCapturingStickyHotkey ? '1px solid var(--accent)' : '1px solid var(--border)',
+                            padding: '6px 10px',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            minWidth: 120,
+                            maxWidth: 160,
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            letterSpacing: '0.04em',
+                            outline: 'none',
+                            boxShadow: isCapturingStickyHotkey ? '0 0 12px var(--accent-glow)' : 'none',
+                            transition: 'all 0.15s ease',
+                          }}
+                        />
+                        <Tooltip label={`${language === 'es' ? 'Restaurar atajo predeterminado' : 'Restore default shortcut'} (${DEFAULT_STICKY_TOGGLE_HOTKEY})`} placement="top">
+                          <button type="button" className="btn btn-ghost settings-hotkey-button" onClick={handleRestoreStickyHotkey}
+                            aria-label={language === 'es' ? 'Restaurar atajo predeterminado' : 'Restore default shortcut'}>
+                            <RotateCcw size={14} aria-hidden="true" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip label={language === 'es' ? 'Limpiar atajo' : 'Clear shortcut'} placement="top">
+                          <button type="button" className="btn btn-ghost settings-hotkey-button" onClick={handleClearStickyHotkey}
+                            aria-label={language === 'es' ? 'Limpiar atajo' : 'Clear shortcut'}>
+                            <BrushCleaning size={14} aria-hidden="true" />
+                          </button>
+                        </Tooltip>
+                      </div>
                     </div>
                   </div>
                 </div>

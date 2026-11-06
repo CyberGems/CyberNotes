@@ -1597,6 +1597,7 @@ function isWindowShown(): boolean {
 }
 
 const DEFAULT_TOGGLE_HOTKEY = 'Alt+Shift+N';
+const DEFAULT_STICKY_TOGGLE_HOTKEY = 'Alt+Shift+F';
 
 function resolveToggleHotkey(value?: string | null): string {
   if (value === 'disabled') return '';
@@ -1612,6 +1613,22 @@ function getActiveToggleHotkey(): string {
     return DEFAULT_TOGGLE_HOTKEY;
   }
   return resolveToggleHotkey(row.value);
+}
+
+function resolveStickyToggleHotkey(value?: string | null): string {
+  if (value === 'disabled') return '';
+  const s = value == null ? '' : String(value).trim();
+  return s || DEFAULT_STICKY_TOGGLE_HOTKEY;
+}
+
+function getActiveStickyToggleHotkey(): string {
+  const row = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_toggle_hotkey']);
+  if (!row) {
+    const legacy = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_toggle_hotkey_enabled']);
+    if (legacy && legacy.value === 'false') return '';
+    return DEFAULT_STICKY_TOGGLE_HOTKEY;
+  }
+  return resolveStickyToggleHotkey(row.value);
 }
 
 type SuiteApp = { slug: string; name: string; site: string };
@@ -1724,6 +1741,7 @@ function buildTrayMenuState() {
     aboutLabel: isEs ? 'Acerca de CyberNotes...' : 'About CyberNotes...',
     exitLabel: isEs ? 'Salir' : 'Exit',
     shortcut: activeHotkey,
+    stickyShortcut: getActiveStickyToggleHotkey(),
     ...(queryGet('SELECT value FROM settings WHERE key = ?', ['show_suite_promo'])?.value !== 'false'
       ? {
           suite: {
@@ -1758,26 +1776,47 @@ function buildTrayMenuState() {
   };
 }
 
-function registerToggleHotkey() {
+function registerGlobalShortcuts() {
   try {
     globalShortcut.unregisterAll();
-    const acc = getActiveToggleHotkey();
-    if (!acc) return;
-    globalShortcut.register(acc, () => {
-      if (!mainWindow || mainWindow.isDestroyed()) return;
-      if (isWindowShown()) {
-        if (hasPasswordHash()) {
-          mainWindow.webContents.send('session:shield-enable');
-        }
-        mainWindow.hide();
-      } else {
-        restoreWindow();
+
+    // 1. Atajo global de ventana principal
+    const mainAcc = getActiveToggleHotkey();
+    if (mainAcc) {
+      try {
+        globalShortcut.register(mainAcc, () => {
+          if (!mainWindow || mainWindow.isDestroyed()) return;
+          if (isWindowShown()) {
+            if (hasPasswordHash()) {
+              mainWindow.webContents.send('session:shield-enable');
+            }
+            mainWindow.hide();
+          } else {
+            restoreWindow();
+          }
+        });
+      } catch (err) {
+        console.error('Failed to register main window hotkey:', err);
       }
-    });
+    }
+
+    // 2. Atajo global de notas flotantes
+    const stickyAcc = getActiveStickyToggleHotkey();
+    if (stickyAcc) {
+      try {
+        globalShortcut.register(stickyAcc, () => {
+          toggleAllStickyNotes();
+        });
+      } catch (err) {
+        console.error('Failed to register sticky notes hotkey:', err);
+      }
+    }
   } catch (err) {
-    console.error('Failed to register global hotkey:', err);
+    console.error('Failed to register global shortcuts:', err);
   }
 }
+
+const registerToggleHotkey = registerGlobalShortcuts;
 
 function trayMenuGeometry(iconBounds: any, windowW: number, windowH: number) {
   let b = (iconBounds && typeof iconBounds.x === 'number' && (iconBounds.width || iconBounds.height))
@@ -2987,6 +3026,8 @@ const RENDERER_WRITABLE_SETTINGS: ReadonlySet<string> = new Set([
   'tabs_width_mode', 'note_list_group_by_date', 'note_list_view_mode',
   'note_list_collapsed_groups', 'note_list_floating_group_ready',
   'sticky_restore_on_startup', 'sticky_skip_taskbar', 'sticky_lock_action',
+  'sticky_default_color', 'sticky_default_opacity', 'sticky_default_pinned', 'sticky_default_zoom', 'sticky_default_size',
+  'sticky_toggle_hotkey', 'sticky_toggle_hotkey_enabled',
   'toggle_hotkey', 'toggle_hotkey_enabled',
   'auth_method', 'show_suite_promo', 'usage_stats_enabled', 'usage_stats_expanded',
   'auto_backup_enabled', 'auto_backup_hours', 'auto_backup_keep', 'backup_folder',
@@ -3156,9 +3197,23 @@ ipcMain.handle('settings:set', (_e: any, key: string, value: string) => {
       win.webContents.send('setting-changed', { key, value: normalizedValue });
     }
   });
-  if (key === 'auto_unlock_caps_lock' || key === 'language' || key === 'toggle_hotkey_enabled' || key === 'theme' || key === 'colorIntensity') {
-    if (key === 'toggle_hotkey_enabled') {
-      registerToggleHotkey();
+  if (
+    key === 'auto_unlock_caps_lock' ||
+    key === 'language' ||
+    key === 'toggle_hotkey_enabled' ||
+    key === 'toggle_hotkey' ||
+    key === 'sticky_toggle_hotkey' ||
+    key === 'sticky_toggle_hotkey_enabled' ||
+    key === 'theme' ||
+    key === 'colorIntensity'
+  ) {
+    if (
+      key === 'toggle_hotkey_enabled' ||
+      key === 'toggle_hotkey' ||
+      key === 'sticky_toggle_hotkey' ||
+      key === 'sticky_toggle_hotkey_enabled'
+    ) {
+      registerGlobalShortcuts();
     }
     updateTrayMenu();
   }
