@@ -155,6 +155,15 @@ const STICKY_COLORS: Record<StickyColorId, StickyColorMeta> = {
     border: 'rgba(163, 230, 53, 0.35)',
     headerBg: '#1c2a0c',
   },
+  'cyber-red': {
+    id: 'cyber-red',
+    nameKey: 'red',
+    accent: '#ef4444',
+    accentGlow: 'rgba(239, 68, 68, 0.4)',
+    bgDark: STICKY_BACKGROUNDS['cyber-red'],
+    border: 'rgba(239, 68, 68, 0.35)',
+    headerBg: '#301010',
+  },
 };
 
 const MAX_STICKY_IMAGE_DIMENSION = 1400;

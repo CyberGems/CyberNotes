@@ -10,7 +10,8 @@ export type StickyColorId =
   | 'graphite'
   | 'electric-blue'
   | 'cyber-orange'
-  | 'acid-lime';
+  | 'acid-lime'
+  | 'cyber-red';
 
 export const STICKY_COLOR_IDS: readonly StickyColorId[] = [
   'cyber-yellow',
@@ -22,6 +23,7 @@ export const STICKY_COLOR_IDS: readonly StickyColorId[] = [
   'electric-blue',
   'cyber-orange',
   'acid-lime',
+  'cyber-red',
 ];
 
 export const DEFAULT_STICKY_COLOR: StickyColorId = 'electric-blue';
@@ -48,6 +50,7 @@ export const STICKY_BACKGROUNDS: Record<StickyColorId, string> = {
   'electric-blue': '#0a1226',
   'cyber-orange': '#24120a',
   'acid-lime': '#141e0a',
+  'cyber-red': '#220c0c',
 };
 
 export const STICKY_ACCENTS: Record<StickyColorId, string> = {
@@ -60,6 +63,7 @@ export const STICKY_ACCENTS: Record<StickyColorId, string> = {
   'electric-blue': '#3b82f6',
   'cyber-orange': '#f97316',
   'acid-lime': '#a3e635',
+  'cyber-red': '#ef4444',
 };
 
 /** Normaliza un color desconocido al color por defecto (nunca undefined). */

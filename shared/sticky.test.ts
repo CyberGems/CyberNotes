@@ -15,6 +15,8 @@ describe('sticky note default color', () => {
   it('uses the seventh palette color and preserves saved colors', () => {
     expect(DEFAULT_STICKY_COLOR).toBe('electric-blue');
     expect(STICKY_COLOR_IDS[6]).toBe(DEFAULT_STICKY_COLOR);
+    expect(STICKY_COLOR_IDS).toHaveLength(10);
+    expect(STICKY_COLOR_IDS).toContain('cyber-red');
     for (const color of STICKY_COLOR_IDS) expect(asStickyColorId(color)).toBe(color);
     expect(asStickyColorId(null)).toBe(DEFAULT_STICKY_COLOR);
   });

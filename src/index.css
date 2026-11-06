@@ -2130,11 +2130,12 @@ select option {
 }
 
 .titlebar-update-button>svg {
-  transition: transform 0.2s;
+  transform-origin: center;
+  transition: transform 0.2s ease;
 }
 
-.titlebar-update-button:hover>svg {
-  transform: translateY(2px);
+.titlebar-update-button:is(:hover, :focus-visible)>svg {
+  transform: scale(1.1);
 }
 
 @keyframes titlebar-update-breathe {

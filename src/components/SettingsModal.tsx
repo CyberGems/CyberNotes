@@ -2594,6 +2594,11 @@ export default function SettingsModal({
                             label: TRANSLATIONS[language].editor.stickyColors.lime,
                             icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['acid-lime'], boxShadow: `0 0 5px ${STICKY_ACCENTS['acid-lime']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
                           },
+                          {
+                            value: 'cyber-red',
+                            label: TRANSLATIONS[language].editor.stickyColors.red,
+                            icon: <span style={{ width: 10, height: 10, borderRadius: '50%', background: STICKY_ACCENTS['cyber-red'], boxShadow: `0 0 5px ${STICKY_ACCENTS['cyber-red']}`, border: '1px solid rgba(255, 255, 255, 0.35)', display: 'inline-block' }} />,
+                          },
                         ]}
                         ariaLabel={language === 'es' ? 'Color predeterminado' : 'Default note color'}
                         className="settings-option-select"
