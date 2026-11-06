@@ -788,4 +788,32 @@ describe('NoteEditor tab hydration', () => {
     expect(callbacks.size).toBe(0);
     expect(props.onSave).not.toHaveBeenCalled();
   });
+
+  it('anchors the startup caret directly on the first text node without resetting blink on follow-up timers', async () => {
+    const props: ComponentProps<typeof NoteEditor> = {
+      language: 'es', note: null, isNoteLoading: true, onSave: vi.fn(), onCreateNote: vi.fn(),
+      layoutMode: 1, onToggleLayout: vi.fn(), showLineCounter: false, showFloatingToolbar: false,
+    };
+    await act(async () => root!.render(<NoteEditor {...props} />));
+    expect(container!.querySelector('.tiptap')).toBeNull();
+
+    // Transition from startup loading (post-login) to the hydrated note
+    await act(async () => root!.render(<NoteEditor {...props} note={note} isNoteLoading={false} />));
+    const dom = container!.querySelector<HTMLElement>('.tiptap')!;
+    expect(document.activeElement).toBe(dom);
+
+    const sel = window.getSelection()!;
+    const firstParagraph = dom.querySelector('p')!;
+    expect(sel.anchorNode).toBe(firstParagraph.firstChild);
+    expect(sel.anchorNode?.nodeType).toBe(Node.TEXT_NODE);
+    expect(sel.anchorOffset).toBe(0);
+
+    const collapseSpy = vi.spyOn(sel, 'collapse');
+    const removeAllRangesSpy = vi.spyOn(sel, 'removeAllRanges');
+    await act(async () => { vi.advanceTimersByTime(700); });
+    expect(collapseSpy).not.toHaveBeenCalled();
+    expect(removeAllRangesSpy).not.toHaveBeenCalled();
+    expect(sel.anchorNode).toBe(firstParagraph.firstChild);
+    expect(sel.anchorOffset).toBe(0);
+  });
 });

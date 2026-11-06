@@ -4408,26 +4408,61 @@ export default function NoteEditor({
   // pinten el caret parpadeante en la posición actual (o posición 1) sin requerir clic.
   const focusEditorAtSelection = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
+    if (hydratedNoteIdRef.current === null) return;
     const dom = editor.view.dom;
     if (!dom || !dom.isConnected) return;
-    try { window.focus(); } catch (_) {}
-    dom.focus({ preventScroll: true });
-    editor.view.focus();
-    setIsFocused(true);
+
+    const pos = editor.state.selection ? editor.state.selection.from : 1;
+    let targetPos: { node: Node; offset: number } | null = null;
     try {
-      const sel = window.getSelection();
-      if (sel) {
-        const pos = editor.state.selection ? editor.state.selection.from : 1;
-        const targetPos = editor.view.domAtPos(pos);
-        if (targetPos && targetPos.node) {
-          const range = document.createRange();
-          range.setStart(targetPos.node, targetPos.offset);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-      }
+      // side = 1 es crítico: con side = 0 (default), domAtPos(1) devuelve el elemento <p>
+      // en vez del nodo #text interno, y como ProseMirror considera (<p>, 0) equivalente a
+      // (#text, 0), no corrige la selección y Chromium deja el caret invisible hasta hacer clic.
+      targetPos = editor.view.domAtPos(pos, 1);
     } catch (_) {}
+
+    const sel = window.getSelection();
+    const alreadyFocused = document.activeElement === dom && editor.view.hasFocus();
+    const alreadyAnchored =
+      !!sel &&
+      sel.rangeCount > 0 &&
+      sel.isCollapsed &&
+      !!targetPos &&
+      sel.anchorNode === targetPos.node &&
+      sel.anchorOffset === targetPos.offset;
+
+    // Si el editor ya tiene el foco y la selección apunta al nodo hoja exacto (#text),
+    // no tocar la selección de nuevo para no reiniciar el ciclo de parpadeo del caret.
+    if (alreadyFocused && alreadyAnchored) {
+      setIsFocused(true);
+      return;
+    }
+
+    if (!document.hasFocus()) {
+      try { window.focus(); } catch (_) {}
+    }
+
+    editor.view.focus();
+    if (document.activeElement !== dom) {
+      dom.focus({ preventScroll: true });
+    }
+    setIsFocused(true);
+
+    if (sel && targetPos && targetPos.node) {
+      try {
+        if (
+          sel.rangeCount === 0 ||
+          sel.anchorNode !== targetPos.node ||
+          sel.anchorOffset !== targetPos.offset
+        ) {
+          const anyView = editor.view as any;
+          anyView.domObserver?.stop?.();
+          sel.collapse(targetPos.node, targetPos.offset);
+          anyView.domObserver?.setCurSelection?.();
+          anyView.domObserver?.start?.();
+        }
+      } catch (_) {}
+    }
   }, [editor]);
 
   // Autofoco garantizado del editor al cargar o desbloquear la app,
