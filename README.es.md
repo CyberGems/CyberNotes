@@ -34,6 +34,7 @@
 ## 📑 Table of Contents
 
 - [👋 Introducción](#-introducción)
+- [📸 Capturas](#-capturas)
 - [🔒 ¿Por qué CyberNotes?](#-por-qué-cybernotes)
 - [✨ Funciones principales](#-funciones-principales)
 - [🚀 Primeros pasos](#-primeros-pasos)
@@ -61,6 +62,14 @@
 La mayoría de las apps de notas piden una cuenta, una suscripción o tus datos en sus servidores. CyberNotes lo guarda todo en tu PC: un editor TipTap con atajos de markdown, imágenes y bloques de código; carpetas con iconos y colores; pestañas y notas flotantes para lo que necesitas a mano; búsqueda instantánea y guardado automático. Una contraseña maestra opcional bloquea la app cuando te alejas, y las copias automáticas en la carpeta que elijas mantienen a salvo cada nota e imagen. Construido con **Electron + React + TypeScript**.
 
 *Gratuito y de código abierto (GPLv3): sin anuncios, sin rastreo y sin recogida de datos. Solo disfrútalo.*
+
+---
+
+<!-- Capturas: pendiente de la galería bilingüe ES/EN del plan en https://github.com/CyberGems/CyberGems.github.io/blob/main/docs/screenshots.md — sustituir la cita, conservar este título y su entrada en el índice. -->
+
+## 📸 Capturas
+
+> Próximamente...
 
 ---
 

@@ -34,6 +34,7 @@
 ## 📑 Table of Contents
 
 - [👋 Introduction](#-introduction)
+- [📸 Screenshots](#-screenshots)
 - [🔒 Why CyberNotes?](#-why-cybernotes)
 - [✨ Key Features](#-key-features)
 - [🚀 Getting Started](#-getting-started)
@@ -61,6 +62,14 @@
 Most note apps want an account, a subscription, or your data on their servers. CyberNotes keeps everything on your PC: a TipTap editor with markdown shortcuts, images and code blocks; folders with icons and colors; tabs and floating notes for whatever you need at hand; instant search and autosave. An optional master password locks the app when you step away, and automatic backups in a folder you choose keep every note and image safe. Built with **Electron + React + TypeScript**.
 
 *Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
+
+---
+
+<!-- Screenshots: pending the bilingual EN/ES gallery in the capture plan at https://github.com/CyberGems/CyberGems.github.io/blob/main/docs/screenshots.md — replace the blockquote, keep this heading and the TOC entry. -->
+
+## 📸 Screenshots
+
+> Coming soon...
 
 ---
 
