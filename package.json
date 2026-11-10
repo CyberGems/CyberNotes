@@ -18,6 +18,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
+    "artifactBuildStarted": "./scripts/fix-nsis-process-close.mjs",
     "appId": "com.cybernotes.app",
     "productName": "CyberNotes",
     "directories": {
