@@ -37,7 +37,8 @@
 - [🖼️ Capturas](#️-capturas)
 - [🔒 ¿Por qué CyberNotes?](#-por-qué-cybernotes)
 - [✨ Funciones principales](#-funciones-principales)
-- [🚀 Primeros pasos](#-primeros-pasos)
+- [🚀 Instalación](#-instalación)
+- [🧭 Cómo usar la app](#-cómo-usar-la-app)
 - [🛠️ Stack tecnológico y arquitectura](#️-stack-tecnológico-y-arquitectura)
 - [⌨️ Atajos de teclado](#️-atajos-de-teclado)
 - [❤️ Donar](#️-donar)
@@ -149,7 +150,7 @@ Muchos editores son cloud-first o demasiado básicos para ser útiles. CyberNote
 - **Interfaz bilingüe**: inglés y español completos con cambio instantáneo
 ---
 
-## 🚀 Primeros pasos
+## 🚀 Instalación
 
 ### Instalación (recomendada)
 
@@ -181,6 +182,20 @@ Windows muestra este aviso para cualquier instalador sin un certificado de firma
 Puedes verificar el archivo de forma independiente: compara el SHA con el release de GitHub, escanéalo en VirusTotal o compila desde el código fuente. Más detalles: [guía de SmartScreen en el sitio web](https://cybergems.org/download#smartscreen).
 
 </details>
+---
+
+## 🧭 Cómo usar la app
+
+CyberNotes aparece desde cualquier parte con `Alt+Shift+N` y las notas se guardan mientras escribes.
+
+1. Pulsa `Alt+Shift+N` o haz clic en **Nueva nota** y empieza a escribir: no hay botón de guardar.
+2. Pon una primera línea clara: esa será el título.
+3. Organízalo después con carpetas y favoritos, o usa `Alt+Shift+F` para una nota flotante.
+
+`Ctrl+N` crea una nota, `Ctrl+F` enfoca la barra de búsqueda y ambos atajos globales son personalizables.
+
+Consulta [¿Cómo se usa CyberNotes?](https://github.com/CyberGems/CyberNotes/wiki/How-Do-You-Use) para ver ejemplos cotidianos y las guías completas de la wiki (en inglés).
+
 ---
 
 ## 🛠️ Stack tecnológico y arquitectura

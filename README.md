@@ -37,7 +37,8 @@
 - [🖼️ Screenshots](#️-screenshots)
 - [🔒 Why CyberNotes?](#-why-cybernotes)
 - [✨ Key Features](#-key-features)
-- [🚀 Getting Started](#-getting-started)
+- [🚀 Installation](#-installation)
+- [🧭 Using the App](#-using-the-app)
 - [🛠️ Tech Stack & Architecture](#️-tech-stack--architecture)
 - [⌨️ Keyboard Shortcuts](#️-keyboard-shortcuts)
 - [❤️ Donate](#️-donate)
@@ -150,7 +151,7 @@ Plenty of editors are either cloud-first or too basic to be useful. CyberNotes g
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Installation
 
 ### Install (Recommended)
 
@@ -182,6 +183,20 @@ Windows shows this warning for any installer without a paid code-signing certifi
 You can verify the file independently: compare the SHA with the GitHub release, scan it on VirusTotal, or build from source. More details: [SmartScreen guide on the website](https://cybergems.org/download#smartscreen).
 
 </details>
+
+---
+
+## 🧭 Using the App
+
+CyberNotes can be summoned from anywhere with `Alt+Shift+N`, and notes save as you type.
+
+1. Press `Alt+Shift+N` or click **New Note**, then just start typing; there is no save button.
+2. Give the note a clear first line: that becomes its title.
+3. Organise things later with folders and favourites, or use `Alt+Shift+F` for a floating note.
+
+`Ctrl+N` creates a note, `Ctrl+F` focuses the search bar and both global hotkeys are customizable.
+
+See [How Do You Use CyberNotes?](https://github.com/CyberGems/CyberNotes/wiki/How-Do-You-Use) for everyday examples and the full guides.
 
 ---
 
