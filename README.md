@@ -37,7 +37,7 @@
 - [🖼️ Screenshots](#️-screenshots)
 - [🔒 Why CyberNotes?](#-why-cybernotes)
 - [✨ Key Features](#-key-features)
-- [🚀 Installation](#-installation)
+- [⬇️ Installation](#️-installation)
 - [🧭 Using the App](#-using-the-app)
 - [🛠️ Tech Stack & Architecture](#️-tech-stack--architecture)
 - [⌨️ Keyboard Shortcuts](#️-keyboard-shortcuts)
@@ -151,7 +151,7 @@ Plenty of editors are either cloud-first or too basic to be useful. CyberNotes g
 
 ---
 
-## 🚀 Installation
+## ⬇️ Installation
 
 ### Install (Recommended)
 

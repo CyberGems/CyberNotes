@@ -37,7 +37,7 @@
 - [🖼️ Capturas](#️-capturas)
 - [🔒 ¿Por qué CyberNotes?](#-por-qué-cybernotes)
 - [✨ Funciones principales](#-funciones-principales)
-- [🚀 Instalación](#-instalación)
+- [⬇️ Instalación](#️-instalación)
 - [🧭 Cómo usar la app](#-cómo-usar-la-app)
 - [🛠️ Stack tecnológico y arquitectura](#️-stack-tecnológico-y-arquitectura)
 - [⌨️ Atajos de teclado](#️-atajos-de-teclado)
@@ -148,9 +148,10 @@ Muchos editores son cloud-first o demasiado básicos para ser útiles. CyberNote
 - **Exportación**: Markdown, HTML (con estilo) o copia de seguridad JSON completa
 - **Importación**: restaura desde una copia JSON (con copia de seguridad automática)
 - **Interfaz bilingüe**: inglés y español completos con cambio instantáneo
+
 ---
 
-## 🚀 Instalación
+## ⬇️ Instalación
 
 ### Instalación (recomendada)
 
@@ -182,6 +183,7 @@ Windows muestra este aviso para cualquier instalador sin un certificado de firma
 Puedes verificar el archivo de forma independiente: compara el SHA con el release de GitHub, escanéalo en VirusTotal o compila desde el código fuente. Más detalles: [guía de SmartScreen en el sitio web](https://cybergems.org/download#smartscreen).
 
 </details>
+
 ---
 
 ## 🧭 Cómo usar la app
@@ -302,6 +304,7 @@ Los artefactos quedan en `release/`:
 |---|---|
 | `CyberNotes_Setup_1.19.0.exe` | Instalador NSIS (asistente interactivo, directorio de instalación personalizado) |
 | `CyberNotes_Portable_1.19.0.exe` | Build portable (sin instalación) |
+
 ---
 
 ## ⌨️ Atajos de teclado
