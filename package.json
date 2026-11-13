@@ -3,6 +3,7 @@
   "productName": "CyberNotes",
   "private": true,
   "version": "1.19.0",
+  "description": "Catch ideas, organize your thoughts and keep useful notes close, all on your PC.",
   "author": "CyberGems",
   "license": "GPL-3.0-only",
   "homepage": "https://cybergems.org",
