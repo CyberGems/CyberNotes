@@ -6,7 +6,7 @@
 
 ### 🚀 What's new in this release
 
-<!-- IMPORTANT FOR AGENTS & MAINTAINERS: Always rewrite this entire section and highlights with the ACTUAL release notes for this specific new version before tagging. NEVER leave or copy previous version notes! Use 25-45 words for the summary, lead with user-facing changes, and do not repeat the app name or version. -->
+<!-- IMPORTANT FOR AGENTS & MAINTAINERS: Always rewrite this entire section and highlights with the ACTUAL release notes for this specific new version before tagging. NEVER leave or copy previous version notes! Use 25-45 words for the summary, lead with user-facing changes, and do not repeat the app name or version. Keep the Spanish mirror inside the details block in sync: translate the summary and rewrite the highlights. -->
 <!-- changelog-summary:start -->
 Floating notes gain dedicated settings, default colors, sizes, and a customizable global shortcut. Inline images offer seamless Word-style selection and caret navigation, editor hotkeys eliminate double modifiers, and tabs feature smooth hover marquees.
 <!-- changelog-summary:end -->
@@ -29,7 +29,6 @@ Floating notes gain dedicated settings, default colors, sizes, and a customizabl
 
 ### 🚀 Novedades de esta versión
 
-<!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
 Las notas flotantes suman pestaña de configuración dedicada, colores y tamaños predeterminados y atajo global personalizable. Las imágenes integradas adoptan selección y cursor fluidos estilo Word, los atajos del editor eliminan modificadores dobles y las pestañas estrenan marquesina al pasar el ratón.
 
 > **¿Nuevo en CyberNotes?** Una app de notas para Windows centrada en la privacidad, con texto enriquecido, carpetas, pestañas, notas flotantes y datos totalmente locales.
@@ -37,8 +36,6 @@ Las notas flotantes suman pestaña de configuración dedicada, colores y tamaño
 ---
 
 ### ✨ Novedades destacadas
-
-<!-- Maintainer: Espejo en español de los puntos de arriba. -->
 
 - 📌 **Ajustes dedicados y atajo global para notas flotantes**: personaliza color inicial (con opción aleatoria), opacidad, fijado, tamaño de ventana y crea notas desde cualquier lugar con el atajo global editable y desactivable `Alt+Shift+F`.
 - 🎨 **Paleta ampliada a 10 colores**: nuevo color Rojo Ciber que completa una cuadrícula equilibrada de 5x2 en el selector de notas flotantes, con muestras circulares uniformes.
