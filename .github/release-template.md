@@ -32,6 +32,8 @@ Floating notes gain dedicated settings, default colors, sizes, and a customizabl
 <!-- Maintainer: Espejo en español del resumen de arriba. Mismo rango (25-45 palabras), cambios visibles primero, sin repetir el nombre de la app ni la versión. -->
 Las notas flotantes suman pestaña de configuración dedicada, colores y tamaños predeterminados y atajo global personalizable. Las imágenes integradas adoptan selección y cursor fluidos estilo Word, los atajos del editor eliminan modificadores dobles y las pestañas estrenan marquesina al pasar el ratón.
 
+> **¿Nuevo en CyberNotes?** Una app de notas para Windows centrada en la privacidad, con texto enriquecido, carpetas, pestañas, notas flotantes y datos totalmente locales.
+
 ---
 
 ### ✨ Novedades destacadas
