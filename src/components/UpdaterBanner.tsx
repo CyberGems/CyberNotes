@@ -55,15 +55,21 @@ function readSkippedVersion(): string | null {
 /** Recorta el cuerpo del release al idioma de la UI (réplica del piloto de CyberClock). */
 export function extractReleaseSection(markdown: string, language: Language): string {
   if (!markdown) return '';
+  // El bloque de instalación es furniture de la página del release: el updater
+  // es automático, así que el aviso no necesita las indicaciones de SmartScreen.
+  const stripInstallBlock = (text: string): string =>
+    text
+      .replace(/^#{2,4}\s*⚠️\s*(?:Before you install|Antes de instalar)[\s\S]*?\n---/gim, '')
+      .replace(/^#{2,4}\s*⚠️\s*(?:Before you install|Antes de instalar)[\s\S]*$/gim, '');
   if (language === 'es') {
     // Bloque <details> en español de la plantilla bilingüe.
     const m = markdown.match(/<details>[\s\S]*?<summary>[\s\S]*?(?:espa\u00f1ol|spanish)[\s\S]*?<\/summary>([\s\S]*?)<\/details>/i);
     const content = m?.[1]?.trim();
-    if (content) return content;
+    if (content) return stripInstallBlock(content);
   }
   // Inglés (o releases antiguos sin bloque ES): quitar los details en español
   // para no mezclar idiomas en el aviso.
-  return markdown.replace(/<details>[\s\S]*?<summary>[\s\S]*?(?:espa\u00f1ol|spanish)[\s\S]*?<\/summary>[\s\S]*?<\/details>/gi, '');
+  return stripInstallBlock(markdown.replace(/<details>[\s\S]*?<summary>[\s\S]*?(?:espa\u00f1ol|spanish)[\s\S]*?<\/summary>[\s\S]*?<\/details>/gi, ''));
 }
 
 export function parseChangelogPeek(markdown?: string, language: Language = 'en'): { items: string[]; totalCount: number } {
