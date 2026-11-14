@@ -87,4 +87,6 @@ Las notas flotantes suman pestaña de configuración dedicada, colores y tamaño
 
 ---
 
+📜 **Full changelog:** browse every version in [CHANGELOG.md](https://github.com/CyberGems/CyberNotes/blob/main/CHANGELOG.md).
+
 *Crafted with precision by [CyberGems](https://cybergems.org)*
