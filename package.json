@@ -86,7 +86,7 @@
     "@tiptap/extension-table-header": "^2.27.3",
     "@tiptap/extension-table-row": "^2.27.3",
     "@tiptap/extension-text-align": "^2.27.3",
-    "@tiptap/extension-text-style": "^2.27.3",
+    "@tiptap/extension-text-style": "^3.33.1",
     "@tiptap/extension-underline": "^2.11.5",
     "@tiptap/pm": "^2.11.5",
     "@tiptap/react": "^2.11.5",
