@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Download, Rocket, X, RefreshCw, Info, ChevronDown, ChevronUp, Sparkles, ExternalLink, SkipForward } from 'lucide-react';
+import { Download, Rocket, X, RefreshCw, Sparkles, ExternalLink, SkipForward } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
 import type { UpdateStatus } from '../types';
 import Tooltip from './Tooltip';
@@ -18,30 +18,6 @@ const RELEASES_REPO = 'CyberGems/CyberNotes';
 function readPreviewEnabled(): boolean {
   try { return localStorage.getItem(PREVIEW_KEY) === 'true'; }
   catch { return false; }
-}
-
-function isNetworkOrOfflineError(msg?: string): boolean {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
-  if (!msg) return false;
-  const lower = msg.toLowerCase();
-  return (
-    lower.includes('err_internet_disconnected') ||
-    lower.includes('err_connection_reset') ||
-    lower.includes('err_name_not_resolved') ||
-    lower.includes('err_network_changed') ||
-    lower.includes('err_connection_refused') ||
-    lower.includes('err_connection_timed_out') ||
-    lower.includes('err_address_unreachable') ||
-    lower.includes('enotfound') ||
-    lower.includes('econnrefused') ||
-    lower.includes('econnreset') ||
-    lower.includes('etimedout') ||
-    lower.includes('ehostunreach') ||
-    lower.includes('enetunreach') ||
-    lower.includes('fetch failed') ||
-    lower.includes('offline') ||
-    lower.includes('network')
-  );
 }
 
 function readSkippedVersion(): string | null {
@@ -178,7 +154,6 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
   const t = TRANSLATIONS[language].updater;
   const [updateStatus, setStatus] = useState<Status>({ state: 'idle' });
   const [updateDismissed, setUpdateDismissed] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [updateReleaseNotes, setReleaseNotes] = useState<string | undefined>();
   const [releaseUrl, setReleaseUrl] = useState<string>('');
   const [autoCheckUpdates, setAutoCheckUpdates] = useState<boolean | null>(null);
@@ -256,7 +231,9 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
 
     const applyStatus = (s: UpdateStatus) => {
       let next: Status = s;
-      if (next.state === 'error' && isNetworkOrOfflineError(next.message)) {
+      if (next.state === 'error') {
+        // Auto-check failures stay silent in the banner: the updater runs by
+        // itself and the About window reports errors on manual checks.
         return;
       }
       if (next.state === 'available') {
@@ -271,7 +248,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
       if (next.state === 'downloading') {
         next = { ...next, version: next.version || lastVersionRef.current };
       }
-      if (next.state === 'downloading' || next.state === 'downloaded' || next.state === 'installing' || next.state === 'available' || next.state === 'error') {
+      if (next.state === 'downloading' || next.state === 'downloaded' || next.state === 'installing' || next.state === 'available') {
         setUpdateDismissed(false);
       }
       if (next.state === 'not-available') {
@@ -372,14 +349,9 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
   const showCard = status.state === 'available'
     || status.state === 'downloading'
     || status.state === 'downloaded'
-    || status.state === 'installing'
-    || status.state === 'error';
+    || status.state === 'installing';
 
   if (!showCard) return null;
-
-  if (status.state === 'error' && isNetworkOrOfflineError(status.message)) {
-    return null;
-  }
 
   const title = status.state === 'available'
     ? t.available
@@ -389,7 +361,7 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
         ? t.downloaded.replace('{version}', status.version)
         : status.state === 'installing'
           ? t.installing
-          : t.error;
+          : '';
 
   const cardUrl = releaseUrl || (currentVersion
     ? `https://github.com/${RELEASES_REPO}/releases/tag/v${currentVersion}`
@@ -430,11 +402,9 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
               width: 28,
               height: 28,
               borderRadius: 8,
-              background: status.state === 'error'
-                ? 'var(--bg-surface)'
-                : status.state === 'downloaded'
-                  ? 'rgba(34,197,94,0.14)'
-                  : 'color-mix(in srgb, var(--accent) 15%, transparent)',
+              background: status.state === 'downloaded'
+                ? 'rgba(34,197,94,0.14)'
+                : 'color-mix(in srgb, var(--accent) 15%, transparent)',
               border: status.state === 'downloaded'
                 ? '1px solid rgba(34,197,94,0.35)'
                 : '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
@@ -449,16 +419,14 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
               ? <RefreshCw size={15} className="spin" />
               : status.state === 'downloaded'
                 ? <Rocket size={15} />
-                : status.state === 'error'
-                  ? <Info size={15} style={{ color: 'var(--text-secondary)' }} />
-                  : <Sparkles size={15} />}
+                : <Sparkles size={15} />}
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
                 {title}
               </span>
-              {currentVersion && status.state !== 'error' && (
+              {currentVersion && (
                 <span
                   style={{
                     fontSize: 11,
@@ -613,49 +581,6 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
         <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500 }}>
           {t.restartAndApply}
         </div>
-      )}
-
-      {status.state === 'error' && (
-        <>
-          {status.message && (
-            <button
-              type="button"
-              onClick={() => setShowDetails(prev => !prev)}
-              className="btn btn-ghost"
-              style={{
-                padding: '3px 8px',
-                fontSize: 11,
-                color: 'var(--text-muted)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                alignSelf: 'flex-start',
-              }}
-            >
-              {showDetails ? t.hideDetails : t.details}
-              {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </button>
-          )}
-          {showDetails && status.message && (
-            <div
-              style={{
-                padding: '6px 10px',
-                borderRadius: 6,
-                background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))',
-                border: '1px solid var(--border)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10.5,
-                color: 'var(--text-muted)',
-                wordBreak: 'break-word',
-                maxHeight: 90,
-                overflowY: 'auto',
-                lineHeight: 1.4,
-              }}
-            >
-              {status.message}
-            </div>
-          )}
-        </>
       )}
 
       <div
