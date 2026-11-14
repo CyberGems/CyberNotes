@@ -196,7 +196,7 @@ CyberNotes aparece desde cualquier parte con `Alt+Shift+N` y las notas se guarda
 
 `Ctrl+N` crea una nota, `Ctrl+F` enfoca la barra de búsqueda y ambos atajos globales son personalizables.
 
-Consulta [¿Cómo se usa CyberNotes?](https://github.com/CyberGems/CyberNotes/wiki/How-Do-You-Use) para ver ejemplos cotidianos y las guías completas de la wiki (en inglés).
+Consulta [¿Cómo se usa CyberNotes?](https://github.com/CyberGems/CyberNotes/wiki/How-Do-You-Use-es) para ver ejemplos cotidianos y las guías completas de la wiki.
 
 ---
 
