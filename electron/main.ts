@@ -3747,7 +3747,10 @@ ipcMain.handle('images:saveBinary', (_e: any, data: unknown, _mime: string) => {
   try {
     if (!db) return null;
     if (!(data instanceof ArrayBuffer) && !(ArrayBuffer.isView(data as any))) return null;
-    const buf = Buffer.from(data as ArrayBuffer | Uint8Array);
+    // @types/node 24 no longer admits an ArrayBuffer|Uint8Array union in Buffer.from;
+    // normalize ArrayBuffer into a view first. Runtime behavior is unchanged.
+    const raw = data instanceof ArrayBuffer ? new Uint8Array(data) : (data as Uint8Array);
+    const buf = Buffer.from(raw);
     if (buf.length <= 0 || buf.length > CLIPBOARD_IMAGE_MAX_BYTES) return null;
     const ext = sniffImageExt(buf);
     if (!ext) return null;
