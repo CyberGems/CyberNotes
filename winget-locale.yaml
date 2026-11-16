@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: CyberGems.CyberNotes
+PackageVersion: {{VERSION}}
+PackageLocale: en-US
+Publisher: CyberGems
+PackageName: CyberNotes
+PackageUrl: https://cybergems.org/apps/cybernotes/
+License: GPL-3.0-or-later
+LicenseUrl: https://github.com/CyberGems/CyberNotes/blob/main/LICENSE
+Copyright: Copyright (C) 2026 CyberGems
+ShortDescription: Flexible local note-taking for Windows
+Description: CyberNotes is a flexible writing space for Windows that keeps your notes on your device without an account or built-in cloud sync. Capture quick thoughts or build longer documents with formatting, lists, code and images. Colorful folders, tabs, favorites and full-text search help you return to an idea, while floating notes keep a reference in view as you work. Autosave and session restore help you pick up where you left off, and scheduled backups to a folder you choose keep notes and images safe. An optional password or PIN locks access to the app; the stored notes themselves are not encrypted. Built with Electron.
+Tags:
+- notes
+- note-taking
+- markdown
+- knowledge-base
+- productivity
+Moniker: cybernotes
+ReleaseNotesUrl: https://github.com/CyberGems/CyberNotes/releases/tag/{{TAG}}
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
