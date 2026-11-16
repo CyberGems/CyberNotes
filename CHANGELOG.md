@@ -2,6 +2,24 @@
 
 All notable changes to CyberNotes are documented here.
 
+## [1.19.1] - 2026-11-16
+
+### 🇺🇸 English
+
+- Keep the update banner quiet when an update check fails instead of reporting the error.
+- Hide the Before you install guidance from the in-app update notes, because updates install automatically.
+- Show the CyberNotes website and description in the Windows uninstall entry.
+- Fix the forced-close retry when uninstalling the all-users installation.
+- Update 23 npm dependencies and ship winget manifests with every release.
+
+### 🇪🇸 Español
+
+- Mantiene el banner de actualizaciones en silencio cuando una comprobación falla, en lugar de mostrar el error.
+- Oculta la guía Antes de instalar de las notas de actualización dentro de la app, porque las actualizaciones se instalan automáticamente.
+- Muestra el sitio web de CyberNotes y su descripción en la entrada de desinstalación de Windows.
+- Corrige el reintento de cierre forzado al desinstalar la instalación para todos los usuarios.
+- Actualiza 23 dependencias de npm y publica manifiestos winget con cada release.
+
 ## [1.19.0] - 2026-11-06
 
 ### 🇺🇸 English
