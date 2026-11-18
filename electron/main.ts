@@ -1234,7 +1234,6 @@ function openStickyNote(noteId: string, centerOnMainWindow = false, focusWindow 
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
     },
     show: false,
   });
@@ -1359,13 +1358,25 @@ function openStickyNote(noteId: string, centerOnMainWindow = false, focusWindow 
     });
   });
 
-  if (useDevRenderer) {
-    win.loadURL(getDevRendererUrl({ sticky: noteId }));
-  } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'), {
+  // Flotantes comparten el renderer de la app y son locales: sin
+  // webSecurity desactivada, y sin navegación ni ventanas nuevas (los enlaces
+  // salen por el canal validado de la ventana principal).
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event) => {
+    event.preventDefault();
+  });
+
+  const load = useDevRenderer
+    ? win.loadURL(getDevRendererUrl({ sticky: noteId }))
+    : win.loadFile(path.join(__dirname, '../dist/index.html'), {
       search: `sticky=${encodeURIComponent(noteId)}`
     });
-  }
+  load.catch((error) => {
+    console.error('Failed to load sticky window:', error);
+  });
 
   return true;
 }
@@ -1898,7 +1909,19 @@ function ensureTrayMenuWin() {
     }
   });
   trayMenuWin.setAlwaysOnTop(true, 'pop-up-menu');
-  trayMenuWin.loadFile(trayHtml);
+  // The tray menu never navigates and never opens windows: links leave
+  // through the validated shell channel, and anything else is dropped.
+  trayMenuWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  trayMenuWin.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+  });
+  trayMenuWin.loadFile(trayHtml).catch((error) => {
+    console.error('Failed to load the tray menu window:', error);
+  });
   trayMenuWin.on('blur', () => {
     if (trayMenuHideTimer) return;
     if (Date.now() - trayMenuLastShown < 250) return;
@@ -2189,7 +2212,6 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
     },
     show: false,
   });
@@ -2401,6 +2423,14 @@ function createWindow() {
       void shell.openExternal(url);
     }
     return { action: 'deny' };
+  });
+
+  // Un renderer que muere no debe dejar una ventana muerta: una recarga la
+  // reconstruye desde la base de datos.
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit') return;
+    console.error('Main renderer died:', details.reason);
+    mainWindow?.webContents.reload();
   });
 
   // Interceptar click derecho para enviar sugerencias de ortografía al frontend
@@ -4299,6 +4329,15 @@ if (!gotTheLock) {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
       else restoreWindow();
     });
+  }).catch((error) => {
+    // A startup failure used to be an unhandled rejection: no window, no
+    // message, a process that looked like a double click that did nothing.
+    // The cause is told to the user, since the language setting may not be
+    // readable at this point.
+    const text = error instanceof Error ? error.stack || error.message : String(error);
+    writeLog('error', `startup failed: ${text}`);
+    dialog.showErrorBox('CyberNotes', `CyberNotes no pudo iniciarse / CyberNotes could not start:\n\n${text.slice(0, 600)}`);
+    app.exit(1);
   });
 
   app.on('window-all-closed', () => {
