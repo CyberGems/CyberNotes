@@ -2,6 +2,20 @@
 
 All notable changes to CyberNotes are documented here.
 
+## [1.19.2] - 2026-11-18
+
+### 🇺🇸 English
+
+- Convert the tray submenus (`Help` and `More from CyberGems`) into side-by-side flyout panels with dwell hover, click toggling, automatic monitor-edge placement, all three themes supported, and keyboard arrow navigation.
+- Tighten the production Content Security Policy down to `connect-src 'self'`, re-enable web security and shared navigation locks across main, sticky, and tray windows, reload dead renderers, reveal the main window reliably if first paint misses, and report startup failures in a dialog.
+- Strip internal `ProseMirror-separator` helper nodes from cloned minimap blocks.
+
+### 🇪🇸 Español
+
+- Convierte los submenús de la bandeja (`Ayuda` y `Más de CyberGems`) en paneles flyout laterales con retardo hover, alternancia por clic, colocación automática según el monitor, soporte completo de los tres temas y navegación con flechas del teclado.
+- Endurece la política CSP de producción a `connect-src 'self'`, reactiva web security y bloqueo de navegación en las ventanas principal, flotantes y bandeja, recarga renderizadores caídos, muestra la ventana principal aunque falte el primer pintado e informa fallos de arranque en un diálogo.
+- Limpia nodos internos `ProseMirror-separator` al clonar bloques en el minimapa.
+
 ## [1.19.1] - 2026-11-16
 
 ### 🇺🇸 English
