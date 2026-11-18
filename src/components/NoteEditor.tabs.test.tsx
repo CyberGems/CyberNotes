@@ -713,7 +713,7 @@ describe('NoteEditor tab hydration', () => {
     await act(async () => root!.render(<NoteEditor {...props} />));
     const dom = container!.querySelector<HTMLElement>('.tiptap')!;
     const editor = (dom as HTMLElement & { editor: Editor }).editor;
-    const sourceImage = dom.querySelector<HTMLImageElement>('img')!;
+    const sourceImage = dom.querySelector<HTMLImageElement>('img:not(.ProseMirror-separator)')!;
     let imagePos = 0;
     editor.state.doc.descendants((node, pos) => { if (node.type.name === 'image') imagePos = pos; });
     await act(async () => {
@@ -737,7 +737,7 @@ describe('NoteEditor tab hydration', () => {
     expect(minimap.querySelector('iframe')).toBeNull();
     expect(minimap.querySelector('.minimap-media-ph')?.textContent).toBe('▶');
     expect(minimap.querySelector('.ProseMirror-selectednode,[data-placeholder]')).toBeNull();
-    expect(dom.querySelector('img')).toBe(sourceImage);
+    expect(dom.querySelector('img:not(.ProseMirror-separator)')).toBe(sourceImage);
     expect(dom.querySelector('iframe')).not.toBeNull();
     expect(editor.getHTML()).toBe(html);
     expect(props.onSave).not.toHaveBeenCalled();

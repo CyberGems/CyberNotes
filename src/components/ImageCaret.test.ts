@@ -133,7 +133,7 @@ describe('ImageCaret Extension', () => {
       expect(editor.state.selection).toBeInstanceOf(NodeSelection);
 
       // Mock bounding box for image: left: 50, right: 250, top: 20, bottom: 200
-      const img = editor.view.dom.querySelector('img')!;
+      const img = editor.view.dom.querySelector<HTMLImageElement>('img:not(.ProseMirror-separator)')!;
       img.getBoundingClientRect = () => ({
         left: 50,
         right: 250,
@@ -182,7 +182,7 @@ describe('ImageCaret Extension', () => {
       editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 1)));
       expect(editor.state.selection).toBeInstanceOf(NodeSelection);
 
-      const img = editor.view.dom.querySelector('img')!;
+      const img = editor.view.dom.querySelector<HTMLImageElement>('img:not(.ProseMirror-separator)')!;
       img.getBoundingClientRect = () => ({
         left: 100,
         right: 300,

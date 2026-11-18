@@ -32,6 +32,7 @@ function copyBlock(source: Node): Node {
     placeholder.textContent = '▶';
     frame.replaceWith(placeholder);
   });
+  copy.querySelectorAll('.ProseMirror-separator').forEach(el => el.remove());
   for (const element of [copy, ...copy.querySelectorAll('.ProseMirror-selectednode,[data-placeholder]')]) {
     element.classList.remove('ProseMirror-selectednode');
     if (element.hasAttribute('data-placeholder')) {
