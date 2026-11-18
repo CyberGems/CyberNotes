@@ -29,20 +29,20 @@ it('applies live theme updates in every tray view and keeps bilingual navigation
     expect(document.documentElement.style.colorScheme).toBe('light');
     expect(document.documentElement.style.getPropertyValue('--bg-modal')).toBe('#ffffff');
     open(lang === 'es' ? 'Ayuda' : 'Help');
-    expect(document.querySelector('.shell.help-view')).toBeTruthy();
+    expect(document.querySelector('#flyoutHelp.is-open')).toBeTruthy();
 
     receiveState({ ...state, theme: 'graphite', themeVars: getThemeVars('graphite') });
-    expect(document.querySelector('.shell.help-view')).toBeTruthy();
+    expect(document.querySelector('#flyoutHelp.is-open')).toBeTruthy();
     expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(document.documentElement.style.getPropertyValue('--bg-modal')).toBe('#1e1e1e');
-    document.querySelector('.head-suite-back')!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     open(lang === 'es' ? 'Más de CyberGems' : 'More from CyberGems');
-    expect(document.querySelector('.shell.suite-view')).toBeTruthy();
+    expect(document.querySelector('#flyoutSuite.is-open')).toBeTruthy();
+    expect(document.querySelector('#flyoutHelp.is-open')).toBeFalsy();
 
     receiveState({ ...state, theme: 'light', themeVars: getThemeVars('light') });
-    expect(document.querySelector('.shell.suite-view')).toBeTruthy();
+    expect(document.querySelector('#flyoutSuite.is-open')).toBeTruthy();
     expect(document.documentElement.style.getPropertyValue('--text-primary')).toBe('#1a1a2e');
-    const app = document.querySelector('.stacked-label')!.closest('button')!;
+    const app = document.querySelector('#flyoutSuite .stacked-label')!.closest('button')!;
     app.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     expect(action).toHaveBeenLastCalledWith('suite-cyberpaste');
   }

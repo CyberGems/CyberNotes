@@ -18,7 +18,6 @@ const ICONS = {
   heart: '<svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.9-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>',
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>',
   pin: '<svg viewBox="0 0 24 24"><path d="M8 3h8l-1 5 3 3v2H6v-2l3-3z"/><path d="M12 13v8"/></svg>',
-  back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/><path d="M9 12h11"/></svg>',
   sticky: '<svg viewBox="0 0 24 24"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8l-5-5z"/><path d="M15 3v5h5"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   apps: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
@@ -26,34 +25,144 @@ const ICONS = {
 
 const api = window.trayMenu;
 const root = document.getElementById('root');
+const stageEl = document.getElementById('stage');
+const cardEl = document.getElementById('card');
 const headEl = document.getElementById('head');
 const groupEl = document.getElementById('group');
 const exitGroupEl = document.getElementById('exitGroup');
-let currentState = null;
-let currentView = 'main';
+const flyoutHelpEl = document.getElementById('flyoutHelp');
+const flyoutSuiteEl = document.getElementById('flyoutSuite');
 
-// Textos de respaldo si el main aun no envio el estado completo.
-// Misma tabla en ambos idiomas: el main elige con `state.lang`.
+const HOVER_OPEN_MS = 120;
+const HOVER_SWITCH_MS = 60;
+const HOVER_CLOSE_MS = 220;
+
+let currentState = null;
+let activeFlyout = null;
+let hoverOpenTimer = null;
+let hoverCloseTimer = null;
+let isPointerInsideTrigger = false;
+let isPointerInsideFlyout = false;
+const flyoutTriggers = new Map();
+
 const FALLBACKS = {
   es: {
-    back: 'Volver', help: 'Ayuda', newSticky: 'Nueva nota flotante',
-    pin: 'Mantener visible en la bandeja del sistema', setPassword: 'Configurar contraseña...',
-    docs: 'Documentación online', faq: 'Preguntas frecuentes', changelog: 'Registro de cambios',
-    website: 'Sitio web', donate: 'Donar', about: 'Acerca de CyberNotes...', updates: 'Buscar actualizaciones...',
-    back: 'Atrás', suite: 'Más de CyberGems', viewAll: 'Más detalles online…',
+    help: 'Ayuda',
+    newSticky: 'Nueva nota flotante',
+    pin: 'Mantener visible en la bandeja del sistema',
+    setPassword: 'Configurar contraseña...',
+    docs: 'Documentación online',
+    faq: 'Preguntas frecuentes',
+    changelog: 'Registro de cambios',
+    website: 'Sitio web',
+    donate: 'Donar',
+    about: 'Acerca de CyberNotes...',
+    updates: 'Buscar actualizaciones...',
+    suite: 'Más de CyberGems',
+    viewAll: 'Más detalles online…',
   },
   en: {
-    back: 'Back', help: 'Help', newSticky: 'New floating note',
-    pin: 'Keep visible in the system tray', setPassword: 'Set password...',
-    docs: 'Online documentation', faq: 'FAQ', changelog: 'Changelog',
-    website: 'Website', donate: 'Donate', about: 'About CyberNotes...', updates: 'Check for updates...',
-    suite: 'More from CyberGems', viewAll: 'More details online…',
+    help: 'Help',
+    newSticky: 'New floating note',
+    pin: 'Keep visible in the system tray',
+    setPassword: 'Set password...',
+    docs: 'Online documentation',
+    faq: 'FAQ',
+    changelog: 'Changelog',
+    website: 'Website',
+    donate: 'Donate',
+    about: 'About CyberNotes...',
+    updates: 'Check for updates...',
+    suite: 'More from CyberGems',
+    viewAll: 'More details online…',
   },
 };
 
 function t(key) {
-  const lang = (currentState && currentState.lang === 'es') ? 'es' : 'en';
+  const lang = currentState && currentState.lang === 'es' ? 'es' : 'en';
   return FALLBACKS[lang][key];
+}
+
+function getFlyoutSide() {
+  return currentState && currentState.flyoutSide === 'right' ? 'right' : 'left';
+}
+
+function getFlyoutElement(kind) {
+  if (kind === 'help') return flyoutHelpEl;
+  if (kind === 'suite') return flyoutSuiteEl;
+  return null;
+}
+
+function clearHoverTimers() {
+  if (hoverOpenTimer) {
+    clearTimeout(hoverOpenTimer);
+    hoverOpenTimer = null;
+  }
+  if (hoverCloseTimer) {
+    clearTimeout(hoverCloseTimer);
+    hoverCloseTimer = null;
+  }
+}
+
+function setActiveFlyout(kind) {
+  if (kind === 'suite' && !(currentState && currentState.suite && Array.isArray(currentState.suite.apps) && currentState.suite.apps.length > 0)) {
+    kind = null;
+  }
+  activeFlyout = kind;
+
+  if (root) {
+    root.classList.toggle('help-view', activeFlyout === 'help');
+    root.classList.toggle('suite-view', activeFlyout === 'suite');
+  }
+
+  for (const flyoutKind of ['help', 'suite']) {
+    const el = getFlyoutElement(flyoutKind);
+    const isOpen = activeFlyout === flyoutKind;
+    if (el) {
+      el.classList.toggle('is-open', isOpen);
+      el.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    }
+    const trigger = flyoutTriggers.get(flyoutKind);
+    if (trigger) {
+      trigger.classList.toggle('is-flyout-open', isOpen);
+      trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+  }
+}
+
+function scheduleFlyoutOpen(kind, immediate) {
+  if (hoverCloseTimer) {
+    clearTimeout(hoverCloseTimer);
+    hoverCloseTimer = null;
+  }
+  if (hoverOpenTimer) {
+    clearTimeout(hoverOpenTimer);
+    hoverOpenTimer = null;
+  }
+  if (immediate) {
+    setActiveFlyout(kind);
+    return;
+  }
+  const delay = activeFlyout && activeFlyout !== kind ? HOVER_SWITCH_MS : HOVER_OPEN_MS;
+  hoverOpenTimer = setTimeout(() => {
+    hoverOpenTimer = null;
+    setActiveFlyout(kind);
+  }, delay);
+}
+
+function scheduleFlyoutClose() {
+  if (hoverOpenTimer) {
+    clearTimeout(hoverOpenTimer);
+    hoverOpenTimer = null;
+  }
+  if (!activeFlyout) return;
+  if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
+  hoverCloseTimer = setTimeout(() => {
+    hoverCloseTimer = null;
+    if (!isPointerInsideTrigger && !isPointerInsideFlyout) {
+      setActiveFlyout(null);
+    }
+  }, HOVER_CLOSE_MS);
 }
 
 function makeSeparator() {
@@ -63,85 +172,10 @@ function makeSeparator() {
   return separator;
 }
 
-function renderHead() {
-  headEl.replaceChildren();
-  headEl.classList.toggle('help-head', currentView === 'help');
-
-  if (currentView === 'help' || currentView === 'suite') {
-    if (currentView === 'suite') {
-      // Encabezado estilo familia: atrás con texto + marca clicable a la derecha.
-      const back = document.createElement('button');
-      back.type = 'button';
-      back.className = 'head-suite-back';
-      back.innerHTML = ICONS.chevronLeft;
-      const backText = document.createElement('span');
-      backText.textContent = t('back');
-      back.appendChild(backText);
-      back.setAttribute('aria-label', t('back'));
-      back.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        currentView = 'main';
-        renderView();
-      });
-      headEl.appendChild(back);
-      const brand = document.createElement('button');
-      brand.type = 'button';
-      brand.className = 'head-brand';
-      brand.setAttribute('aria-label', 'CyberGems');
-      brand.title = 'CyberGems';
-      const logo = document.createElement('img');
-      logo.className = 'brand-logo';
-      logo.src = 'cybergems-logo.svg';
-      logo.alt = '';
-      logo.draggable = false;
-      logo.addEventListener('error', () => {
-        if (!logo.src.endsWith('.png')) logo.src = 'cybergems-logo.png';
-      }, { once: true });
-      brand.appendChild(logo);
-      const brandText = document.createElement('span');
-      brandText.textContent = 'CyberGems';
-      brand.appendChild(brandText);
-      brand.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        api.action('suite-home');
-      });
-      headEl.appendChild(brand);
-      return;
-    }
-    // Encabezado estilo familia (igual que CyberLauncher y la vista suite):
-    // atrás con texto a la izquierda + título del submenú a la derecha.
-    const back = document.createElement('button');
-    back.type = 'button';
-    back.className = 'head-suite-back';
-    back.innerHTML = ICONS.chevronLeft;
-    const backText = document.createElement('span');
-    backText.textContent = (currentState.help && currentState.help.backLabel) || t('back');
-    back.appendChild(backText);
-    back.setAttribute('aria-label', backText.textContent);
-    back.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      currentView = 'main';
-      renderView();
-    });
-    headEl.appendChild(back);
-    const title = document.createElement('span');
-    title.className = 'head-title';
-    title.textContent = (currentState.help && currentState.help.label) || t('help');
-    headEl.appendChild(title);
-    return;
-  }
-
-  const icon = document.createElement('img');
-  icon.className = 'head-icon';
-  icon.src = 'icon.png';
-  icon.alt = '';
-  headEl.appendChild(icon);
-  const title = document.createElement('span');
-  title.textContent = currentState.head || ('CyberNotes v' + (currentState.version || ''));
-  headEl.appendChild(title);
+function makeDivider() {
+  const divider = document.createElement('div');
+  divider.className = 'divider';
+  return divider;
 }
 
 function makeItem(def) {
@@ -197,23 +231,64 @@ function makeItem(def) {
     btn.appendChild(sc);
   }
 
-  btn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (def.localAction === 'help' || def.localAction === 'suite') {
-      currentView = def.localAction;
-      renderView();
-    } else if (def.localAction === 'back') {
-      currentView = 'main';
-      renderView();
-    } else {
-      api.action(def.action);
+  if (def.flyout) {
+    btn.dataset.flyout = def.flyout;
+    btn.setAttribute('aria-haspopup', 'menu');
+    btn.setAttribute('aria-expanded', activeFlyout === def.flyout ? 'true' : 'false');
+    btn.classList.toggle('is-flyout-open', activeFlyout === def.flyout);
+    flyoutTriggers.set(def.flyout, btn);
+
+    btn.addEventListener('pointerenter', () => {
+      isPointerInsideTrigger = true;
+      scheduleFlyoutOpen(def.flyout, false);
+    });
+    btn.addEventListener('pointerleave', () => {
+      isPointerInsideTrigger = false;
+      scheduleFlyoutClose();
+    });
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearHoverTimers();
+      setActiveFlyout(activeFlyout === def.flyout ? null : def.flyout);
+    });
+  } else {
+    if (!def.inFlyout) {
+      btn.addEventListener('pointerenter', () => {
+        if (hoverOpenTimer) {
+          clearTimeout(hoverOpenTimer);
+          hoverOpenTimer = null;
+        }
+        scheduleFlyoutClose();
+      });
     }
-  });
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (api && typeof api.action === 'function') {
+        api.action(def.action);
+      }
+    });
+  }
+
   return btn;
 }
 
+function renderHead() {
+  headEl.replaceChildren();
+  const icon = document.createElement('img');
+  icon.className = 'head-icon';
+  icon.src = 'icon.png';
+  icon.alt = '';
+  headEl.appendChild(icon);
+  const title = document.createElement('span');
+  title.textContent = currentState.head || ('CyberNotes v' + (currentState.version || ''));
+  headEl.appendChild(title);
+}
+
 function renderMainView() {
+  flyoutTriggers.clear();
+  const chevronIcon = getFlyoutSide() === 'left' ? 'chevronLeft' : 'chevron';
   const items = [
     makeItem({ action: 'toggle', icon: 'window', label: currentState.showLabel, shortcut: currentState.shortcut || '' })
   ];
@@ -234,11 +309,11 @@ function renderMainView() {
 
   items.push(
     makeItem({ action: 'settings', icon: 'settings', label: currentState.settingsLabel }),
-    makeItem({ localAction: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || t('help'), trailingIcon: 'chevron' })
+    makeItem({ flyout: 'help', icon: 'help', label: (currentState.help && currentState.help.label) || t('help'), trailingIcon: chevronIcon })
   );
   if (currentState.suite && Array.isArray(currentState.suite.apps) && currentState.suite.apps.length > 0) {
     items.push(
-      makeItem({ localAction: 'suite', icon: 'diamond', label: currentState.suite.label || t('suite'), trailingIcon: 'chevron' })
+      makeItem({ flyout: 'suite', icon: 'diamond', label: currentState.suite.label || t('suite'), trailingIcon: chevronIcon })
     );
   }
 
@@ -248,43 +323,91 @@ function renderMainView() {
   );
 }
 
-function renderHelpView() {
+function renderHelpFlyout() {
   const help = currentState.help || {};
-  groupEl.replaceChildren(
-    makeItem({ action: 'help-pin', icon: 'pin', label: help.pinLabel || t('pin') }),
-    makeItem({ action: 'help-set-password', icon: 'key', label: help.setPasswordLabel || t('setPassword') }),
+  const head = document.createElement('div');
+  head.className = 'flyout-head';
+  const title = document.createElement('span');
+  title.textContent = help.label || t('help');
+  head.appendChild(title);
+
+  const group = document.createElement('div');
+  group.className = 'group';
+  group.append(
+    makeItem({ action: 'help-pin', icon: 'pin', label: help.pinLabel || t('pin'), inFlyout: true }),
+    makeItem({ action: 'help-set-password', icon: 'key', label: help.setPasswordLabel || t('setPassword'), inFlyout: true }),
     makeSeparator(),
-    makeItem({ action: 'help-docs', icon: 'book', label: help.docsLabel || t('docs') }),
-    makeItem({ action: 'help-faq', icon: 'help', label: help.faqLabel || t('faq') }),
-    makeItem({ action: 'help-changelog', icon: 'tag', label: help.changelogLabel || t('changelog') }),
-    makeItem({ action: 'help-website', icon: 'globe', label: help.websiteLabel || t('website') }),
-    makeItem({ action: 'help-donate', icon: 'heart', label: help.donateLabel || t('donate'), tone: 'donate' }),
+    makeItem({ action: 'help-docs', icon: 'book', label: help.docsLabel || t('docs'), inFlyout: true }),
+    makeItem({ action: 'help-faq', icon: 'help', label: help.faqLabel || t('faq'), inFlyout: true }),
+    makeItem({ action: 'help-changelog', icon: 'tag', label: help.changelogLabel || t('changelog'), inFlyout: true }),
+    makeItem({ action: 'help-website', icon: 'globe', label: help.websiteLabel || t('website'), inFlyout: true }),
+    makeItem({ action: 'help-donate', icon: 'heart', label: help.donateLabel || t('donate'), tone: 'donate', inFlyout: true }),
     makeSeparator(),
-    makeItem({ action: 'help-about', icon: 'about', label: help.aboutLabel || t('about') }),
-    makeItem({ action: 'help-check-updates', icon: 'download', label: help.updatesLabel || t('updates') })
+    makeItem({ action: 'help-about', icon: 'about', label: help.aboutLabel || t('about'), inFlyout: true }),
+    makeItem({ action: 'help-check-updates', icon: 'download', label: help.updatesLabel || t('updates'), inFlyout: true })
   );
-  exitGroupEl.replaceChildren();
+
+  flyoutHelpEl.replaceChildren(head, makeDivider(), group);
 }
 
-function renderSuiteView() {
+function renderSuiteFlyout() {
   const suite = currentState.suite || {};
   const apps = Array.isArray(suite.apps) ? suite.apps : [];
-  groupEl.replaceChildren(
-    ...apps.map((a) => makeItem({ action: a.action, img: a.img, icon: 'apps', label: a.name, desc: a.desc, stacked: true })),
+  if (apps.length === 0) {
+    flyoutSuiteEl.replaceChildren();
+    return;
+  }
+
+  const head = document.createElement('div');
+  head.className = 'flyout-head';
+  const brand = document.createElement('button');
+  brand.type = 'button';
+  brand.className = 'head-brand';
+  brand.setAttribute('aria-label', 'CyberGems');
+  brand.title = 'CyberGems';
+  const logo = document.createElement('img');
+  logo.className = 'brand-logo';
+  logo.src = 'cybergems-logo.svg';
+  logo.alt = '';
+  logo.draggable = false;
+  logo.addEventListener('error', () => {
+    if (!logo.src.endsWith('.png')) logo.src = 'cybergems-logo.png';
+  }, { once: true });
+  brand.appendChild(logo);
+  const brandText = document.createElement('span');
+  brandText.textContent = 'CyberGems';
+  brand.appendChild(brandText);
+  brand.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (api && typeof api.action === 'function') {
+      api.action('suite-home');
+    }
+  });
+  head.appendChild(brand);
+
+  const group = document.createElement('div');
+  group.className = 'group';
+  group.append(
+    ...apps.map((a) => makeItem({ action: a.action, img: a.img, icon: 'apps', label: a.name, desc: a.desc, stacked: true, inFlyout: true })),
     makeSeparator(),
-    makeItem({ action: 'suite-view-all', icon: 'arrowRight', label: suite.viewAllLabel || t('viewAll'), pill: true })
+    makeItem({ action: 'suite-view-all', icon: 'arrowRight', label: suite.viewAllLabel || t('viewAll'), pill: true, inFlyout: true })
   );
-  exitGroupEl.replaceChildren();
+
+  flyoutSuiteEl.replaceChildren(head, makeDivider(), group);
 }
 
 function renderView() {
   if (!currentState) return;
-  root.classList.toggle('help-view', currentView === 'help');
-  root.classList.toggle('suite-view', currentView === 'suite');
+  if (stageEl) {
+    stageEl.dataset.flyoutSide = getFlyoutSide();
+    stageEl.dataset.verticalAlign = currentState.verticalAlign === 'top' ? 'top' : 'bottom';
+  }
   renderHead();
-  if (currentView === 'help') renderHelpView();
-  else if (currentView === 'suite') renderSuiteView();
-  else renderMainView();
+  renderMainView();
+  renderHelpFlyout();
+  renderSuiteFlyout();
+  setActiveFlyout(activeFlyout);
   reportReady();
 }
 
@@ -298,27 +421,116 @@ function applyState(state) {
       document.documentElement.style.setProperty(key, value);
     }
   }
-  if (state && state.resetView) currentView = 'main';
+  if (state && state.resetView) {
+    clearHoverTimers();
+    isPointerInsideTrigger = false;
+    isPointerInsideFlyout = false;
+    activeFlyout = null;
+  }
   renderView();
 }
 
 function reportReady() {
-  const r = root.getBoundingClientRect();
-  if (r.width < 8 || r.height < 8) return;
-  api.ready({ width: r.width, height: r.height });
+  const cardRect = cardEl ? cardEl.getBoundingClientRect() : root.getBoundingClientRect();
+  if (cardRect.width < 8 || cardRect.height < 8) return;
+  const helpH = flyoutHelpEl ? flyoutHelpEl.getBoundingClientRect().height : 0;
+  const hasSuite = currentState && currentState.suite && Array.isArray(currentState.suite.apps) && currentState.suite.apps.length > 0;
+  const suiteH = hasSuite && flyoutSuiteEl ? flyoutSuiteEl.getBoundingClientRect().height : 0;
+  const maxHeight = Math.ceil(Math.max(cardRect.height, helpH, suiteH));
+  api.ready({ width: Math.ceil(cardRect.width), height: maxHeight });
 }
+
+function getFocusableItems(container) {
+  if (!container) return [];
+  return [...container.querySelectorAll('.item')];
+}
+
+for (const flyoutEl of [flyoutHelpEl, flyoutSuiteEl]) {
+  if (!flyoutEl) continue;
+  flyoutEl.addEventListener('pointerenter', () => {
+    isPointerInsideFlyout = true;
+    if (hoverCloseTimer) {
+      clearTimeout(hoverCloseTimer);
+      hoverCloseTimer = null;
+    }
+  });
+  flyoutEl.addEventListener('pointerleave', () => {
+    isPointerInsideFlyout = false;
+    scheduleFlyoutClose();
+  });
+  flyoutEl.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+  });
+}
+
+document.addEventListener('pointerdown', (e) => {
+  const target = e.target;
+  if (!(target instanceof Element)) return;
+  if (cardEl && cardEl.contains(target)) return;
+  const openFlyout = activeFlyout ? getFlyoutElement(activeFlyout) : null;
+  if (openFlyout && openFlyout.contains(target)) return;
+  if (api && typeof api.hide === 'function') {
+    api.hide();
+  }
+});
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     e.preventDefault();
-    if (currentView !== 'main') {
-      currentView = 'main';
-      renderView();
-    } else {
+    clearHoverTimers();
+    if (activeFlyout) {
+      const closed = activeFlyout;
+      setActiveFlyout(null);
+      const trigger = flyoutTriggers.get(closed);
+      if (trigger) trigger.focus();
+    } else if (api && typeof api.hide === 'function') {
       api.hide();
     }
+    return;
+  }
+
+  const flyoutSide = getFlyoutSide();
+  const openKey = flyoutSide === 'left' ? 'ArrowLeft' : 'ArrowRight';
+  const closeKey = flyoutSide === 'left' ? 'ArrowRight' : 'ArrowLeft';
+  const activeEl = document.activeElement instanceof Element ? document.activeElement : null;
+
+  if (e.key === openKey && activeEl) {
+    const flyoutKind = activeEl.getAttribute('data-flyout');
+    if (flyoutKind === 'help' || flyoutKind === 'suite') {
+      e.preventDefault();
+      clearHoverTimers();
+      setActiveFlyout(flyoutKind);
+      const items = getFocusableItems(getFlyoutElement(flyoutKind));
+      if (items.length > 0) items[0].focus();
+      return;
+    }
+  }
+
+  if (e.key === closeKey && activeFlyout) {
+    const openEl = getFlyoutElement(activeFlyout);
+    if (openEl && activeEl && openEl.contains(activeEl)) {
+      e.preventDefault();
+      const prev = activeFlyout;
+      setActiveFlyout(null);
+      const trigger = flyoutTriggers.get(prev);
+      if (trigger) trigger.focus();
+      return;
+    }
+  }
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const openEl = activeFlyout ? getFlyoutElement(activeFlyout) : null;
+    const container = openEl && activeEl && openEl.contains(activeEl) ? openEl : cardEl;
+    const items = getFocusableItems(container);
+    if (items.length === 0) return;
+    const idx = activeEl ? items.indexOf(activeEl) : -1;
+    const delta = e.key === 'ArrowDown' ? 1 : -1;
+    const nextIdx = idx === -1 ? (delta > 0 ? 0 : items.length - 1) : (idx + delta + items.length) % items.length;
+    items[nextIdx].focus();
   }
 });
+
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 if (api) {
@@ -331,10 +543,7 @@ if (api) {
 headEl.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   e.stopPropagation();
-  if (currentView !== 'main') {
-    currentView = 'main';
-    renderView();
-  } else {
+  if (api && typeof api.action === 'function') {
     api.action('about');
   }
 });

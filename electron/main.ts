@@ -1594,6 +1594,10 @@ function focusMainWindowWithNote(noteId: string): void {
 
 const TRAY_MENU_SHADOW_PAD = 26;
 const TRAY_MENU_WIDTH = 300;
+const TRAY_MENU_FLYOUT_WIDTH = 300;
+const TRAY_MENU_FLYOUT_GAP = 8;
+const TRAY_MENU_FLYOUT_SPAN = TRAY_MENU_FLYOUT_WIDTH + TRAY_MENU_FLYOUT_GAP;
+const TRAY_MENU_WINDOW_WIDTH = TRAY_MENU_WIDTH + TRAY_MENU_FLYOUT_SPAN + 2 * TRAY_MENU_SHADOW_PAD;
 const TRAY_MENU_EST_HEIGHT = 220;
 let trayMenuWin: BrowserWindow | null = null;
 let trayMenuAnchor: any = null;
@@ -1602,6 +1606,8 @@ let trayMenuShowPending = false;
 let trayMenuShowFallback: NodeJS.Timeout | null = null;
 let trayMenuRevealTimer: NodeJS.Timeout | null = null;
 let trayMenuLastShown = 0;
+let trayMenuFlyoutSide: 'left' | 'right' = 'left';
+let trayMenuVerticalAlign: 'top' | 'bottom' = 'bottom';
 
 function isWindowShown(): boolean {
   return !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible());
@@ -1738,6 +1744,8 @@ function buildTrayMenuState() {
     theme: appearance.theme,
     themeVars: appearance.vars,
     lang: isEs ? 'es' : 'en',
+    flyoutSide: trayMenuFlyoutSide,
+    verticalAlign: trayMenuVerticalAlign,
     visible,
     canLock,
     stickyCount,
@@ -1847,8 +1855,8 @@ function trayMenuGeometry(iconBounds: any, windowW: number, windowH: number) {
 
   const gap = 4;
   const pad = TRAY_MENU_SHADOW_PAD;
-  const cardW = windowW - 2 * pad;
-  const cardH = windowH - 2 * pad;
+  const cardW = TRAY_MENU_WIDTH;
+  const cardH = Math.max(120, Math.round(windowH - 2 * pad));
 
   let cardX: number, cardY: number;
   const dLeft = cx - work.x;
@@ -1872,7 +1880,28 @@ function trayMenuGeometry(iconBounds: any, windowW: number, windowH: number) {
 
   cardX = Math.min(Math.max(cardX, work.x + 4), work.x + work.width - cardW - 4);
   cardY = Math.min(Math.max(cardY, work.y + 4), work.y + work.height - cardH - 4);
-  return { x: Math.round(cardX - pad), y: Math.round(cardY - pad), width: windowW, height: windowH };
+
+  const spaceLeft = cardX - work.x;
+  const spaceRight = (work.x + work.width) - (cardX + cardW);
+  if (spaceLeft >= TRAY_MENU_FLYOUT_SPAN + 4) {
+    trayMenuFlyoutSide = 'left';
+  } else if (spaceRight >= TRAY_MENU_FLYOUT_SPAN + 4) {
+    trayMenuFlyoutSide = 'right';
+  } else {
+    trayMenuFlyoutSide = spaceLeft >= spaceRight ? 'left' : 'right';
+  }
+  trayMenuVerticalAlign = cy >= work.y + work.height / 2 ? 'bottom' : 'top';
+
+  const winX = trayMenuFlyoutSide === 'left'
+    ? cardX - TRAY_MENU_FLYOUT_SPAN - pad
+    : cardX - pad;
+
+  return {
+    x: Math.round(winX),
+    y: Math.round(cardY - pad),
+    width: TRAY_MENU_WINDOW_WIDTH,
+    height: Math.round(cardH + 2 * pad),
+  };
 }
 
 function ensureTrayMenuWin() {
@@ -1886,7 +1915,7 @@ function ensureTrayMenuWin() {
     : path.join(app.getAppPath(), 'dist', 'tray-preload.js');
 
   trayMenuWin = new BrowserWindow({
-    width: TRAY_MENU_WIDTH + 2 * TRAY_MENU_SHADOW_PAD,
+    width: TRAY_MENU_WINDOW_WIDTH,
     height: TRAY_MENU_EST_HEIGHT,
     show: false,
     frame: false,
@@ -1972,7 +2001,7 @@ function showTrayMenu(eventBounds?: any) {
   if (trayMenuHideTimer) { clearTimeout(trayMenuHideTimer); trayMenuHideTimer = null; }
   const w = ensureTrayMenuWin();
   if (!w || w.isDestroyed()) return;
-  const geo = trayMenuGeometry(trayMenuAnchor, TRAY_MENU_WIDTH + 2 * TRAY_MENU_SHADOW_PAD, TRAY_MENU_EST_HEIGHT);
+  const geo = trayMenuGeometry(trayMenuAnchor, TRAY_MENU_WINDOW_WIDTH, TRAY_MENU_EST_HEIGHT);
   const current = w.getBounds();
   if (current.x !== geo.x || current.y !== geo.y || current.width !== geo.width || current.height !== geo.height) {
     w.setBounds(geo);
@@ -2123,7 +2152,7 @@ ipcMain.on('tray-menu-hide', () => hideTrayMenu());
 ipcMain.on('tray-menu-ready', (_event, rect) => {
   if (!trayMenuWin || trayMenuWin.isDestroyed() || !rect) return;
   const pad = TRAY_MENU_SHADOW_PAD;
-  const targetW = Math.round((rect.width || TRAY_MENU_WIDTH) + 2 * pad);
+  const targetW = TRAY_MENU_WINDOW_WIDTH;
   const targetH = Math.round((rect.height || (TRAY_MENU_EST_HEIGHT - 2 * pad)) + 2 * pad);
   const geo = trayMenuGeometry(trayMenuAnchor, targetW, targetH);
   const current = trayMenuWin.getBounds();

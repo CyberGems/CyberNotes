@@ -1,6 +1,8 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body {
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
   background: transparent;
@@ -10,13 +12,28 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-#root { display: block; }
+#root { display: block; width: 100%; height: 100%; }
 
 /* Transparent bleed around the card for the CSS box-shadow (logical px) */
 .shell {
+  width: 100%;
+  height: 100%;
   padding: 26px;
   background: transparent;
 }
+
+.stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+}
+.stage[data-flyout-side="left"] { flex-direction: row-reverse; }
+.stage[data-flyout-side="right"] { flex-direction: row; }
+.stage[data-vertical-align="top"] { align-items: flex-start; }
+.stage[data-vertical-align="bottom"] { align-items: flex-end; }
 
 .card {
   width: 300px;
@@ -29,6 +46,69 @@ html, body {
     0 1px 4px rgba(0, 0, 0, 0.3),
     0 0 24px rgba(108, 99, 230, 0.12);
   -webkit-app-region: no-drag;
+}
+
+.main-card {
+  flex: 0 0 300px;
+}
+
+.flyout-slot {
+  position: relative;
+  flex: 0 0 300px;
+  width: 300px;
+  align-self: stretch;
+  pointer-events: none;
+}
+
+.flyout {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 300px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(8px);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.14s;
+}
+.stage[data-flyout-side="right"] .flyout {
+  transform: translateX(-8px);
+}
+.stage[data-vertical-align="bottom"] .flyout {
+  bottom: 0;
+}
+.stage[data-vertical-align="top"] .flyout {
+  top: 0;
+}
+.flyout.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
+}
+
+.flyout-head {
+  padding: 12px 14px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.92);
+  user-select: none;
+}
+.flyout-head .head-brand {
+  margin-left: 0;
+  padding: 2px 4px;
 }
 
 .head {
@@ -215,7 +295,8 @@ html, body {
   cursor: default;
   transition: background-color 0.12s ease, color 0.12s ease;
 }
-.item:hover { background: rgba(255, 255, 255, 0.08); }
+.item:hover,
+.item.is-flyout-open { background: rgba(255, 255, 255, 0.08); }
 .item:active { background: rgba(255, 255, 255, 0.12); }
 
 .icon {
@@ -227,7 +308,8 @@ html, body {
   justify-content: center;
   color: #968fff;
 }
-.item:hover .icon { color: #ffffff; }
+.item:hover .icon,
+.item.is-flyout-open .icon { color: #ffffff; }
 .item.donate .icon { color: #f05a73; }
 .item.donate:hover .icon { color: #ff6e86; }
 
@@ -241,12 +323,12 @@ html, body {
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
 }
-.shell.help-view .label,
-.shell.suite-view .label {
+.flyout .label {
   white-space: normal;
   line-height: 1.3;
 }
-.item:hover .label { color: #ffffff; }
+.item:hover .label,
+.item.is-flyout-open .label { color: #ffffff; }
 
 .trailing-icon {
   flex: 0 0 18px;
@@ -257,7 +339,8 @@ html, body {
   justify-content: center;
   color: rgba(255, 255, 255, 0.42);
 }
-.item:hover .trailing-icon { color: rgba(255, 255, 255, 0.8); }
+.item:hover .trailing-icon,
+.item.is-flyout-open .trailing-icon { color: rgba(255, 255, 255, 0.8); }
 .trailing-icon svg {
   display: block;
   width: 14px;
@@ -330,8 +413,6 @@ html, body {
 .item.pill-action .icon { color: #b3adff; }
 .item.pill-action:hover .icon { color: #ffffff; }
 
-.shell.help-view .divider:last-of-type,
-.shell.suite-view .divider:last-of-type { display: none; }
 
 .icon svg {
   display: block;
@@ -361,13 +442,14 @@ html, body {
   .head, .head-back, .head-suite-back, .shortcut, .sub-desc, .trailing-icon {
     color: var(--text-secondary);
   }
-  .head-title, .label, .item:hover .label, .head:hover,
+  .head-title, .flyout-head, .label, .item:hover .label, .item.is-flyout-open .label, .head:hover,
   .head-back:hover, .head-suite-back:hover, .head-brand:hover,
-  .item:hover .shortcut, .item:hover .sub-desc, .item:hover .trailing-icon {
+  .item:hover .shortcut, .item:hover .sub-desc, .item:hover .trailing-icon, .item.is-flyout-open .trailing-icon {
     color: var(--text-primary);
   }
   .icon, .head-brand, .item.pill-action, .item.pill-action .icon,
-  .item:not(.danger):not(.donate):hover .icon {
+  .item:not(.danger):not(.donate):hover .icon,
+  .item:not(.danger):not(.donate).is-flyout-open .icon {
     color: var(--accent-light);
   }
   .item.danger .icon, .item.danger:hover .icon { color: var(--danger); }
@@ -379,7 +461,7 @@ html, body {
     background: var(--bg-input);
     border-color: var(--border);
   }
-  .item:hover, .head-back:hover, .head-suite-back:hover {
+  .item:hover, .item.is-flyout-open, .head-back:hover, .head-suite-back:hover {
     background: var(--bg-hover);
   }
   .item:active { background: var(--bg-active); }
