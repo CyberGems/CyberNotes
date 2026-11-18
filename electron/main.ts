@@ -2437,11 +2437,27 @@ function createWindow() {
     mainWindow!.webContents.focus();
   });
 
-  if (useDevRenderer) {
-    mainWindow.loadURL(getDevRendererUrl());
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
-  }
+  const load = useDevRenderer
+    ? mainWindow.loadURL(getDevRendererUrl())
+    : mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  load.then(() => {
+    // The window waits hidden for its first paint, and ready-to-show only
+    // fires when that paint lands. When the paint never lands (a stale GPU
+    // cache of another build of the app is enough) the app would run
+    // forever without a window, which is exactly what the user sees the
+    // moment the installer closes. Three seconds after the load settles the
+    // window is revealed anyway, and a late paint fills it in. A --hidden
+    // launch stays hidden on purpose.
+    if (!showOnReady) return;
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+        mainWindow.setOpacity(1);
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.focus();
+      }
+    }, 3000);
+  }).catch(error => console.error('Failed to load the main window:', error));
 }
 
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
