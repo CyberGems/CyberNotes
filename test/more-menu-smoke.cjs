@@ -119,12 +119,18 @@ app.whenReady().then(async () => {
     if (!menu || !panel) return null;
     return {
       menuLeft: Math.round(menu.getBoundingClientRect().left),
-      panelRight: Math.round(panel.getBoundingClientRect().right),
+      menuRight: Math.round(menu.getBoundingClientRect().right),
       panelLeft: Math.round(panel.getBoundingClientRect().left),
+      panelRight: Math.round(panel.getBoundingClientRect().right),
+      viewport: window.innerWidth,
     };
   `);
   assert.ok(geometry, 'A flyout is open');
-  assert.ok(geometry.panelRight <= geometry.menuLeft + 1, 'Flyout sits beside the menu, not over it: ' + JSON.stringify(geometry));
+  assert.ok(
+    geometry.panelRight <= geometry.menuLeft + 1 || geometry.panelLeft >= geometry.menuRight - 1,
+    'Flyout sits beside the menu, not over it: ' + JSON.stringify(geometry)
+  );
+  assert.ok(geometry.panelLeft >= 0 && geometry.panelRight <= geometry.viewport, 'Flyout stays inside the window: ' + JSON.stringify(geometry));
 
   const helpItems = await evaluate(`
     const panel = document.querySelector('.more-menu-flyout');
@@ -167,6 +173,12 @@ app.whenReady().then(async () => {
   `);
   assert.ok(hovered && hovered.rows === 9, 'Hovering a section opens its flyout: ' + JSON.stringify(hovered));
 
+  if (process.env.CYBERNOTES_MENU_TEST_SHOT) {
+    await evaluate('await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));');
+    await delay(300);
+    fs.writeFileSync(process.env.CYBERNOTES_MENU_TEST_SHOT, (await win.webContents.capturePage()).toPNG());
+  }
+
   // Keyboard: ArrowRight enters the flyout, ArrowLeft returns to the header.
   const keyboard = await evaluate(`
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -193,14 +205,9 @@ app.whenReady().then(async () => {
   `);
   assert.deepEqual(keyboard, { inFlyout: true, focusedSection: 'export', flyoutOpen: false }, 'Keyboard flies out and back: ' + JSON.stringify(keyboard));
 
-  if (process.env.CYBERNOTES_MENU_TEST_SHOT) {
-    await evaluate('await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));');
-    await delay(300);
-    fs.writeFileSync(process.env.CYBERNOTES_MENU_TEST_SHOT, (await win.webContents.capturePage()).toPNG());
-  }
 
   assert.deepEqual(errors, [], 'Renderer logged no console errors');
-  console.log('PASS More menu structure: ' + JSON.stringify({ headers, mainItems, helpItems }));
+  console.log('PASS More menu structure: ' + JSON.stringify({ headers, mainItems, helpItems, geometry }));
   app.exit(0);
 }).catch(async error => {
   console.error('FAIL ' + (error && error.stack ? error.stack : error));

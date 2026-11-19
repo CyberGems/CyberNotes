@@ -48,7 +48,7 @@ describe('More menu', () => {
 
       const mainButtons = [...menu!.querySelectorAll<HTMLButtonElement>(':scope > button.menu-item')];
       expect(mainButtons.some(button => button.textContent === 'Bloquear')).toBe(true);
-      expect(mainButtons.at(-1)?.textContent).toContain('Salir de CyberNotes');
+      expect(mainButtons[mainButtons.length - 1]?.textContent).toContain('Salir de CyberNotes');
 
       // Section rows live in the flyout, not in the menu itself.
       const noteHeader = [...menu!.querySelectorAll<HTMLButtonElement>('.more-menu-section-toggle')]

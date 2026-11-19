@@ -333,8 +333,19 @@ export default function TitleBar({
     clearFlyoutTimer();
     const rect = trigger.getBoundingClientRect();
     const width = 240 * menuScale;
-    let left = rect.left - width - 6;
-    if (left < 8) left = rect.right + 6;
+    const gap = 6;
+    const margin = 8;
+    // Windows-style: open towards the right when it fits, otherwise flip left.
+    const spaceRight = window.innerWidth - rect.right - gap - margin;
+    const spaceLeft = rect.left - gap - margin;
+    let left: number;
+    if (spaceRight >= width) {
+      left = rect.right + gap;
+    } else if (spaceLeft >= width) {
+      left = rect.left - gap - width;
+    } else {
+      left = spaceRight >= spaceLeft ? Math.max(margin, window.innerWidth - width - margin) : margin;
+    }
     const top = Math.max(8, Math.min(rect.top - 6, window.innerHeight - 140));
     setFlyoutPos({ top, left });
     setOpenFlyout(section);
@@ -376,7 +387,7 @@ export default function TitleBar({
       onMouseLeave={scheduleFlyoutClose}
     >
       <span>{section.label}</span>
-      <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.65, transform: 'rotate(90deg)', transition: 'transform 0.15s ease' }} />
+      <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.65, transform: 'rotate(-90deg)', transition: 'transform 0.15s ease' }} />
     </button>
   );
 
