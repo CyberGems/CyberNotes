@@ -125,7 +125,7 @@ export default function TitleBar({
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [exitConfirm, setExitConfirm] = useState(false);
-  const [openMoreSection, setOpenMoreSection] = useState<'note' | 'export' | 'options' | 'help' | 'app' | null>('note');
+  const [openMoreSection, setOpenMoreSection] = useState<'note' | 'export' | 'options' | 'help' | null>('note');
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -270,7 +270,7 @@ export default function TitleBar({
     '--more-menu-switch-active-left': `${16 * menuScale}px`,
     '--more-menu-switch-check-size': `${10 * menuScale}px`,
   } as CSSProperties;
-  const moreSectionHeader = (section: 'note' | 'export' | 'options' | 'help' | 'app', label: string) => (
+  const moreSectionHeader = (section: 'note' | 'export' | 'options' | 'help', label: string) => (
     <button
       type="button"
       role="menuitem"
@@ -901,13 +901,6 @@ export default function TitleBar({
                     <Download size={13} style={{ opacity: 0.7 }} />
                     <span>{t('Buscar actualizaciones', 'Check for updates')}</span>
                   </button>
-                </div>
-              )}
-
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-              {moreSectionHeader('app', t('Aplicación', 'App'))}
-              {openMoreSection === 'app' && (
-                <div role="group" aria-label={t('Aplicación', 'App')}>
                   <button
                     className="menu-item"
                     onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
@@ -916,6 +909,11 @@ export default function TitleBar({
                     <Pin size={13} style={{ opacity: 0.7 }} />
                     <span>{t('Mantener visible en la bandeja', 'Keep visible in system tray')}</span>
                   </button>
+                </div>
+              )}
+
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+
               {minimizeToTray && (
                 <button
                   className="menu-item"
@@ -964,10 +962,8 @@ export default function TitleBar({
                   onClick={() => setExitConfirm(true)}
                 >
                   <Power size={14} style={{ color: 'var(--danger)' }} />
-                  <span>{t('Salir', 'Exit')}</span>
+                  <span>{t('Salir de CyberNotes', 'Exit CyberNotes')}</span>
                 </button>
-              )}
-                </div>
               )}
             </div>,
             document.body
