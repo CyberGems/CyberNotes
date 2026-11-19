@@ -16,6 +16,7 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "test:menu": "node scripts/test-more-menu.cjs",
     "installer-graphics": "python scripts/generate-installer-art.py public/icon.png public installerSidebar --small",
     "postinstall": "electron-builder install-app-deps"
   },
