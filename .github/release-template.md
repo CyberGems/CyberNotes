@@ -8,7 +8,7 @@
 
 <!-- IMPORTANT FOR AGENTS & MAINTAINERS: Always rewrite this entire section and highlights with the ACTUAL release notes for this specific new version before tagging. NEVER leave or copy previous version notes! Use 25-45 words for the summary, lead with user-facing changes, and do not repeat the app name or version. Keep the Spanish mirror inside the details block in sync: translate the summary and rewrite the highlights. -->
 <!-- changelog-summary:start -->
-System tray submenus now open as side-by-side flyout panels in every theme. All windows gain tighter Content Security Policy and web security defaults, locked navigation, reliable main-window reveal without stalling, and cleaner minimap clones.
+Upgrades Electron to 42.11.18 to eliminate the native white titlebar flash on Windows tray popups, fixes tray flicker and cross-monitor jumps with a 4px flyout gap, and refines the titlebar More menu with side flyouts and top-level Lock.
 <!-- changelog-summary:end -->
 
 > **New to CyberNotes?** A privacy-focused Windows notes app with rich text, folders, tabs, floating notes, and fully local data.
@@ -17,15 +17,15 @@ System tray submenus now open as side-by-side flyout panels in every theme. All 
 
 ### ✨ Key Features & Highlights
 
-- 🪟 **Side-by-side tray flyout panels**: `Help` and `More from CyberGems` open beside the main tray menu on hover or click across dark, light, and graphite themes, support Left/Right arrow navigation and `Escape`, and align cleanly with any taskbar edge.
-- 🛡️ **Stronger security and startup reliability**: Production builds restrict `connect-src 'self'`, re-enable web security with navigation locks on all windows, recover dead renderers, show startup errors clearly, and keep the minimap free of ProseMirror separator nodes.
+- 🪟 **Clean multi-monitor tray on Electron 42**: Upgraded Electron to `42.11.18` and switched the tray menu to a fresh prewarmed window with two-step transparent reveal and a `4px` flyout gap, eliminating the white titlebar flash, repeated-open flicker, and cross-monitor jumps.
+- 📋 **Streamlined titlebar More menu**: Sections now open as side flyouts preferring the right side, the redundant App section is removed, and Lock is lifted directly to the main menu level.
 
 <details>
 <summary><b>🇪🇸 Ver notas de la versión en Español</b></summary>
 
 ### 🚀 Novedades de esta versión
 
-Los submenús de la bandeja del sistema ahora se abren como paneles flyout laterales en todos los temas. Las ventanas refuerzan la seguridad web y CSP, bloquean navegación inesperada, garantizan el mostrado inicial sin esperas y limpian los clones del minimapa.
+Actualiza Electron a 42.11.18 para eliminar la barra de título blanca en la bandeja de Windows, corrige parpadeos y saltos entre monitores con flyouts a 4px y simplifica el menú Más de la barra de título con flyouts laterales y Bloquear en primer nivel.
 
 > **¿Nuevo en CyberNotes?** Una app de notas para Windows centrada en la privacidad, con texto enriquecido, carpetas, pestañas, notas flotantes y datos totalmente locales.
 
@@ -33,8 +33,8 @@ Los submenús de la bandeja del sistema ahora se abren como paneles flyout later
 
 ### ✨ Novedades destacadas
 
-- 🪟 **Paneles flyout laterales en la bandeja**: `Ayuda` y `Más de CyberGems` se abren junto al menú principal al pasar el cursor o hacer clic en temas oscuro, claro y grafito, responden a flechas y `Escape` y se alinean a cualquier barra de tareas.
-- 🛡️ **Mayor seguridad y fiabilidad al iniciar**: Las compilaciones de producción limitan `connect-src 'self'`, reactivan la seguridad web y el bloqueo de navegación en todas las ventanas, recuperan renderizadores caídos, muestran errores de inicio y evitan nodos separadores de ProseMirror en el minimapa.
+- 🪟 **Bandeja limpia en multimonitor con Electron 42**: Se actualizó Electron a `42.11.18` y se pasó el menú de bandeja a ventana precalentada con revelado transparente en dos pasos y espacio de `4px`, eliminando la barra blanca, el parpadeo y los saltos entre monitores.
+- 📋 **Menú Más más limpio en la barra de título**: Las secciones se abren como flyouts laterales hacia la derecha, se eliminó la sección App redundante y Bloquear queda directamente en el nivel principal.
 
 ### ℹ️ Antes de instalar
 

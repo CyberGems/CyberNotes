@@ -2,6 +2,18 @@
 
 All notable changes to CyberNotes are documented here.
 
+## [1.19.3] - 2026-11-19
+
+### 🇺🇸 English
+
+- Upgrade Electron to `42.11.18` and switch the tray menu to a fresh prewarmed window with two-step transparent reveal and a `4px` flyout gap, fixing the native white titlebar flash on Windows, repeated-open flicker, and cross-monitor position jumps.
+- Simplify the titlebar More menu by opening sections as right-pointing side flyouts, removing the redundant App section, and lifting Lock to the main level.
+
+### 🇪🇸 Español
+
+- Actualiza Electron a `42.11.18` y cambia el menú de bandeja a una ventana precalentada con revelado transparente en dos pasos y espacio de `4px`, corrigiendo la barra de título blanca nativa en Windows, el parpadeo en aperturas repetidas y los saltos entre monitores.
+- Simplifica el menú Más de la barra de título abriendo las secciones como flyouts laterales hacia la derecha, eliminando la sección App redundante y subiendo Bloquear al nivel principal.
+
 ## [1.19.2] - 2026-11-18
 
 ### 🇺🇸 English
