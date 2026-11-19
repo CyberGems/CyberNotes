@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History, Keyboard, ChevronDown } from 'lucide-react';
 import Tooltip, { TooltipShortcut } from './Tooltip';
@@ -68,6 +68,20 @@ function formatCapsTime(sec: number): string {
   const m = Math.floor((sec % 3600) / 60);
   return `${h}h ${m}m`;
 }
+
+type MoreMenuRow = {
+  id: string;
+  icon: ReactNode;
+  label: string;
+  shortcut?: string;
+  keyshortcuts?: string;
+  disabled?: boolean;
+  tooltip?: string;
+  toggle?: { value: boolean; onChange: () => void };
+  run?: () => void;
+};
+
+type MoreMenuEntry = MoreMenuRow | { id: string; divider: true };
 
 export default function TitleBar({
   language = 'es',
@@ -282,6 +296,210 @@ export default function TitleBar({
       <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.65, transform: openMoreSection === section ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s ease' }} />
     </button>
   );
+
+  const moreMenuRow = (entry: MoreMenuEntry) => {
+    if ('divider' in entry) {
+      return <div key={entry.id} style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />;
+    }
+    const row = entry;
+    const body = (
+      <>
+        {row.icon}
+        <span style={{ flex: 1 }}>{row.label}</span>
+        {row.shortcut && (
+          <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{row.shortcut}</span>
+        )}
+      </>
+    );
+    const element = row.toggle ? (
+      <div
+        key={row.id}
+        className="menu-item"
+        role="menuitem"
+        tabIndex={0}
+        onClick={row.toggle.onChange}
+        onKeyDown={e => activateMenuItem(e, row.toggle!.onChange)}
+      >
+        {body}
+        {menuSwitch(row.toggle.value)}
+      </div>
+    ) : (
+      <button
+        key={row.id}
+        className="menu-item"
+        disabled={row.disabled}
+        onClick={row.run}
+        style={{ padding: '4px 10px', fontSize: 11, opacity: row.disabled ? 0.4 : 1 }}
+        aria-keyshortcuts={row.keyshortcuts}
+      >
+        {body}
+      </button>
+    );
+    return row.tooltip
+      ? <Tooltip key={row.id} placement="top" label={row.tooltip}>{element}</Tooltip>
+      : element;
+  };
+
+  const noteRows: MoreMenuEntry[] = [
+    {
+      id: 'save',
+      icon: <Save size={13} style={{ opacity: 0.7 }} />,
+      label: t('Guardar nota', 'Save note'),
+      shortcut: 'Ctrl+S',
+      keyshortcuts: 'Control+S',
+      disabled: !currentNoteId,
+      run: () => { setMenuOpen(false); onSaveNote?.(); },
+    },
+    {
+      id: 'duplicate',
+      icon: <Copy size={13} style={{ opacity: 0.7 }} />,
+      label: t('Duplicar nota', 'Duplicate note'),
+      shortcut: 'Ctrl+D',
+      keyshortcuts: 'Control+D',
+      disabled: !currentNoteId,
+      run: () => { if (!currentNoteId) return; setMenuOpen(false); onDuplicateNote?.(currentNoteId); },
+    },
+    {
+      id: 'favorite',
+      icon: <Star size={13} style={{ opacity: 0.7 }} />,
+      label: currentNotePinned ? t('Quitar de favoritos', 'Remove from favorites') : t('Marcar favorita', 'Add to favorites'),
+      shortcut: 'Alt+S',
+      keyshortcuts: 'Alt+S',
+      disabled: !currentNoteId,
+      run: () => { if (!currentNoteId) return; setMenuOpen(false); onToggleNoteFavorite?.(currentNoteId); },
+    },
+    {
+      id: 'sticky',
+      icon: <AppWindow size={13} style={{ opacity: 0.7 }} />,
+      label: isCurrentNoteSticky ? t('Mostrar flotante', 'Show floating note') : t('Abrir flotante', 'Open floating note'),
+      shortcut: 'Alt+A',
+      keyshortcuts: 'Alt+A',
+      disabled: !currentNoteId,
+      run: () => { if (!currentNoteId) return; setMenuOpen(false); onToggleNoteSticky?.(currentNoteId); },
+    },
+    {
+      id: 'raw',
+      icon: <Braces size={13} style={{ opacity: 0.7 }} />,
+      label: t('Vista HTML', 'HTML view'),
+      shortcut: 'Alt+H',
+      keyshortcuts: 'Alt+H',
+      disabled: !currentNoteId,
+      run: () => { setMenuOpen(false); onToggleRaw?.(); },
+    },
+    {
+      id: 'layout',
+      icon: <PanelLeft size={13} style={{ opacity: 0.7 }} />,
+      label: t('Cambiar vista', 'Switch view'),
+      shortcut: 'Alt+L',
+      keyshortcuts: 'Alt+L',
+      disabled: !onCycleLayout,
+      run: () => { setMenuOpen(false); onCycleLayout?.(); },
+    },
+    {
+      id: 'history',
+      icon: <History size={13} style={{ opacity: 0.7 }} />,
+      label: t('Historial de versiones', 'Version history'),
+      shortcut: 'Alt+R',
+      keyshortcuts: 'Alt+R',
+      disabled: !currentNoteId,
+      run: () => { setMenuOpen(false); onShowHistory?.(); },
+    },
+    {
+      id: 'delete',
+      icon: <Trash2 size={13} style={{ color: 'var(--danger)', opacity: 0.9 }} />,
+      label: t('Eliminar nota', 'Delete note'),
+      shortcut: language === 'es' ? 'Alt+Supr' : 'Alt+Del',
+      keyshortcuts: 'Alt+Delete',
+      disabled: !currentNoteId,
+      run: () => { setMenuOpen(false); onDeleteNote?.(); },
+    },
+  ];
+
+  const exportRows: MoreMenuEntry[] = [
+    { id: 'pdf', icon: <FileDown size={13} style={{ opacity: 0.7 }} />, label: t('Exportar PDF', 'Export PDF'), shortcut: 'Ctrl+Alt+P', keyshortcuts: 'Control+Alt+P', run: () => { setMenuOpen(false); onExportPdf?.(); } },
+    { id: 'markdown', icon: <FileText size={13} style={{ opacity: 0.7 }} />, label: t('Markdown (.md)', 'Markdown (.md)'), shortcut: 'Ctrl+Alt+M', keyshortcuts: 'Control+Alt+M', run: () => { setMenuOpen(false); onExportMarkdown?.(); } },
+    { id: 'text', icon: <FileText size={13} style={{ opacity: 0.7 }} />, label: t('Texto plano (.txt)', 'Plain text (.txt)'), shortcut: 'Ctrl+Alt+T', keyshortcuts: 'Control+Alt+T', run: () => { setMenuOpen(false); onExportText?.(); } },
+    { id: 'html', icon: <Globe size={13} style={{ opacity: 0.7 }} />, label: t('HTML (.html)', 'HTML (.html)'), shortcut: 'Ctrl+Alt+H', keyshortcuts: 'Control+Alt+H', run: () => { setMenuOpen(false); onExportHtml?.(); } },
+    { id: 'print', icon: <Printer size={13} style={{ opacity: 0.7 }} />, label: t('Imprimir', 'Print'), shortcut: 'Ctrl+P', keyshortcuts: 'Control+P', run: () => { setMenuOpen(false); onPrint?.(); } },
+  ];
+
+  const optionRows: MoreMenuEntry[] = [
+    {
+      id: 'autosave',
+      icon: <Save size={14} style={{ opacity: 0.7 }} />,
+      label: t('Autoguardado', 'Autosave'),
+      tooltip: t('Guarda los cambios automáticamente mientras escribes.', 'Saves changes automatically as you type.'),
+      toggle: { value: autosaveEnabled, onChange: () => onAutosaveChange?.(!autosaveEnabled) },
+    },
+    {
+      id: 'auto-caps',
+      icon: <span style={{ fontSize: 13, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, opacity: 0.7 }}>⇪</span>,
+      label: t('Auto-apagar Bloq Mayús', 'Auto-unlock Caps Lock'),
+      tooltip: t('Desactiva Bloq Mayús automáticamente tras un periodo de inactividad (Alt+C)', 'Turns Caps Lock off automatically after a period of inactivity (Alt+C)'),
+      toggle: { value: autoUnlockCapsLock, onChange: () => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock) },
+    },
+    {
+      id: 'minimap',
+      icon: <Map size={14} style={{ opacity: 0.7 }} />,
+      label: t('Minimapa', 'Minimap'),
+      tooltip: t('Muestra una vista general del documento junto al editor.', 'Shows an overview of the document beside the editor.'),
+      toggle: { value: showMinimap, onChange: () => onShowMinimapChange?.(!showMinimap) },
+    },
+    {
+      id: 'line-counter',
+      icon: <BarChart3 size={14} style={{ opacity: 0.7 }} />,
+      label: t('Contador líneas', 'Line counter'),
+      tooltip: t('Muestra el total de líneas en la barra de estado.', 'Shows the line total in the status bar.'),
+      toggle: { value: showLineCounter, onChange: () => onShowLineCounterChange?.(!showLineCounter) },
+    },
+    {
+      id: 'line-gutter',
+      icon: <List size={14} style={{ opacity: 0.7 }} />,
+      label: t('Líneas numeradas', 'Line gutter'),
+      tooltip: t('Muestra los números junto a cada línea.', 'Shows line numbers beside each line.'),
+      toggle: { value: showLineGutter, onChange: () => onShowLineGutterChange?.(!showLineGutter) },
+    },
+    {
+      id: 'keyboard-indicators',
+      icon: <Keyboard size={14} style={{ opacity: 0.7 }} />,
+      label: t('Indicadores de teclado', 'Keyboard indicators'),
+      tooltip: t('Muestra los estados de Bloq Mayús, Num y Insert.', 'Shows Caps Lock, Num Lock, and Insert states.'),
+      toggle: { value: showKeyboardIndicators, onChange: () => onShowKeyboardIndicatorsChange?.(!showKeyboardIndicators) },
+    },
+    {
+      id: 'word-counter',
+      icon: <Hash size={14} style={{ opacity: 0.7 }} />,
+      label: t('Contador palabras', 'Word counter'),
+      tooltip: t('Muestra el recuento de palabras en la barra de estado.', 'Shows the word count in the status bar.'),
+      toggle: { value: showWordCounter, onChange: () => onShowWordCounterChange?.(!showWordCounter) },
+    },
+    {
+      id: 'floating-toolbar',
+      icon: <Sparkles size={14} style={{ opacity: 0.7 }} />,
+      label: t('Barra flotante', 'Floating toolbar'),
+      tooltip: t('Muestra una barra de formato al seleccionar texto.', 'Shows a formatting toolbar when you select text.'),
+      toggle: { value: showFloatingToolbar, onChange: () => onShowFloatingToolbarChange?.(!showFloatingToolbar) },
+    },
+    {
+      id: 'remember-session',
+      icon: <Pin size={14} style={{ opacity: 0.7 }} />,
+      label: t('Recordar sesión', 'Remember session'),
+      tooltip: t('Reabre la última nota al iniciar la aplicación.', 'Reopens your last note when the app starts.'),
+      toggle: { value: rememberLastNote, onChange: () => onRememberLastNoteChange?.(!rememberLastNote) },
+    },
+  ];
+
+  const helpRows: MoreMenuEntry[] = [
+    { id: 'docs', icon: <BookOpen size={13} style={{ opacity: 0.7 }} />, label: t('Documentación online', 'Online documentation'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki'); } },
+    { id: 'faq', icon: <HelpCircle size={13} style={{ opacity: 0.7 }} />, label: t('Preguntas frecuentes', 'Frequently Asked Questions'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki/FAQ'); } },
+    { id: 'changelog', icon: <Tag size={13} style={{ opacity: 0.7 }} />, label: t('Historial de cambios', 'Changelog'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/releases'); } },
+    { id: 'website', icon: <Globe size={13} style={{ opacity: 0.7 }} />, label: t('Sitio web', 'Website'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://cybergems.org'); } },
+    { id: 'help-divider', divider: true },
+    { id: 'about', icon: <Info size={13} style={{ opacity: 0.7 }} />, label: t('Acerca de', 'About'), run: () => { setMenuOpen(false); onOpenAbout?.(); } },
+    { id: 'updates', icon: <Download size={13} style={{ opacity: 0.7 }} />, label: t('Buscar actualizaciones', 'Check for updates'), run: () => { setMenuOpen(false); onOpenAbout?.(); } },
+    { id: 'tray-pin', icon: <Pin size={13} style={{ opacity: 0.7 }} />, label: t('Mantener visible en la bandeja', 'Keep visible in system tray'), run: () => { setMenuOpen(false); onOpenTrayPin?.(); } },
+  ];
+
   return (
     <div
       className="glass-effect titlebar-glass"
@@ -574,342 +792,26 @@ export default function TitleBar({
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
               {moreSectionHeader('note', t('Nota actual', 'Current note'))}
               {openMoreSection === 'note' && (
-                <div role="group" aria-label={t('Nota actual', 'Current note')}>
-                  <button
-                    className="menu-item"
-                    disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); onSaveNote?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
-                    aria-keyshortcuts="Control+S"
-                  >
-                    <Save size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Guardar nota', 'Save note')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+S</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onDuplicateNote?.(currentNoteId); } }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
-                    aria-keyshortcuts="Control+D"
-                  >
-                    <Copy size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Duplicar nota', 'Duplicate note')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+D</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onToggleNoteFavorite?.(currentNoteId); } }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
-                    aria-keyshortcuts="Alt+S"
-                  >
-                    <Star size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{currentNotePinned ? t('Quitar de favoritos', 'Remove from favorites') : t('Marcar favorita', 'Add to favorites')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+S</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    disabled={!currentNoteId}
-                    onClick={() => { if (currentNoteId) { setMenuOpen(false); onToggleNoteSticky?.(currentNoteId); } }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
-                    aria-keyshortcuts="Alt+A"
-                  >
-                    <AppWindow size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{isCurrentNoteSticky ? t('Mostrar flotante', 'Show floating note') : t('Abrir flotante', 'Open floating note')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+A</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); onToggleRaw?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
-                    aria-keyshortcuts="Alt+H"
-                  >
-                    <Braces size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Vista HTML', 'HTML view')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+H</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    disabled={!onCycleLayout}
-                    onClick={() => { setMenuOpen(false); onCycleLayout?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: onCycleLayout ? 1 : 0.4 }}
-                    aria-keyshortcuts="Alt+L"
-                  >
-                    <PanelLeft size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Cambiar vista', 'Switch view')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+L</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); onShowHistory?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
-                    aria-keyshortcuts="Alt+R"
-                  >
-                    <History size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Historial de versiones', 'Version history')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Alt+R</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    disabled={!currentNoteId}
-                    onClick={() => { setMenuOpen(false); onDeleteNote?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11, opacity: currentNoteId ? 1 : 0.4 }}
-                    aria-keyshortcuts="Alt+Delete"
-                  >
-                    <Trash2 size={13} style={{ color: 'var(--danger)', opacity: 0.9 }} />
-                    <span style={{ flex: 1 }}>{t('Eliminar nota', 'Delete note')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>{language === 'es' ? 'Alt+Supr' : 'Alt+Del'}</span>
-                  </button>
-                </div>
+                <div role="group" aria-label={t('Nota actual', 'Current note')}>{noteRows.map(moreMenuRow)}</div>
               )}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
               {moreSectionHeader('export', t('Exportar', 'Export'))}
               {openMoreSection === 'export' && (
-                <div role="group" aria-label={t('Exportar', 'Export')}>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onExportPdf?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                    aria-keyshortcuts="Control+Alt+P"
-                  >
-                    <FileDown size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Exportar PDF', 'Export PDF')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+P</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onExportMarkdown?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                    aria-keyshortcuts="Control+Alt+M"
-                  >
-                    <FileText size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Markdown (.md)', 'Markdown (.md)')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+M</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onExportText?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                    aria-keyshortcuts="Control+Alt+T"
-                  >
-                    <FileText size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Texto plano (.txt)', 'Plain text (.txt)')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+T</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onExportHtml?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                    aria-keyshortcuts="Control+Alt+H"
-                  >
-                    <Globe size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('HTML (.html)', 'HTML (.html)')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+Alt+H</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onPrint?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                    aria-keyshortcuts="Control+P"
-                  >
-                    <Printer size={13} style={{ opacity: 0.7 }} />
-                    <span style={{ flex: 1 }}>{t('Imprimir', 'Print')}</span>
-                    <span className="more-menu-shortcut" style={{ fontSize: 9, color: 'var(--text-muted)' }}>Ctrl+P</span>
-                  </button>
-                </div>
+                <div role="group" aria-label={t('Exportar', 'Export')}>{exportRows.map(moreMenuRow)}</div>
               )}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
               {moreSectionHeader('options', t('Ajustes rápidos', 'Quick settings'))}
               {openMoreSection === 'options' && (
-                <div role="group" aria-label={t('Ajustes rápidos', 'Quick settings')}>
-              <Tooltip placement="top" label={t('Guarda los cambios automáticamente mientras escribes.', 'Saves changes automatically as you type.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onAutosaveChange?.(!autosaveEnabled)}
-                onKeyDown={e => activateMenuItem(e, () => onAutosaveChange?.(!autosaveEnabled))}
-              >
-                <Save size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Autoguardado', 'Autosave')}</span>
-                {menuSwitch(autosaveEnabled)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Desactiva Bloq Mayús automáticamente tras un periodo de inactividad (Alt+C)', 'Turns Caps Lock off automatically after a period of inactivity (Alt+C)')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock)}
-                onKeyDown={e => activateMenuItem(e, () => onAutoUnlockCapsLockChange?.(!autoUnlockCapsLock))}
-              >
-                <span style={{ fontSize: 13, lineHeight: 1, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, opacity: 0.7 }}>⇪</span>
-                <span style={{ flex: 1 }}>{t('Auto-apagar Bloq Mayús', 'Auto-unlock Caps Lock')}</span>
-                {menuSwitch(autoUnlockCapsLock)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Muestra una vista general del documento junto al editor.', 'Shows an overview of the document beside the editor.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onShowMinimapChange?.(!showMinimap)}
-                onKeyDown={e => activateMenuItem(e, () => onShowMinimapChange?.(!showMinimap))}
-              >
-                <Map size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Minimapa', 'Minimap')}</span>
-                {menuSwitch(showMinimap)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Muestra el total de líneas en la barra de estado.', 'Shows the line total in the status bar.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onShowLineCounterChange?.(!showLineCounter)}
-                onKeyDown={e => activateMenuItem(e, () => onShowLineCounterChange?.(!showLineCounter))}
-              >
-                <BarChart3 size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Contador líneas', 'Line counter')}</span>
-                {menuSwitch(showLineCounter)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Muestra los números junto a cada línea.', 'Shows line numbers beside each line.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onShowLineGutterChange?.(!showLineGutter)}
-                onKeyDown={e => activateMenuItem(e, () => onShowLineGutterChange?.(!showLineGutter))}
-              >
-                <List size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Líneas numeradas', 'Line gutter')}</span>
-                {menuSwitch(showLineGutter)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Muestra los estados de Bloq Mayús, Num y Insert.', 'Shows Caps Lock, Num Lock, and Insert states.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onShowKeyboardIndicatorsChange?.(!showKeyboardIndicators)}
-                onKeyDown={e => activateMenuItem(e, () => onShowKeyboardIndicatorsChange?.(!showKeyboardIndicators))}
-              >
-                <Keyboard size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Indicadores de teclado', 'Keyboard indicators')}</span>
-                {menuSwitch(showKeyboardIndicators)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Muestra el recuento de palabras en la barra de estado.', 'Shows the word count in the status bar.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onShowWordCounterChange?.(!showWordCounter)}
-                onKeyDown={e => activateMenuItem(e, () => onShowWordCounterChange?.(!showWordCounter))}
-              >
-                <Hash size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Contador palabras', 'Word counter')}</span>
-                {menuSwitch(showWordCounter)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Muestra una barra de formato al seleccionar texto.', 'Shows a formatting toolbar when you select text.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onShowFloatingToolbarChange?.(!showFloatingToolbar)}
-                onKeyDown={e => activateMenuItem(e, () => onShowFloatingToolbarChange?.(!showFloatingToolbar))}
-              >
-                <Sparkles size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Barra flotante', 'Floating toolbar')}</span>
-                {menuSwitch(showFloatingToolbar)}
-              </div>
-              </Tooltip>
-              <Tooltip placement="top" label={t('Reabre la última nota al iniciar la aplicación.', 'Reopens your last note when the app starts.')}>
-              <div
-                className="menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => onRememberLastNoteChange?.(!rememberLastNote)}
-                onKeyDown={e => activateMenuItem(e, () => onRememberLastNoteChange?.(!rememberLastNote))}
-              >
-                <Pin size={14} style={{ opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{t('Recordar sesión', 'Remember session')}</span>
-                {menuSwitch(rememberLastNote)}
-              </div>
-              </Tooltip>
-                </div>
+                <div role="group" aria-label={t('Ajustes rápidos', 'Quick settings')}>{optionRows.map(moreMenuRow)}</div>
               )}
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
               {moreSectionHeader('help', t('Ayuda', 'Help'))}
               {openMoreSection === 'help' && (
-                <div role="group" aria-label={t('Ayuda', 'Help')}>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki'); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <BookOpen size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Documentación online', 'Online documentation')}</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki/FAQ'); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <HelpCircle size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Preguntas frecuentes', 'Frequently Asked Questions')}</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/releases'); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Tag size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Historial de cambios', 'Changelog')}</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://cybergems.org'); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Globe size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Sitio web', 'Website')}</span>
-                  </button>
-                  <div style={{ height: 1, background: 'var(--border)', margin: '3px 8px' }} />
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Info size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Acerca de', 'About')}</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onOpenAbout?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Download size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Buscar actualizaciones', 'Check for updates')}</span>
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => { setMenuOpen(false); onOpenTrayPin?.(); }}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    <Pin size={13} style={{ opacity: 0.7 }} />
-                    <span>{t('Mantener visible en la bandeja', 'Keep visible in system tray')}</span>
-                  </button>
-                </div>
+                <div role="group" aria-label={t('Ayuda', 'Help')}>{helpRows.map(moreMenuRow)}</div>
               )}
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />

@@ -98,11 +98,21 @@ app.whenReady().then(async () => {
   `);
   assert.ok(exitIcon.color[0] > exitIcon.color[1] && exitIcon.color[0] > exitIcon.color[2], 'Exit icon is reddish: ' + JSON.stringify(exitIcon));
 
-  // "Keep visible in system tray" now belongs to the Help section.
-  await evaluate(`
+  // Each section keeps its full set of rows after the data-driven refactor.
+  const sectionCounts = await evaluate(`
+    const counts = [];
+    const wait = () => new Promise(resolve => setTimeout(resolve, 80));
     const headers = Array.from(document.querySelectorAll('.more-menu .more-menu-section-toggle'));
-    headers[headers.length - 1].click();
+    for (const header of headers) {
+      if (header.getAttribute('aria-expanded') !== 'true') { header.click(); await wait(); }
+      const group = document.querySelector('.more-menu [role="group"]');
+      counts.push(group ? group.querySelectorAll('[role="menuitem"], button.menu-item').length : -1);
+    }
+    return counts;
   `);
+  assert.deepEqual(sectionCounts, [8, 5, 9, 7], 'Section row counts: ' + JSON.stringify(sectionCounts));
+
+  // "Keep visible in system tray" now belongs to the Help section.
   await waitFor(
     () => evaluate("return Array.from(document.querySelectorAll('.more-menu button')).some(el => /Keep visible in system tray|Mantener visible en la bandeja/.test(el.textContent));"),
     'tray pin item inside Help'
