@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('trayMenu', {
     ipcRenderer.on('tray-menu-show', handler);
     return () => ipcRenderer.removeListener('tray-menu-show', handler);
   },
+  onHide: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('tray-menu-hide', handler);
+    return () => ipcRenderer.removeListener('tray-menu-hide', handler);
+  },
   action: (action) => ipcRenderer.send('tray-menu-action', action),
   ready: (rect) => ipcRenderer.send('tray-menu-ready', rect),
   hide: () => ipcRenderer.send('tray-menu-hide')

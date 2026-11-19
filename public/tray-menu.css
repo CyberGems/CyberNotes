@@ -28,8 +28,9 @@ html, body {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 8px;
+  gap: 4px;
 }
+.stage.is-offscreen { visibility: hidden; }
 .stage[data-flyout-side="left"] { flex-direction: row-reverse; }
 .stage[data-flyout-side="right"] { flex-direction: row; }
 .stage[data-vertical-align="top"] { align-items: flex-start; }
