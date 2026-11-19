@@ -13,7 +13,7 @@ vi.mock('./Tooltip', () => ({
 vi.mock('./WelcomeGreeting', () => ({ default: () => null }));
 
 describe('More menu', () => {
-  it('starts with current-note actions and keeps the menu within a short viewport', async () => {
+  it('opens each section as a flyout and keeps the menu within a short viewport', async () => {
     Object.defineProperty(window, 'cyberNotesAPI', {
       configurable: true,
       value: { isMaximized: vi.fn().mockResolvedValue(false), onMaximizedState: () => () => {} },
@@ -38,11 +38,30 @@ describe('More menu', () => {
       expect(menu!.style.overflowY).toBe('auto');
       expect(menu!.style.maxHeight).toContain('100vh');
       expect(menu!.style.boxSizing).toBe('border-box');
-      for (const label of ['Nota actual', 'Exportar', 'Ajustes rápidos', 'Ayuda', 'Aplicación']) {
+
+      // The main list holds only the section triggers plus the app actions.
+      for (const label of ['Nota actual', 'Exportar', 'Ajustes rápidos', 'Ayuda']) {
         expect(menu!.textContent).toContain(label);
       }
+      expect(menu!.textContent).not.toContain('Aplicación');
       expect(menu!.textContent).not.toContain('Notas recientes');
-      const save = [...menu!.querySelectorAll('button')].find(button => button.textContent?.includes('Guardar nota'));
+
+      const mainButtons = [...menu!.querySelectorAll<HTMLButtonElement>(':scope > button.menu-item')];
+      expect(mainButtons.some(button => button.textContent === 'Bloquear')).toBe(true);
+      expect(mainButtons.at(-1)?.textContent).toContain('Salir de CyberNotes');
+
+      // Section rows live in the flyout, not in the menu itself.
+      const noteHeader = [...menu!.querySelectorAll<HTMLButtonElement>('.more-menu-section-toggle')]
+        .find(button => button.textContent?.includes('Nota actual'))!;
+      expect(noteHeader.getAttribute('aria-haspopup')).toBe('menu');
+      await act(async () => noteHeader.click());
+
+      const flyout = document.querySelector<HTMLElement>('.more-menu-flyout');
+      expect(flyout).not.toBeNull();
+      expect(flyout!.getAttribute('role')).toBe('menu');
+      expect(flyout!.getAttribute('aria-label')).toBe('Nota actual');
+
+      const save = [...flyout!.querySelectorAll('button')].find(button => button.textContent?.includes('Guardar nota'));
       expect(save).toBeDefined();
       await act(async () => save!.click());
       expect(onSaveNote).toHaveBeenCalledOnce();

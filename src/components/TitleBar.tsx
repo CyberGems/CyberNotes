@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Minus, Square, X, BookOpen, MoreHorizontal, Settings, Save, Map, BarChart3, List, Pin, Hash, Lock, FileText, Info, Minimize2, Power, HelpCircle, Tag, Globe, Heart, Download, FileDown, Printer, Copy, Star, AppWindow, Sparkles, Trash2, Braces, PanelLeft, History, Keyboard, ChevronDown } from 'lucide-react';
 import Tooltip, { TooltipShortcut } from './Tooltip';
@@ -68,6 +68,8 @@ function formatCapsTime(sec: number): string {
   const m = Math.floor((sec % 3600) / 60);
   return `${h}h ${m}m`;
 }
+
+type MoreSectionId = 'note' | 'export' | 'options' | 'help';
 
 type MoreMenuRow = {
   id: string;
@@ -139,11 +141,24 @@ export default function TitleBar({
   const burgerRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const [exitConfirm, setExitConfirm] = useState(false);
-  const [openMoreSection, setOpenMoreSection] = useState<'note' | 'export' | 'options' | 'help' | null>('note');
+  const [openFlyout, setOpenFlyout] = useState<MoreSectionId | null>(null);
+  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0 });
+  const flyoutRef = useRef<HTMLDivElement>(null);
+  const focusFlyoutRef = useRef(false);
+  const flyoutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flyoutControls = useRef<{
+    open: (section: MoreSectionId, trigger: HTMLElement) => void;
+    close: (refocus?: boolean) => boolean;
+  }>({ open: () => {}, close: () => false });
+
+  useEffect(() => () => {
+    if (flyoutTimer.current) clearTimeout(flyoutTimer.current);
+  }, []);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
       if (burgerRef.current?.contains(e.target as Node)) return;
+      if (flyoutRef.current?.contains(e.target as Node)) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
@@ -152,6 +167,7 @@ export default function TitleBar({
       document.addEventListener('mousedown', close);
     } else {
       setExitConfirm(false);
+      setOpenFlyout(null);
     }
     return () => document.removeEventListener('mousedown', close);
   }, [menuOpen]);
@@ -176,9 +192,25 @@ export default function TitleBar({
     const handleMenuKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (flyoutControls.current.close(true)) return;
         setMenuOpen(false);
         burgerRef.current?.focus();
         return;
+      }
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+        const active = document.activeElement as HTMLElement | null;
+        const header = active?.classList.contains('more-menu-section-toggle') ? active : null;
+        if (event.key === 'ArrowRight' && header) {
+          event.preventDefault();
+          focusFlyoutRef.current = true;
+          flyoutControls.current.open(header.dataset.section as MoreSectionId, header);
+          return;
+        }
+        if (event.key === 'ArrowLeft' && flyoutRef.current?.contains(active)) {
+          event.preventDefault();
+          flyoutControls.current.close(true);
+          return;
+        }
       }
       if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -204,8 +236,14 @@ export default function TitleBar({
   }, [menuOpen]);
 
   useEffect(() => {
-    if (menuRef.current) menuRef.current.scrollTop = 0;
-  }, [openMoreSection]);
+    if (!menuOpen) setOpenFlyout(null);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!openFlyout || !focusFlyoutRef.current) return;
+    focusFlyoutRef.current = false;
+    flyoutRef.current?.querySelector<HTMLElement>('[role="menuitem"], button.menu-item')?.focus();
+  }, [openFlyout]);
 
   useEffect(() => {
     const handleMenuShortcut = (event: KeyboardEvent) => {
@@ -284,16 +322,61 @@ export default function TitleBar({
     '--more-menu-switch-active-left': `${16 * menuScale}px`,
     '--more-menu-switch-check-size': `${10 * menuScale}px`,
   } as CSSProperties;
-  const moreSectionHeader = (section: 'note' | 'export' | 'options' | 'help', label: string) => (
+  const clearFlyoutTimer = () => {
+    if (flyoutTimer.current) {
+      clearTimeout(flyoutTimer.current);
+      flyoutTimer.current = null;
+    }
+  };
+
+  const openFlyoutFor = (section: MoreSectionId, trigger: HTMLElement) => {
+    clearFlyoutTimer();
+    const rect = trigger.getBoundingClientRect();
+    const width = 240 * menuScale;
+    let left = rect.left - width - 6;
+    if (left < 8) left = rect.right + 6;
+    const top = Math.max(8, Math.min(rect.top - 6, window.innerHeight - 140));
+    setFlyoutPos({ top, left });
+    setOpenFlyout(section);
+  };
+
+  const closeFlyout = (refocus = false) => {
+    clearFlyoutTimer();
+    if (!openFlyout) return false;
+    if (refocus) {
+      menuRef.current?.querySelector<HTMLElement>(`[data-section="${openFlyout}"]`)?.focus();
+    }
+    setOpenFlyout(null);
+    return true;
+  };
+
+  const scheduleFlyoutOpen = (section: MoreSectionId, trigger: HTMLElement) => {
+    clearFlyoutTimer();
+    if (openFlyout === section) return;
+    flyoutTimer.current = setTimeout(() => openFlyoutFor(section, trigger), 120);
+  };
+
+  const scheduleFlyoutClose = () => {
+    clearFlyoutTimer();
+    flyoutTimer.current = setTimeout(() => setOpenFlyout(null), 220);
+  };
+
+  flyoutControls.current = { open: openFlyoutFor, close: closeFlyout };
+
+  const moreSectionHeader = (section: { id: MoreSectionId; label: string }) => (
     <button
       type="button"
       role="menuitem"
-      className={`more-menu-section-toggle${openMoreSection === section ? ' is-open' : ''}`}
-      aria-expanded={openMoreSection === section}
-      onClick={() => setOpenMoreSection(current => current === section ? null : section)}
+      data-section={section.id}
+      className={`more-menu-section-toggle${openFlyout === section.id ? ' is-open' : ''}`}
+      aria-haspopup="menu"
+      aria-expanded={openFlyout === section.id}
+      onClick={event => openFlyoutFor(section.id, event.currentTarget)}
+      onMouseEnter={event => scheduleFlyoutOpen(section.id, event.currentTarget)}
+      onMouseLeave={scheduleFlyoutClose}
     >
-      <span>{label}</span>
-      <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.65, transform: openMoreSection === section ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s ease' }} />
+      <span>{section.label}</span>
+      <ChevronDown size={13} aria-hidden="true" style={{ opacity: 0.65, transform: 'rotate(90deg)', transition: 'transform 0.15s ease' }} />
     </button>
   );
 
@@ -499,6 +582,15 @@ export default function TitleBar({
     { id: 'updates', icon: <Download size={13} style={{ opacity: 0.7 }} />, label: t('Buscar actualizaciones', 'Check for updates'), run: () => { setMenuOpen(false); onOpenAbout?.(); } },
     { id: 'tray-pin', icon: <Pin size={13} style={{ opacity: 0.7 }} />, label: t('Mantener visible en la bandeja', 'Keep visible in system tray'), run: () => { setMenuOpen(false); onOpenTrayPin?.(); } },
   ];
+
+  const sections: { id: MoreSectionId; label: string; rows: MoreMenuEntry[] }[] = [
+    { id: 'note', label: t('Nota actual', 'Current note'), rows: noteRows },
+    { id: 'export', label: t('Exportar', 'Export'), rows: exportRows },
+    { id: 'options', label: t('Ajustes rápidos', 'Quick settings'), rows: optionRows },
+    { id: 'help', label: t('Ayuda', 'Help'), rows: helpRows },
+  ];
+
+  const activeFlyout = openFlyout ? sections.find(section => section.id === openFlyout) ?? null : null;
 
   return (
     <div
@@ -790,29 +882,12 @@ export default function TitleBar({
                 <span>{t('Donar', 'Donate')}</span>
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-              {moreSectionHeader('note', t('Nota actual', 'Current note'))}
-              {openMoreSection === 'note' && (
-                <div role="group" aria-label={t('Nota actual', 'Current note')}>{noteRows.map(moreMenuRow)}</div>
-              )}
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-
-              {moreSectionHeader('export', t('Exportar', 'Export'))}
-              {openMoreSection === 'export' && (
-                <div role="group" aria-label={t('Exportar', 'Export')}>{exportRows.map(moreMenuRow)}</div>
-              )}
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-
-              {moreSectionHeader('options', t('Ajustes rápidos', 'Quick settings'))}
-              {openMoreSection === 'options' && (
-                <div role="group" aria-label={t('Ajustes rápidos', 'Quick settings')}>{optionRows.map(moreMenuRow)}</div>
-              )}
-
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
-
-              {moreSectionHeader('help', t('Ayuda', 'Help'))}
-              {openMoreSection === 'help' && (
-                <div role="group" aria-label={t('Ayuda', 'Help')}>{helpRows.map(moreMenuRow)}</div>
-              )}
+              {sections.map((section, index) => (
+                <Fragment key={section.id}>
+                  {index > 0 && <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />}
+                  {moreSectionHeader(section)}
+                </Fragment>
+              ))}
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
 
@@ -867,6 +942,40 @@ export default function TitleBar({
                   <span>{t('Salir de CyberNotes', 'Exit CyberNotes')}</span>
                 </button>
               )}
+            </div>,
+            document.body
+          )}
+
+          {menuOpen && activeFlyout && createPortal(
+            <div
+              ref={flyoutRef}
+              role="menu"
+              aria-label={activeFlyout.label}
+              className="glass-effect more-menu more-menu-flyout"
+              style={{
+                position: 'fixed',
+                top: flyoutPos.top,
+                left: flyoutPos.left,
+                width: `${240 * menuScale}px`,
+                maxWidth: 'calc(100vw - 16px)',
+                background: 'var(--bg-modal)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+                zIndex: 100000,
+                padding: `${6 * menuScale}px 0`,
+                display: 'flex',
+                flexDirection: 'column',
+                maxHeight: `calc(100vh - ${flyoutPos.top + 8}px)`,
+                boxSizing: 'border-box',
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                ...menuScaleVars,
+              }}
+              onMouseEnter={clearFlyoutTimer}
+              onMouseLeave={scheduleFlyoutClose}
+            >
+              {activeFlyout.rows.map(moreMenuRow)}
             </div>,
             document.body
           )}

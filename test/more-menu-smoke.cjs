@@ -98,34 +98,106 @@ app.whenReady().then(async () => {
   `);
   assert.ok(exitIcon.color[0] > exitIcon.color[1] && exitIcon.color[0] > exitIcon.color[2], 'Exit icon is reddish: ' + JSON.stringify(exitIcon));
 
-  // Each section keeps its full set of rows after the data-driven refactor.
-  const sectionCounts = await evaluate(`
+  // Every section opens as a flyout with its full set of rows.
+  const flyoutCounts = await evaluate(`
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
     const counts = [];
-    const wait = () => new Promise(resolve => setTimeout(resolve, 80));
     const headers = Array.from(document.querySelectorAll('.more-menu .more-menu-section-toggle'));
     for (const header of headers) {
-      if (header.getAttribute('aria-expanded') !== 'true') { header.click(); await wait(); }
-      const group = document.querySelector('.more-menu [role="group"]');
-      counts.push(group ? group.querySelectorAll('[role="menuitem"], button.menu-item').length : -1);
+      header.click();
+      await wait(160);
+      const panel = document.querySelector('.more-menu-flyout');
+      counts.push(panel ? panel.querySelectorAll('[role="menuitem"], button.menu-item').length : -1);
     }
     return counts;
   `);
-  assert.deepEqual(sectionCounts, [8, 5, 9, 7], 'Section row counts: ' + JSON.stringify(sectionCounts));
+  assert.deepEqual(flyoutCounts, [8, 5, 9, 7], 'Flyout row counts: ' + JSON.stringify(flyoutCounts));
 
-  // "Keep visible in system tray" now belongs to the Help section.
-  await waitFor(
-    () => evaluate("return Array.from(document.querySelectorAll('.more-menu button')).some(el => /Keep visible in system tray|Mantener visible en la bandeja/.test(el.textContent));"),
-    'tray pin item inside Help'
-  );
+  const geometry = await evaluate(`
+    const menu = document.querySelector('.more-menu');
+    const panel = document.querySelector('.more-menu-flyout');
+    if (!menu || !panel) return null;
+    return {
+      menuLeft: Math.round(menu.getBoundingClientRect().left),
+      panelRight: Math.round(panel.getBoundingClientRect().right),
+      panelLeft: Math.round(panel.getBoundingClientRect().left),
+    };
+  `);
+  assert.ok(geometry, 'A flyout is open');
+  assert.ok(geometry.panelRight <= geometry.menuLeft + 1, 'Flyout sits beside the menu, not over it: ' + JSON.stringify(geometry));
 
   const helpItems = await evaluate(`
-    const menu = document.querySelector('.more-menu');
-    const groups = Array.from(menu.querySelectorAll('[role="group"]'));
-    const group = groups.find(el => /Keep visible in system tray|Mantener visible en la bandeja/.test(el.textContent));
-    return group ? Array.from(group.querySelectorAll('button')).map(el => el.textContent.trim()) : null;
+    const panel = document.querySelector('.more-menu-flyout');
+    return panel ? Array.from(panel.querySelectorAll('button.menu-item')).map(el => el.textContent.trim()) : null;
   `);
-  assert.ok(helpItems, 'The Help group holds the tray pin');
-  assert.ok(helpItems.some(item => /Keep visible in system tray|Mantener visible en la bandeja/.test(item)), 'Tray pin is inside the Help group: ' + JSON.stringify(helpItems));
+  assert.ok(helpItems && helpItems.some(item => /Keep visible in system tray|Mantener visible en la bandeja/.test(item)), 'Tray pin is inside the Help flyout: ' + JSON.stringify(helpItems));
+
+  // The outside-click guard must accept the portaled flyout.
+  const survived = await evaluate(`
+    const panel = document.querySelector('.more-menu-flyout');
+    panel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 90));
+    return Boolean(document.querySelector('.more-menu')) && Boolean(document.querySelector('.more-menu-flyout'));
+  `);
+  assert.equal(survived, true, 'Clicking inside the flyout keeps the menu open');
+
+  // Escape unwinds one layer at a time.
+  const layers = await evaluate(`
+    const key = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const state = () => ({ menu: Boolean(document.querySelector('.more-menu')), flyout: Boolean(document.querySelector('.more-menu-flyout')) });
+    key();
+    await new Promise(resolve => setTimeout(resolve, 90));
+    const afterFirst = state();
+    key();
+    await new Promise(resolve => setTimeout(resolve, 90));
+    return { afterFirst, afterSecond: state() };
+  `);
+  assert.deepEqual(layers.afterFirst, { menu: true, flyout: false }, 'First Escape closes only the flyout: ' + JSON.stringify(layers));
+  assert.deepEqual(layers.afterSecond, { menu: false, flyout: false }, 'Second Escape closes the menu: ' + JSON.stringify(layers));
+
+  // Hover intent: resting on a section opens its flyout without a click.
+  const hovered = await evaluate(`
+    document.querySelector('button[aria-haspopup="menu"]').click();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const headers = Array.from(document.querySelectorAll('.more-menu .more-menu-section-toggle'));
+    headers[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const panel = document.querySelector('.more-menu-flyout');
+    return panel ? { rows: panel.querySelectorAll('[role="menuitem"]').length, label: panel.getAttribute('aria-label') } : null;
+  `);
+  assert.ok(hovered && hovered.rows === 9, 'Hovering a section opens its flyout: ' + JSON.stringify(hovered));
+
+  // Keyboard: ArrowRight enters the flyout, ArrowLeft returns to the header.
+  const keyboard = await evaluate(`
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+    if (!document.querySelector('.more-menu')) {
+      document.querySelector('button[aria-haspopup="menu"]').click();
+      await wait(150);
+    }
+    if (document.querySelector('.more-menu-flyout')) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await wait(120);
+    }
+    const header = document.querySelector('.more-menu .more-menu-section-toggle[data-section="export"]');
+    header.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await wait(150);
+    const inFlyout = Boolean(document.activeElement?.closest('.more-menu-flyout'));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await wait(150);
+    return {
+      inFlyout,
+      focusedSection: document.activeElement?.dataset?.section || null,
+      flyoutOpen: Boolean(document.querySelector('.more-menu-flyout')),
+    };
+  `);
+  assert.deepEqual(keyboard, { inFlyout: true, focusedSection: 'export', flyoutOpen: false }, 'Keyboard flies out and back: ' + JSON.stringify(keyboard));
+
+  if (process.env.CYBERNOTES_MENU_TEST_SHOT) {
+    await evaluate('await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));');
+    await delay(300);
+    fs.writeFileSync(process.env.CYBERNOTES_MENU_TEST_SHOT, (await win.webContents.capturePage()).toPNG());
+  }
 
   assert.deepEqual(errors, [], 'Renderer logged no console errors');
   console.log('PASS More menu structure: ' + JSON.stringify({ headers, mainItems, helpItems }));
