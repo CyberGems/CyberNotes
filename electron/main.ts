@@ -14,6 +14,7 @@ import { isSpanish, preferredAppLanguage } from '../shared/lang';
 import { getThemeVars, normalizeThemeId } from '../src/themes';
 import { parseBackupHours, parseBackupKeep, isBackupDue, backupEntryName, isBackupEntry, isBackupFile, selectBackupsToPrune } from '../shared/backup';
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME, DATA_MIGRATION_MARKER, isPristineSeedProfile, buildFileUrlRewrite } from '../shared/dataFolder';
+import { formatTrayTooltip } from './tray-tooltip';
 import { getFactoryNotes } from '../shared/factoryNotes';
 import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../shared/toolbarDefaults';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
@@ -2099,12 +2100,6 @@ function hideTrayMenu() {
     try { win.destroy(); } catch { /* ignore */ }
   }
   schedulePrewarmTrayMenuWin();
-}
-
-function formatTrayTooltip(shortcut?: string): string {
-  const clean = String(shortcut || '').trim();
-  const text = clean ? `CyberNotes · ${clean}` : 'CyberNotes';
-  return text.length > 63 ? `${text.slice(0, 62)}…` : text;
 }
 
 function updateTrayMenu() {
