@@ -11,7 +11,7 @@ These are all the connections CyberNotes makes by itself. None of them sends you
 | When | Where | What for | How to turn it off |
 |---|---|---|---|
 | 8 seconds after launch and every 6 hours | `github.com` (update feed), with release notes from `api.github.com` | Check for a newer version | `auto_check_updates` (on by default) |
-| When spellcheck is enabled | Chromium dictionary service (exact host not verifiable in the app code) | Download spelling dictionaries | `spellcheck_enabled` |
+| When spellcheck is enabled | Chromium's own dictionary service | Download spelling dictionaries | `spellcheck_enabled` |
 
 Embedded video previews and links you open are user-initiated.
 

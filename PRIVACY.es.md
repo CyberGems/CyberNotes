@@ -11,7 +11,7 @@ Estas son todas las conexiones que CyberNotes hace por su cuenta. Ninguna envía
 | Cuándo | Dónde | Para qué | Cómo desactivarlo |
 |---|---|---|---|
 | 8 segundos después de iniciar y cada 6 horas | `github.com` (feed de actualizaciones), con notas desde `api.github.com` | Consultar una versión nueva | `auto_check_updates` (activado por defecto) |
-| Con el corrector ortográfico activado | Servicio de diccionarios de Chromium (host exacto no verificable en el código de la app) | Descargar diccionarios | `spellcheck_enabled` |
+| Con el corrector ortográfico activado | El servicio de diccionarios de Chromium | Descargar diccionarios | `spellcheck_enabled` |
 
 Las vistas previas de vídeo incrustadas y los enlaces que abres son acciones tuyas.
 
