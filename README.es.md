@@ -16,7 +16,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Licencia-GPL--3.0-1F2428.svg?style=flat-square&color=334155" alt="Licencia" />&nbsp;
   <img src="https://img.shields.io/badge/Plataforma-Windows_10%2F11-1F2428.svg?style=flat-square&color=334155" alt="Plataforma" />&nbsp;
-  <img src="https://img.shields.io/badge/Electron-35-1F2428.svg?style=flat-square&logo=electron&logoColor=white&color=334155" alt="Electron" />&nbsp;
+  <img src="https://img.shields.io/badge/Electron-42-1F2428.svg?style=flat-square&logo=electron&logoColor=white&color=334155" alt="Electron" />&nbsp;
   <a href="https://github.com/CyberGems/CyberNotes/wiki/Home-es"><img src="https://img.shields.io/badge/Wiki-Documentaci%C3%B3n-1F2428?style=flat-square&logo=gitbook&logoColor=white&color=334155" alt="Wiki" /></a>&nbsp;
   <a href="https://github.com/CyberGems/CyberNotes/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/Notas_de_la_versi%C3%B3n-475569?style=flat-square" alt="Notas de la versión" /></a>
 </p>
@@ -206,7 +206,7 @@ Consulta [¿Cómo se usa CyberNotes?](https://github.com/CyberGems/CyberNotes/wi
 ## 🛠️ Stack tecnológico y arquitectura
 
 - **Plataforma:** Windows 10 / 11
-- **Framework:** Electron 35 + React 19 + TypeScript
+- **Framework:** Electron 42 + React 19 + TypeScript
 - **Editor:** TipTap (ProseMirror)
 - **Almacenamiento:** better-sqlite3 (SQLite con WAL)
 - **Seguridad:** hash de contraseña con bcryptjs
