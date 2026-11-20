@@ -1,418 +1,421 @@
-<p align="center">
-  English · <a href="./README.es.md">Español</a>
-</p>
-
-<p align="center">
-  <a href="https://cybergems.org/apps/cybernotes/">
-    <img src="https://cybergems.org/banners/cybernotes.png" alt="Private, flexible note-taking" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/CyberGems/CyberNotes/releases/latest"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FCyberGems%2FCyberNotes%2Fmain%2Fpackage.json&query=%24.version&prefix=%20Download%20v&suffix=%20&style=for-the-badge&label=&labelColor=0891B2&color=0891B2" alt="Download Latest Release" /><img src="https://img.shields.io/badge/Windows_10%2F11_(64--bit)-2563EB?style=for-the-badge" alt="Windows 10/11 (64-bit)" /></a>
-  &nbsp;<a href="https://github.com/CyberGems/CyberNotes/releases"><img src="https://img.shields.io/badge/All_releases-30363D?style=for-the-badge&logo=github&logoColor=white" alt="All Releases" /></a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/License-GPL--3.0-1F2428.svg?style=flat-square&color=334155" alt="License" />&nbsp;
-  <img src="https://img.shields.io/badge/Platform-Windows_10%2F11-1F2428.svg?style=flat-square&color=334155" alt="Platform" />&nbsp;
-  <img src="https://img.shields.io/badge/Electron-35-1F2428.svg?style=flat-square&logo=electron&logoColor=white&color=334155" alt="Electron" />&nbsp;
-  <a href="https://github.com/CyberGems/CyberNotes/wiki"><img src="https://img.shields.io/badge/Wiki-Documentation-1F2428?style=flat-square&logo=gitbook&logoColor=white&color=334155" alt="Wiki" /></a>&nbsp;
-  <a href="https://github.com/CyberGems/CyberNotes/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-475569?style=flat-square" alt="Changelog" /></a>
-</p>
-
----
-
-<div align="center">
-
-### A rich, private place for your notes, folders and ideas, with everything stored on your PC
-
-</div>
-
----
-
-## 📑 Table of Contents
-
-- [👋 Introduction](#-introduction)
-- [🖼️ Screenshots](#️-screenshots)
-- [🔒 Why CyberNotes?](#-why-cybernotes)
-- [✨ Key Features](#-key-features)
-- [⬇️ Installation](#️-installation)
-- [🧭 Using the App](#-using-the-app)
-- [🛠️ Tech Stack & Architecture](#️-tech-stack--architecture)
-- [⌨️ Keyboard Shortcuts](#️-keyboard-shortcuts)
-- [❤️ Donate](#️-donate)
-- [📄 License](#-license)
-- [❓ FAQ](#-faq)
-- [🔗 See also](#-see-also)
-
-<details>
-<summary><strong>🔗 Related links (outside this README)</strong></summary>
-
-- 🌐 [CyberNotes on the web](https://cybergems.org/apps/cybernotes/) — overview, download and SmartScreen guide
-- 📚 [Documentation & FAQ — Wiki](https://github.com/CyberGems/CyberNotes/wiki) — troubleshooting and deep-dives
-- 💾 [Releases](https://github.com/CyberGems/CyberNotes/releases) — installers, portable builds and changelog
-- 🟣 [CyberGems suite](https://github.com/CyberGems) — all open-source apps
-
-</details>
-
----
-
-## 👋 Introduction
-
-Most note apps want an account, a subscription, or your data on their servers. CyberNotes keeps everything on your PC: a TipTap editor with markdown shortcuts, images and code blocks; folders with icons and colors; tabs and floating notes for whatever you need at hand; instant search and autosave. An optional master password locks the app when you step away, and automatic backups in a folder you choose keep every note and image safe. Built with **Electron + React + TypeScript**.
-
-*Free and open source (GPLv3): no ads, no tracking, and no data collection. Just enjoy it.*
-
----
-
-<!-- Screenshots: pending the bilingual EN/ES gallery in the capture plan at https://github.com/CyberGems/CyberGems.github.io/blob/main/docs/screenshots.md — replace the blockquote, keep this heading and the TOC entry. -->
-
-## 🖼️ Screenshots
-
-> Coming soon...
-
----
-
-## 🔒 Why CyberNotes?
-
-Plenty of editors are either cloud-first or too basic to be useful. CyberNotes gives you **the best of both worlds**: rich editing, powerful organization, and rock-solid security, all 100% offline.
-
-| Need | Solution |
-|---|---|
-| Keep notes private | Local-only SQLite: no cloud, no accounts, no tracking |
-| Don't lose your notes | Automatic backups every 6, 12 or 24 hours or weekly, in a folder you choose |
-| Rich editing without bloat | TipTap editor with markdown shortcuts, images, code blocks |
-| Stay organized | Folders with icons & colors, multi-tabs, floating notes, drag & drop |
-| Protect sensitive notes | Master password (bcrypt-hashed access lock, notes stored unencrypted) with auto-lock and privacy shield |
-| Work efficiently | Autosave, session restore, global hotkey, system tray |
-| Make it yours | 3 themes (CyberNotes, Gray, Light), custom backgrounds, glass effects, UI scaling |
-
----
-
-## ✨ Key Features
-
-### ✍️ Rich Text Editing
-- **TipTap Editor**: Bold, italic, underline, strikethrough, headings (H1–H3), bullet/ordered lists, code blocks, blockquotes, horizontal rules, text highlighting
-- **Word-Style Font Sizes**: Size dropdown and floating bubble in the editor, one-tap cycling in floating notes
-- **Links & Images**: Auto-link detection, image insertion with size and alignment controls, local thumbnail previews
-- **Markdown Shortcuts**: Type `##`, `>`, `-`, `` ``` `` for instant formatting
-- **Document Tools**: Line/column counter, word/character count, reading time, document minimap, line numbers and wrapped-line markers
-- **Character & Emoji Pickers**: Search categorized Unicode symbols and Emoji 18.0; insert one item or collect several at once
-- **Save Feedback**: Live saved, saving, unsaved and error states with timestamps in the editor and floating notes
-- **Save Options**: Autosave as you type, manual save with draft protection, confirm on close/navigation
-
-### 📁 Organization
-- **Folders**: Custom names, 20 icon options, 20 unique colors (enforced uniqueness)
-- **Floating Notes**: Detach notes as always-on-top desktop sticky widgets; reach overflow toolbar actions with the mouse wheel
-- **Multi-Tab Interface**: Work with multiple notes simultaneously
-- **Compact Workspace**: Collapse the sidebar or line-number gutter to make more room for editing
-- **Favorites & Pinning**: Pin important notes for quick access
-- **Drag & Drop**: Move notes between folders effortlessly
-- **Instant Search**: Full-text search across titles, previews, and content
-- **Recent Notes**: Track edited, opened, and created notes with history
-- **Welcome Space**: Time-based greeting, notes stats, and keyboard shortcuts when no note is open
-- **Session Restoration**: Remember open tabs, active note, and floating notes between sessions
-
-### 🔐 Security
-- **Master Password or PIN**: Bcrypt-hashed access lock with lock screen (notes are stored unencrypted on your device)
-- **Offline Recovery**: One-time recovery code with hint and rate-limited reset from the lock screen
-- **Auto-Lock**: Configurable inactivity timeout (1 min to 24 hours)
-- **Privacy Shield**: Screen shield when app is hidden or minimized
-- **Caps Lock Manager**: Auto-off after inactivity with a themed title-bar countdown and dismissible notice, plus sound notifications (5 synthesized presets)
-
-### 🎨 Customization
-- **3 Visual Themes**: CyberNotes (dark), Gray and Light
-- **Color Intensity**: Adjustable 0–100% (applies to the CyberNotes theme)
-- **Custom Background**: Set your own wallpaper image
-- **Glass Effects**: Configurable blur intensity (0–40px) and overlay opacity (0–95%)
-- **UI Scaling**: Adjust interface size to your preference
-- **Tab Width**: Normal or wide, minimap toggle, density controls
-- **Greeting Name**: Personalize time-based greetings
-- **Responsive Layouts**: Screen-aware menus, title bar and editor footer adapt to narrower windows
-
-### 🖥️ Desktop Integration
-- **System Tray**: Minimize/close to tray, custom DPI-aware tray menu
-- **Global Hotkey**: Show/hide with customizable shortcut (default: `Alt+Shift+N`)
-- **Suite Recommendations**: More from CyberGems in About and tray (optional)
-- **Auto-Start**: Launch minimized with Windows
-- **Single Instance**: Second launches focus the existing window
-- **Spell Check**: Bilingual (English/Spanish) with right-click suggestions
-- **Context Menu**: Formatting, spell suggestions, link/image controls
-
-### 🔄 Updates & Data
-- **Auto-Updates**: Background check on launch + every 6h, progress bar, auto-download and restart
-- **Manual Checks Stay Manual**: On-demand checks only check; downloads and restarts need your tap
-- **Usage Statistics**: Optional local stats with streaks, reset and purge
-- **Automatic Backups**: On by default, writing a single self-contained JSON file every 6, 12 or 24 hours or weekly, with notes, folders and images embedded, keeping 1, 3, 5 or 7 copies in a folder you choose, plus manual backup and restore from Settings
-- **Export**: Markdown, HTML (styled), or full JSON backup
-- **Import**: Restore from JSON backup (with automatic safety backup)
-- **Bilingual UI**: Full English / Español with instant switching
-
----
-
-## ⬇️ Installation
-
-### Install (Recommended)
-
-1. Download the latest installer or portable build from [Releases](https://github.com/CyberGems/CyberNotes/releases/latest)
-2. Run the `CyberNotes_Setup` installer or the portable executable
-3. Launch CyberNotes. No other requirements needed: you do **not** need Node.js or npm
-
-### 🛡️ Windows SmartScreen
-
-Windows may show a SmartScreen warning the first time you run the CyberNotes installer: this is an unsigned hobby app, so Windows hasn't built reputation for the file yet. This is expected; the source is public so you can inspect exactly what it does. The same can appear when launching the portable build.
-
-To continue:
-
-<details>
-<summary><strong>See how to run the installer (step by step)</strong></summary>
-
-Windows shows this warning for any installer without a paid code-signing certificate; it does not mean the file is unsafe. Do <strong>not</strong> click "Don't run":
-
-1. Run the `CyberNotes-Setup.exe` installer. Windows may show the blue "Windows protected your PC" dialog.
-
-![Windows SmartScreen warning](https://cybergems.org/branding/smartscreen-warning.svg)
-
-2. Click the small **More info** link. The expanded dialog shows your installer: `CyberNotes-Setup.exe`.
-
-![SmartScreen dialog after More info](https://cybergems.org/branding/smartscreen-runanyway.svg)
-
-3. Click **Run anyway**. The installer starts normally.
-
-You can verify the file independently: compare the SHA with the GitHub release, scan it on VirusTotal, or build from source. More details: [SmartScreen guide on the website](https://cybergems.org/download#smartscreen).
-
-</details>
-
----
-
-## 🧭 Using the App
-
-CyberNotes can be summoned from anywhere with `Alt+Shift+N`, and notes save as you type.
-
-1. Press `Alt+Shift+N` or click **New Note**, then just start typing; there is no save button.
-2. Give the note a clear first line: that becomes its title.
-3. Organise things later with folders and favourites, or use `Alt+Shift+F` for a floating note.
-
-`Ctrl+N` creates a note, `Ctrl+F` focuses the search bar and both global hotkeys are customizable.
-
-See [How Do You Use CyberNotes?](https://github.com/CyberGems/CyberNotes/wiki/How-Do-You-Use) for everyday examples and the full guides.
-
----
-
-## 🛠️ Tech Stack & Architecture
-
-- **Platform:** Windows 10 / 11
-- **Framework:** Electron 35 + React 19 + TypeScript
-- **Editor:** TipTap (ProseMirror)
-- **Storage:** better-sqlite3 (SQLite with WAL)
-- **Security:** bcryptjs password hashing
-- **Animations:** Motion (Framer Motion)
-- **Testing:** Vitest unit tests (`npm test`)
-
-```
-CyberNotes/
-├── electron/
-│   ├── main.ts           Electron main process (window, tray, stickies, IPC handlers)
-│   ├── preload.ts        Context bridge (secure API exposure)
-│   ├── updater.ts        Auto-update logic
-│   ├── logger.ts         File logger (userData/logs)
-│   └── OpenTaskbarSettings.cs  Helper source for the tray pin tool
-├── shared/               Code shared by main and renderer (no Electron/React APIs)
-│   ├── notes.ts          Thumbnail extraction
-│   ├── sticky.ts         Floating-note palette and ids
-│   ├── lang.ts           Language helpers
-│   └── backup.ts         Automatic backup logic (plus *.test.ts suites)
-├── src/
-│   ├── components/
-│   │   ├── MainApp.tsx         Main application layout
-│   │   ├── TitleBar.tsx        Custom title bar with menu and greeting
-│   │   ├── Sidebar.tsx         Folder navigation and recent notes
-│   │   ├── NoteList.tsx        Note list panel with search and trash
-│   │   ├── NoteEditor.tsx      TipTap editor, tabs and export
-│   │   ├── StickyNoteApp.tsx   Floating always-on-top note widget
-│   │   ├── SettingsModal.tsx   Settings with backup configuration
-│   │   ├── LockScreen.tsx      Password lock screen
-│   │   ├── AboutModal.tsx      About dialog and update status
-│   │   ├── UpdaterBanner.tsx   Auto-update progress banner
-│   │   ├── TrayPinModal.tsx    Tray pin helper dialog
-│   │   ├── AppLoader.tsx       Startup loader and privacy shield
-│   │   ├── OnboardingModal.tsx First-run welcome and setup
-│   │   ├── WelcomeGreeting.tsx Time-aware greeting with date
-│   │   ├── WelcomeNameModal.tsx First-run name setup
-│   │   ├── FolderIcon.tsx      Folder icons and colors
-│   │   ├── ConfirmDialog.tsx   Reusable confirm/alert dialogs
-│   │   ├── ModalActions.tsx    Shared modal motion and helpers
-│   │   ├── Tooltip.tsx         Custom tooltips
-│   │   ├── ErrorBoundary.tsx   Render crash fallback
-│   │   └── GlobalErrorToast.tsx Global error toast
-│   ├── hooks/
-│   │   └── useInputContextMenu.tsx  Native-like input context menus
-│   ├── utils/
-│   │   ├── notes.ts      Note metadata, preview and thumbnail helpers
-│   │   └── audio.ts      Synthesized Caps Lock sounds
-│   ├── types/            TypeScript interfaces and API bridge types
-│   ├── themes.ts         Theme definitions
-│   ├── fonts.ts          Editor fonts
-│   └── languages.ts      i18n translations (English / Español)
-├── public/
-│   ├── tray-menu.html/.js/.css  Custom tray menu window
-│   └── fonts/            Self-hosted fonts (fully offline)
-└── package.json
-```
-
-### Building from Source (Developers)
-
-Only needed if you want to work on CyberNotes or build it yourself; regular users can skip this section.
-
-#### Prerequisites
-
-- [Node.js](https://nodejs.org/) v18+ (LTS recommended)
-- npm or yarn
-
-#### Development
-
-```bash
-git clone https://github.com/CyberGems/CyberNotes.git
-cd CyberNotes
-npm install
-npm run dev
-```
-
-#### Build for Production
-
-```bash
-npm run build:electron
-```
-
-#### Available Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start Vite development server with hot reload |
-| `npm run build` | Compile TypeScript and build production bundle |
-| `npm run build:electron` | Full build: TypeScript → Vite → electron-builder installer |
-| `npm run preview` | Preview the production build locally |
-| `npm run lint` | Run TypeScript type-checking without emitting files |
-| `npm test` | Run unit tests with Vitest |
-
-#### Distribution
-
-Artifacts land in `release/`:
-
-| Artifact | Description |
-|---|---|
-| `CyberNotes_Setup_1.19.0.exe` | NSIS installer (interactive wizard, custom install dir) |
-| `CyberNotes_Portable_1.19.0.exe` | Portable build (zero-install) |
-
----
-
-## ⌨️ Keyboard Shortcuts
-
-| Key | Action |
-|---|---|
-| `Alt+Shift+N` | Toggle window visibility (global, customizable) |
-| `Alt+Shift+F` | Create new floating note (global, customizable) |
-| `Ctrl+N` | Create a new note |
-| `Ctrl+Shift+N` | Create a new folder |
-| `Ctrl+F` | Focus search bar |
-| `Ctrl+S` | Save note manually |
-| `Shift+F3` | Cycle sentence, lowercase, uppercase, capitalize each word, and toggle case |
-| `↑` / `↓` | Navigate notes in list |
-| `Enter` | Open selected note in editor |
-| `Escape` | Return focus to note list / close modal |
-| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
-| `Tab` / `Shift+Tab` | Indent / Remove indent |
-
-For the complete shortcuts reference including cursor navigation, line jumps, and text selection keys, see the [Keyboard Shortcuts Wiki](https://github.com/CyberGems/CyberNotes/wiki/Keyboard-Shortcuts).
-
----
-
-## ❤️ Donate
-
-**CyberNotes** is 100% free and open source. If it helps you, please consider [donating](https://cybergems.org/donate) or [starring the repo on GitHub](https://github.com/CyberGems/CyberNotes) to support continued development. [Read the full story](https://cybergems.org/about/) behind the project. Thank you! 🙏
-
-<p align="center">
-  <a href="https://www.paypal.com/donate/?hosted_button_id=M4PY3UPJA5Y6Q"><img src="https://img.shields.io/badge/Donate-PayPal-0070BA?style=for-the-badge&logo=paypal" alt="Donate via PayPal" /></a>
-</p>
-
-<p align="center">
-  <a href="https://ko-fi.com/cybergems"><img src="https://img.shields.io/badge/Support_me_on_Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support me on Ko-fi" /></a>
-</p>
-
-<p align="center">
-  <a href="https://buymeacoffee.com/cybergems"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
-</p>
-
-<div align="center">
-
-<details>
-<summary><b>Crypto donations (BTC, ETH, USDT, LTC): click to view addresses</b></summary>
-
-| Asset | Address | QR |
-|---|---|---|
-| **BTC** | <pre><code>bc1q5mxzz05nmvsheqzx7970euswta3fksxzcfzag4</code></pre> | <img src="assets/donate/qr-btc.png" width="90" height="90" alt="BTC QR" /> |
-| **ETH** | <pre><code>0x79b703Ec0f77493679Fcd280aF3b983E20c580B8</code></pre> | <img src="assets/donate/qr-eth.png" width="90" height="90" alt="ETH QR" /> |
-| **USDT (ERC20 / BEP20)** | <pre><code>0x79b703Ec0f77493679Fcd280aF3b983E20c580B8</code></pre> | <img src="assets/donate/qr-eth.png" width="90" height="90" alt="USDT QR" /> |
-| **USDT (TRC20)** | <pre><code>TSVbSk1HSyZ1NprCnAYiw56ECwXgH887mD</code></pre> | <img src="assets/donate/qr-usdt-tron.png" width="90" height="90" alt="USDT TRC20 QR" /> |
-| **LTC** | <pre><code>LWGnEHgcFCE2BRkzLnsdPDD8Y8ZeDK577X</code></pre> | <img src="assets/donate/qr-ltc.png" width="90" height="90" alt="LTC QR" /> |
-
-> ⚠️ Send only the selected asset on the indicated network. Using the wrong network will result in permanent loss of funds.
-
-</details>
-
-</div>
-
----
-
-## 📄 License
-
-CyberNotes is distributed under the terms of the GNU General Public License v3.0. See [LICENSE](LICENSE) for the full license text.
-
-Copyright (C) 2026 CyberGems
-
----
-
-## ❓ FAQ
-
-For frequently asked questions, troubleshooting guides, and detailed configuration instructions, visit the [FAQ](https://github.com/CyberGems/CyberNotes/wiki/FAQ) or the [online documentation](https://cybergems.org/docs/cybernotes/FAQ).
-
-> Documentation source of truth: the [GitHub Wiki](https://github.com/CyberGems/CyberNotes/wiki) is canonical (edited via the `CyberNotes.wiki` checkout). The website mirrors it.
-
----
-
-<div align="center" style="background:#0D0F17; border:1px solid rgba(0,255,255,0.12); border-radius:12px; padding:28px 20px; margin-top:32px;">
-
-### Thanks for using CyberNotes! 🎉
-
-Made by [**CyberGems**](https://cybergems.org)
-
-</div>
-<p align="center">
-  <a href="https://www.reddit.com/submit?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&title=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Share on Reddit" /></a>
-  &nbsp;<a href="https://twitter.com/intent/tweet?text=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_X-1DA1F2?style=for-the-badge&logo=x&logoColor=white" alt="Share on X" /></a>
-  &nbsp;<a href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_Facebook-1877F2?style=for-the-badge&logo=facebook&logoColor=white" alt="Share on Facebook" /></a>
-  &nbsp;<a href="mailto:?subject=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&body=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows%20https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_by_Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Share by Email" /></a>
-  &nbsp;<a href="https://t.me/share/url?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&text=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Share on Telegram" /></a>
-  &nbsp;<a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="Share on LinkedIn" /></a>
-</p>
-
----
-
-## 🔗 See also
-
-More free, open-source, privacy-first apps from [**CyberGems**](https://github.com/CyberGems):
-
-| App | Description |
-|:---:|---|
-| 🕐&nbsp;[**CyberClock**](https://github.com/CyberGems/CyberClock#readme) | Desktop clock with analog & digital display, calendar, timer, stopwatch and relaxation module. |
-| 📢&nbsp;[**CyberFeeds**](https://github.com/CyberGems/CyberFeeds#readme) | High-performance, local-first RSS and Atom reader built for speed, privacy and clean reading. |
-| 🚀&nbsp;[**CyberLauncher**](https://github.com/CyberGems/CyberLauncher#readme) | Windows application launcher with hot corners, scheduler, system monitor and integrated terminal. |
-| 💻&nbsp;[**CyberManager**](https://github.com/CyberGems/CyberManager#readme) | Lightweight, high-performance task manager, virtualized and NT-native, a powerful Task Manager alternative. |
-| ⚡&nbsp;[**CyberPaste**](https://github.com/CyberGems/CyberPaste#readme) | Privacy-first clipboard manager for text, code, images, HTML and files. |
-| 📸&nbsp;[**CyberSnap**](https://github.com/CyberGems/CyberSnap#readme) | Screen capture and annotation suite with vector tools, high-speed OCR, screen recording and color picker. |
-| ⭐&nbsp;[**CyberTray**](https://github.com/CyberGems/CyberTray#readme) | High-performance tray launcher with hotspots, system monitoring, process manager and PIN-protected file vault. |
-| 💫&nbsp;[**CyberViewer**](https://github.com/CyberGems/CyberViewer#readme) | Full-featured image viewer and editor engineered for casual and power users. |
-| 🛡️&nbsp;[**CyberWall**](https://github.com/CyberGems/CyberWall#readme) | User-friendly Windows firewall with real-time per-app rules powered by the WFP kernel engine. |
-
-➡️ **[Browse all apps at cybergems.org](https://cybergems.org)**
+<p align="center">
+  English · <a href="./README.es.md">Español</a>
+</p>
+
+<p align="center">
+  <a href="https://cybergems.org/apps/cybernotes/">
+    <img src="https://cybergems.org/banners/cybernotes.png" alt="Private, flexible note-taking" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/CyberGems/CyberNotes/releases/latest"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FCyberGems%2FCyberNotes%2Fmain%2Fpackage.json&query=%24.version&prefix=%20Download%20v&suffix=%20&style=for-the-badge&label=&labelColor=0891B2&color=0891B2" alt="Download Latest Release" /><img src="https://img.shields.io/badge/Windows_10%2F11_(64--bit)-2563EB?style=for-the-badge" alt="Windows 10/11 (64-bit)" /></a>
+  &nbsp;<a href="https://github.com/CyberGems/CyberNotes/releases"><img src="https://img.shields.io/badge/All_releases-30363D?style=for-the-badge&logo=github&logoColor=white" alt="All Releases" /></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/License-GPL--3.0-1F2428.svg?style=flat-square&color=334155" alt="License" />&nbsp;
+  <img src="https://img.shields.io/badge/Platform-Windows_10%2F11-1F2428.svg?style=flat-square&color=334155" alt="Platform" />&nbsp;
+  <img src="https://img.shields.io/badge/Electron-35-1F2428.svg?style=flat-square&logo=electron&logoColor=white&color=334155" alt="Electron" />&nbsp;
+  <a href="https://github.com/CyberGems/CyberNotes/wiki"><img src="https://img.shields.io/badge/Wiki-Documentation-1F2428?style=flat-square&logo=gitbook&logoColor=white&color=334155" alt="Wiki" /></a>&nbsp;
+  <a href="https://github.com/CyberGems/CyberNotes/blob/main/CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-475569?style=flat-square" alt="Changelog" /></a>
+</p>
+
+---
+
+<div align="center">
+
+### A rich, private place for your notes, folders and ideas, with everything stored on your PC
+
+</div>
+
+---
+
+## 📑 Table of Contents
+
+- [👋 Introduction](#-introduction)
+- [🖼️ Screenshots](#️-screenshots)
+- [🔒 Why CyberNotes?](#-why-cybernotes)
+- [✨ Key Features](#-key-features)
+- [⬇️ Installation](#️-installation)
+- [🧭 Using the App](#-using-the-app)
+- [🛠️ Tech Stack & Architecture](#️-tech-stack--architecture)
+- [⌨️ Keyboard Shortcuts](#️-keyboard-shortcuts)
+- [❤️ Donate](#️-donate)
+- [📄 License](#-license)
+- [❓ FAQ](#-faq)
+- [🔗 See also](#-see-also)
+
+<details>
+<summary><strong>🔗 Related links (outside this README)</strong></summary>
+
+- 🌐 [CyberNotes on the web](https://cybergems.org/apps/cybernotes/) — overview, download and SmartScreen guide
+- 📚 [Documentation & FAQ — Wiki](https://github.com/CyberGems/CyberNotes/wiki) — troubleshooting and deep-dives
+- 💾 [Releases](https://github.com/CyberGems/CyberNotes/releases) — installers, portable builds and changelog
+- 🟣 [CyberGems suite](https://github.com/CyberGems) — all open-source apps
+
+</details>
+
+---
+
+## 👋 Introduction
+
+Most note apps want an account, a subscription, or your data on their servers. CyberNotes keeps everything on your PC: a TipTap editor with markdown shortcuts, images and code blocks; folders with icons and colors; tabs and floating notes for whatever you need at hand; instant search and autosave. An optional master password locks the app when you step away, and automatic backups in a folder you choose keep every note and image safe. Built with **Electron + React + TypeScript**.
+
+*Free and open source (GPLv3): no ads, no tracking, no telemetry and no analytics SDK. Just enjoy it.*
+
+
+- **Privacy:** see [PRIVACY.md](PRIVACY.md). CyberNotes does not send your data anywhere by itself. The only automatic connections are listed there, and none of them carries personal data.
+
+---
+
+<!-- Screenshots: pending the bilingual EN/ES gallery in the capture plan at https://github.com/CyberGems/CyberGems.github.io/blob/main/docs/screenshots.md — replace the blockquote, keep this heading and the TOC entry. -->
+
+## 🖼️ Screenshots
+
+> Coming soon...
+
+---
+
+## 🔒 Why CyberNotes?
+
+Plenty of editors are either cloud-first or too basic to be useful. CyberNotes gives you **the best of both worlds**: rich editing, powerful organization, and rock-solid security, all 100% offline.
+
+| Need | Solution |
+|---|---|
+| Keep notes private | Local-only SQLite: no cloud, no accounts, no tracking |
+| Don't lose your notes | Automatic backups every 6, 12 or 24 hours or weekly, in a folder you choose |
+| Rich editing without bloat | TipTap editor with markdown shortcuts, images, code blocks |
+| Stay organized | Folders with icons & colors, multi-tabs, floating notes, drag & drop |
+| Protect sensitive notes | Master password (bcrypt-hashed access lock, notes stored unencrypted) with auto-lock and privacy shield |
+| Work efficiently | Autosave, session restore, global hotkey, system tray |
+| Make it yours | 3 themes (CyberNotes, Gray, Light), custom backgrounds, glass effects, UI scaling |
+
+---
+
+## ✨ Key Features
+
+### ✍️ Rich Text Editing
+- **TipTap Editor**: Bold, italic, underline, strikethrough, headings (H1–H3), bullet/ordered lists, code blocks, blockquotes, horizontal rules, text highlighting
+- **Word-Style Font Sizes**: Size dropdown and floating bubble in the editor, one-tap cycling in floating notes
+- **Links & Images**: Auto-link detection, image insertion with size and alignment controls, local thumbnail previews
+- **Markdown Shortcuts**: Type `##`, `>`, `-`, `` ``` `` for instant formatting
+- **Document Tools**: Line/column counter, word/character count, reading time, document minimap, line numbers and wrapped-line markers
+- **Character & Emoji Pickers**: Search categorized Unicode symbols and Emoji 18.0; insert one item or collect several at once
+- **Save Feedback**: Live saved, saving, unsaved and error states with timestamps in the editor and floating notes
+- **Save Options**: Autosave as you type, manual save with draft protection, confirm on close/navigation
+
+### 📁 Organization
+- **Folders**: Custom names, 20 icon options, 20 unique colors (enforced uniqueness)
+- **Floating Notes**: Detach notes as always-on-top desktop sticky widgets; reach overflow toolbar actions with the mouse wheel
+- **Multi-Tab Interface**: Work with multiple notes simultaneously
+- **Compact Workspace**: Collapse the sidebar or line-number gutter to make more room for editing
+- **Favorites & Pinning**: Pin important notes for quick access
+- **Drag & Drop**: Move notes between folders effortlessly
+- **Instant Search**: Full-text search across titles, previews, and content
+- **Recent Notes**: Track edited, opened, and created notes with history
+- **Welcome Space**: Time-based greeting, notes stats, and keyboard shortcuts when no note is open
+- **Session Restoration**: Remember open tabs, active note, and floating notes between sessions
+
+### 🔐 Security
+- **Master Password or PIN**: Bcrypt-hashed access lock with lock screen (notes are stored unencrypted on your device)
+- **Offline Recovery**: One-time recovery code with hint and rate-limited reset from the lock screen
+- **Auto-Lock**: Configurable inactivity timeout (1 min to 24 hours)
+- **Privacy Shield**: Screen shield when app is hidden or minimized
+- **Caps Lock Manager**: Auto-off after inactivity with a themed title-bar countdown and dismissible notice, plus sound notifications (5 synthesized presets)
+
+### 🎨 Customization
+- **3 Visual Themes**: CyberNotes (dark), Gray and Light
+- **Color Intensity**: Adjustable 0–100% (applies to the CyberNotes theme)
+- **Custom Background**: Set your own wallpaper image
+- **Glass Effects**: Configurable blur intensity (0–40px) and overlay opacity (0–95%)
+- **UI Scaling**: Adjust interface size to your preference
+- **Tab Width**: Normal or wide, minimap toggle, density controls
+- **Greeting Name**: Personalize time-based greetings
+- **Responsive Layouts**: Screen-aware menus, title bar and editor footer adapt to narrower windows
+
+### 🖥️ Desktop Integration
+- **System Tray**: Minimize/close to tray, custom DPI-aware tray menu
+- **Global Hotkey**: Show/hide with customizable shortcut (default: `Alt+Shift+N`)
+- **Suite Recommendations**: More from CyberGems in About and tray (optional)
+- **Auto-Start**: Launch minimized with Windows
+- **Single Instance**: Second launches focus the existing window
+- **Spell Check**: Bilingual (English/Spanish) with right-click suggestions
+- **Context Menu**: Formatting, spell suggestions, link/image controls
+
+### 🔄 Updates & Data
+- **Auto-Updates**: Background check on launch + every 6h, progress bar, auto-download and restart
+- **Manual Checks Stay Manual**: On-demand checks only check; downloads and restarts need your tap
+- **Usage Statistics**: Optional local stats with streaks, reset and purge
+- **Automatic Backups**: On by default, writing a single self-contained JSON file every 6, 12 or 24 hours or weekly, with notes, folders and images embedded, keeping 1, 3, 5 or 7 copies in a folder you choose, plus manual backup and restore from Settings
+- **Export**: Markdown, HTML (styled), or full JSON backup
+- **Import**: Restore from JSON backup (with automatic safety backup)
+- **Bilingual UI**: Full English / Español with instant switching
+
+---
+
+## ⬇️ Installation
+
+### Install (Recommended)
+
+1. Download the latest installer or portable build from [Releases](https://github.com/CyberGems/CyberNotes/releases/latest)
+2. Run the `CyberNotes_Setup` installer or the portable executable
+3. Launch CyberNotes. No other requirements needed: you do **not** need Node.js or npm
+
+### 🛡️ Windows SmartScreen
+
+Windows may show a SmartScreen warning the first time you run the CyberNotes installer: this is an unsigned hobby app, so Windows hasn't built reputation for the file yet. This is expected; the source is public so you can inspect exactly what it does. The same can appear when launching the portable build.
+
+To continue:
+
+<details>
+<summary><strong>See how to run the installer (step by step)</strong></summary>
+
+Windows shows this warning for any installer without a paid code-signing certificate; it does not mean the file is unsafe. Do <strong>not</strong> click "Don't run":
+
+1. Run the `CyberNotes-Setup.exe` installer. Windows may show the blue "Windows protected your PC" dialog.
+
+![Windows SmartScreen warning](https://cybergems.org/branding/smartscreen-warning.svg)
+
+2. Click the small **More info** link. The expanded dialog shows your installer: `CyberNotes-Setup.exe`.
+
+![SmartScreen dialog after More info](https://cybergems.org/branding/smartscreen-runanyway.svg)
+
+3. Click **Run anyway**. The installer starts normally.
+
+You can verify the file independently: compare the SHA with the GitHub release, scan it on VirusTotal, or build from source. More details: [SmartScreen guide on the website](https://cybergems.org/download#smartscreen).
+
+</details>
+
+---
+
+## 🧭 Using the App
+
+CyberNotes can be summoned from anywhere with `Alt+Shift+N`, and notes save as you type.
+
+1. Press `Alt+Shift+N` or click **New Note**, then just start typing; there is no save button.
+2. Give the note a clear first line: that becomes its title.
+3. Organise things later with folders and favourites, or use `Alt+Shift+F` for a floating note.
+
+`Ctrl+N` creates a note, `Ctrl+F` focuses the search bar and both global hotkeys are customizable.
+
+See [How Do You Use CyberNotes?](https://github.com/CyberGems/CyberNotes/wiki/How-Do-You-Use) for everyday examples and the full guides.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+- **Platform:** Windows 10 / 11
+- **Framework:** Electron 35 + React 19 + TypeScript
+- **Editor:** TipTap (ProseMirror)
+- **Storage:** better-sqlite3 (SQLite with WAL)
+- **Security:** bcryptjs password hashing
+- **Animations:** Motion (Framer Motion)
+- **Testing:** Vitest unit tests (`npm test`)
+
+```
+CyberNotes/
+├── electron/
+│   ├── main.ts           Electron main process (window, tray, stickies, IPC handlers)
+│   ├── preload.ts        Context bridge (secure API exposure)
+│   ├── updater.ts        Auto-update logic
+│   ├── logger.ts         File logger (userData/logs)
+│   └── OpenTaskbarSettings.cs  Helper source for the tray pin tool
+├── shared/               Code shared by main and renderer (no Electron/React APIs)
+│   ├── notes.ts          Thumbnail extraction
+│   ├── sticky.ts         Floating-note palette and ids
+│   ├── lang.ts           Language helpers
+│   └── backup.ts         Automatic backup logic (plus *.test.ts suites)
+├── src/
+│   ├── components/
+│   │   ├── MainApp.tsx         Main application layout
+│   │   ├── TitleBar.tsx        Custom title bar with menu and greeting
+│   │   ├── Sidebar.tsx         Folder navigation and recent notes
+│   │   ├── NoteList.tsx        Note list panel with search and trash
+│   │   ├── NoteEditor.tsx      TipTap editor, tabs and export
+│   │   ├── StickyNoteApp.tsx   Floating always-on-top note widget
+│   │   ├── SettingsModal.tsx   Settings with backup configuration
+│   │   ├── LockScreen.tsx      Password lock screen
+│   │   ├── AboutModal.tsx      About dialog and update status
+│   │   ├── UpdaterBanner.tsx   Auto-update progress banner
+│   │   ├── TrayPinModal.tsx    Tray pin helper dialog
+│   │   ├── AppLoader.tsx       Startup loader and privacy shield
+│   │   ├── OnboardingModal.tsx First-run welcome and setup
+│   │   ├── WelcomeGreeting.tsx Time-aware greeting with date
+│   │   ├── WelcomeNameModal.tsx First-run name setup
+│   │   ├── FolderIcon.tsx      Folder icons and colors
+│   │   ├── ConfirmDialog.tsx   Reusable confirm/alert dialogs
+│   │   ├── ModalActions.tsx    Shared modal motion and helpers
+│   │   ├── Tooltip.tsx         Custom tooltips
+│   │   ├── ErrorBoundary.tsx   Render crash fallback
+│   │   └── GlobalErrorToast.tsx Global error toast
+│   ├── hooks/
+│   │   └── useInputContextMenu.tsx  Native-like input context menus
+│   ├── utils/
+│   │   ├── notes.ts      Note metadata, preview and thumbnail helpers
+│   │   └── audio.ts      Synthesized Caps Lock sounds
+│   ├── types/            TypeScript interfaces and API bridge types
+│   ├── themes.ts         Theme definitions
+│   ├── fonts.ts          Editor fonts
+│   └── languages.ts      i18n translations (English / Español)
+├── public/
+│   ├── tray-menu.html/.js/.css  Custom tray menu window
+│   └── fonts/            Self-hosted fonts (fully offline)
+└── package.json
+```
+
+### Building from Source (Developers)
+
+Only needed if you want to work on CyberNotes or build it yourself; regular users can skip this section.
+
+#### Prerequisites
+
+- [Node.js](https://nodejs.org/) v18+ (LTS recommended)
+- npm or yarn
+
+#### Development
+
+```bash
+git clone https://github.com/CyberGems/CyberNotes.git
+cd CyberNotes
+npm install
+npm run dev
+```
+
+#### Build for Production
+
+```bash
+npm run build:electron
+```
+
+#### Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Vite development server with hot reload |
+| `npm run build` | Compile TypeScript and build production bundle |
+| `npm run build:electron` | Full build: TypeScript → Vite → electron-builder installer |
+| `npm run preview` | Preview the production build locally |
+| `npm run lint` | Run TypeScript type-checking without emitting files |
+| `npm test` | Run unit tests with Vitest |
+
+#### Distribution
+
+Artifacts land in `release/`:
+
+| Artifact | Description |
+|---|---|
+| `CyberNotes_Setup_1.19.0.exe` | NSIS installer (interactive wizard, custom install dir) |
+| `CyberNotes_Portable_1.19.0.exe` | Portable build (zero-install) |
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `Alt+Shift+N` | Toggle window visibility (global, customizable) |
+| `Alt+Shift+F` | Create new floating note (global, customizable) |
+| `Ctrl+N` | Create a new note |
+| `Ctrl+Shift+N` | Create a new folder |
+| `Ctrl+F` | Focus search bar |
+| `Ctrl+S` | Save note manually |
+| `Shift+F3` | Cycle sentence, lowercase, uppercase, capitalize each word, and toggle case |
+| `↑` / `↓` | Navigate notes in list |
+| `Enter` | Open selected note in editor |
+| `Escape` | Return focus to note list / close modal |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
+| `Tab` / `Shift+Tab` | Indent / Remove indent |
+
+For the complete shortcuts reference including cursor navigation, line jumps, and text selection keys, see the [Keyboard Shortcuts Wiki](https://github.com/CyberGems/CyberNotes/wiki/Keyboard-Shortcuts).
+
+---
+
+## ❤️ Donate
+
+**CyberNotes** is 100% free and open source. If it helps you, please consider [donating](https://cybergems.org/donate) or [starring the repo on GitHub](https://github.com/CyberGems/CyberNotes) to support continued development. [Read the full story](https://cybergems.org/about/) behind the project. Thank you! 🙏
+
+<p align="center">
+  <a href="https://www.paypal.com/donate/?hosted_button_id=M4PY3UPJA5Y6Q"><img src="https://img.shields.io/badge/Donate-PayPal-0070BA?style=for-the-badge&logo=paypal" alt="Donate via PayPal" /></a>
+</p>
+
+<p align="center">
+  <a href="https://ko-fi.com/cybergems"><img src="https://img.shields.io/badge/Support_me_on_Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support me on Ko-fi" /></a>
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/cybergems"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" /></a>
+</p>
+
+<div align="center">
+
+<details>
+<summary><b>Crypto donations (BTC, ETH, USDT, LTC): click to view addresses</b></summary>
+
+| Asset | Address | QR |
+|---|---|---|
+| **BTC** | <pre><code>bc1q5mxzz05nmvsheqzx7970euswta3fksxzcfzag4</code></pre> | <img src="assets/donate/qr-btc.png" width="90" height="90" alt="BTC QR" /> |
+| **ETH** | <pre><code>0x79b703Ec0f77493679Fcd280aF3b983E20c580B8</code></pre> | <img src="assets/donate/qr-eth.png" width="90" height="90" alt="ETH QR" /> |
+| **USDT (ERC20 / BEP20)** | <pre><code>0x79b703Ec0f77493679Fcd280aF3b983E20c580B8</code></pre> | <img src="assets/donate/qr-eth.png" width="90" height="90" alt="USDT QR" /> |
+| **USDT (TRC20)** | <pre><code>TSVbSk1HSyZ1NprCnAYiw56ECwXgH887mD</code></pre> | <img src="assets/donate/qr-usdt-tron.png" width="90" height="90" alt="USDT TRC20 QR" /> |
+| **LTC** | <pre><code>LWGnEHgcFCE2BRkzLnsdPDD8Y8ZeDK577X</code></pre> | <img src="assets/donate/qr-ltc.png" width="90" height="90" alt="LTC QR" /> |
+
+> ⚠️ Send only the selected asset on the indicated network. Using the wrong network will result in permanent loss of funds.
+
+</details>
+
+</div>
+
+---
+
+## 📄 License
+
+CyberNotes is distributed under the terms of the GNU General Public License v3.0. See [LICENSE](LICENSE) for the full license text.
+
+Copyright (C) 2026 CyberGems
+
+---
+
+## ❓ FAQ
+
+For frequently asked questions, troubleshooting guides, and detailed configuration instructions, visit the [FAQ](https://github.com/CyberGems/CyberNotes/wiki/FAQ) or the [online documentation](https://cybergems.org/docs/cybernotes/FAQ).
+
+> Documentation source of truth: the [GitHub Wiki](https://github.com/CyberGems/CyberNotes/wiki) is canonical (edited via the `CyberNotes.wiki` checkout). The website mirrors it.
+
+---
+
+<div align="center" style="background:#0D0F17; border:1px solid rgba(0,255,255,0.12); border-radius:12px; padding:28px 20px; margin-top:32px;">
+
+### Thanks for using CyberNotes! 🎉
+
+Made by [**CyberGems**](https://cybergems.org)
+
+</div>
+<p align="center">
+  <a href="https://www.reddit.com/submit?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&title=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Share on Reddit" /></a>
+  &nbsp;<a href="https://twitter.com/intent/tweet?text=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_X-1DA1F2?style=for-the-badge&logo=x&logoColor=white" alt="Share on X" /></a>
+  &nbsp;<a href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_Facebook-1877F2?style=for-the-badge&logo=facebook&logoColor=white" alt="Share on Facebook" /></a>
+  &nbsp;<a href="mailto:?subject=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows&body=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows%20https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_by_Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Share by Email" /></a>
+  &nbsp;<a href="https://t.me/share/url?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F&text=CyberNotes%3A%20free%20%26%20open-source%20desktop%20tool%20for%20Windows"><img src="https://img.shields.io/badge/Share_on_Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Share on Telegram" /></a>
+  &nbsp;<a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fcybergems.org%2Fapps%2Fcybernotes%2F"><img src="https://img.shields.io/badge/Share_on_LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="Share on LinkedIn" /></a>
+</p>
+
+---
+
+## 🔗 See also
+
+More free, open-source, privacy-first apps from [**CyberGems**](https://github.com/CyberGems):
+
+| App | Description |
+|:---:|---|
+| 🕐&nbsp;[**CyberClock**](https://github.com/CyberGems/CyberClock#readme) | Desktop clock with analog & digital display, calendar, timer, stopwatch and relaxation module. |
+| 📢&nbsp;[**CyberFeeds**](https://github.com/CyberGems/CyberFeeds#readme) | High-performance, local-first RSS and Atom reader built for speed, privacy and clean reading. |
+| 🚀&nbsp;[**CyberLauncher**](https://github.com/CyberGems/CyberLauncher#readme) | Windows application launcher with hot corners, scheduler, system monitor and integrated terminal. |
+| 💻&nbsp;[**CyberManager**](https://github.com/CyberGems/CyberManager#readme) | Lightweight, high-performance task manager, virtualized and NT-native, a powerful Task Manager alternative. |
+| ⚡&nbsp;[**CyberPaste**](https://github.com/CyberGems/CyberPaste#readme) | Privacy-first clipboard manager for text, code, images, HTML and files. |
+| 📸&nbsp;[**CyberSnap**](https://github.com/CyberGems/CyberSnap#readme) | Screen capture and annotation suite with vector tools, high-speed OCR, screen recording and color picker. |
+| ⭐&nbsp;[**CyberTray**](https://github.com/CyberGems/CyberTray#readme) | High-performance tray launcher with hotspots, system monitoring, process manager and PIN-protected file vault. |
+| 💫&nbsp;[**CyberViewer**](https://github.com/CyberGems/CyberViewer#readme) | Full-featured image viewer and editor engineered for casual and power users. |
+| 🛡️&nbsp;[**CyberWall**](https://github.com/CyberGems/CyberWall#readme) | User-friendly Windows firewall with real-time per-app rules powered by the WFP kernel engine. |
+
+➡️ **[Browse all apps at cybergems.org](https://cybergems.org)**
