@@ -510,10 +510,10 @@ export default function TitleBar({
   ];
 
   const exportRows: MoreMenuEntry[] = [
-    { id: 'pdf', icon: <FileDown size={13} style={{ opacity: 0.7 }} />, label: t('Exportar PDF', 'Export PDF'), shortcut: 'Ctrl+Alt+P', keyshortcuts: 'Control+Alt+P', run: () => { setMenuOpen(false); onExportPdf?.(); } },
-    { id: 'markdown', icon: <FileText size={13} style={{ opacity: 0.7 }} />, label: t('Markdown (.md)', 'Markdown (.md)'), shortcut: 'Ctrl+Alt+M', keyshortcuts: 'Control+Alt+M', run: () => { setMenuOpen(false); onExportMarkdown?.(); } },
-    { id: 'text', icon: <FileText size={13} style={{ opacity: 0.7 }} />, label: t('Texto plano (.txt)', 'Plain text (.txt)'), shortcut: 'Ctrl+Alt+T', keyshortcuts: 'Control+Alt+T', run: () => { setMenuOpen(false); onExportText?.(); } },
-    { id: 'html', icon: <Globe size={13} style={{ opacity: 0.7 }} />, label: t('HTML (.html)', 'HTML (.html)'), shortcut: 'Ctrl+Alt+H', keyshortcuts: 'Control+Alt+H', run: () => { setMenuOpen(false); onExportHtml?.(); } },
+    { id: 'pdf', icon: <FileDown size={13} style={{ opacity: 0.7 }} />, label: t('Exportar PDF', 'Export PDF'), shortcut: 'Alt+P', keyshortcuts: 'Alt+P', run: () => { setMenuOpen(false); onExportPdf?.(); } },
+    { id: 'markdown', icon: <FileText size={13} style={{ opacity: 0.7 }} />, label: t('Markdown (.md)', 'Markdown (.md)'), shortcut: 'Alt+K', keyshortcuts: 'Alt+K', run: () => { setMenuOpen(false); onExportMarkdown?.(); } },
+    { id: 'text', icon: <FileText size={13} style={{ opacity: 0.7 }} />, label: t('Texto plano (.txt)', 'Plain text (.txt)'), shortcut: 'Alt+X', keyshortcuts: 'Alt+X', run: () => { setMenuOpen(false); onExportText?.(); } },
+    { id: 'html', icon: <Globe size={13} style={{ opacity: 0.7 }} />, label: t('HTML (.html)', 'HTML (.html)'), shortcut: 'Alt+W', keyshortcuts: 'Alt+W', run: () => { setMenuOpen(false); onExportHtml?.(); } },
     { id: 'print', icon: <Printer size={13} style={{ opacity: 0.7 }} />, label: t('Imprimir', 'Print'), shortcut: 'Ctrl+P', keyshortcuts: 'Control+P', run: () => { setMenuOpen(false); onPrint?.(); } },
   ];
 

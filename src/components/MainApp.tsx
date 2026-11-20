@@ -318,18 +318,19 @@ export default function MainApp({
 
   useEffect(() => {
     const handleExportShortcut = (event: KeyboardEvent) => {
-      const modifier = event.ctrlKey || event.metaKey;
-      if (!modifier || event.repeat) return;
+      if (event.repeat) return;
 
+      const ctrl = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       let action: (() => void | Promise<void>) | undefined;
 
-      if (event.altKey) {
-        if (key === 'm') action = editorExportActionsRef.current?.markdown;
-        else if (key === 'h') action = editorExportActionsRef.current?.html;
-        else if (key === 'p') action = editorExportActionsRef.current?.pdf;
-        else if (key === 't') action = editorExportActionsRef.current?.text;
-      } else if (key === 'p') {
+      // Single-modifier export shortcuts: no combination of two modifiers.
+      if (event.altKey && !ctrl) {
+        if (key === 'p') action = editorExportActionsRef.current?.pdf;
+        else if (key === 'k') action = editorExportActionsRef.current?.markdown;
+        else if (key === 'x') action = editorExportActionsRef.current?.text;
+        else if (key === 'w') action = editorExportActionsRef.current?.html;
+      } else if (ctrl && !event.altKey && key === 'p') {
         action = editorExportActionsRef.current?.print;
       }
 

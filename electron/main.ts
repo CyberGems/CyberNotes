@@ -4521,3 +4521,36 @@ ipcMain.handle('confirm-unsaved-exit-response', (_e: any, discard: boolean) => {
     quitAppFromMain();
   }
 });
+
+// Win+Up / Win+Down are Windows gestures: the shell performs them and the key
+// never reaches the app. A frameless window can be left out of them, so the
+// same action runs here when the key does arrive, instead of doing nothing.
+function applyWindowsSnapFallback(win: any, input: any): boolean {
+  if (input.type !== 'keyDown' || !input.meta) return false;
+  if (input.alt || input.control || input.shift) return false;
+  if (input.key !== 'Up' && input.key !== 'Down') return false;
+  if (win.isDestroyed() || win.isFullScreen()) return false;
+  if (!win.isMaximizable() && !win.isMinimizable()) return false;
+
+  if (input.key === 'Up') {
+    if (win.isMaximizable() && !win.isMaximized()) win.maximize();
+  } else if (win.isMaximized()) {
+    win.unmaximize();
+  } else if (win.isMinimizable()) {
+    win.minimize();
+  }
+  return true;
+}
+
+// Alt+F4 is the close shortcut even when the X is set to keep CyberNotes
+// in the tray.
+app.on('browser-window-created', (_event: any, window: any) => {
+  window.webContents.on('before-input-event', (event: any, input: any) => {
+    if (input.type === 'keyDown' && input.alt && input.key === 'F4') {
+      event.preventDefault();
+      quitAppFromMain();
+      return;
+    }
+    if (applyWindowsSnapFallback(window, input)) event.preventDefault();
+  });
+});

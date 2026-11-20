@@ -5036,10 +5036,10 @@ export default function NoteEditor({
             }}
           >
             {[
-              { icon: <FileDown size={13} />, label: language === 'es' ? 'Exportar PDF' : 'Export PDF', hint: 'Ctrl+Alt+P', onClick: handleExportPdf },
-              { icon: <FileText size={13} />, label: language === 'es' ? 'Exportar Markdown (.md)' : 'Export Markdown (.md)', hint: 'Ctrl+Alt+M', onClick: handleExportMarkdown },
-              { icon: <FileText size={13} />, label: language === 'es' ? 'Exportar texto (.txt)' : 'Export plain text (.txt)', hint: 'Ctrl+Alt+T', onClick: handleExportText },
-              { icon: <Globe size={13} />, label: language === 'es' ? 'Exportar HTML (.html)' : 'Export HTML (.html)', hint: 'Ctrl+Alt+H', onClick: handleExportHtml },
+              { icon: <FileDown size={13} />, label: language === 'es' ? 'Exportar PDF' : 'Export PDF', hint: 'Alt+P', onClick: handleExportPdf },
+              { icon: <FileText size={13} />, label: language === 'es' ? 'Exportar Markdown (.md)' : 'Export Markdown (.md)', hint: 'Alt+K', onClick: handleExportMarkdown },
+              { icon: <FileText size={13} />, label: language === 'es' ? 'Exportar texto (.txt)' : 'Export plain text (.txt)', hint: 'Alt+X', onClick: handleExportText },
+              { icon: <Globe size={13} />, label: language === 'es' ? 'Exportar HTML (.html)' : 'Export HTML (.html)', hint: 'Alt+W', onClick: handleExportHtml },
               { icon: <Printer size={13} />, label: language === 'es' ? 'Imprimir' : 'Print', hint: 'Ctrl+P', onClick: handlePrint },
             ].map(item => (
               <button
