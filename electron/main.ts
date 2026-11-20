@@ -2101,9 +2101,15 @@ function hideTrayMenu() {
   schedulePrewarmTrayMenuWin();
 }
 
+function formatTrayTooltip(shortcut?: string): string {
+  const clean = String(shortcut || '').trim();
+  const text = clean ? `CyberNotes · ${clean}` : 'CyberNotes';
+  return text.length > 63 ? `${text.slice(0, 62)}…` : text;
+}
+
 function updateTrayMenu() {
   if (!tray) return;
-  tray.setToolTip(`CyberNotes v${app.getVersion()}`);
+  tray.setToolTip(formatTrayTooltip(getActiveToggleHotkey()));
   if (trayMenuWin && !trayMenuWin.isDestroyed() && !trayMenuWin.webContents.isLoading()) {
     trayMenuWin.webContents.send('tray-menu-state', buildTrayMenuState());
   }
@@ -2112,7 +2118,7 @@ function updateTrayMenu() {
 function createTray() {
   try {
     tray = new Tray(getTrayIcon());
-    tray.setToolTip(`CyberNotes v${app.getVersion()}`);
+    tray.setToolTip(formatTrayTooltip(getActiveToggleHotkey()));
 
     tray.on('click', () => {
       hideTrayMenu();
