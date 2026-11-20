@@ -802,6 +802,10 @@ function computeUsageStats() {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+// True while the Alt key is down. Windows turns Alt+F4 into a native close
+// before the F4 keydown reaches the webContents listener, so the close handler
+// needs it to tell an explicit quit from the X.
+let altHeld = false;
 /** True while the UI should show LockScreen (password session). */
 let sessionLocked = false;
 /** Wall-clock last user activity — survives Chromium timer throttling while hidden. */
@@ -2486,6 +2490,14 @@ function createWindow() {
   // Manejar cierre (Bandeja de sistema)
   // Primera vez: preguntar qué hacer (estilo CyberPaste) salvo elección recordada.
   mainWindow.on('close', (event) => {
+    // Alt+F4 arrives as a native close before its keydown: while Alt is held
+    // the close is an explicit quit, so the tray choice and the first-close
+    // dialog are skipped. The unsaved-changes dialog below still runs.
+    // Captured once: a blur during the close must not clear it mid-handler.
+    const altQuit = altHeld;
+    if (altQuit && !isQuitting) {
+      isQuitting = true;
+    }
     if (!isQuitting) {
       const remembered = queryGet('SELECT value FROM settings WHERE key = ?', ['close_choice_remembered']);
       if (remembered?.value !== 'true') {
@@ -2521,6 +2533,12 @@ function createWindow() {
       tray.destroy();
       tray = null;
     }
+
+    // An Alt+F4 quit must take the process with it, floating notes included:
+    // window-all-closed already fired for the main window while the tray was
+    // still alive. A close the unsaved-changes dialog cancelled never reaches
+    // this point.
+    if (altQuit) setImmediate(() => app.quit());
   });
 
   // Interceptar links para abrir en el navegador por defecto.
@@ -4545,7 +4563,13 @@ function applyWindowsSnapFallback(win: any, input: any): boolean {
 // Alt+F4 is the close shortcut even when the X is set to keep CyberNotes
 // in the tray.
 app.on('browser-window-created', (_event: any, window: any) => {
+  // Alt+Tab (or any other focus loss) swallows the Alt keyup, so a stale flag
+  // would turn a later X click into an explicit quit.
+  window.on('blur', () => {
+    altHeld = false;
+  });
   window.webContents.on('before-input-event', (event: any, input: any) => {
+    if (input.key === 'Alt') altHeld = input.type !== 'keyUp';
     if (input.type === 'keyDown' && input.alt && input.key === 'F4') {
       event.preventDefault();
       quitAppFromMain();
