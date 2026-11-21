@@ -1000,7 +1000,12 @@ export default function TitleBar({
           margin: '0 6px',
         }} />
 
-        <Tooltip placement="bottom" label={minimizeToTray ? t('Minimizar a la bandeja', 'Minimize to tray') : t('Minimizar', 'Minimize')}>
+        <Tooltip placement="bottom" label={
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <span>{minimizeToTray ? t('Minimizar a la bandeja', 'Minimize to tray') : t('Minimizar', 'Minimize')}</span>
+            <TooltipShortcut>Win+↓</TooltipShortcut>
+          </span>
+        }>
         <button
           className="btn-icon titlebar-btn"
           onClick={() => window.cyberNotesAPI.windowMinimize()}
@@ -1009,7 +1014,12 @@ export default function TitleBar({
           <Minus size={13} />
         </button>
         </Tooltip>
-        <Tooltip placement="bottom" label={isMaximized ? t('Restaurar', 'Restore') : t('Maximizar', 'Maximize')}>
+        <Tooltip placement="bottom" label={
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <span>{isMaximized ? t('Restaurar', 'Restore') : t('Maximizar', 'Maximize')}</span>
+            <TooltipShortcut>Win+↑</TooltipShortcut>
+          </span>
+        }>
         <button
           className="btn-icon titlebar-btn"
           onClick={() => window.cyberNotesAPI.windowMaximizeToggle()}
