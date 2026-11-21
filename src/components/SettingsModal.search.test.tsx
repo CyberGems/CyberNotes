@@ -11,7 +11,8 @@ describe('settings search', () => {
   let root: ReturnType<typeof createRoot>;
   let container: HTMLDivElement;
   let props: ComponentProps<typeof SettingsModal>;
-  const setSetting = vi.fn();
+  const setSetting = vi.fn().mockResolvedValue(true);
+  let onSettingChanged: (change: { key: string; value: string }) => void;
 
   beforeEach(() => {
     setSetting.mockClear();
@@ -21,6 +22,10 @@ describe('settings search', () => {
       getVersions: vi.fn().mockResolvedValue({ app: '1.17.0' }), getAutoStart: vi.fn().mockResolvedValue(false),
       listDictionaryWords: vi.fn().mockResolvedValue({ ok: true, words: [] }),
       listAccessLog: vi.fn().mockResolvedValue({ ok: true, events: [] }), setSetting,
+      onSettingChanged: vi.fn((listener) => {
+        onSettingChanged = listener;
+        return () => {};
+      }),
     });
     const noop = vi.fn();
     props = {
@@ -266,6 +271,19 @@ describe('settings search', () => {
       input().dispatchEvent(new Event('input', { bubbles: true }));
     });
   }
+
+  it.each(['es', 'en'] as const)('finds and updates the notification preference from search (%s)', async language => {
+    props.language = language;
+    props.initialTab = 'appearance';
+    await render();
+    await search(language === 'es' ? 'avisos de actualizacion' : 'update notifications');
+    const control = content().querySelector<HTMLButtonElement>('button[aria-labelledby="notes-update-notifications-title"]')!;
+    expect(control.getAttribute('aria-checked')).toBe('true');
+    await act(async () => control.click());
+    expect(setSetting).toHaveBeenCalledWith('auto_check_updates', 'false');
+    await act(async () => onSettingChanged({ key: 'auto_check_updates', value: 'false' }));
+    expect(control.getAttribute('aria-checked')).toBe('false');
+  });
 
   it('finds all three actionable toolbar preferences across tabs without changing settings', async () => {
     await render();

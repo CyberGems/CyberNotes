@@ -676,6 +676,22 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+  const [updateNotifications, setUpdateNotifications] = useState<boolean | null>(null);
+  const updateCopy = TRANSLATIONS[language].about;
+
+  useEffect(() => {
+    let active = true;
+    let receivedChange = false;
+    const off = window.cyberNotesAPI.onSettingChanged(({ key, value }) => {
+      if (key !== 'auto_check_updates') return;
+      receivedChange = true;
+      setUpdateNotifications(value !== 'false');
+    });
+    void window.cyberNotesAPI.getSetting('auto_check_updates').then(value => {
+      if (active && !receivedChange) setUpdateNotifications(value !== 'false');
+    }).catch(console.error);
+    return () => { active = false; off(); };
+  }, []);
   const [toggleHotkey, setToggleHotkey] = useState(DEFAULT_TOGGLE_HOTKEY);
   const [stickyRestoreOnStartup, setStickyRestoreOnStartup] = useState(true);
   const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
@@ -1852,6 +1868,28 @@ export default function SettingsModal({
                     </SettingsOptionCopy>
                     <div className={`custom-switch ${autoStart ? 'active' : ''}`} />
                   </label>
+
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 16, padding: '12px 16px',
+                    background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <SettingsOptionCopy icon={<Download />}>
+                      <span id="notes-update-notifications-title" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{updateCopy.autoUpdates}</span>
+                      <span id="notes-update-notifications-desc" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{updateCopy.autoUpdatesHint}</span>
+                    </SettingsOptionCopy>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={updateNotifications === true}
+                      aria-labelledby="notes-update-notifications-title"
+                      aria-describedby="notes-update-notifications-desc"
+                      disabled={updateNotifications === null}
+                      onClick={() => void window.cyberNotesAPI.setSetting('auto_check_updates', String(!updateNotifications)).catch(console.error)}
+                      className={`custom-switch ${updateNotifications ? 'active' : ''}`}
+                    />
+                  </div>
 
                   <div style={{
                     display: 'flex',
