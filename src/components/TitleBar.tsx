@@ -1017,7 +1017,7 @@ export default function TitleBar({
         <Tooltip placement="bottom" label={
           <span style={{ display: 'inline-flex', alignItems: 'center' }}>
             <span>{isMaximized ? t('Restaurar', 'Restore') : t('Maximizar', 'Maximize')}</span>
-            <TooltipShortcut>Win+↑</TooltipShortcut>
+            <TooltipShortcut>{isMaximized ? 'Win+↓' : 'Win+↑'}</TooltipShortcut>
           </span>
         }>
         <button
