@@ -1003,7 +1003,7 @@ export default function TitleBar({
         <Tooltip placement="bottom" label={
           <span style={{ display: 'inline-flex', alignItems: 'center' }}>
             <span>{minimizeToTray ? t('Minimizar a la bandeja', 'Minimize to tray') : t('Minimizar', 'Minimize')}</span>
-            <TooltipShortcut>Win+↓</TooltipShortcut>
+            {!isMaximized && <TooltipShortcut>Win+↓</TooltipShortcut>}
           </span>
         }>
         <button
