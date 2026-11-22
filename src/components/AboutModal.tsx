@@ -4,6 +4,7 @@ import {
   Bug, Tag, ClipboardCopy, Check, Gem, BookOpen, Heart,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
+import { useUpdateNotifications } from '../hooks/useUpdateNotifications';
 import Tooltip from './Tooltip';
 
 const REPO_URL = 'https://github.com/CyberGems/CyberNotes';
@@ -50,7 +51,7 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
   const t = TRANSLATIONS[language].about;
   const [versions, setVersions] = useState<AppVersions | null>(null);
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' });
-  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [autoUpdate, changeAutoUpdate] = useUpdateNotifications();
   const [diagCopied, setDiagCopied] = useState(false);
   const [showSuite, setShowSuite] = useState(true);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,10 +59,6 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
   useEffect(() => {
     window.cyberNotesAPI.getVersions().then((v) => setVersions(v as AppVersions));
     window.cyberNotesAPI.getSetting('show_suite_promo').then((v) => setShowSuite(v !== 'false')).catch(() => {});
-    window.cyberNotesAPI.getSetting('auto_check_updates').then((val) => {
-      // Default on when unset (matches CyberFeeds / first-run UX)
-      setAutoUpdate(val !== 'false');
-    });
     const off = window.cyberNotesAPI.onUpdateStatus((s) => setStatus(s as UpdateStatus));
     return () => {
       off();
@@ -121,11 +118,6 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCheckNonce]);
-
-  const handleToggleAutoUpdate = async (val: boolean) => {
-    setAutoUpdate(val);
-    await window.cyberNotesAPI.setSetting('auto_check_updates', val.toString());
-  };
 
   const handleClose = (e?: MouseEvent) => {
     e?.stopPropagation();
@@ -299,9 +291,10 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
                 type="button"
                 className="about-auto-update"
                 role="switch"
-                aria-checked={autoUpdate}
+                aria-checked={autoUpdate === true}
                 aria-label={t.autoUpdates}
-                onClick={() => handleToggleAutoUpdate(!autoUpdate)}
+                disabled={autoUpdate === null}
+                onClick={() => changeAutoUpdate(!autoUpdate)}
               >
                 <span aria-hidden="true" className={`custom-switch ${autoUpdate ? 'active' : ''}`} />
                 <span>{t.autoUpdates}</span>

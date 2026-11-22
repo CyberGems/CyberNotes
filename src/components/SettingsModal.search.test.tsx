@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../../shared/toolbarDefaults';
 import SettingsModal from './SettingsModal';
+import AboutModal from './AboutModal';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -12,10 +13,14 @@ describe('settings search', () => {
   let container: HTMLDivElement;
   let props: ComponentProps<typeof SettingsModal>;
   const setSetting = vi.fn().mockResolvedValue(true);
-  let onSettingChanged: (change: { key: string; value: string }) => void;
+  const settingListeners = new Set<(change: { key: string; value: string }) => void>();
+  const publishSetting = (change: { key: string; value: string }) => {
+    settingListeners.forEach(listener => listener(change));
+  };
 
   beforeEach(() => {
-    setSetting.mockClear();
+    setSetting.mockReset().mockResolvedValue(true);
+    settingListeners.clear();
     vi.stubGlobal('cyberNotesAPI', {
       hasPassword: vi.fn().mockResolvedValue(false), hasRecoveryCode: vi.fn().mockResolvedValue(false),
       getSetting: vi.fn().mockResolvedValue(null), getSettings: vi.fn().mockResolvedValue({}),
@@ -23,9 +28,10 @@ describe('settings search', () => {
       listDictionaryWords: vi.fn().mockResolvedValue({ ok: true, words: [] }),
       listAccessLog: vi.fn().mockResolvedValue({ ok: true, events: [] }), setSetting,
       onSettingChanged: vi.fn((listener) => {
-        onSettingChanged = listener;
-        return () => {};
+        settingListeners.add(listener);
+        return () => settingListeners.delete(listener);
       }),
+      onUpdateStatus: vi.fn(() => () => {}),
     });
     const noop = vi.fn();
     props = {
@@ -281,8 +287,53 @@ describe('settings search', () => {
     expect(control.getAttribute('aria-checked')).toBe('true');
     await act(async () => control.click());
     expect(setSetting).toHaveBeenCalledWith('auto_check_updates', 'false');
-    await act(async () => onSettingChanged({ key: 'auto_check_updates', value: 'false' }));
+    await act(async () => publishSetting({ key: 'auto_check_updates', value: 'false' }));
     expect(control.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('synchronizes Settings and About in both directions and reads the saved state on remount', async () => {
+    const key = 'auto_check_updates';
+    let saved: string | null = null;
+    vi.mocked(window.cyberNotesAPI.getSetting).mockImplementation(async name => name === key ? saved : null);
+    setSetting.mockImplementation(async (name: string, value: string) => {
+      if (name === key) {
+        saved = value;
+        publishSetting({ key: name, value });
+      }
+      return true;
+    });
+
+    const showBothPanels = async () => {
+      await act(async () => root.render(
+        <>
+          <SettingsModal {...props} />
+          <AboutModal language={props.language} onClose={() => {}} />
+        </>,
+      ));
+    };
+    const settingsSwitch = () => container.querySelector<HTMLButtonElement>('[aria-labelledby="notes-update-notifications-title"]')!;
+    const aboutSwitch = () => document.querySelector<HTMLButtonElement>('.about-auto-update')!;
+    const expectBoth = (enabled: boolean) => {
+      expect(settingsSwitch().getAttribute('aria-checked')).toBe(String(enabled));
+      expect(aboutSwitch().getAttribute('aria-checked')).toBe(String(enabled));
+    };
+
+    await showBothPanels();
+    expectBoth(true);
+    await act(async () => settingsSwitch().click());
+    expectBoth(false);
+    expect(saved).toBe('false');
+
+    await act(async () => root.render(null));
+    await showBothPanels();
+    expectBoth(false);
+    await act(async () => aboutSwitch().click());
+    expectBoth(true);
+    expect(saved).toBe('true');
+
+    await act(async () => root.render(null));
+    await showBothPanels();
+    expectBoth(true);
   });
 
   it('finds all three actionable toolbar preferences across tabs without changing settings', async () => {

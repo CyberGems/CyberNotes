@@ -5,6 +5,7 @@ import { THEMES, isColorfulTheme } from '../themes';
 import { EditorFontId, EDITOR_FONTS, DEFAULT_EDITOR_FONT } from '../fonts';
 import { TOOLBAR_ITEMS, type ToolbarItemDef } from './NoteEditor';
 import { Language, TRANSLATIONS } from '../languages';
+import { useUpdateNotifications } from '../hooks/useUpdateNotifications';
 import { Lock, Shield, FolderOpen, Palette, Trash2, Eye, EyeOff, Download, Upload, Languages, Volume2, Settings, SlidersHorizontal, Database, RotateCcw, BrushCleaning, X, Pin, Type, Archive, Minus, Power, Keyboard, PanelLeft, Rows3, Map, Hash, WrapText, Save, Image, Droplets, Clock3, HardDrive, LockKeyhole, ShieldCheck, StickyNote, Copy, Check, KeyRound, History, LayoutGrid, Sparkles, BarChart3, Info, Folder, Flame, Sigma, FilePlus2, Plus, Layers, BookOpen, Search, Maximize2 } from 'lucide-react';
 import { STICKY_ACCENTS } from '../../shared/sticky';
 import { playSynthSound } from '../utils/audio';
@@ -676,22 +677,8 @@ export default function SettingsModal({
   const [closeToTray, setCloseToTray] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
-  const [updateNotifications, setUpdateNotifications] = useState<boolean | null>(null);
+  const [updateNotifications, changeUpdateNotifications] = useUpdateNotifications();
   const updateCopy = TRANSLATIONS[language].about;
-
-  useEffect(() => {
-    let active = true;
-    let receivedChange = false;
-    const off = window.cyberNotesAPI.onSettingChanged(({ key, value }) => {
-      if (key !== 'auto_check_updates') return;
-      receivedChange = true;
-      setUpdateNotifications(value !== 'false');
-    });
-    void window.cyberNotesAPI.getSetting('auto_check_updates').then(value => {
-      if (active && !receivedChange) setUpdateNotifications(value !== 'false');
-    }).catch(console.error);
-    return () => { active = false; off(); };
-  }, []);
   const [toggleHotkey, setToggleHotkey] = useState(DEFAULT_TOGGLE_HOTKEY);
   const [stickyRestoreOnStartup, setStickyRestoreOnStartup] = useState(true);
   const [stickySkipTaskbar, setStickySkipTaskbar] = useState(true);
@@ -1886,7 +1873,7 @@ export default function SettingsModal({
                       aria-labelledby="notes-update-notifications-title"
                       aria-describedby="notes-update-notifications-desc"
                       disabled={updateNotifications === null}
-                      onClick={() => void window.cyberNotesAPI.setSetting('auto_check_updates', String(!updateNotifications)).catch(console.error)}
+                      onClick={() => changeUpdateNotifications(!updateNotifications)}
                       className={`custom-switch ${updateNotifications ? 'active' : ''}`}
                     />
                   </div>
