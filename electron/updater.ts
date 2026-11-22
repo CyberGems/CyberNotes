@@ -5,7 +5,9 @@ const require = createRequire(import.meta.url);
 const { autoUpdater } = require('electron-updater') as typeof import('electron-updater');
 
 let autoUpdateEnabled = false;
-let manualCheck = false;
+let manualChecks = 0;
+let backgroundCheck: { requestedManually: boolean } | null = null;
+let checkGeneration = 0;
 // Política: solo se COMPRUEBA en silencio (startup/periódico). Descargar e
 // instalar requieren siempre un clic del usuario en el aviso.
 let isDownloading = false;
@@ -18,6 +20,7 @@ const STARTUP_CHECK_MS = 8000;
 const PERIODIC_CHECK_MS = 6 * 60 * 60 * 1000;
 
 type UpdateStatus =
+  | { state: 'idle' }
   | { state: 'checking' }
   | { state: 'available'; version: string; releaseNotes?: string; releaseUrl?: string }
   | { state: 'not-available'; version: string }
@@ -120,9 +123,12 @@ function isNetworkError(msg: string): boolean {
 }
 
 async function doCheckSilently(): Promise<void> {
+  if (!autoUpdateEnabled || backgroundCheck || manualChecks > 0) return;
+  backgroundCheck = { requestedManually: false };
   try {
     await autoUpdater.checkForUpdates();
   } catch { /* offline / rate-limit: ignore */ }
+  finally { backgroundCheck = null; }
 }
 
 export function initUpdater(autoUpdate: boolean): void {
@@ -134,11 +140,21 @@ export function initUpdater(autoUpdate: boolean): void {
   if (!listenersRegistered) {
     listenersRegistered = true;
 
-    autoUpdater.on('checking-for-update', () => broadcast({ state: 'checking' }));
+    autoUpdater.on('checking-for-update', () => {
+      checkGeneration++;
+      broadcast({ state: 'checking' });
+    });
 
     autoUpdater.on('update-available', async (info) => {
-      downloadedVersion = null;
+      const background = backgroundCheck;
+      const generation = checkGeneration;
       const details = await fetchReleaseDetails(info.version, info.releaseNotes);
+      if (generation !== checkGeneration) return;
+      if (background && !background.requestedManually && !autoUpdateEnabled) {
+        broadcast({ state: 'idle' });
+        return;
+      }
+      downloadedVersion = null;
       // Solo avisar (con changelog): la descarga la inicia el usuario.
       broadcast({
         state: 'available',
@@ -167,7 +183,7 @@ export function initUpdater(autoUpdate: boolean): void {
       isDownloading = false;
       const msg = String((err as any)?.message || err);
       // Suppress network/offline errors during silent background checks
-      if (!manualCheck && isNetworkError(msg)) {
+      if (manualChecks === 0 && isNetworkError(msg)) {
         return;
       }
       broadcast({ state: 'error', message: msg });
@@ -201,7 +217,8 @@ function registerUpdateIpc(): void {
   ipcMain.handle('update:get-status', () => latestUpdateStatus);
 
   ipcMain.handle('update:check', async () => {
-    manualCheck = true;
+    manualChecks++;
+    if (backgroundCheck) backgroundCheck.requestedManually = true;
     try {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Update check timed out')), 20000);
@@ -214,7 +231,7 @@ function registerUpdateIpc(): void {
     } catch (err) {
       return { ok: false, error: String((err as Error)?.message || err) };
     } finally {
-      manualCheck = false;
+      manualChecks--;
     }
   });
 
@@ -245,5 +262,5 @@ function registerUpdateIpc(): void {
 }
 
 export function isManualCheck(): boolean {
-  return manualCheck;
+  return manualChecks > 0;
 }
