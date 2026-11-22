@@ -710,6 +710,16 @@ export default function SettingsModal({
   const [stickyHotkeyPreview, setStickyHotkeyPreview] = useState<string | null>(null);
   const stickyHotkeyInputRef = useRef<HTMLInputElement>(null);
   const [hasSavedChanges, setHasSavedChanges] = useState(false);
+  // Bumped on every completed settings write so the nav-footer hairline
+  // replays its green pulse per save action (suite standard).
+  const [savePulse, setSavePulse] = useState(0);
+  const savePulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markSaved = () => {
+    setHasSavedChanges(true);
+    setSavePulse((p) => p + 1);
+    if (savePulseTimer.current) clearTimeout(savePulseTimer.current);
+    savePulseTimer.current = setTimeout(() => setSavePulse(0), 1600);
+  };
   const [loaded, setLoaded] = useState(false);
   const initialSnapshotRef = useRef<string | null>(null);
 
@@ -828,7 +838,7 @@ export default function SettingsModal({
   const handleRestoreDismissedConfirmations = async () => {
     await Promise.all(DISMISSIBLE_CONFIRMATION_KEYS.map((key) => window.cyberNotesAPI.setSetting(key, 'false')));
     setDismissedConfirmationCount(0);
-    setHasSavedChanges(true);
+    markSaved();
     setRestoreNoticesFeedback(true);
     if (restoreNoticesTimerRef.current) clearTimeout(restoreNoticesTimerRef.current);
     restoreNoticesTimerRef.current = setTimeout(() => {
@@ -1105,7 +1115,7 @@ export default function SettingsModal({
       stickyToggleHotkey,
     });
     if (currentSnapshot !== initialSnapshotRef.current) {
-      setHasSavedChanges(true);
+      markSaved();
     }
   }, [
     loaded,
@@ -1435,7 +1445,7 @@ export default function SettingsModal({
       setStoredMethod(authMethod);
       setHasPassword(true);
       setPwdMessage(language === 'es' ? '✓ Contraseña guardada correctamente' : '✓ Password saved successfully');
-      setHasSavedChanges(true);
+      markSaved();
       setPwdError(false);
       setCurrentPwd('');
       setNewPwd('');
@@ -1485,7 +1495,7 @@ export default function SettingsModal({
     setRecAck(false);
     setRecHint('');
     setPwdMessage(language === 'es' ? '✓ Contraseña eliminada' : '✓ Password removed');
-    setHasSavedChanges(true);
+    markSaved();
     setPwdError(false);
     setCurrentPwd('');
   };
@@ -1533,7 +1543,7 @@ export default function SettingsModal({
       setRecAck(false);
       setRecMessage(language === 'es' ? '✓ Código de recuperación guardado' : '✓ Recovery code saved');
       setRecError(false);
-      setHasSavedChanges(true);
+      markSaved();
       return true;
     } catch {
       setRecMessage(language === 'es' ? 'Error al guardar el código' : 'Error saving the code');
@@ -1577,7 +1587,7 @@ export default function SettingsModal({
       await window.cyberNotesAPI.setSetting('password_hint', recHint.trim());
       setRecMessage(language === 'es' ? '✓ Pista guardada' : '✓ Hint saved');
       setRecError(false);
-      setHasSavedChanges(true);
+      markSaved();
     } catch {
       setRecMessage(language === 'es' ? 'Error al guardar la pista' : 'Error saving the hint');
       setRecError(true);
@@ -1665,6 +1675,9 @@ export default function SettingsModal({
               ))}
             </div>
             <div className="settings-nav-footer">
+              {savePulse > 0 && (
+                <span key={savePulse} className="config-save-separator-pulse" aria-hidden="true" />
+              )}
               {hasSavedChanges && (
                 <div className="config-autosave-pill" aria-live="polite">
                   <span className="config-autosave-dot" aria-hidden="true" />
