@@ -179,7 +179,7 @@ declare global {
       exportNotePdf: (title: string, html: string) => Promise<boolean>;
       printDocument: (title: string, html: string) => Promise<boolean>;
       // Updates / About
-      checkForUpdates: () => Promise<{ ok: boolean; version?: string; error?: string }>;
+      checkForUpdates: () => Promise<{ ok: boolean; available?: boolean; version?: string; error?: string }>;
       getUpdateStatus: () => Promise<UpdateStatus | null>;
       downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;
       installUpdate: () => Promise<void>;

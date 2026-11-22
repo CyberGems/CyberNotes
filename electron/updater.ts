@@ -7,7 +7,6 @@ const { autoUpdater } = require('electron-updater') as typeof import('electron-u
 let autoUpdateEnabled = false;
 let manualChecks = 0;
 let backgroundCheck: { requestedManually: boolean } | null = null;
-let checkGeneration = 0;
 // Política: solo se COMPRUEBA en silencio (startup/periódico). Descargar e
 // instalar requieren siempre un clic del usuario en el aviso.
 let isDownloading = false;
@@ -31,10 +30,10 @@ type UpdateStatus =
 
 const RELEASES_REPO = 'CyberGems/CyberNotes';
 
-async function fetchReleaseDetails(
+function releaseDetailsFromFeed(
   version: string,
   rawNotes?: string | null | Array<{ version: string; note: string | null }>,
-): Promise<{ notes?: string; url: string }> {
+): { notes?: string; url: string } {
   const defaultUrl = `https://github.com/${RELEASES_REPO}/releases/tag/v${version}`;
   let existingNotes: string | undefined;
   if (typeof rawNotes === 'string' && rawNotes.trim().length > 0) {
@@ -46,10 +45,13 @@ async function fetchReleaseDetails(
       .join('\n\n');
   }
 
-  if (existingNotes) {
-    return { notes: existingNotes, url: defaultUrl };
-  }
+  return { notes: existingNotes, url: defaultUrl };
+}
 
+async function fetchReleaseDetails(
+  version: string,
+  fallback: { notes?: string; url: string },
+): Promise<{ notes?: string; url: string }> {
   try {
     const res = await fetch(
       `https://api.github.com/repos/${RELEASES_REPO}/releases/tags/v${version}`,
@@ -63,15 +65,15 @@ async function fetchReleaseDetails(
     if (res.ok) {
       const data = await res.json();
       return {
-        notes: typeof data?.body === 'string' ? data.body : undefined,
-        url: typeof data?.html_url === 'string' ? data.html_url : defaultUrl,
+        notes: typeof data?.body === 'string' && data.body.trim() ? data.body : fallback.notes,
+        url: typeof data?.html_url === 'string' ? data.html_url : fallback.url,
       };
     }
   } catch (err) {
     console.warn('[Updater] Could not fetch release notes from GitHub API:', err);
   }
 
-  return { url: defaultUrl };
+  return fallback;
 }
 
 function broadcast(status: UpdateStatus): void {
@@ -140,28 +142,34 @@ export function initUpdater(autoUpdate: boolean): void {
   if (!listenersRegistered) {
     listenersRegistered = true;
 
-    autoUpdater.on('checking-for-update', () => {
-      checkGeneration++;
-      broadcast({ state: 'checking' });
-    });
+    autoUpdater.on('checking-for-update', () => broadcast({ state: 'checking' }));
 
     autoUpdater.on('update-available', async (info) => {
       const background = backgroundCheck;
-      const generation = checkGeneration;
-      const details = await fetchReleaseDetails(info.version, info.releaseNotes);
-      if (generation !== checkGeneration) return;
       if (background && !background.requestedManually && !autoUpdateEnabled) {
         broadcast({ state: 'idle' });
         return;
       }
       downloadedVersion = null;
       // Solo avisar (con changelog): la descarga la inicia el usuario.
-      broadcast({
+      const details = releaseDetailsFromFeed(info.version, info.releaseNotes);
+      const available: UpdateStatus = {
         state: 'available',
         version: info.version,
         releaseNotes: details.notes,
         releaseUrl: details.url,
-      });
+      };
+      broadcast(available);
+      if (details.notes) return;
+
+      const enriched = await fetchReleaseDetails(info.version, details);
+      if (
+        enriched !== details &&
+        latestUpdateStatus === available &&
+        (!background || background.requestedManually || autoUpdateEnabled)
+      ) {
+        broadcast({ ...available, releaseNotes: enriched.notes, releaseUrl: enriched.url });
+      }
     });
 
     autoUpdater.on('update-not-available', (info) => {
@@ -220,14 +228,14 @@ function registerUpdateIpc(): void {
     manualChecks++;
     if (backgroundCheck) backgroundCheck.requestedManually = true;
     try {
-      const timeoutPromise = new Promise((_, reject) => {
+      const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Update check timed out')), 20000);
       });
       const result = await Promise.race([
         autoUpdater.checkForUpdates(),
         timeoutPromise,
-      ]) as { updateInfo?: { version?: string } } | null;
-      return { ok: true, version: result?.updateInfo?.version };
+      ]);
+      return { ok: true, version: result?.updateInfo.version, available: result?.isUpdateAvailable };
     } catch (err) {
       return { ok: false, error: String((err as Error)?.message || err) };
     } finally {
@@ -244,7 +252,11 @@ function registerUpdateIpc(): void {
       return { ok: true };
     } catch (err) {
       isDownloading = false;
-      return { ok: false, error: String((err as Error)?.message || err) };
+      const message = String((err as Error)?.message || err);
+      if (latestUpdateStatus?.state !== 'error' || latestUpdateStatus.message !== message) {
+        broadcast({ state: 'error', message });
+      }
+      return { ok: false, error: message };
     }
   });
 

@@ -93,11 +93,11 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
         setStatus({ state: 'error', message: res?.error || 'Update check failed' });
         return;
       }
-      setStatus(prev =>
-        prev.state === 'checking'
-          ? { state: 'not-available', version: res.version || appVersion }
-          : prev
-      );
+      setStatus(prev => {
+        if (prev.state !== 'checking') return prev;
+        if (res.available && res.version) return { state: 'available', version: res.version };
+        return { state: 'not-available', version: res.version || appVersion };
+      });
     } catch (e) {
       setStatus({ state: 'error', message: String((e as Error)?.message || e) });
     }
