@@ -38,6 +38,11 @@ export function EnterGlyph() {
   );
 }
 
+/** Suite-standard settings close key: Esc, shown as the word "Esc" like CyberGo. */
+export function EscHint() {
+  return <KeyHint>Esc</KeyHint>;
+}
+
 export function useModalKeys(opts: {
   enabled: boolean;
   onEsc?: () => void;

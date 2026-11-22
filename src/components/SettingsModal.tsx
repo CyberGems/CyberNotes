@@ -11,7 +11,7 @@ import { STICKY_ACCENTS } from '../../shared/sticky';
 import { playSynthSound } from '../utils/audio';
 import { DEFAULT_AUTO_BACKUP_KEEP, isBackupFile } from '../../shared/backup';
 import { DialogHost, DialogOptions } from './ConfirmDialog';
-import { EnterGlyph, KeyHint, modalOverlayStyle, useModalKeys } from './ModalActions';
+import { EnterGlyph, EscHint, KeyHint, modalOverlayStyle, useModalKeys } from './ModalActions';
 import Tooltip from './Tooltip';
 import CustomSelect from './CustomSelect';
 import { useInputContextMenu } from '../hooks/useInputContextMenu';
@@ -1673,7 +1673,7 @@ export default function SettingsModal({
               )}
               <button type="button" className="settings-nav-close" onClick={onClose}>
                 <span>{language === 'es' ? 'Cerrar' : 'Close'}</span>
-                <EnterGlyph />
+                <EscHint />
               </button>
             </div>
           </aside>
