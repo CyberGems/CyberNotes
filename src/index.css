@@ -2939,6 +2939,9 @@ html.tab-dragging * {
   margin-left: 2px;
   padding: 3px 6px;
   border-radius: 4px;
+  /* The keycap keeps its own casing ("Esc"), unaffected by the button label. */
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .config-brand-footer {
