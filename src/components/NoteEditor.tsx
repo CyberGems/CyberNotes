@@ -130,7 +130,7 @@ interface Props {
   draftCache?: Record<string, { title: string; content: string }>;
   onEditDraft?: (id: string, title: string, content: string) => void | Promise<void>;
   onDiscardDraft?: (id: string) => void;
-  onRegisterDraftFlush?: (flush: (() => Promise<void>) | null) => void;
+  onRegisterDraftFlush?: (flush: (() => Promise<boolean>) | null) => void;
   draftRecoveryNonce?: number;
   tabsWidthMode?: 'normal' | 'wide';
   editorFontId?: EditorFontId;
@@ -2868,27 +2868,33 @@ export default function NoteEditor({
     setSaveStatus('pending');
   }, []);
 
-  const persistNote = useCallback(async (updatedNote: Note): Promise<boolean> => {
+  const pendingSavesRef = useRef(new Set<Promise<boolean>>());
+  const persistNote = useCallback((updatedNote: Note): Promise<boolean> => {
     const requestId = ++saveRequestRef.current;
     const revision = editRevisionRef.current;
     setSaveStatus('saving');
-    try {
-      await onSave(updatedNote);
-      const isLatestRequest = requestId === saveRequestRef.current;
-      if (isLatestRequest) {
-        setLastSavedAt(new Date().toISOString());
-        const manualDraftRemains = !autosaveEnabledRef.current && hasUnsavedChangesRef.current;
-        setSaveStatus(revision === editRevisionRef.current && !manualDraftRemains ? 'saved' : 'pending');
+    const pendingSave = (async () => {
+      try {
+        await onSave(updatedNote);
+        const isLatestRequest = requestId === saveRequestRef.current;
+        if (isLatestRequest) {
+          setLastSavedAt(new Date().toISOString());
+          const manualDraftRemains = !autosaveEnabledRef.current && hasUnsavedChangesRef.current;
+          setSaveStatus(revision === editRevisionRef.current && !manualDraftRemains ? 'saved' : 'pending');
+        }
+        return isLatestRequest;
+      } catch (error) {
+        console.error('Failed to save note:', error);
+        if (requestId === saveRequestRef.current) {
+          if (revision === editRevisionRef.current) isDirtyRef.current = true;
+          setSaveStatus('error');
+        }
+        return false;
       }
-      return isLatestRequest;
-    } catch (error) {
-      console.error('Failed to save note:', error);
-      if (requestId === saveRequestRef.current) {
-        if (revision === editRevisionRef.current) isDirtyRef.current = true;
-        setSaveStatus('error');
-      }
-      return false;
-    }
+    })();
+    pendingSavesRef.current.add(pendingSave);
+    void pendingSave.then(() => pendingSavesRef.current.delete(pendingSave));
+    return pendingSave;
   }, [onSave]);
   const persistNoteRef = useRef(persistNote);
   persistNoteRef.current = persistNote;
@@ -4007,8 +4013,9 @@ export default function NoteEditor({
     if (!onRegisterDraftFlush) return;
 
     const flushBeforeLock = async () => {
+      await Promise.all(pendingSavesRef.current);
       const current = currentNoteRef.current;
-      if (!current || !editor || hydratedNoteIdRef.current !== current.id) return;
+      if (!current || !editor || hydratedNoteIdRef.current !== current.id) return true;
 
       if (autosaveEnabledRef.current) {
         if (saveTimer.current) {
@@ -4019,9 +4026,9 @@ export default function NoteEditor({
           const html = editor.getHTML();
           const preview = extractPreview(html);
           isDirtyRef.current = false;
-          await persistNote({ ...current, content: html, preview, thumb: extractThumb(html) });
+          return await persistNote({ ...current, content: html, preview, thumb: extractThumb(html) });
         }
-        return;
+        return true;
       }
 
       if (draftSyncTimer.current) {
@@ -4031,6 +4038,7 @@ export default function NoteEditor({
       if (hasUnsavedChangesRef.current || isDirtyRef.current) {
         await onEditDraft?.(current.id, localTitleRef.current, editor.getHTML());
       }
+      return true;
     };
 
     onRegisterDraftFlush(flushBeforeLock);

@@ -75,14 +75,21 @@ export interface Theme {
 
 export type AppView = 'lock' | 'setup' | 'app';
 
-export type UpdateStatus =
-  | { state: 'checking' }
-  | { state: 'available'; version: string; releaseNotes?: string; releaseUrl?: string }
-  | { state: 'not-available'; version: string }
-  | { state: 'downloading'; percent: number; version?: string; bytesPerSecond?: number; transferred?: number; total?: number }
-  | { state: 'downloaded'; version: string }
-  | { state: 'installing'; version: string }
-  | { state: 'error'; message: string };
+export type UpdateRelease = {
+  version: string;
+  releaseNotes?: string;
+  releaseUrl?: string;
+  notesLoading?: boolean;
+};
+
+export type PendingUpdate = UpdateRelease & (
+  | { state: 'available'; downloadFailed?: boolean }
+  | { state: 'downloading'; percent: number; transferred?: number; total?: number; cancelling?: boolean }
+  | { state: 'downloaded'; installError?: 'unsaved' | 'failed' }
+  | { state: 'installing' }
+);
+
+export type UpdateStatus = PendingUpdate | { state: 'not-available'; version: string };
 
 // Window API type
 declare global {
@@ -181,9 +188,9 @@ declare global {
       // Updates / About
       checkForUpdates: () => Promise<{ ok: boolean; available?: boolean; version?: string; error?: string }>;
       getUpdateStatus: () => Promise<UpdateStatus | null>;
-      downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;
-      installUpdate: () => Promise<void>;
-      cancelAutoInstall: () => Promise<boolean>;
+      downloadUpdate: (version: string) => Promise<void>;
+      cancelUpdateDownload: (version: string) => Promise<void>;
+      installUpdate: (version: string) => Promise<void>;
       onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
       getVersions: () => Promise<{
         app: string;

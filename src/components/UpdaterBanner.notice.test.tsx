@@ -3,20 +3,22 @@ import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UpdateStatus } from '../types';
+import AboutModal from './AboutModal';
 import TitleBar from './TitleBar';
-import UpdaterBanner from './UpdaterBanner';
+import UpdaterBanner, { type UpdateNoticeRequest } from './UpdaterBanner';
 
 vi.mock('./WelcomeGreeting', () => ({ default: () => null }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const available: UpdateStatus = { state: 'available', version: '2.0.0', releaseNotes: '- Improved notes' };
 
-function UpdateUI({ language }: { language: 'es' | 'en' }) {
+function UpdateUI({ language, about }: { language: 'es' | 'en'; about: boolean }) {
   const [version, setVersion] = useState<string | null>(null);
-  const [nonce, setNonce] = useState(0);
+  const [request, setRequest] = useState<UpdateNoticeRequest | null>(null);
   return <>
-    <TitleBar language={language} updateVersion={version} onShowUpdate={() => setNonce(value => value + 1)} />
-    <UpdaterBanner language={language} onNoticeChange={setVersion} openNonce={nonce} />
+    <TitleBar language={language} updateVersion={version} onShowUpdate={() => setRequest({})} />
+    {about && <AboutModal language={language} onClose={() => {}} onUpdateAvailable={version => setRequest({ version })} />}
+    <UpdaterBanner language={language} onNoticeChange={setVersion} openRequest={request} />
   </>;
 }
 
@@ -30,7 +32,9 @@ describe('title-bar update notice', () => {
     getUpdateStatus: ReturnType<typeof vi.fn>;
     downloadUpdate: ReturnType<typeof vi.fn>;
     installUpdate: ReturnType<typeof vi.fn>;
-    cancelAutoInstall: ReturnType<typeof vi.fn>;
+    cancelUpdateDownload: ReturnType<typeof vi.fn>;
+    checkForUpdates: ReturnType<typeof vi.fn>;
+    openExternal: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -42,10 +46,13 @@ describe('title-bar update notice', () => {
       getUpdateStatus: vi.fn().mockResolvedValue(available),
       downloadUpdate: vi.fn().mockResolvedValue({ ok: true }),
       installUpdate: vi.fn().mockResolvedValue(undefined),
-      cancelAutoInstall: vi.fn().mockResolvedValue(true),
+      cancelUpdateDownload: vi.fn().mockResolvedValue(undefined),
+      checkForUpdates: vi.fn().mockResolvedValue({ ok: true, available: true, version: available.version }),
+      openExternal: vi.fn().mockResolvedValue(true),
     };
     vi.stubGlobal('cyberNotesAPI', {
       ...api,
+      getVersions: vi.fn().mockResolvedValue({ app: '1.0.0' }),
       isMaximized: vi.fn().mockResolvedValue(false),
       onMaximizedState: () => () => {},
       onUpdateStatus: (listener: (status: UpdateStatus) => void) => {
@@ -69,13 +76,15 @@ describe('title-bar update notice', () => {
     expect(window.__CYBERNOTES_TOGGLE_UPDATE_PREVIEW__).toBeUndefined();
     host.remove();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
     localStorage.clear();
   });
 
   const notice = () => host.querySelector<HTMLButtonElement>('.titlebar-update-button');
-  const card = () => host.querySelector('[role="dialog"]');
-  const render = async (language: 'es' | 'en' = 'es') => {
-    await act(async () => root.render(<UpdateUI language={language} />));
+  const card = () => host.querySelector('.update-notice');
+  const aboutPanel = () => host.querySelector('.about-modal');
+  const render = async (language: 'es' | 'en' = 'es', about = false) => {
+    await act(async () => root.render(<UpdateUI language={language} about={about} />));
   };
   const emit = async (status: UpdateStatus) => {
     await act(async () => { updateListeners.forEach(listener => listener(status)); });
@@ -103,8 +112,9 @@ describe('title-bar update notice', () => {
     expect(notice()?.getAttribute('aria-label')).toContain('0.0.0-preview');
     expect(card()?.getAttribute('data-update-preview')).toBe('true');
     expect(card()?.textContent).toContain(language === 'es' ? 'Vista previa del aviso' : 'Update notice preview');
-    await clickText(language === 'es' ? 'Ver release' : 'View release');
+    await clickText(language === 'es' ? 'Ver en GitHub' : 'View on GitHub');
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(api.openExternal).not.toHaveBeenCalled();
     expect(api.downloadUpdate).not.toHaveBeenCalled();
     expect(api.installUpdate).not.toHaveBeenCalled();
     await preview(false);
@@ -130,31 +140,34 @@ describe('title-bar update notice', () => {
   });
 
   it('simulates download, Later and restart without calling the real updater', async () => {
+    vi.useFakeTimers();
     api.getUpdateStatus.mockResolvedValue(null);
     await render();
     await preview(true);
-    await clickText('Descargar');
-    expect(card()?.textContent).toContain('Actualización 0.0.0-preview lista');
+    await clickText('Actualizar ahora');
+    expect(card()?.querySelector('progress')).not.toBeNull();
+    await act(async () => vi.advanceTimersByTime(2000));
+    expect(card()?.textContent).toContain('Actualización lista v0.0.0-preview');
     await clickText('Más tarde');
     expect(card()).toBeNull();
     await act(async () => notice()!.click());
-    await clickText('Reiniciar ahora');
+    await clickText('Reiniciar para actualizar');
     expect(card()).toBeNull();
     expect(notice()).toBeNull();
     expect(api.downloadUpdate).not.toHaveBeenCalled();
     expect(api.installUpdate).not.toHaveBeenCalled();
-    expect(api.cancelAutoInstall).not.toHaveBeenCalled();
+    expect(api.cancelUpdateDownload).not.toHaveBeenCalled();
   });
 
   it('skipping the preview preserves the real skipped version', async () => {
     localStorage.setItem('cybernotes_skipped_update_version', '2.0.0');
     await render();
     await preview(true);
-    await clickText('Omitir esta versión');
+    await clickText('Omitir versión');
     expect(card()).toBeNull();
     expect(notice()).toBeNull();
     expect(localStorage.getItem('cybernotes_skipped_update_version')).toBe('2.0.0');
-    expect(api.cancelAutoInstall).not.toHaveBeenCalled();
+    expect(api.cancelUpdateDownload).not.toHaveBeenCalled();
   });
 
   it('restores the latest real update after leaving preview', async () => {
@@ -164,7 +177,7 @@ describe('title-bar update notice', () => {
     expect(notice()?.getAttribute('aria-label')).toContain('0.0.0-preview');
     await preview(false);
     expect(notice()?.getAttribute('aria-label')).toContain('2.1.0');
-    expect(card()?.textContent).toContain('Actualización 2.1.0 lista');
+    expect(card()?.textContent).toContain('Actualización lista v2.1.0');
     expect(card()?.getAttribute('data-update-preview')).toBeNull();
   });
 
@@ -186,7 +199,7 @@ describe('title-bar update notice', () => {
     api.getSetting.mockResolvedValue('false');
     await render();
     expect(notice()).toBeNull();
-    for (const status of [available, { state: 'downloading', percent: 40 }, { state: 'downloaded', version: '2.0.0' }] as UpdateStatus[]) {
+    for (const status of [available, { state: 'downloading', version: '2.0.0', percent: 40 }, { state: 'downloaded', version: '2.0.0' }] as UpdateStatus[]) {
       await emit(status);
       expect(notice()).toBeNull();
     }
@@ -198,9 +211,9 @@ describe('title-bar update notice', () => {
     const later = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Más tarde')!;
     await act(async () => later.click());
     expect(card()).toBeNull();
-    expect(api.cancelAutoInstall).toHaveBeenCalledOnce();
+    expect(api.cancelUpdateDownload).not.toHaveBeenCalled();
     await act(async () => notice()!.click());
-    expect(card()?.textContent).toContain('Actualización 2.0.0 lista');
+    expect(card()?.textContent).toContain('Actualización lista v2.0.0');
     expect(api.installUpdate).not.toHaveBeenCalled();
   });
 
@@ -227,8 +240,7 @@ describe('title-bar update notice', () => {
 
   it('skipping a version removes the button and keeps it hidden after remounting', async () => {
     await render();
-    const skip = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('Omitir esta versión'))!;
-    await act(async () => skip.click());
+    await clickText('Omitir versión');
     expect(notice()).toBeNull();
     await emit(available);
     expect(notice()).toBeNull();
@@ -249,5 +261,69 @@ describe('title-bar update notice', () => {
     expect(notice()?.getAttribute('aria-label')).toContain('2.1.0');
     await emit({ state: 'not-available', version: '2.1.0' });
     expect(notice()).toBeNull();
+  });
+
+  it('keeps the notes through download, background, cancellation, retry and installation', async () => {
+    const downloading = { ...available, state: 'downloading', percent: 13, transferred: 2_000_000, total: 15_000_000 } as const;
+    await render('en');
+    expect([...card()!.querySelectorAll('.update-notice-actions button')].map(button => button.textContent))
+      .toEqual(['View on GitHub', 'Skip version', 'Later', 'Update now']);
+    await clickText('View on GitHub');
+    expect(api.openExternal).toHaveBeenCalledWith('https://github.com/CyberGems/CyberNotes/releases/tag/v2.0.0');
+    await clickText('Update now');
+    expect(api.downloadUpdate).toHaveBeenCalledWith('2.0.0');
+    expect(api.installUpdate).not.toHaveBeenCalled();
+    await emit(downloading);
+    expect(card()?.textContent).toContain('2 MB / 15 MB');
+    expect(card()?.textContent).toContain('Improved notes');
+    await clickText('Download in background');
+    await emit({ ...downloading, percent: 21, transferred: 3_200_000 });
+    expect(card()).toBeNull();
+    await act(async () => notice()!.click());
+    await clickText('Cancel download');
+    expect(api.cancelUpdateDownload).toHaveBeenCalledWith('2.0.0');
+    await emit({ ...downloading, cancelling: true });
+    expect(card()?.textContent).toContain('Canceling download');
+    await emit(available);
+    expect(card()?.textContent).toContain('Update now');
+    await clickText('Update now');
+    await emit(downloading);
+    await clickText('Download in background');
+    await emit({ ...available, state: 'downloaded' });
+    expect(card()?.textContent).toContain('Improved notes');
+    await clickText('Restart to update');
+    expect(api.installUpdate).toHaveBeenCalledExactlyOnceWith('2.0.0');
+  });
+
+  it('opens the existing step from About even when automatic notices are off', async () => {
+    api.getSetting.mockResolvedValue('false');
+    localStorage.setItem('cybernotes_skipped_update_version', '2.0.0');
+    await render('en', true);
+    expect(card()).toBeNull();
+    expect(aboutPanel()?.querySelector('[role="switch"]')).toBeNull();
+    await clickText('Check for updates');
+    expect(aboutPanel()?.querySelector('[role="status"]')?.textContent).toBe('An update is available.');
+    expect(card()?.textContent).toContain('Update now');
+    await clickText('Update now');
+    await emit({ ...available, state: 'downloading', percent: 37 });
+    await clickText('Download in background');
+    await clickText('Check for updates');
+    expect(card()?.querySelector('progress')?.value).toBe(37);
+    await emit({ ...available, state: 'downloaded' });
+    await clickText('Later');
+    await clickText('Check for updates');
+    expect(card()?.textContent).toContain('Restart to update');
+    expect(aboutPanel()?.querySelector('[role="status"]')?.textContent).toBe('An update is available.');
+    expect(aboutPanel()?.textContent).not.toMatch(/download|restart to update/i);
+    expect(api.installUpdate).not.toHaveBeenCalled();
+  });
+
+  it('reports a completed check with no update in About', async () => {
+    api.getUpdateStatus.mockResolvedValue(null);
+    api.checkForUpdates.mockResolvedValue({ ok: true, available: false });
+    await render('es', true);
+    await clickText('Buscar actualizaciones');
+    expect(aboutPanel()?.querySelector('[role="status"]')?.textContent).toBe('Estás en la última versión.');
+    expect(card()).toBeNull();
   });
 });

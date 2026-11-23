@@ -4434,7 +4434,7 @@ if (!gotTheLock) {
 
     // Auto-check for updates on startup (default on when unset)
     const autoCheck = queryGet('SELECT value FROM settings WHERE key = ?', ['auto_check_updates']);
-    initUpdater(autoCheck ? autoCheck.value === 'true' : true);
+    initUpdater(autoCheck ? autoCheck.value === 'true' : true, () => hasUnsavedChanges);
 
     // Restaurar notas flotantes al iniciar si está habilitado (por defecto sí)
     const restoreSticky = queryGet('SELECT value FROM settings WHERE key = ?', ['sticky_restore_on_startup']);

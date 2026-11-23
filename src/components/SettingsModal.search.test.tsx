@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../../shared/toolbarDefaults';
 import SettingsModal from './SettingsModal';
-import AboutModal from './AboutModal';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -31,7 +30,6 @@ describe('settings search', () => {
         settingListeners.add(listener);
         return () => settingListeners.delete(listener);
       }),
-      onUpdateStatus: vi.fn(() => () => {}),
     });
     const noop = vi.fn();
     props = {
@@ -291,7 +289,7 @@ describe('settings search', () => {
     expect(control.getAttribute('aria-checked')).toBe('false');
   });
 
-  it('synchronizes Settings and About in both directions and reads the saved state on remount', async () => {
+  it('reads the saved notification preference when Settings remounts', async () => {
     const key = 'auto_check_updates';
     let saved: string | null = null;
     vi.mocked(window.cyberNotesAPI.getSetting).mockImplementation(async name => name === key ? saved : null);
@@ -303,37 +301,16 @@ describe('settings search', () => {
       return true;
     });
 
-    const showBothPanels = async () => {
-      await act(async () => root.render(
-        <>
-          <SettingsModal {...props} />
-          <AboutModal language={props.language} onClose={() => {}} />
-        </>,
-      ));
-    };
     const settingsSwitch = () => container.querySelector<HTMLButtonElement>('[aria-labelledby="notes-update-notifications-title"]')!;
-    const aboutSwitch = () => document.querySelector<HTMLButtonElement>('.about-auto-update')!;
-    const expectBoth = (enabled: boolean) => {
-      expect(settingsSwitch().getAttribute('aria-checked')).toBe(String(enabled));
-      expect(aboutSwitch().getAttribute('aria-checked')).toBe(String(enabled));
-    };
-
-    await showBothPanels();
-    expectBoth(true);
+    await render();
+    expect(settingsSwitch().getAttribute('aria-checked')).toBe('true');
     await act(async () => settingsSwitch().click());
-    expectBoth(false);
     expect(saved).toBe('false');
+    expect(settingsSwitch().getAttribute('aria-checked')).toBe('false');
 
     await act(async () => root.render(null));
-    await showBothPanels();
-    expectBoth(false);
-    await act(async () => aboutSwitch().click());
-    expectBoth(true);
-    expect(saved).toBe('true');
-
-    await act(async () => root.render(null));
-    await showBothPanels();
-    expectBoth(true);
+    await render();
+    expect(settingsSwitch().getAttribute('aria-checked')).toBe('false');
   });
 
   it('finds all three actionable toolbar preferences across tabs without changing settings', async () => {

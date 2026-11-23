@@ -17,7 +17,7 @@ import Tooltip from './Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
 import { tabSwitchStart, tabSwitchResolve } from '../utils/tabPerf';
-import UpdaterBanner from './UpdaterBanner';
+import UpdaterBanner, { type UpdateNoticeRequest } from './UpdaterBanner';
 import { FILTER_COLORS } from './FolderIcon';
 
 const SIDEBAR_RAIL_BREAKPOINT = 1100;
@@ -241,7 +241,8 @@ export default function MainApp({
   const [bgOpacity, setBgOpacity] = useState(0.5);
   const [statusBarUrl, setStatusBarUrl] = useState<string | null>(null);
   const [updateNoticeVersion, setUpdateNoticeVersion] = useState<string | null>(null);
-  const [updateNoticeNonce, setUpdateNoticeNonce] = useState(0);
+  const [updateNoticeRequest, setUpdateNoticeRequest] = useState<UpdateNoticeRequest | null>(null);
+  const openUpdateNotice = useCallback((version: string) => setUpdateNoticeRequest({ version }), []);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -292,7 +293,7 @@ export default function MainApp({
   const openedHistoryRef = useRef<Record<string, number>>({});
   const openedHistoryPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justRecordedHistoryRef = useRef<string | null>(null);
-  const draftFlushRef = useRef<(() => Promise<void>) | null>(null);
+  const draftFlushRef = useRef<(() => Promise<boolean>) | null>(null);
   const draftWriteChainsRef = useRef<Record<string, Promise<boolean>>>({});
   const editorExportActionsRef = useRef<NoteExportActions | null>(null);
   const persistedDraftsRef = useRef<NoteDraft[]>([]);
@@ -881,7 +882,7 @@ export default function MainApp({
     return next;
   }, []);
 
-  const registerDraftFlush = useCallback((flush: (() => Promise<void>) | null) => {
+  const registerDraftFlush = useCallback((flush: (() => Promise<boolean>) | null) => {
     draftFlushRef.current = flush;
   }, []);
 
@@ -2004,8 +2005,12 @@ export default function MainApp({
         onLock={onLock}
         onOpenSettings={() => setShowSettings(true)}
         onOpenAbout={() => setShowAbout(true)}
+        onCheckForUpdates={() => {
+          setShowAbout(true);
+          setAboutCheckNonce(nonce => nonce + 1);
+        }}
         updateVersion={updateNoticeVersion}
-        onShowUpdate={() => setUpdateNoticeNonce(value => value + 1)}
+        onShowUpdate={() => setUpdateNoticeRequest({})}
         onOpenTrayPin={() => {
           setIsTrayPinAutomatic(false);
           setShowTrayPin(true);
@@ -2310,8 +2315,12 @@ export default function MainApp({
       {showAbout && (
         <AboutModal
           language={language}
-          onClose={() => setShowAbout(false)}
+          onClose={() => {
+            setShowAbout(false);
+            setAboutCheckNonce(0);
+          }}
           autoCheckNonce={aboutCheckNonce}
+          onUpdateAvailable={openUpdateNotice}
         />
       )}
 
@@ -2769,7 +2778,12 @@ export default function MainApp({
         )}
       </AnimatePresence>
 
-      <UpdaterBanner language={language} onNoticeChange={setUpdateNoticeVersion} openNonce={updateNoticeNonce} />
+      <UpdaterBanner
+        language={language}
+        onNoticeChange={setUpdateNoticeVersion}
+        openRequest={updateNoticeRequest}
+        beforeInstall={async () => await draftFlushRef.current?.() ?? true}
+      />
 
       {/* Status Bar (Hover Link) */}
       <AnimatePresence>

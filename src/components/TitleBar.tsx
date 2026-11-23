@@ -12,6 +12,7 @@ interface Props {
   onLock?: () => void;
   onOpenSettings?: () => void;
   onOpenAbout?: () => void;
+  onCheckForUpdates?: () => void;
   updateVersion?: string | null;
   onShowUpdate?: () => void;
   onOpenTrayPin?: () => void;
@@ -92,6 +93,7 @@ export default function TitleBar({
   onLock,
   onOpenSettings,
   onOpenAbout,
+  onCheckForUpdates,
   updateVersion,
   onShowUpdate,
   onOpenTrayPin,
@@ -590,7 +592,7 @@ export default function TitleBar({
     { id: 'website', icon: <Globe size={13} style={{ opacity: 0.7 }} />, label: t('Sitio web', 'Website'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://cybergems.org'); } },
     { id: 'help-divider', divider: true },
     { id: 'about', icon: <Info size={13} style={{ opacity: 0.7 }} />, label: t('Acerca de', 'About'), run: () => { setMenuOpen(false); onOpenAbout?.(); } },
-    { id: 'updates', icon: <Download size={13} style={{ opacity: 0.7 }} />, label: t('Buscar actualizaciones', 'Check for updates'), run: () => { setMenuOpen(false); onOpenAbout?.(); } },
+    { id: 'updates', icon: <Download size={13} style={{ opacity: 0.7 }} />, label: t('Buscar actualizaciones', 'Check for updates'), run: () => { setMenuOpen(false); onCheckForUpdates?.(); } },
     { id: 'tray-pin', icon: <Pin size={13} style={{ opacity: 0.7 }} />, label: t('Mantener visible en la bandeja', 'Keep visible in system tray'), run: () => { setMenuOpen(false); onOpenTrayPin?.(); } },
   ];
 

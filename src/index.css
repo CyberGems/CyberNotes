@@ -5322,29 +5322,157 @@ body.sticky-is-dragging * {
   border-color: color-mix(in srgb, var(--success) 40%, transparent);
 }
 
-.about-auto-update {
+.update-notice {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 25000;
+  width: 484px;
+  max-width: calc(100% - 48px);
+  max-height: calc(100% - 48px);
+  overflow: auto;
   display: flex;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  margin: 0;
-  gap: 8px;
-  justify-content: center;
-  padding: 2px 0 0;
-  cursor: pointer;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--update-notice-bg, linear-gradient(145deg, var(--bg-modal), var(--bg-surface)));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 12px;
+  box-shadow: var(--shadow-elevated, 0 14px 36px color-mix(in srgb, var(--text-primary) 20%, transparent));
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.about-auto-update:focus-visible {
+.update-notice:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 4px;
+  outline-offset: 2px;
 }
 
-.about-auto-update>span:last-child {
-  font-size: 12px;
+.update-notice-header {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+
+.update-notice-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-radius: 8px;
+}
+
+.update-notice-header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.update-notice-header h2 span {
+  display: inline-block;
+  margin-inline-start: 4px;
+  color: var(--accent);
+  font: 600 11px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.update-release-notes {
+  min-height: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--update-notes-bg, var(--inset-bg, var(--bg-surface)));
   color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.update-release-notes h3 {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.update-release-notes ul {
+  max-height: 110px;
+  overflow: auto;
+  margin: 5px 0 0;
+  padding-inline-start: 16px;
+}
+
+.update-release-notes li + li {
+  margin-top: 3px;
+}
+
+.update-release-notes li::marker {
+  color: var(--accent);
+}
+
+.update-release-notes p,
+.update-notice-error {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.update-notice-error {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.update-notice-progress {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.update-notice-progress div,
+.update-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.update-notice-progress div {
+  justify-content: space-between;
+}
+
+.update-notice-progress progress {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.update-notice-progress progress::-webkit-progress-bar {
+  background: var(--border);
+}
+
+.update-notice-progress progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 6px;
+}
+
+.update-notice-actions {
+  justify-content: flex-end;
+}
+
+.update-notice-actions .btn {
+  min-height: 30px;
+  font-size: 12px;
+  white-space: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-notice { animation: none; }
 }
 
 .about-modal-footer {

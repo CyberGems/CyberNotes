@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react';
 import {
-  X, Github, RefreshCw, Download, CheckCircle2,
+  X, Github, RefreshCw,
   Bug, Tag, ClipboardCopy, Check, Gem, BookOpen, Heart,
 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
-import { useUpdateNotifications } from '../hooks/useUpdateNotifications';
 import Tooltip from './Tooltip';
 
 const REPO_URL = 'https://github.com/CyberGems/CyberNotes';
@@ -25,14 +24,7 @@ type AppVersions = {
   osType: string;
 };
 
-type UpdateStatus =
-  | { state: 'idle' }
-  | { state: 'checking' }
-  | { state: 'available'; version: string }
-  | { state: 'not-available'; version: string }
-  | { state: 'downloading'; percent: number }
-  | { state: 'downloaded'; version: string }
-  | { state: 'error'; message: string };
+type CheckStatus = 'idle' | 'checking' | 'available' | 'not-available' | 'error';
 
 function platformLabel(platform: string): string {
   if (platform === 'win32') return 'Windows';
@@ -45,13 +37,13 @@ interface Props {
   language: Language;
   onClose: () => void;
   autoCheckNonce?: number;
+  onUpdateAvailable?: (version: string) => void;
 }
 
-export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Props) {
+export default function AboutModal({ language, onClose, autoCheckNonce = 0, onUpdateAvailable }: Props) {
   const t = TRANSLATIONS[language].about;
   const [versions, setVersions] = useState<AppVersions | null>(null);
-  const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' });
-  const [autoUpdate, changeAutoUpdate] = useUpdateNotifications();
+  const [status, setStatus] = useState<CheckStatus>('idle');
   const [diagCopied, setDiagCopied] = useState(false);
   const [showSuite, setShowSuite] = useState(true);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,15 +51,14 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
   useEffect(() => {
     window.cyberNotesAPI.getVersions().then((v) => setVersions(v as AppVersions));
     window.cyberNotesAPI.getSetting('show_suite_promo').then((v) => setShowSuite(v !== 'false')).catch(() => {});
-    const off = window.cyberNotesAPI.onUpdateStatus((s) => setStatus(s as UpdateStatus));
     return () => {
-      off();
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
     };
   }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       if (e.key === 'Escape') {
         onClose();
         return;
@@ -85,39 +76,31 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
 
   const appVersion = versions?.app || '';
 
-  const handleCheck = async () => {
-    setStatus({ state: 'checking' });
+  const handleCheck = useCallback(async () => {
+    setStatus('checking');
     try {
-      const res = await window.cyberNotesAPI.checkForUpdates();
-      if (!res?.ok) {
-        setStatus({ state: 'error', message: res?.error || 'Update check failed' });
-        return;
+      const result = await window.cyberNotesAPI.checkForUpdates();
+      if (!result.ok) {
+        console.warn('[Updater] Could not check for updates:', result.error);
+        setStatus('error');
+      } else if (result.available && result.version) {
+        setStatus('available');
+        onUpdateAvailable?.(result.version);
+      } else {
+        setStatus('not-available');
       }
-      setStatus(prev => {
-        if (prev.state !== 'checking') return prev;
-        if (res.available && res.version) return { state: 'available', version: res.version };
-        return { state: 'not-available', version: res.version || appVersion };
-      });
-    } catch (e) {
-      setStatus({ state: 'error', message: String((e as Error)?.message || e) });
+    } catch (error) {
+      console.warn('[Updater] Could not check for updates:', error);
+      setStatus('error');
     }
-  };
-
-  const handleDownload = async () => {
-    await window.cyberNotesAPI.downloadUpdate();
-  };
-
-  const handleInstall = () => {
-    window.cyberNotesAPI.installUpdate();
-  };
+  }, [onUpdateAvailable]);
 
   // El menú del tray puede pedir abrir + consultar de una vez.
   useEffect(() => {
     if (autoCheckNonce > 0) {
       void handleCheck();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoCheckNonce]);
+  }, [autoCheckNonce, handleCheck]);
 
   const handleClose = (e?: MouseEvent) => {
     e?.stopPropagation();
@@ -262,48 +245,18 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
               <div style={{ height: 1, flex: 1, background: 'var(--accent-dim)' }} />
             </div>
 
-            <UpdateStatusLine status={status} t={t} language={language} />
+            <UpdateStatusLine status={status} t={t} />
 
             <div className="about-maintenance">
-              {status.state === 'available' ? (
-                <button type="button" className="btn btn-primary about-action-btn" onClick={handleDownload}>
-                  <Download size={14} />
-                  <span>{t.downloadBtn}</span>
-                </button>
-              ) : status.state === 'downloaded' ? (
-                <button type="button" className="btn btn-primary about-action-btn" onClick={handleInstall}>
-                  <CheckCircle2 size={14} />
-                  <span>{t.installBtn}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-ghost about-action-btn"
-                  onClick={handleCheck}
-                  disabled={status.state === 'checking' || status.state === 'downloading'}
-                >
-                  <RefreshCw size={14} className={status.state === 'checking' ? 'spin' : ''} />
-                  <span>{t.checkUpdates}</span>
-                </button>
-              )}
-
               <button
                 type="button"
-                className="about-auto-update"
-                role="switch"
-                aria-checked={autoUpdate === true}
-                aria-label={t.autoUpdates}
-                disabled={autoUpdate === null}
-                onClick={() => changeAutoUpdate(!autoUpdate)}
+                className="btn btn-ghost about-action-btn"
+                onClick={handleCheck}
+                disabled={status === 'checking'}
               >
-                <span aria-hidden="true" className={`custom-switch ${autoUpdate ? 'active' : ''}`} />
-                <span>{t.autoUpdates}</span>
+                <RefreshCw size={14} className={status === 'checking' ? 'spin' : ''} />
+                <span>{t.checkUpdates}</span>
               </button>
-              {(t as any).autoUpdatesHint && (
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, marginTop: 2, padding: '0 4px' }}>
-                  {(t as any).autoUpdatesHint}
-                </div>
-              )}
             </div>
           </div>
 
@@ -445,80 +398,22 @@ export default function AboutModal({ language, onClose, autoCheckNonce = 0 }: Pr
   );
 }
 
-function UpdateStatusLine({
-  status,
-  t,
-  language,
-}: {
-  status: UpdateStatus;
+function UpdateStatusLine({ status, t }: {
+  status: CheckStatus;
   t: (typeof TRANSLATIONS)['en']['about'];
-  language: Language;
 }) {
-  const [showDetails, setShowDetails] = useState(false);
-  if (status.state === 'idle') return null;
-  if (status.state === 'downloading') {
-    return (
-      <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
-        {t.statuses.downloading.replace('{percent}', String(status.percent))}
-      </div>
-    );
-  }
+  if (status === 'idle') return null;
 
-  const map: Record<string, { text: string; color: string }> = {
+  const messages = {
     checking: { text: t.statuses.checking, color: 'var(--text-secondary)' },
     'not-available': { text: t.statuses.latest, color: 'var(--success)' },
     available: { text: t.statuses.available, color: 'var(--accent)' },
-    downloaded: { text: t.statuses.downloaded, color: 'var(--success)' },
     error: { text: t.statuses.error, color: 'var(--text-secondary)' },
   };
-  const info = map[status.state];
-  if (!info) return null;
 
   return (
-    <div style={{ textAlign: 'center', fontSize: 12, color: info.color, marginBottom: 10 }}>
-      <div>{info.text}</div>
-      {status.state === 'error' && status.message && (
-        <div style={{ marginTop: 6 }}>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setShowDetails(prev => !prev)}
-            style={{
-              padding: '2px 8px',
-              fontSize: 10.5,
-              color: 'var(--text-muted)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              margin: '0 auto',
-            }}
-          >
-            {showDetails
-              ? (language === 'es' ? 'Ocultar detalles' : 'Hide details')
-              : (language === 'es' ? 'Detalles' : 'Details')}
-          </button>
-          {showDetails && (
-            <div
-              style={{
-                marginTop: 6,
-                padding: '6px 8px',
-                borderRadius: 6,
-                background: 'var(--inset-bg, rgba(0, 0, 0, 0.25))',
-                border: '1px solid var(--border)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'var(--text-muted)',
-                wordBreak: 'break-word',
-                maxHeight: 80,
-                overflowY: 'auto',
-                textAlign: 'left',
-              }}
-            >
-              {status.message}
-            </div>
-          )}
-        </div>
-      )}
+    <div role="status" style={{ textAlign: 'center', fontSize: 12, color: messages[status].color, marginBottom: 10 }}>
+      {messages[status].text}
     </div>
   );
 }

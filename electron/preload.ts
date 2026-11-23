@@ -185,9 +185,9 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   // -- Updates / About --
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   getUpdateStatus: () => ipcRenderer.invoke('update:get-status'),
-  downloadUpdate: () => ipcRenderer.invoke('update:download'),
-  installUpdate: () => ipcRenderer.invoke('update:install'),
-  cancelAutoInstall: () => ipcRenderer.invoke('update:cancelAutoInstall'),
+  downloadUpdate: (version: string) => ipcRenderer.invoke('update:download', version),
+  cancelUpdateDownload: (version: string) => ipcRenderer.invoke('update:cancel-download', version),
+  installUpdate: (version: string) => ipcRenderer.invoke('update:install', version),
   onUpdateStatus: (callback: (status: any) => void) => {
     const listener = (_e: any, status: any) => callback(status);
     ipcRenderer.on('update:status', listener);

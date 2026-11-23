@@ -1,14 +1,13 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Download, Rocket, X, RefreshCw, Sparkles, ExternalLink, SkipForward } from 'lucide-react';
+import { Rocket, X, RefreshCw, Sparkles, ExternalLink } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../languages';
-import type { UpdateStatus } from '../types';
+import type { PendingUpdate, UpdateStatus } from '../types';
 import Tooltip from './Tooltip';
-
-type Status = { state: 'idle' } | UpdateStatus;
 
 const SKIP_KEY = 'cybernotes_skipped_update_version';
 const PREVIEW_KEY = 'cybernotes_update_preview_enabled';
 const PREVIEW_VERSION = '0.0.0-preview';
+const PREVIEW_SIZE_BYTES = 92000000;
 const PREVIEW_NOTES: Record<Language, string> = {
   es: '- Vista previa del aviso de actualización.\n- Comprueba el botón, el diseño y los controles sin una actualización real.\n- Descargar y reiniciar solo simulan sus estados, sin modificar la app.',
   en: '- Update notice preview.\n- Check the button, layout and controls without a real update.\n- Download and restart only simulate their states without changing the app.',
@@ -146,32 +145,44 @@ export function parseChangelogPeek(markdown?: string, language: Language = 'en')
   };
 }
 
-export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 }: {
+export type UpdateNoticeRequest = { version?: string };
+
+export default function UpdaterBanner({ language, onNoticeChange, openRequest, beforeInstall }: {
   language: Language;
   onNoticeChange?: (version: string | null) => void;
-  openNonce?: number;
+  openRequest?: UpdateNoticeRequest | null;
+  beforeInstall?: () => Promise<boolean>;
 }) {
   const t = TRANSLATIONS[language].updater;
-  const [updateStatus, setStatus] = useState<Status>({ state: 'idle' });
-  const [updateDismissed, setUpdateDismissed] = useState(false);
-  const [updateReleaseNotes, setReleaseNotes] = useState<string | undefined>();
-  const [releaseUrl, setReleaseUrl] = useState<string>('');
+  const [updateStatus, setUpdateStatus] = useState<PendingUpdate | null>(null);
+  const [hiddenStage, setHiddenStage] = useState<string | null>(null);
+  const [manualVersion, setManualVersion] = useState<string | null>(null);
   const [autoCheckUpdates, setAutoCheckUpdates] = useState<boolean | null>(null);
   const [skippedVersion, setSkippedVersion] = useState(readSkippedVersion);
   const [previewEnabled, setPreviewEnabled] = useState(readPreviewEnabled);
   const previewEnabledRef = useRef(previewEnabled);
-  const [previewStatus, setPreviewStatus] = useState<Status>({ state: 'available', version: PREVIEW_VERSION });
-  const [previewDismissed, setPreviewDismissed] = useState(false);
-  const lastVersionRef = useRef('');
+  const [previewStatus, setPreviewStatus] = useState<PendingUpdate>({ state: 'available', version: PREVIEW_VERSION });
+  const [previewHiddenStage, setPreviewHiddenStage] = useState<string | null>(null);
+  const [preparingInstall, setPreparingInstall] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const focusRequest = useRef<UpdateNoticeRequest | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+
   const status = previewEnabled ? previewStatus : updateStatus;
-  const dismissed = previewEnabled ? previewDismissed : updateDismissed;
-  const releaseNotes = previewEnabled ? PREVIEW_NOTES[language] : updateReleaseNotes;
+  const currentVersion = status?.version ?? null;
+  const visibleVersion = previewEnabled || (currentVersion !== null && (
+    manualVersion === currentVersion || (autoCheckUpdates && skippedVersion !== currentVersion)
+  )) ? currentVersion : null;
+  const stage = status?.state === 'installing' ? 'downloaded' : status?.state;
+  const stageKey = visibleVersion && stage ? `${visibleVersion}:${stage}` : null;
+  const dismissed = stageKey === (previewEnabled ? previewHiddenStage : hiddenStage);
 
   const togglePreview = useCallback((enabled?: boolean) => {
     const next = enabled ?? !previewEnabledRef.current;
     previewEnabledRef.current = next;
     setPreviewEnabled(next);
-    setPreviewDismissed(false);
+    setPreviewHiddenStage(null);
     setPreviewStatus({ state: 'available', version: PREVIEW_VERSION });
     try {
       if (next) localStorage.setItem(PREVIEW_KEY, 'true');
@@ -191,23 +202,43 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
     };
   }, [togglePreview]);
 
-  const currentVersion = status.state === 'available' || status.state === 'downloaded' || status.state === 'installing' || status.state === 'downloading'
-    ? (status.version || '')
-    : '';
-
-  const noticeVersion = (previewEnabled || autoCheckUpdates) && currentVersion && (previewEnabled || skippedVersion !== currentVersion)
-    ? currentVersion : null;
+  useEffect(() => {
+    if (!previewEnabled || previewStatus.state !== 'downloading') return;
+    const timer = setInterval(() => {
+      setPreviewStatus(current => {
+        if (current.state !== 'downloading') return current;
+        const percent = current.percent + 20;
+        if (percent >= 100) return { version: current.version, state: 'downloaded' };
+        return { ...current, percent, transferred: PREVIEW_SIZE_BYTES * percent / 100 };
+      });
+    }, 400);
+    return () => clearInterval(timer);
+  }, [previewEnabled, previewStatus.state]);
 
   useEffect(() => {
-    onNoticeChange?.(noticeVersion);
-  }, [noticeVersion, onNoticeChange]);
+    onNoticeChange?.(visibleVersion);
+  }, [visibleVersion, onNoticeChange]);
 
   useEffect(() => {
-    if (openNonce > 0) {
-      if (previewEnabled) setPreviewDismissed(false);
-      else setUpdateDismissed(false);
+    if (!openRequest) return;
+    if (openRequest.version) {
+      setManualVersion(openRequest.version);
+      if (previewEnabledRef.current) togglePreview(false);
     }
-  }, [openNonce]);
+    focusRequest.current = openRequest;
+    setHiddenStage(null);
+    setPreviewHiddenStage(null);
+  }, [openRequest, togglePreview]);
+
+  useEffect(() => {
+    if (!cardRef.current || !focusRequest.current || dismissed) return;
+    if (focusRequest.current.version && focusRequest.current.version !== visibleVersion) return;
+    focusRequest.current = null;
+    if (document.activeElement instanceof HTMLElement && !cardRef.current.contains(document.activeElement)) {
+      returnFocus.current = document.activeElement;
+      cardRef.current.focus();
+    }
+  }, [openRequest, visibleVersion, dismissed]);
 
   useEffect(() => {
     let active = true;
@@ -219,490 +250,227 @@ export default function UpdaterBanner({ language, onNoticeChange, openNonce = 0 
     });
     void window.cyberNotesAPI.getSetting('auto_check_updates').then(value => {
       if (active && !receivedEvent) setAutoCheckUpdates(value !== 'false');
-    }).catch(() => {
-      // Keep the title-bar notice hidden until its setting can be confirmed.
-    });
+    }).catch(error => console.warn('[Updater] Could not read the update preference:', error));
     return () => { active = false; off(); };
   }, []);
 
   useEffect(() => {
     let active = true;
     let receivedEvent = false;
-
-    const applyStatus = (s: UpdateStatus) => {
-      let next: Status = s;
-      if (next.state === 'error') {
-        // Auto-check failures stay silent in the banner: the updater runs by
-        // itself and the About window reports errors on manual checks.
-        return;
-      }
-      if (next.state === 'available') {
-        if (readSkippedVersion() === next.version) return;
-        lastVersionRef.current = next.version;
-        setReleaseNotes(next.releaseNotes);
-        setReleaseUrl(next.releaseUrl || `https://github.com/${RELEASES_REPO}/releases/tag/v${next.version}`);
-      }
-      if (next.state === 'downloaded' || next.state === 'installing') {
-        lastVersionRef.current = next.version || lastVersionRef.current;
-      }
-      if (next.state === 'downloading') {
-        next = { ...next, version: next.version || lastVersionRef.current };
-      }
-      if (next.state === 'downloading' || next.state === 'downloaded' || next.state === 'installing' || next.state === 'available') {
-        setUpdateDismissed(false);
-      }
+    const applyStatus = (next: UpdateStatus) => {
       if (next.state === 'not-available') {
-        setStatus({ state: 'idle' });
-        return;
+        setUpdateStatus(null);
+        setManualVersion(null);
+        setHiddenStage(null);
+      } else {
+        setUpdateStatus(next);
+        setManualVersion(version => version === next.version ? version : null);
       }
-      setStatus(next);
     };
-
-    const off = window.cyberNotesAPI.onUpdateStatus((status) => {
+    const off = window.cyberNotesAPI.onUpdateStatus(next => {
       receivedEvent = true;
-      applyStatus(status);
+      applyStatus(next);
     });
-
-    void window.cyberNotesAPI.getUpdateStatus()
-      .then((status) => {
-        if (active && !receivedEvent && status) applyStatus(status);
-      })
-      .catch(() => { /* The event subscription remains available if the snapshot cannot be read. */ });
-
-    return () => {
-      active = false;
-      off();
-    };
+    void window.cyberNotesAPI.getUpdateStatus().then(snapshot => {
+      if (active && !receivedEvent && snapshot) applyStatus(snapshot);
+    }).catch(error => console.warn('[Updater] Could not read the update status:', error));
+    return () => { active = false; off(); };
   }, []);
 
   useEffect(() => {
-    if (previewEnabled || updateStatus.state !== 'available' || !updateStatus.version) return;
-    if (updateReleaseNotes) return;
-    let cancelled = false;
-    fetch(`https://api.github.com/repos/${RELEASES_REPO}/releases/tags/v${updateStatus.version}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        if (data?.body) setReleaseNotes(data.body);
-        if (data?.html_url) setReleaseUrl(data.html_url);
-      })
-      .catch(() => { /* ignore */ });
-    return () => { cancelled = true; };
-  }, [previewEnabled, updateStatus, updateReleaseNotes]);
+    if (!status) return;
+    setActionError(null);
+  }, [status?.state, currentVersion]);
 
-  const dismiss = useCallback(() => {
-    if (previewEnabled) setPreviewDismissed(true);
-    else setUpdateDismissed(true);
-  }, [previewEnabled]);
-
-  // Sin reinicio automático: tras descargar, el usuario decide con
-  // Reiniciar ahora o Más tarde. Nada se descarga ni instala sin su clic.
-  const handleLater = useCallback(() => {
-    dismiss();
-    if (!previewEnabled) window.cyberNotesAPI.cancelAutoInstall?.();
-  }, [dismiss, previewEnabled]);
-
-  const handleNow = useCallback(() => {
-    if (previewEnabled) { togglePreview(false); return; }
-    window.cyberNotesAPI.installUpdate();
-  }, [previewEnabled, togglePreview]);
-
-  const handleDismiss = useCallback(() => {
-    dismiss();
-    if (!previewEnabled && status.state === 'downloaded') {
-      window.cyberNotesAPI.cancelAutoInstall?.();
-    }
-  }, [dismiss, previewEnabled, status.state]);
-
-  const handleSkip = useCallback((version: string) => {
-    if (previewEnabled) { togglePreview(false); return; }
-    try {
-      localStorage.setItem(SKIP_KEY, version);
-    } catch { /* ignore */ }
-    setSkippedVersion(version);
-    setUpdateDismissed(true);
-    window.cyberNotesAPI.cancelAutoInstall?.();
-  }, [previewEnabled, togglePreview]);
-
-  const handleDownload = useCallback(() => {
-    if (previewEnabled) {
-      setPreviewStatus({ state: 'downloaded', version: PREVIEW_VERSION });
-      return;
-    }
-    try {
-      localStorage.removeItem(SKIP_KEY);
-    } catch { /* ignore */ }
-    setSkippedVersion(null);
-    const version = currentVersion;
-    setStatus({ state: 'downloading', percent: 0, version });
-    void window.cyberNotesAPI.downloadUpdate();
-  }, [currentVersion, previewEnabled]);
-
+  const releaseNotes = previewEnabled ? PREVIEW_NOTES[language] : status?.releaseNotes;
   const { items: peekItems, totalCount } = useMemo(
     () => parseChangelogPeek(releaseNotes, language),
     [releaseNotes, language],
   );
-  const remainingCount = Math.max(0, totalCount - peekItems.length);
 
-  if (dismissed) return null;
+  if (!status || !stageKey || dismissed) return null;
 
-  const showCard = status.state === 'available'
-    || status.state === 'downloading'
-    || status.state === 'downloaded'
-    || status.state === 'installing';
+  const { version } = status;
+  const githubUrl = status.releaseUrl || `https://github.com/${RELEASES_REPO}/releases/tag/v${version}`;
+  const title = {
+    available: t.available,
+    downloading: status.state === 'downloading' && status.cancelling ? t.cancelling : t.downloading,
+    downloaded: t.downloaded,
+    installing: t.installing,
+  }[status.state];
+  const downloading = status.state === 'downloading';
+  const installing = status.state === 'installing' || preparingInstall;
+  const failure = (status.state === 'available' && status.downloadFailed && t.downloadFailed)
+    || (status.state === 'downloaded' && status.installError === 'unsaved' && t.unsaved)
+    || (status.state === 'downloaded' && status.installError === 'failed' && t.installFailed);
 
-  if (!showCard) return null;
+  const dismiss = () => {
+    if (previewEnabled) setPreviewHiddenStage(stageKey);
+    else setHiddenStage(stageKey);
+    returnFocus.current?.focus();
+    returnFocus.current = null;
+  };
 
-  const title = status.state === 'available'
-    ? t.available
-    : status.state === 'downloading'
-      ? t.downloading.replace(' {percent}%', '').replace('{percent}%', '')
-      : status.state === 'downloaded'
-        ? t.downloaded.replace('{version}', status.version)
-        : status.state === 'installing'
-          ? t.installing
-          : '';
+  const runAction = async (action: () => Promise<void>, errorMessage: string) => {
+    setActionError(null);
+    try {
+      await action();
+    } catch (error) {
+      console.error('[Updater] Could not complete the requested action:', error);
+      setActionError(errorMessage);
+    }
+  };
 
-  const cardUrl = releaseUrl || (currentVersion
-    ? `https://github.com/${RELEASES_REPO}/releases/tag/v${currentVersion}`
-    : `https://github.com/${RELEASES_REPO}/releases`);
+  const skip = () => {
+    if (previewEnabled) {
+      togglePreview(false);
+    } else {
+      dismiss();
+      try { localStorage.setItem(SKIP_KEY, version); }
+      catch (error) { console.warn('[Updater] Could not persist the skipped version:', error); }
+      setSkippedVersion(version);
+      setManualVersion(null);
+    }
+  };
+
+  const download = () => {
+    if (previewEnabled) {
+      setPreviewStatus({ state: 'downloading', version, percent: 0, transferred: 0, total: PREVIEW_SIZE_BYTES });
+      return;
+    }
+    if (skippedVersion === version) {
+      try { localStorage.removeItem(SKIP_KEY); }
+      catch (error) { console.warn('[Updater] Could not clear the skipped version:', error); }
+      setSkippedVersion(null);
+    }
+    setManualVersion(version);
+    void runAction(() => window.cyberNotesAPI.downloadUpdate(version), t.downloadFailed);
+  };
+
+  const cancel = () => {
+    if (previewEnabled) {
+      setPreviewStatus({ state: 'available', version });
+      return;
+    }
+    void runAction(() => window.cyberNotesAPI.cancelUpdateDownload(version), t.cancelFailed);
+  };
+
+  const install = async () => {
+    if (previewEnabled) {
+      togglePreview(false);
+      return;
+    }
+    setPreparingInstall(true);
+    try {
+      await runAction(async () => {
+        if (beforeInstall && !await beforeInstall()) {
+          setActionError(t.saveFailed);
+          return;
+        }
+        await window.cyberNotesAPI.installUpdate(version);
+      }, t.installFailed);
+    } finally {
+      setPreparingInstall(false);
+    }
+  };
+
+  const remainingCount = totalCount - peekItems.length;
+  const formatSize = (bytes: number) => new Intl.NumberFormat(language, {
+    style: 'unit', unit: 'megabyte', maximumFractionDigits: 1,
+  }).format(bytes / 1000000);
 
   return (
     <div
+      className="update-notice"
+      ref={cardRef}
+      tabIndex={-1}
       role="dialog"
-      aria-label={t.available}
+      aria-labelledby="update-notice-title"
       data-update-preview={previewEnabled || undefined}
-      style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        // Sobre los modales de la app (20000) para seguir visible y clicable
-        // cuando se consulta desde Acerca de; bajo menús y confirmaciones.
-        zIndex: 25000,
-        width: 390,
-        maxWidth: 'calc(100vw - 48px)',
-        background: 'linear-gradient(145deg, var(--bg-modal), var(--bg-surface))',
-        border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
-        boxShadow: 'var(--shadow-elevated, 0 14px 36px rgba(0, 0, 0, 0.55), 0 0 16px var(--accent-glow))',
-        borderRadius: 12,
-        padding: '14px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        backdropFilter: 'blur(12px)',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
+      onKeyDown={event => {
+        if (event.key === 'Escape' && !installing) {
+          event.preventDefault();
+          event.stopPropagation();
+          dismiss();
+        }
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              background: status.state === 'downloaded'
-                ? 'rgba(34,197,94,0.14)'
-                : 'color-mix(in srgb, var(--accent) 15%, transparent)',
-              border: status.state === 'downloaded'
-                ? '1px solid rgba(34,197,94,0.35)'
-                : '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: status.state === 'downloaded' ? 'var(--success)' : 'var(--accent)',
-              flexShrink: 0,
-            }}
+      <div className="update-notice-header">
+        <span className="update-notice-icon" aria-hidden="true">
+          {downloading || installing ? <RefreshCw size={16} className="spin" />
+            : status.state === 'downloaded' ? <Rocket size={16} /> : <Sparkles size={16} />}
+        </span>
+        <h2 id="update-notice-title">{title} <span>v{version}</span></h2>
+        <Tooltip label={downloading ? t.background : t.dismiss} placement="top">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={dismiss}
+            disabled={installing}
+            aria-label={downloading ? t.background : t.dismiss}
           >
-            {status.state === 'downloading' || status.state === 'installing'
-              ? <RefreshCw size={15} className="spin" />
-              : status.state === 'downloaded'
-                ? <Rocket size={15} />
-                : <Sparkles size={15} />}
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
-                {title}
-              </span>
-              {currentVersion && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--accent)',
-                    background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                    padding: '1px 6px',
-                    borderRadius: 4,
-                    lineHeight: '16px',
-                  }}
-                >
-                  v{currentVersion}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <Tooltip label={t.dismiss} placement="top">
-        <button
-          type="button"
-          className="btn-icon"
-          style={{ width: 24, height: 24, borderRadius: 6 }}
-          onClick={handleDismiss}
-          aria-label={t.dismiss}
-        >
-          <X size={13} />
-        </button>
+            <X size={15} />
+          </button>
         </Tooltip>
       </div>
 
-      {(status.state === 'available' || status.state === 'downloading') && (
-        <div className="update-release-notes"
-          style={{
-            background: 'var(--update-notes-bg, color-mix(in srgb, var(--bg-surface) 80%, black))',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '9px 12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 5,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.6px',
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)',
-            }}
-          >
-            {t.whatsNew}
-          </div>
-
-          {peekItems.length > 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-                maxHeight: 125,
-                overflowY: 'auto',
-              }}
-            >
-              {peekItems.map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 6,
-                    fontSize: 11.5,
-                    color: 'var(--text-secondary)',
-                    lineHeight: 1.4,
-                  }}
-                >
-                  <span
-                    style={{
-                      color: 'var(--accent)',
-                      fontSize: 10,
-                      lineHeight: '17px',
-                      userSelect: 'none',
-                    }}
-                  >
-                    •
-                  </span>
-                  <span style={{ wordBreak: 'break-word' }}>{item}</span>
-                </div>
-              ))}
-
-              {remainingCount > 0 && (
-                <div
-                  style={{
-                    fontSize: 10.5,
-                    color: 'var(--text-muted)',
-                    fontStyle: 'italic',
-                    marginTop: 2,
-                  }}
-                >
-                  {t.moreInFullNotes.replace('{count}', String(remainingCount))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              {TRANSLATIONS[language].about.releasesTooltip}
-            </div>
-          )}
-        </div>
-      )}
-
-      {status.state === 'downloading' && (
-        <div style={{ padding: '2px 0 0' }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 11,
-              marginBottom: 6,
-            }}
-          >
-            <span style={{ color: 'var(--text-muted)' }}>{t.downloadBtn}...</span>
-            <span style={{ fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-              {status.percent}%
-            </span>
-          </div>
-          <div
-            style={{
-              width: '100%',
-              height: 5,
-              background: 'rgba(255, 255, 255, 0.08)',
-              borderRadius: 999,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                width: `${Math.max(2, Math.min(100, status.percent))}%`,
-                background: 'linear-gradient(90deg, var(--accent), var(--accent-light))',
-                borderRadius: 999,
-                transition: 'width 0.2s ease-out',
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {status.state === 'downloaded' && (
-        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500 }}>
-          {t.restartAndApply}
-        </div>
-      )}
-
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginTop: 2,
-          gap: 6,
-        }}
-      >
-        {status.state === 'available' ? (
+      <section className="update-release-notes" aria-label={t.whatsNew}>
+        <h3>{t.whatsNew}</h3>
+        {peekItems.length > 0 ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{
-                  padding: '3px 8px',
-                  fontSize: 11,
-                  height: 26,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-                onClick={() => { if (!previewEnabled) void window.cyberNotesAPI.openExternal(cardUrl); }}
-              >
-                <ExternalLink size={12} />
-                <span>{t.viewRelease}</span>
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{
-                  padding: '3px 8px',
-                  fontSize: 11,
-                  height: 26,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  color: 'var(--text-muted)',
-                }}
-                onClick={() => handleSkip(currentVersion)}
-              >
-                <SkipForward size={12} />
-                <span>{t.skipUpdate}</span>
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{
-                padding: '4px 12px',
-                fontSize: 11,
-                height: 26,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                fontWeight: 600,
-                flexShrink: 0,
-              }}
-              onClick={handleDownload}
-            >
-              <Download size={13} />
-              <span>{t.downloadBtn}</span>
-            </button>
+            <ul>{peekItems.map((item, index) => <li key={index}>{item}</li>)}</ul>
+            {remainingCount > 0 && (
+              <p>{t.moreInFullNotes.replace('{count}', String(remainingCount))}</p>
+            )}
           </>
-        ) : status.state === 'downloading' ? (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ padding: '3px 8px', fontSize: 11, height: 24 }}
-              onClick={handleDismiss}
-            >
-              {t.dismiss}
-            </button>
+        ) : <p>{status.notesLoading ? t.notesLoading : t.notesUnavailable}</p>}
+      </section>
+
+      {downloading && (
+        <div className="update-notice-progress">
+          <div>
+            <span id="update-progress-label">{t.progress}</span>
+            <span>{status.transferred !== undefined && status.total
+              ? `${formatSize(status.transferred)} / ${formatSize(status.total)}`
+              : `${status.percent}%`}</span>
           </div>
-        ) : status.state === 'downloaded' ? (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', gap: 6 }}>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ padding: '3px 8px', fontSize: 11, height: 26 }}
-              onClick={handleLater}
-            >
-              {t.later}
+          <progress max={100} value={status.percent} aria-labelledby="update-progress-label" />
+        </div>
+      )}
+
+      {(actionError || failure) && <p className="update-notice-error" role="alert">{actionError || failure}</p>}
+
+      <div className="update-notice-actions">
+        {status.state === 'available' && (
+          <>
+            <button type="button" className="btn btn-ghost" onClick={() => {
+              if (!previewEnabled) void runAction(async () => {
+                if (!await window.cyberNotesAPI.openExternal(githubUrl)) {
+                  setActionError(t.openFailed);
+                }
+              }, t.openFailed);
+            }}>
+              <ExternalLink size={13} aria-hidden="true" />
+              {t.viewRelease}
             </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{
-                padding: '4px 12px',
-                fontSize: 11,
-                height: 26,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                fontWeight: 600,
-              }}
-              onClick={handleNow}
-            >
-              <RefreshCw size={13} />
-              <span>{t.restartNow}</span>
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ padding: '3px 8px', fontSize: 11, height: 24 }}
-              onClick={handleDismiss}
-            >
-              {t.dismiss}
-            </button>
-          </div>
+            <button type="button" className="btn btn-ghost" onClick={skip}>{t.skipUpdate}</button>
+            <button type="button" className="btn btn-ghost" onClick={dismiss}>{t.later}</button>
+            <button type="button" className="btn btn-primary" onClick={download}>{t.updateNow}</button>
+          </>
+        )}
+        {downloading && (
+          <>
+            <button type="button" className="btn btn-ghost" onClick={dismiss}>{t.background}</button>
+            <button type="button" className="btn btn-ghost" onClick={cancel} disabled={status.cancelling}>{t.cancelDownload}</button>
+          </>
+        )}
+        {status.state === 'downloaded' && (
+          <>
+            <button type="button" className="btn btn-ghost" onClick={dismiss} disabled={preparingInstall}>{t.later}</button>
+            <button type="button" className="btn btn-primary" onClick={install} disabled={preparingInstall}>{t.restartNow}</button>
+          </>
         )}
       </div>
     </div>
   );
 }
-
