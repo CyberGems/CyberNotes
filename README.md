@@ -372,6 +372,8 @@ For the complete shortcuts reference including cursor navigation, line jumps, an
 
 CyberNotes is distributed under the terms of the GNU General Public License v3.0. See [LICENSE](LICENSE) for the full license text.
 
+This project uses AI coding assistants. See [AI disclosure](AI-DISCLOSURE.md).
+
 Copyright (C) 2026 CyberGems
 
 ---
