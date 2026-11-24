@@ -20,6 +20,7 @@ import { Language, TRANSLATIONS } from '../languages';
 import { applyThemeVars } from '../themes';
 import { applyEditorFont, DEFAULT_EDITOR_FONT, type EditorFontId } from '../fonts';
 import { extractPreview, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
+import { setWindowTitle } from '../utils/windowTitle';
 import { getInitialSelection } from '../utils/editorContent';
 import { ImageCaret } from '../utils/imageCaret';
 import { CustomTextStyle, WordFontFamilySelect, WordFontSizeSelect, VideoEmbed } from './NoteEditor';
@@ -321,6 +322,11 @@ export default function StickyNoteApp({ noteId }: Props) {
   const [isSessionLocked, setIsSessionLocked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    setWindowTitle(title || note?.title || null, saveStatus !== 'saved');
+  }, [title, note?.title, saveStatus]);
+
   // Menú contextual del título: mismo que el de las notas (sugerencias de
   // ortografía + edición). El main reenvía `context-menu-data` también a las
   // flotantes; aquí solo se atiende si el clic nació en el input.

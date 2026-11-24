@@ -16,6 +16,7 @@ import { Download, Power, X } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
 import { toNoteMeta, extractThumb, clampNoteTitle, NOTE_TITLE_MAX_LENGTH } from '../utils/notes';
+import { setWindowTitle } from '../utils/windowTitle';
 import { tabSwitchStart, tabSwitchResolve } from '../utils/tabPerf';
 import UpdaterBanner, { type UpdateNoticeRequest } from './UpdaterBanner';
 import { FILTER_COLORS } from './FolderIcon';
@@ -307,6 +308,11 @@ export default function MainApp({
   openStickyIdsRef.current = openStickyIds;
   draftCacheRef.current = draftCache;
   openedHistoryRef.current = openedHistory;
+
+  useEffect(() => {
+    const draft = selectedNoteId ? draftCache[selectedNoteId] : undefined;
+    setWindowTitle(draft?.title || selectedNote?.title || null, !!draft);
+  }, [selectedNoteId, selectedNote?.title, draftCache]);
 
   const registerEditorExportActions = useCallback((actions: NoteExportActions | null) => {
     editorExportActionsRef.current = actions;
