@@ -36,14 +36,14 @@ function scalar(content, key) {
 export function loadManifests(directory) {
   const names = readdirSync(directory).sort();
   if (names.join('|') !== [...manifestNames].sort().join('|')) {
-    throw new Error('Expected exactly the three CyberSnap release manifests.');
+    throw new Error('Expected exactly the three CyberNotes release manifests.');
   }
   const files = manifestNames.map(name => ({ name, content: readFileSync(join(directory, name), 'utf8') }));
   const version = scalar(files[0].content, 'PackageVersion');
   compareVersions(version, version);
   for (const file of files) {
     if (scalar(file.content, 'PackageIdentifier') !== packageId || scalar(file.content, 'PackageVersion') !== version) {
-      throw new Error('All release manifests must describe the same CyberSnap version.');
+      throw new Error('All release manifests must describe the same CyberNotes version.');
     }
   }
   return { version, files };
@@ -137,10 +137,10 @@ export function submitWinget({ api, manifests, author, closeSuperseded = true, m
   const user = api('GET', 'user');
   const pending = openSubmissions(api, user.login);
   if (pending.some(pr => compareVersions(pr.version, manifests.version) > 0)) {
-    return { skipped: true, reason: 'A newer CyberSnap version is already pending.' };
+    return { skipped: true, reason: 'A newer CyberNotes version is already pending.' };
   }
   if (optional(api, `repos/${upstream}/contents/${packageRoot}${manifests.version}?ref=master`)) {
-    return { skipped: true, reason: 'This CyberSnap version is already in winget.' };
+    return { skipped: true, reason: 'This CyberNotes version is already in winget.' };
   }
   // The Validation-Completed label is what puts a submission in the moderator queue, and any
   // new commit removes it and restarts that review. winget-pkgs currently needs weeks for a
@@ -168,7 +168,7 @@ export function submitWinget({ api, manifests, author, closeSuperseded = true, m
   let sha = parent;
   if (tree.sha !== previous.tree.sha) {
     sha = api('POST', `repos/${fork}/git/commits`, {
-      message: `Update CyberSnap winget submission to version ${manifests.version}`,
+      message: `Update CyberNotes winget submission to version ${manifests.version}`,
       tree: tree.sha, parents: [parent],
       author: author ?? { name: user.name || user.login, email: `${user.id}+${user.login}@users.noreply.github.com` },
     }).sha;

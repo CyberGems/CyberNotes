@@ -104,7 +104,7 @@ test('keeps the oldest PR, replaces its version and closes later submissions onl
   assert.ok(verification > refUpdate && firstClose > verification);
 });
 
-test('creates a new PR only when no CyberSnap submission remains open', () => {
+test('creates a new PR only when no CyberNotes submission remains open', () => {
   const { state, run } = fixture();
   const result = run({ author: { name: 'Configured user', email: 'configured@example.test' } });
   assert.equal(result.number, 500);
@@ -221,7 +221,7 @@ test('a pending PR without the moderator label is still updated', () => {
   assert.deepEqual(state.prs.get(1).files, files('1.21.0'));
 });
 
-test('pagination and unrelated packages do not hide or change the pending CyberSnap PR', () => {
+test('pagination and unrelated packages do not hide or change the pending CyberNotes PR', () => {
   const other = pull(9, '1.21.0');
   other.title = 'CyberGems.CyberFeeds version 1.0.0'; other.head.ref = 'CyberGems.CyberFeeds-1.0.0';
   other.body = 'Adds CyberFeeds.';
@@ -232,7 +232,7 @@ test('pagination and unrelated packages do not hide or change the pending CyberS
   assert.equal(state.prs.get(9).head.sha, 'head-9');
 });
 
-test('a similarly named package is never treated as CyberSnap', () => {
+test('a similarly named package is never treated as CyberNotes', () => {
   const other = pull(9, '1.21.0');
   other.title = 'CyberGems.CyberNotesBeta version 1.0.0';
   other.head.ref = 'CyberGems.CyberNotesBeta-1.0.0';
@@ -324,13 +324,13 @@ test('compares numeric versions and rejects unsafe path components', () => {
   assert.throws(() => compareVersions('../1.21.0', '1.21.0'), /Unsupported/);
 });
 
-test('only accepts the complete set of manifests for one CyberSnap version', () => {
+test('only accepts the complete set of manifests for one CyberNotes version', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cybernotes-winget-test-'));
   try {
     for (const file of manifests('1.21.0').files) writeFileSync(join(directory, file.name), file.content);
     assert.equal(loadManifests(directory).version, '1.21.0');
     writeFileSync(join(directory, names[0]), 'PackageIdentifier: Other.App\nPackageVersion: 1.21.0\n');
-    assert.throws(() => loadManifests(directory), /same CyberSnap version/);
+    assert.throws(() => loadManifests(directory), /same CyberNotes version/);
     writeFileSync(join(directory, 'extra.yaml'), 'unexpected');
     assert.throws(() => loadManifests(directory), /exactly the three/);
   } finally {
