@@ -11,8 +11,8 @@ const sourceRepository = 'CyberGems/CyberNotes';
 const manifestNames = [
   `${packageId}.installer.yaml`, `${packageId}.locale.en-US.yaml`, `${packageId}.yaml`,
 ];
-const startMarker = '<!-- cybersnap-winget:start -->';
-const endMarker = '<!-- cybersnap-winget:end -->';
+const startMarker = '<!-- cybernotes-winget:start -->';
+const endMarker = '<!-- cybernotes-winget:end -->';
 const packageMention = /(?:^|[^A-Za-z0-9_.])CyberGems\.CyberNotes(?=$|[^A-Za-z0-9_.])/;
 
 export function compareVersions(left, right) {
