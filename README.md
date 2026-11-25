@@ -25,7 +25,7 @@
 
 <div align="center">
 
-### A rich, private place for your notes, folders and ideas, with everything stored on your PC
+### Catch ideas and keep rich, private notes on your PC, with folders, tabs and floating notes.
 
 </div>
 

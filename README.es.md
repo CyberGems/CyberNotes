@@ -25,7 +25,7 @@
 
 <div align="center">
 
-### Un lugar rico y privado para tus notas, carpetas e ideas, con todo guardado en tu PC
+### Captura ideas y guarda notas ricas y privadas en tu PC, con carpetas, pestañas y notas flotantes.
 
 </div>
 
