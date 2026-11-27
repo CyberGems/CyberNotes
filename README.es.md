@@ -69,12 +69,12 @@ La mayoría de las apps de notas piden una cuenta, una suscripción o tus datos 
 
 ---
 
-<!-- Capturas: pendiente de la galería bilingüe ES/EN del plan en https://github.com/CyberGems/CyberGems.github.io/blob/main/docs/screenshots.md — sustituir la cita, conservar este título y su entrada en el índice. -->
-
 ## 🖼️ Capturas
 
-> Próximamente...
-
+<p align="center">
+  <img src="./docs/screenshots/main-es.png" alt="Ventana principal de CyberNotes con carpetas de colores, lista de notas, pestañas abiertas y editor enriquecido" />
+</p>
+<p align="center"><em>Espacio de tres columnas con carpetas de colores, favoritas, pestañas, bloques de código, números de línea y minimapa.</em></p>
 ---
 
 ## 🔒 ¿Por qué CyberNotes?

@@ -69,12 +69,12 @@ Most note apps want an account, a subscription, or your data on their servers. C
 
 ---
 
-<!-- Screenshots: pending the bilingual EN/ES gallery in the capture plan at https://github.com/CyberGems/CyberGems.github.io/blob/main/docs/screenshots.md — replace the blockquote, keep this heading and the TOC entry. -->
-
 ## 🖼️ Screenshots
 
-> Coming soon...
-
+<p align="center">
+  <img src="./docs/screenshots/main-en.png" alt="CyberNotes main window with colorful folders, note list, open tabs and formatted editor" />
+</p>
+<p align="center"><em>Three-column workspace with colorful folders, favorites, tabs, code blocks, line numbers and minimap.</em></p>
 ---
 
 ## 🔒 Why CyberNotes?
