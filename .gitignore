@@ -21,3 +21,6 @@ dist/
 dist-ssr
 dist-electron/
 release/
+
+# Local environment
+*.local
