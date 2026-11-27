@@ -77,9 +77,9 @@ Most note apps want an account, a subscription, or your data on their servers. C
 <p align="center"><em>Three-column workspace with colorful folders, favorites, tabs, code blocks, line numbers and minimap.</em></p>
 
 <p align="center">
-  <img src="./docs/screenshots/floating-note-en.png" alt="Floating always-on-top sticky note in neon cyan pinned above the CyberNotes editor" />
+  <img src="./docs/screenshots/floating-note-en.png" alt="Four CyberNotes floating sticky notes in neon cyan, cyber yellow, midnight purple and matrix green above a blurred workspace" />
 </p>
-<p align="center"><em>Always-on-top floating sticky notes keep checklists and references visible above any window.</em></p>
+<p align="center"><em>Always-on-top floating sticky notes in customizable colors keep checklists, shortcuts, code snippets and quotes visible above any window.</em></p>
 ---
 
 ## 🔒 Why CyberNotes?

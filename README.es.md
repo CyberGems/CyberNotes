@@ -77,9 +77,9 @@ La mayoría de las apps de notas piden una cuenta, una suscripción o tus datos 
 <p align="center"><em>Espacio de tres columnas con carpetas de colores, favoritas, pestañas, bloques de código, números de línea y minimapa.</em></p>
 
 <p align="center">
-  <img src="./docs/screenshots/floating-note-es.png" alt="Nota flotante siempre visible en cian neón sobre el editor de CyberNotes" />
+  <img src="./docs/screenshots/floating-note-es.png" alt="Cuatro notas flotantes de CyberNotes en cian neón, amarillo cyber, púrpura medianoche y verde matrix sobre el espacio difuminado" />
 </p>
-<p align="center"><em>Las notas flotantes siempre visibles mantienen listas y referencias a la vista sobre cualquier ventana.</em></p>
+<p align="center"><em>Las notas flotantes siempre visibles en colores personalizables mantienen listas, atajos, fragmentos de código y citas a la vista sobre cualquier ventana.</em></p>
 ---
 
 ## 🔒 ¿Por qué CyberNotes?
