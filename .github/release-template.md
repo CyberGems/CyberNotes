@@ -79,6 +79,8 @@ Actualiza Electron a 42.11.18 para eliminar la barra de título blanca en la ban
 {{PORTABLE_HASH}}
 ```
 
+The checksums are also available as a downloadable [SHA256SUMS.txt](https://github.com/CyberGems/CyberNotes/releases/download/{{VERSION}}/SHA256SUMS.txt).
+
 ---
 
 📜 **Full changelog:** browse every version in [CHANGELOG.md](https://github.com/CyberGems/CyberNotes/blob/main/CHANGELOG.md).
