@@ -586,6 +586,8 @@ export default function TitleBar({
   ];
 
   const helpRows: MoreMenuEntry[] = [
+    { id: 'github-star', icon: <Star size={13} style={{ opacity: 0.7 }} />, label: t('Dar una estrella en GitHub', 'Star on GitHub'), run: () => { setMenuOpen(false); void window.cyberNotesAPI.starRepository().catch(console.error); } },
+    { id: 'github-star-divider', divider: true },
     { id: 'docs', icon: <BookOpen size={13} style={{ opacity: 0.7 }} />, label: t('Documentación online', 'Online documentation'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki'); } },
     { id: 'faq', icon: <HelpCircle size={13} style={{ opacity: 0.7 }} />, label: t('Preguntas frecuentes', 'Frequently Asked Questions'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/wiki/FAQ'); } },
     { id: 'changelog', icon: <Tag size={13} style={{ opacity: 0.7 }} />, label: t('Historial de cambios', 'Changelog'), run: () => { setMenuOpen(false); window.cyberNotesAPI.openExternal('https://github.com/CyberGems/CyberNotes/releases'); } },

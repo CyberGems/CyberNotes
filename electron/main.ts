@@ -1,4 +1,6 @@
+import { createGitHubStarAction } from './github-star';
 import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, session, screen, clipboard, nativeImage, net, globalShortcut } from 'electron';
+
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -20,6 +22,9 @@ import { DEFAULT_HIDDEN_TOOLBAR_IDS } from '../shared/toolbarDefaults';
 import { fitWindowToWorkArea, isVisiblyMaximized, needsPlacementCorrection } from './windowState';
 import { isOnboardingTestProfile } from './testProfile';
 import { TEST_PROFILE_CLEANUP_SCRIPT } from './testProfileCleanup';
+
+const starRepository = createGitHubStarAction(() => shell.openExternal('https://github.com/CyberGems/CyberNotes'));
+ipcMain.handle('github:star', () => starRepository());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -2185,6 +2190,9 @@ ipcMain.on('tray-menu-action', (_event, action) => {
     case 'help-pin':
       restoreWindow();
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-tray-pin');
+      break;
+    case 'help-star':
+      void starRepository().catch(console.error);
       break;
     case 'help-docs':
       shell.openExternal('https://github.com/CyberGems/CyberNotes/wiki');

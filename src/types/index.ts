@@ -204,6 +204,7 @@ declare global {
       }>;
       getUserName: () => Promise<string | null>;
       openExternal: (url: string) => Promise<boolean>;
+      starRepository: () => Promise<'starred' | 'opened'>;
       // Assets
       selectAndSaveImage: () => Promise<string | null>;
       saveImageBinary: (data: ArrayBuffer | Uint8Array, mime: string) => Promise<string | null>;

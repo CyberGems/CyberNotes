@@ -1,6 +1,8 @@
 'use strict';
 
 const ICONS = {
+  star: '<svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/></svg>',
+
   window: '<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="8"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="6" y1="4" x2="6" y2="8"/></svg>',
   settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   about: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
@@ -48,6 +50,7 @@ const flyoutTriggers = new Map();
 const FALLBACKS = {
   es: {
     help: 'Ayuda',
+    star: 'Dar una estrella en GitHub',
     newSticky: 'Nueva nota flotante',
     pin: 'Mantener visible en la bandeja del sistema',
     setPassword: 'Configurar contraseña...',
@@ -63,6 +66,7 @@ const FALLBACKS = {
   },
   en: {
     help: 'Help',
+    star: 'Star on GitHub',
     newSticky: 'New floating note',
     pin: 'Keep visible in the system tray',
     setPassword: 'Set password...',
@@ -334,6 +338,8 @@ function renderHelpFlyout() {
   const group = document.createElement('div');
   group.className = 'group';
   group.append(
+    makeItem({ action: 'help-star', icon: 'star', label: t('star'), inFlyout: true }),
+    makeSeparator(),
     makeItem({ action: 'help-pin', icon: 'pin', label: help.pinLabel || t('pin'), inFlyout: true }),
     makeItem({ action: 'help-set-password', icon: 'key', label: help.setPasswordLabel || t('setPassword'), inFlyout: true }),
     makeSeparator(),

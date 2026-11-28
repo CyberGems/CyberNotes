@@ -196,6 +196,7 @@ contextBridge.exposeInMainWorld('cyberNotesAPI', {
   getVersions: () => ipcRenderer.invoke('app:getVersions'),
   getUserName: () => ipcRenderer.invoke('app:getUserName'),
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  starRepository: () => ipcRenderer.invoke('github:star'),
 
   // -- Sticky Notes --
   openStickyNote: (noteId: string) => ipcRenderer.invoke('sticky:open', noteId),
